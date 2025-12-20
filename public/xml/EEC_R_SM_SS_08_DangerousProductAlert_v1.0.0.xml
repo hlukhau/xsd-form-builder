@@ -1,0 +1,107 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<doc:DangerousProductAlertDetails xmlns:ccdo="urn:EEC:M:ComplexDataObjects:v0.4.12"
+ xmlns:csdo="urn:EEC:M:SimpleDataObjects:v0.4.12"
+ xmlns:bdt="urn:EEC:M:BaseDataTypes:v0.4.12"
+ xmlns:smcdo="urn:EEC:M:SM:ComplexDataObjects:v0.3.9"
+ xmlns:smsdo="urn:EEC:M:SM:SimpleDataObjects:v0.3.9"
+ xmlns:doc="urn:EEC:R:SM:SS:08:DangerousProductAlert:v1.0.0"
+ xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+ xsi:schemaLocation="urn:EEC:R:SM:SS:08:DangerousProductAlert:v1.0.0 EEC_R_SM_SS_08_DangerousProductAlert_v1.0.0.xsd">
+    <ccdo:EDocHeader>
+        <csdo:InfEnvelopeCode>P.SS.08.MSG.017</csdo:InfEnvelopeCode>
+        <csdo:EDocCode>R.SM.SS.08.002</csdo:EDocCode>
+        <csdo:EDocId>1cd782a2-bdbc-414b-a0f7-a6dd9b5b0713</csdo:EDocId>
+        <csdo:EDocDateTime>2022-09-01T18:13:51.0</csdo:EDocDateTime>
+        <csdo:LanguageCode>ru</csdo:LanguageCode>
+    </ccdo:EDocHeader>
+    <smcdo:DangerousProductAlertDetails>
+        <csdo:UnifiedCountryCode codeListId="2021">RU</csdo:UnifiedCountryCode>
+        <smsdo:IncidentId>RU-43253-22</smsdo:IncidentId>
+        <smsdo:IncidentKindCode>7</smsdo:IncidentKindCode>
+        <csdo:DocCreationDate>2022-09-01</csdo:DocCreationDate>
+        <ccdo:UnifiedAuthorityDetails>
+            <csdo:UnifiedCountryCode codeListId="2021">RU</csdo:UnifiedCountryCode>
+            <csdo:AuthorityName>Управление Федеральной службы по надзору в сфере защиты прав потребителей и благополучия человека по Псковской области</csdo:AuthorityName>
+        </ccdo:UnifiedAuthorityDetails>
+        <smcdo:NonCompliantSanitaryProductDetails>
+            <smsdo:SanitaryProductTypeCode codeListId="1025">010</smsdo:SanitaryProductTypeCode>
+            <smcdo:ProductDetails>
+                <csdo:ProductName>природная вода минеральная негазированная «ХАЙ СКАЙ (Hi-Sky)»</csdo:ProductName>
+                <csdo:DescriptionText>питьевая природная минеральная вода, расфасованная в емкости «ХАЙ СКАЙ (Hi-Sky)»</csdo:DescriptionText>
+                <csdo:CommodityCode>2201101100</csdo:CommodityCode>
+            </smcdo:ProductDetails>
+            <ccdo:SupplyChainPartyDetails>
+                <csdo:UnifiedCountryCode codeListId="2021">RU</csdo:UnifiedCountryCode>
+                <csdo:BusinessEntityName>Общество с ограниченной ответственностью «Водовоз»</csdo:BusinessEntityName>
+                <ccdo:SubjectAddressDetails>
+                    <csdo:AddressKindCode>1</csdo:AddressKindCode>
+                    <csdo:UnifiedCountryCode codeListId="2021">RU</csdo:UnifiedCountryCode>
+                    <csdo:CityName>Москва</csdo:CityName>
+                    <csdo:StreetName>Волгоградский проспект</csdo:StreetName>
+                    <csdo:BuildingNumberId>42</csdo:BuildingNumberId>
+                </ccdo:SubjectAddressDetails>
+                <csdo:SupplyChainPartyKindCode>41</csdo:SupplyChainPartyKindCode>
+            </ccdo:SupplyChainPartyDetails>
+            <smcdo:NonCompliantSanitaryProductBatchDetails>
+                <smcdo:BatchDetails>
+                    <smsdo:BatchId>1456</smsdo:BatchId>
+                    <csdo:ManufactureDate>2022-08-08</csdo:ManufactureDate>
+                    <csdo:ProductShelfLifeEndDate>2023-08-08</csdo:ProductShelfLifeEndDate>
+                    <csdo:UnifiedCommodityMeasure measurementUnitCode="130" measurementUnitCodeListId="2016">1000</csdo:UnifiedCommodityMeasure>
+                </smcdo:BatchDetails>
+                <smsdo:ConsignmentId>645767434</smsdo:ConsignmentId>
+                <csdo:CommodityMeasure measurementUnitCode="130">40</csdo:CommodityMeasure>
+                <smcdo:ShippingDocumentDetails>
+                    <csdo:DocKindCode codeListId="2009">02015</csdo:DocKindCode>
+                    <csdo:DocName>транспортная накладная</csdo:DocName>
+                    <csdo:DocCreationDate>2022-08-15</csdo:DocCreationDate>
+                    <csdo:DocId>ТН-383</csdo:DocId>
+                </smcdo:ShippingDocumentDetails>
+                <smcdo:ConformityDocDetails>
+                    <csdo:DocKindCode codeListId="2001">25</csdo:DocKindCode>
+                    <csdo:DocName>Свидетельство о государственной регистрации продукции</csdo:DocName>
+                    <csdo:DocId>RU.77.01.40.006.Е.033397.08.22</csdo:DocId>
+                    <csdo:DocCreationDate>2022-08-20</csdo:DocCreationDate>
+                    <ccdo:UnifiedAuthorityDetails>
+                        <csdo:UnifiedCountryCode codeListId="2021">RU</csdo:UnifiedCountryCode>
+                        <csdo:AuthorityName>Управление Федеральной службы по надзору в сфере защиты прав потребителей и благополучия человека</csdo:AuthorityName>
+                    </ccdo:UnifiedAuthorityDetails>
+                </smcdo:ConformityDocDetails>
+                <smcdo:RequirementViolationDetails>
+                    <smcdo:RequirementsDocDetails>
+                        <smsdo:TechnicalRegulationId>ТР ТС 021/2011</smsdo:TechnicalRegulationId>
+                        <csdo:DocName>О безопасности пищевой продукции</csdo:DocName>
+                    </smcdo:RequirementsDocDetails>
+                    <smcdo:RequirementsDocDetails>
+                        <smsdo:TechnicalRegulationId>ТР ЕАЭС 044/2017</smsdo:TechnicalRegulationId>
+                        <csdo:DocName>О безопасности упакованной питьевой воды, включая природную минеральную воду</csdo:DocName>
+                        <csdo:DescriptionText>обнаружены глюкозоположительные колиформные бактерии в концентрации 0,01 КОЕ в 300 мл</csdo:DescriptionText>
+                    </smcdo:RequirementsDocDetails>
+                </smcdo:RequirementViolationDetails>
+            </smcdo:NonCompliantSanitaryProductBatchDetails>
+        </smcdo:NonCompliantSanitaryProductDetails>
+        <smcdo:DetectionPlaceDetails>
+            <smcdo:BorderCheckpointDetails>
+                <csdo:BorderCheckpointCode>60</csdo:BorderCheckpointCode>
+                <csdo:BorderCheckpointName>МАПП «Бурачки»</csdo:BorderCheckpointName>
+            </smcdo:BorderCheckpointDetails>
+        </smcdo:DetectionPlaceDetails>
+        <smcdo:SanitaryMeasureBaseDetails>
+            <smsdo:MeasureName>изъятие из оборота продукции</smsdo:MeasureName>
+            <smcdo:MeasureDocDetails>
+                <csdo:UnifiedCountryCode codeListId="2021">RU</csdo:UnifiedCountryCode>
+                <csdo:DocName>Постановление</csdo:DocName>
+                <csdo:DocId>124-01</csdo:DocId>
+                <csdo:DocCreationDate>2022-08-30</csdo:DocCreationDate>
+                <csdo:DescriptionText>изъятие всей партии продукции у импортера</csdo:DescriptionText>
+            </smcdo:MeasureDocDetails>
+            <csdo:StartDate>2022-08-30</csdo:StartDate>
+            <smsdo:MeasureAffectedObjectKindCode>2</smsdo:MeasureAffectedObjectKindCode>
+        </smcdo:SanitaryMeasureBaseDetails>
+        <ccdo:ResourceItemStatusDetails>
+            <ccdo:ValidityPeriodDetails>
+                <csdo:StartDateTime>2022-09-01T17:00:00Z</csdo:StartDateTime>
+            </ccdo:ValidityPeriodDetails>
+        </ccdo:ResourceItemStatusDetails>
+    </smcdo:DangerousProductAlertDetails>
+</doc:DangerousProductAlertDetails>

@@ -1,0 +1,443 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<doc:DangerousProductAlertDetails xmlns:bdt="urn:EEC:M:BaseDataTypes:v0.4.12" xmlns:ccdo="urn:EEC:M:ComplexDataObjects:v0.4.12" xmlns:csdo="urn:EEC:M:SimpleDataObjects:v0.4.12" xmlns:doc="urn:EEC:R:SM:SS:08:DangerousProductAlert:v1.0.0" xmlns:smcdo="urn:EEC:M:SM:ComplexDataObjects:v0.3.9" xmlns:smsdo="urn:EEC:M:SM:SimpleDataObjects:v0.3.9" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="urn:EEC:R:SM:SS:08:DangerousProductAlert:v1.0.0 EEC_R_SM_SS_08_DangerousProductAlert_v1.0.0.xsd ">
+  <ccdo:EDocHeader>
+    <csdo:InfEnvelopeCode>P.SS.08.MSG.017</csdo:InfEnvelopeCode>
+    <csdo:EDocCode>R.SM.SS.08.002</csdo:EDocCode>
+    <csdo:EDocId>1cd782a2-bdbc-414b-a0f7-a6dd9b5b0713</csdo:EDocId>
+    <csdo:EDocDateTime>2025-11-30T12:00:00</csdo:EDocDateTime>
+    <csdo:LanguageCode>ru</csdo:LanguageCode>
+  </ccdo:EDocHeader>
+  <smcdo:DangerousProductAlertDetails>
+    <csdo:UnifiedCountryCode codeListId="2021">BY</csdo:UnifiedCountryCode>
+    <smsdo:IncidentId>BY-00001-25</smsdo:IncidentId>
+    <smsdo:IncidentKindCode>7</smsdo:IncidentKindCode>
+    <csdo:DocCreationDate>20025-12-18</csdo:DocCreationDate>
+    <ccdo:UnifiedAuthorityDetails xsi:type="ccdo:UnifiedAuthorityDetailsType">
+      <csdo:UnifiedCountryCode codeListId="2021">BY</csdo:UnifiedCountryCode>
+      <csdo:AuthorityName>Учреждение здравоохранения "Могилевский зональный центр гигиены и эпидемиологии"</csdo:AuthorityName>
+      <csdo:AuthorityBriefName>Могилевский зонЦГЭ</csdo:AuthorityBriefName>
+    </ccdo:UnifiedAuthorityDetails>
+    <smcdo:NonCompliantSanitaryProductDetails>
+      <smsdo:SanitaryProductTypeCode codeListId="1025">010</smsdo:SanitaryProductTypeCode>
+      <smsdo:SanitaryProductTypeName>token</smsdo:SanitaryProductTypeName>
+      <smcdo:ProductDetails>
+        <csdo:ProductId>4650065505802</csdo:ProductId>
+        <csdo:ProductName>Томатная паста «Золотой выбор» категории «Экстра»</csdo:ProductName>
+        <smsdo:ProductTradeName>Томатная паста «Золотой выбор» категории «Экстра» (состав: томатная паста, вода, соль)</smsdo:ProductTradeName>
+        <csdo:DescriptionText>Продукт консервации, который представляет собой густую, концентрированную массу из спелых томатов; категория «Экстра» указывает на высокое качество, отсутствие кожицы, семян и однородную консистенцию, соответствующую высоким стандартам для приготовления соусов и других блюд.</csdo:DescriptionText>
+        <csdo:CommodityCode>2002903900</csdo:CommodityCode>
+        <smsdo:ProductPurposeText>Подходит для приготовления супов, борщей, соусов, тушения мяса и овощей, так как придает блюдам насыщенный томатный вкус</smsdo:ProductPurposeText>
+        <smsdo:ProductApplicationMethodText>Добавьте пасту в супы, рагу, соусы за 10-15 минут до готовности, чтобы раскрылся вкус</smsdo:ProductApplicationMethodText>
+        <smsdo:ReleaseFormText>Выпускается в жестяных банках объемом в 500 грамм, в упаковках по 6 штук</smsdo:ReleaseFormText>
+        <smsdo:StorageConditionText>При температуре от 0°С до +25°С и относительной влажности воздуха не более 75%</smsdo:StorageConditionText>
+        <smsdo:ProductLabelText>Томатная паста «Золотой выбор» категории «Экстра» — это густая, концентрированная масса ярко-красного цвета, с высокой долей сухих веществ (обычно 25% и выше) для насыщенного вкуса, без кожицы, семян и темных включений, произведенная из спелых томатов, часто с добавлением воды и соли, предназначенная для придания блюдам насыщенного томатного вкуса</smsdo:ProductLabelText>
+        <ccdo:DocReferenceDetails>
+          <csdo:DocName>Межгосударственный стандарт "Продукты томатные концентрированные. Общие технические условия"</csdo:DocName>
+          <csdo:DocId>ГОСТ 3343-2017</csdo:DocId>
+          <csdo:DocCreationDate>2018-01-01</csdo:DocCreationDate>
+          <csdo:DocStartDate>2018-01-01</csdo:DocStartDate>
+        </ccdo:DocReferenceDetails>
+      </smcdo:ProductDetails>
+      <ccdo:SupplyChainPartyDetails>
+        <csdo:UnifiedCountryCode codeListId="2021">RU</csdo:UnifiedCountryCode>
+        <csdo:BusinessEntityName>Общество с ограниченной ответственностью "АЛМАЛЫК"</csdo:BusinessEntityName>
+        <csdo:BusinessEntityBriefName>ООО "АЛМАЛЫК"</csdo:BusinessEntityBriefName>
+        <csdo:BusinessEntityTypeCode codeListId="2049">RU1020200</csdo:BusinessEntityTypeCode>
+        <csdo:BusinessEntityId kindId="RU01">1165074055079</csdo:BusinessEntityId>
+        <csdo:TaxpayerId>5074055300</csdo:TaxpayerId>
+        <csdo:TaxRegistrationReasonCode>507401001</csdo:TaxRegistrationReasonCode>
+        <ccdo:SubjectAddressDetails>
+          <csdo:AddressKindCode>1</csdo:AddressKindCode>
+          <csdo:UnifiedCountryCode codeListId="2021">RU</csdo:UnifiedCountryCode>
+          <csdo:RegionName>Московская область</csdo:RegionName>
+          <csdo:DistrictName>г.о. Подольск</csdo:DistrictName>
+          <csdo:CityName>г. Подольск</csdo:CityName>
+          <csdo:StreetName>б-р Бородинский</csdo:StreetName>
+          <csdo:BuildingNumberId>д. 12</csdo:BuildingNumberId>
+          <csdo:RoomNumberId>пом. 15</csdo:RoomNumberId>
+          <csdo:PostCode>142108</csdo:PostCode>
+        </ccdo:SubjectAddressDetails>
+        <ccdo:SubjectAddressDetails>
+          <csdo:AddressKindCode>2</csdo:AddressKindCode>
+          <csdo:UnifiedCountryCode codeListId="2021">RU</csdo:UnifiedCountryCode>
+          <csdo:RegionName>Орловская обл.</csdo:RegionName>
+          <csdo:DistrictName>Новосильский р-н</csdo:DistrictName>
+          <csdo:CityName>г. Новосиль</csdo:CityName>
+          <csdo:StreetName>ул. 348 Стрелковой дивизии</csdo:StreetName>
+          <csdo:BuildingNumberId>д. 1в</csdo:BuildingNumberId>
+          <csdo:PostCode>303500</csdo:PostCode>
+        </ccdo:SubjectAddressDetails>
+        <ccdo:CommunicationDetails>
+          <csdo:CommunicationChannelCode>TE</csdo:CommunicationChannelCode>
+          <csdo:CommunicationChannelId>+7 496 762-65-54</csdo:CommunicationChannelId>
+        </ccdo:CommunicationDetails>
+        <csdo:SupplyChainPartyKindCode>41</csdo:SupplyChainPartyKindCode>
+      </ccdo:SupplyChainPartyDetails>
+      <smcdo:NonCompliantSanitaryProductBatchDetails>
+        <smcdo:BatchDetails>
+          <smsdo:BatchId>12345</smsdo:BatchId>
+          <csdo:ManufactureDate>2025-02-25</csdo:ManufactureDate>
+          <csdo:ProductShelfLifeEndDate>2028-02-25</csdo:ProductShelfLifeEndDate>
+          <csdo:UnifiedCommodityMeasure measurementUnitCode="796" measurementUnitCodeListId="2016">408</csdo:UnifiedCommodityMeasure>
+          <csdo:NoteText>Дополнительных сведений о серии товара нет</csdo:NoteText>
+        </smcdo:BatchDetails>
+        <smsdo:ConsignmentId>123</smsdo:ConsignmentId>
+        <csdo:CommodityMeasure measurementUnitCode="796">10872</csdo:CommodityMeasure>
+        <smcdo:ShippingDocumentDetails>
+          <csdo:DocKindCode codeListId="2009">02015</csdo:DocKindCode>
+          <csdo:DocName>Международная товарно-транспортная накладная</csdo:DocName>
+          <csdo:DocCreationDate>2025-10-03</csdo:DocCreationDate>
+          <csdo:DocId>ЗВ00-003846</csdo:DocId>
+          <smcdo:ProductDetails>
+			<csdo:ProductId>4650065505802</csdo:ProductId>
+			<csdo:ProductName>Томатная паста «Золотой выбор» категории «Экстра»</csdo:ProductName>
+			<smsdo:ProductTradeName>Томатная паста «Золотой выбор» категории «Экстра» (состав: томатная паста, вода, соль)</smsdo:ProductTradeName>
+			<csdo:DescriptionText>Продукт консервации, который представляет собой густую, концентрированную массу из спелых томатов; категория «Экстра» указывает на высокое качество, отсутствие кожицы, семян и однородную консистенцию, соответствующую высоким стандартам для приготовления соусов и других блюд.</csdo:DescriptionText>
+			<csdo:CommodityCode>2002903900</csdo:CommodityCode>
+			<smsdo:ProductPurposeText>Подходит для приготовления супов, борщей, соусов, тушения мяса и овощей, так как придает блюдам насыщенный томатный вкус</smsdo:ProductPurposeText>
+			<smsdo:ProductApplicationMethodText>Добавьте пасту в супы, рагу, соусы за 10-15 минут до готовности, чтобы раскрылся вкус</smsdo:ProductApplicationMethodText>
+			<smsdo:ReleaseFormText>Выпускается в жестяных банках объемом в 500 грамм, в упаковках по 6 штук</smsdo:ReleaseFormText>
+			<smsdo:StorageConditionText>При температуре от 0°С до +25°С и относительной влажности воздуха не более 75%</smsdo:StorageConditionText>
+			<smsdo:ProductLabelText>Томатная паста «Золотой выбор» категории «Экстра» — это густая, концентрированная масса ярко-красного цвета, с высокой долей сухих веществ (обычно 25% и выше) для насыщенного вкуса, без кожицы, семян и темных включений, произведенная из спелых томатов, часто с добавлением воды и соли, предназначенная для придания блюдам насыщенного томатного вкуса</smsdo:ProductLabelText>
+			<ccdo:DocReferenceDetails>
+			  <csdo:DocName>Межгосударственный стандарт "Продукты томатные концентрированные. Общие технические условия"</csdo:DocName>
+			  <csdo:DocId>ГОСТ 3343-2017</csdo:DocId>
+			  <csdo:DocCreationDate>2018-01-01</csdo:DocCreationDate>
+			  <csdo:DocStartDate>2018-01-01</csdo:DocStartDate>
+			</ccdo:DocReferenceDetails>
+		  </smcdo:ProductDetails>
+          <ccdo:SupplyChainPartyDetails>
+			<csdo:UnifiedCountryCode codeListId="2021">RU</csdo:UnifiedCountryCode>
+			<csdo:BusinessEntityName>Общество с ограниченной ответственностью "АЛМАЛЫК"</csdo:BusinessEntityName>
+			<csdo:BusinessEntityBriefName>ООО "АЛМАЛЫК"</csdo:BusinessEntityBriefName>
+			<csdo:BusinessEntityTypeCode codeListId="2049">RU1020200</csdo:BusinessEntityTypeCode>
+			<csdo:BusinessEntityId kindId="RU01">1165074055079</csdo:BusinessEntityId>
+			<csdo:TaxpayerId>5074055300</csdo:TaxpayerId>
+			<csdo:TaxRegistrationReasonCode>507401001</csdo:TaxRegistrationReasonCode>
+			<ccdo:SubjectAddressDetails>
+			  <csdo:AddressKindCode>1</csdo:AddressKindCode>
+			  <csdo:UnifiedCountryCode codeListId="2021">RU</csdo:UnifiedCountryCode>
+			  <csdo:RegionName>Московская область</csdo:RegionName>
+			  <csdo:DistrictName>г.о. Подольск</csdo:DistrictName>
+			  <csdo:CityName>г. Подольск</csdo:CityName>
+			  <csdo:StreetName>б-р Бородинский</csdo:StreetName>
+			  <csdo:BuildingNumberId>д. 12</csdo:BuildingNumberId>
+			  <csdo:RoomNumberId>пом. 15</csdo:RoomNumberId>
+			  <csdo:PostCode>142108</csdo:PostCode>
+			</ccdo:SubjectAddressDetails>
+			<ccdo:SubjectAddressDetails>
+			  <csdo:AddressKindCode>2</csdo:AddressKindCode>
+			  <csdo:UnifiedCountryCode codeListId="2021">RU</csdo:UnifiedCountryCode>
+			  <csdo:RegionName>Орловская обл.</csdo:RegionName>
+			  <csdo:DistrictName>Новосильский р-н</csdo:DistrictName>
+			  <csdo:CityName>г. Новосиль</csdo:CityName>
+			  <csdo:StreetName>ул. 348 Стрелковой дивизии</csdo:StreetName>
+			  <csdo:BuildingNumberId>д. 1в</csdo:BuildingNumberId>
+			  <csdo:PostCode>303500</csdo:PostCode>
+			</ccdo:SubjectAddressDetails>
+			<ccdo:CommunicationDetails>
+			  <csdo:CommunicationChannelCode>TE</csdo:CommunicationChannelCode>
+			  <csdo:CommunicationChannelId>+7 496 762-65-54</csdo:CommunicationChannelId>
+			</ccdo:CommunicationDetails>
+			<csdo:SupplyChainPartyKindCode>41</csdo:SupplyChainPartyKindCode>
+		  </ccdo:SupplyChainPartyDetails>
+        </smcdo:ShippingDocumentDetails>
+        <smcdo:ShippingDocumentDetails>
+          <csdo:DocKindCode codeListId="2009">02015</csdo:DocKindCode>
+          <csdo:DocName>Международная товарно-транспортная накладная</csdo:DocName>
+          <csdo:DocCreationDate>2025-10-09</csdo:DocCreationDate>
+          <csdo:DocId>ЗВ00-0042656</csdo:DocId>
+          <smcdo:ProductDetails>
+			<csdo:ProductId>4650065505802</csdo:ProductId>
+			<csdo:ProductName>Томатная паста «Золотой выбор» категории «Экстра»</csdo:ProductName>
+			<smsdo:ProductTradeName>Томатная паста «Золотой выбор» категории «Экстра» (состав: томатная паста, вода, соль)</smsdo:ProductTradeName>
+			<csdo:DescriptionText>Продукт консервации, который представляет собой густую, концентрированную массу из спелых томатов; категория «Экстра» указывает на высокое качество, отсутствие кожицы, семян и однородную консистенцию, соответствующую высоким стандартам для приготовления соусов и других блюд.</csdo:DescriptionText>
+			<csdo:CommodityCode>2002903900</csdo:CommodityCode>
+			<smsdo:ProductPurposeText>Подходит для приготовления супов, борщей, соусов, тушения мяса и овощей, так как придает блюдам насыщенный томатный вкус</smsdo:ProductPurposeText>
+			<smsdo:ProductApplicationMethodText>Добавьте пасту в супы, рагу, соусы за 10-15 минут до готовности, чтобы раскрылся вкус</smsdo:ProductApplicationMethodText>
+			<smsdo:ReleaseFormText>Выпускается в жестяных банках объемом в 500 грамм, в упаковках по 6 штук</smsdo:ReleaseFormText>
+			<smsdo:StorageConditionText>При температуре от 0°С до +25°С и относительной влажности воздуха не более 75%</smsdo:StorageConditionText>
+			<smsdo:ProductLabelText>Томатная паста «Золотой выбор» категории «Экстра» — это густая, концентрированная масса ярко-красного цвета, с высокой долей сухих веществ (обычно 25% и выше) для насыщенного вкуса, без кожицы, семян и темных включений, произведенная из спелых томатов, часто с добавлением воды и соли, предназначенная для придания блюдам насыщенного томатного вкуса</smsdo:ProductLabelText>
+			<ccdo:DocReferenceDetails>
+			  <csdo:DocName>Межгосударственный стандарт "Продукты томатные концентрированные. Общие технические условия"</csdo:DocName>
+			  <csdo:DocId>ГОСТ 3343-2017</csdo:DocId>
+			  <csdo:DocCreationDate>2018-01-01</csdo:DocCreationDate>
+			  <csdo:DocStartDate>2018-01-01</csdo:DocStartDate>
+			</ccdo:DocReferenceDetails>
+		  </smcdo:ProductDetails>
+          <ccdo:SupplyChainPartyDetails>
+			<csdo:UnifiedCountryCode codeListId="2021">RU</csdo:UnifiedCountryCode>
+			<csdo:BusinessEntityName>Общество с ограниченной ответственностью "АЛМАЛЫК"</csdo:BusinessEntityName>
+			<csdo:BusinessEntityBriefName>ООО "АЛМАЛЫК"</csdo:BusinessEntityBriefName>
+			<csdo:BusinessEntityTypeCode codeListId="2049">RU1020200</csdo:BusinessEntityTypeCode>
+			<csdo:BusinessEntityId kindId="RU01">1165074055079</csdo:BusinessEntityId>
+			<csdo:TaxpayerId>5074055300</csdo:TaxpayerId>
+			<csdo:TaxRegistrationReasonCode>507401001</csdo:TaxRegistrationReasonCode>
+			<ccdo:SubjectAddressDetails>
+			  <csdo:AddressKindCode>1</csdo:AddressKindCode>
+			  <csdo:UnifiedCountryCode codeListId="2021">RU</csdo:UnifiedCountryCode>
+			  <csdo:RegionName>Московская область</csdo:RegionName>
+			  <csdo:DistrictName>г.о. Подольск</csdo:DistrictName>
+			  <csdo:CityName>г. Подольск</csdo:CityName>
+			  <csdo:StreetName>б-р Бородинский</csdo:StreetName>
+			  <csdo:BuildingNumberId>д. 12</csdo:BuildingNumberId>
+			  <csdo:RoomNumberId>пом. 15</csdo:RoomNumberId>
+			  <csdo:PostCode>142108</csdo:PostCode>
+			</ccdo:SubjectAddressDetails>
+			<ccdo:SubjectAddressDetails>
+			  <csdo:AddressKindCode>2</csdo:AddressKindCode>
+			  <csdo:UnifiedCountryCode codeListId="2021">RU</csdo:UnifiedCountryCode>
+			  <csdo:RegionName>Орловская обл.</csdo:RegionName>
+			  <csdo:DistrictName>Новосильский р-н</csdo:DistrictName>
+			  <csdo:CityName>г. Новосиль</csdo:CityName>
+			  <csdo:StreetName>ул. 348 Стрелковой дивизии</csdo:StreetName>
+			  <csdo:BuildingNumberId>д. 1в</csdo:BuildingNumberId>
+			  <csdo:PostCode>303500</csdo:PostCode>
+			</ccdo:SubjectAddressDetails>
+			<ccdo:CommunicationDetails>
+			  <csdo:CommunicationChannelCode>TE</csdo:CommunicationChannelCode>
+			  <csdo:CommunicationChannelId>+7 496 762-65-54</csdo:CommunicationChannelId>
+			</ccdo:CommunicationDetails>
+			<csdo:SupplyChainPartyKindCode>41</csdo:SupplyChainPartyKindCode>
+		  </ccdo:SupplyChainPartyDetails>
+        </smcdo:ShippingDocumentDetails>
+        <smcdo:ShippingDocumentDetails>
+          <csdo:DocKindCode codeListId="2009">02015</csdo:DocKindCode>
+          <csdo:DocName>Товарная транспортная накладная</csdo:DocName>
+          <csdo:DocCreationDate>2025-10-17</csdo:DocCreationDate>
+          <csdo:DocId>АУ №3615256</csdo:DocId>
+          <smcdo:ProductDetails>
+			<csdo:ProductId>4650065505802</csdo:ProductId>
+			<csdo:ProductName>Томатная паста «Золотой выбор» категории «Экстра»</csdo:ProductName>
+			<smsdo:ProductTradeName>Томатная паста «Золотой выбор» категории «Экстра» (состав: томатная паста, вода, соль)</smsdo:ProductTradeName>
+			<csdo:DescriptionText>Продукт консервации, который представляет собой густую, концентрированную массу из спелых томатов; категория «Экстра» указывает на высокое качество, отсутствие кожицы, семян и однородную консистенцию, соответствующую высоким стандартам для приготовления соусов и других блюд.</csdo:DescriptionText>
+			<csdo:CommodityCode>2002903900</csdo:CommodityCode>
+			<smsdo:ProductPurposeText>Подходит для приготовления супов, борщей, соусов, тушения мяса и овощей, так как придает блюдам насыщенный томатный вкус</smsdo:ProductPurposeText>
+			<smsdo:ProductApplicationMethodText>Добавьте пасту в супы, рагу, соусы за 10-15 минут до готовности, чтобы раскрылся вкус</smsdo:ProductApplicationMethodText>
+			<smsdo:ReleaseFormText>Выпускается в жестяных банках объемом в 500 грамм, в упаковках по 6 штук</smsdo:ReleaseFormText>
+			<smsdo:StorageConditionText>При температуре от 0°С до +25°С и относительной влажности воздуха не более 75%</smsdo:StorageConditionText>
+			<smsdo:ProductLabelText>Томатная паста «Золотой выбор» категории «Экстра» — это густая, концентрированная масса ярко-красного цвета, с высокой долей сухих веществ (обычно 25% и выше) для насыщенного вкуса, без кожицы, семян и темных включений, произведенная из спелых томатов, часто с добавлением воды и соли, предназначенная для придания блюдам насыщенного томатного вкуса</smsdo:ProductLabelText>
+			<ccdo:DocReferenceDetails>
+			  <csdo:DocName>Межгосударственный стандарт "Продукты томатные концентрированные. Общие технические условия"</csdo:DocName>
+			  <csdo:DocId>ГОСТ 3343-2017</csdo:DocId>
+			  <csdo:DocCreationDate>2018-01-01</csdo:DocCreationDate>
+			  <csdo:DocStartDate>2018-01-01</csdo:DocStartDate>
+			</ccdo:DocReferenceDetails>
+		  </smcdo:ProductDetails>
+          <ccdo:SupplyChainPartyDetails>
+			<csdo:UnifiedCountryCode codeListId="2021">RU</csdo:UnifiedCountryCode>
+			<csdo:BusinessEntityName>Общество с ограниченной ответственностью "АЛМАЛЫК"</csdo:BusinessEntityName>
+			<csdo:BusinessEntityBriefName>ООО "АЛМАЛЫК"</csdo:BusinessEntityBriefName>
+			<csdo:BusinessEntityTypeCode codeListId="2049">RU1020200</csdo:BusinessEntityTypeCode>
+			<csdo:BusinessEntityId kindId="RU01">1165074055079</csdo:BusinessEntityId>
+			<csdo:TaxpayerId>5074055300</csdo:TaxpayerId>
+			<csdo:TaxRegistrationReasonCode>507401001</csdo:TaxRegistrationReasonCode>
+			<ccdo:SubjectAddressDetails>
+			  <csdo:AddressKindCode>1</csdo:AddressKindCode>
+			  <csdo:UnifiedCountryCode codeListId="2021">RU</csdo:UnifiedCountryCode>
+			  <csdo:RegionName>Московская область</csdo:RegionName>
+			  <csdo:DistrictName>г.о. Подольск</csdo:DistrictName>
+			  <csdo:CityName>г. Подольск</csdo:CityName>
+			  <csdo:StreetName>б-р Бородинский</csdo:StreetName>
+			  <csdo:BuildingNumberId>д. 12</csdo:BuildingNumberId>
+			  <csdo:RoomNumberId>пом. 15</csdo:RoomNumberId>
+			  <csdo:PostCode>142108</csdo:PostCode>
+			</ccdo:SubjectAddressDetails>
+			<ccdo:SubjectAddressDetails>
+			  <csdo:AddressKindCode>2</csdo:AddressKindCode>
+			  <csdo:UnifiedCountryCode codeListId="2021">RU</csdo:UnifiedCountryCode>
+			  <csdo:RegionName>Орловская обл.</csdo:RegionName>
+			  <csdo:DistrictName>Новосильский р-н</csdo:DistrictName>
+			  <csdo:CityName>г. Новосиль</csdo:CityName>
+			  <csdo:StreetName>ул. 348 Стрелковой дивизии</csdo:StreetName>
+			  <csdo:BuildingNumberId>д. 1в</csdo:BuildingNumberId>
+			  <csdo:PostCode>303500</csdo:PostCode>
+			</ccdo:SubjectAddressDetails>
+			<ccdo:CommunicationDetails>
+			  <csdo:CommunicationChannelCode>TE</csdo:CommunicationChannelCode>
+			  <csdo:CommunicationChannelId>+7 496 762-65-54</csdo:CommunicationChannelId>
+			</ccdo:CommunicationDetails>
+			<csdo:SupplyChainPartyKindCode>41</csdo:SupplyChainPartyKindCode>
+		  </ccdo:SupplyChainPartyDetails>
+        </smcdo:ShippingDocumentDetails>
+        <smcdo:ConformityDocDetails>
+          <csdo:DocKindCode codeListId="2001">10</csdo:DocKindCode>
+          <csdo:DocName>Декларация о соответствии ЕАЭС</csdo:DocName>
+          <csdo:DocId>№ RU Д-RU.РА07.В.26906/24</csdo:DocId>
+          <csdo:DocCreationDate>2024-08-21</csdo:DocCreationDate>
+          <csdo:DocStartDate>2024-08-21</csdo:DocStartDate>
+          <ccdo:UnifiedAuthorityDetails xsi:type="ccdo:UnifiedAuthorityDetailsType">
+            <csdo:UnifiedCountryCode codeListId="2021">RU</csdo:UnifiedCountryCode>
+            <csdo:AuthorityName>Федеральная служба по аккредитации</csdo:AuthorityName>
+            <csdo:AuthorityBriefName>Росаккредитация</csdo:AuthorityBriefName>
+          </ccdo:UnifiedAuthorityDetails>
+        </smcdo:ConformityDocDetails>
+        <smcdo:RequirementViolationDetails>
+          <smcdo:RequirementsDocDetails>
+            <smsdo:TechnicalRegulationId>ТР ТС 021/2011</smsdo:TechnicalRegulationId>
+            <csdo:DocName>О безопасности пищевой продукции</csdo:DocName>
+            <smcdo:DocStructuralElementDetails>
+              <smsdo:DocStructuralElementName>статья</smsdo:DocStructuralElementName>
+              <smsdo:DocStructuralElementId>39</smsdo:DocStructuralElementId>
+            </smcdo:DocStructuralElementDetails>
+            <csdo:DescriptionText>По результатам проведенных лабораторных испытаний контрольная проба не соответствуют требованиям по маркировке в части предоставления достоверной информации о составе продукта (в состав томатной пасты входят незаявленные изготовителем на маркировке консерванты: сорбиновая кислота (фактическое значение показателя по результатам испытаний образца составляет 0,3295 г/кг (расширенная неопределенность U=0,0559 г/кг) и 0,3131 г/кг (расширенная неопределенность U=0,0531 г/кг) – контрольная проба); бензойная кислота (фактическое значение показателя по результатам испытаний образца составляет 0,5818 г/кг (расширенная неопределенность U=0,1009 г/кг) и 0,5578 г/кг (расширенная неопределенность U=0,0967 г/кг) – контрольная проба)</csdo:DescriptionText>
+          </smcdo:RequirementsDocDetails>
+        </smcdo:RequirementViolationDetails>
+        <smcdo:RequirementViolationDetails>
+          <smcdo:RequirementsDocDetails>
+            <smsdo:TechnicalRegulationId>ТР ТС 022/2011</smsdo:TechnicalRegulationId>
+            <csdo:DocName>Пищевая продукция в части ее маркировки</csdo:DocName>
+            <smcdo:DocStructuralElementDetails>
+              <smsdo:DocStructuralElementName>статья</smsdo:DocStructuralElementName>
+              <smsdo:DocStructuralElementId>4</smsdo:DocStructuralElementId>
+            </smcdo:DocStructuralElementDetails>
+            <csdo:DescriptionText>По результатам проведенных лабораторных испытаний контрольная проба не соответствуют требованиям по маркировке в части предоставления достоверной информации о составе продукта (в состав томатной пасты входят незаявленные изготовителем на маркировке консерванты: сорбиновая кислота (фактическое значение показателя по результатам испытаний образца составляет 0,3295 г/кг (расширенная неопределенность U=0,0559 г/кг) и 0,3131 г/кг (расширенная неопределенность U=0,0531 г/кг) – контрольная проба); бензойная кислота (фактическое значение показателя по результатам испытаний образца составляет 0,5818 г/кг (расширенная неопределенность U=0,1009 г/кг) и 0,5578 г/кг (расширенная неопределенность U=0,0967 г/кг) – контрольная проба)</csdo:DescriptionText>
+          </smcdo:RequirementsDocDetails>
+        </smcdo:RequirementViolationDetails> 
+        <smcdo:RequirementViolationDetails>
+          <smcdo:RequirementsDocDetails>
+            <smsdo:TechnicalRegulationId>ТР ТС 021/2011</smsdo:TechnicalRegulationId>
+            <csdo:DocName>О безопасности пищевой продукции</csdo:DocName>
+            <smcdo:DocStructuralElementDetails>
+              <smsdo:DocStructuralElementName>глава</smsdo:DocStructuralElementName>
+              <smsdo:DocStructuralElementId>1 статья 5, пункт 1</smsdo:DocStructuralElementId>
+            </smcdo:DocStructuralElementDetails>
+            <smcdo:DocStructuralElementDetails>
+              <smsdo:DocStructuralElementName>глава</smsdo:DocStructuralElementName>
+              <smsdo:DocStructuralElementId>2 статья 7, пункт 1</smsdo:DocStructuralElementId>
+            </smcdo:DocStructuralElementDetails>
+            <csdo:DescriptionText>По результатам проведенных лабораторных испытаний контрольная проба не соответствуют требованиям по безопасности: в состав томатной пасты входит краситель Понсо 4R, недопустимый при производстве данного вида продукции (фактическое значение показателя по результатам испытаний образца составляет 2,5 мг/кг (расширенная неопределенность U=0,4 мг/кг) и 14,6 мг/кг (расширенная неопределенность U=2,0 мг/кг) – контрольная проба) – протоколы испытаний УЗ «Могилевский областной центр гигиены, эпидемиологии и общественного здоровья» № 828 от 03.11.2025 и № 835 от 06.11.2025 (контрольная проба)</csdo:DescriptionText>
+		  </smcdo:RequirementsDocDetails>        
+        </smcdo:RequirementViolationDetails> 
+        <smcdo:RequirementViolationDetails>
+          <smcdo:RequirementsDocDetails>
+            <smsdo:TechnicalRegulationId>ТР ТС 029/2012</smsdo:TechnicalRegulationId>
+            <csdo:DocName>Требования безопасности пищевых добавок, ароматизаторов и технологических вспомогательных средств</csdo:DocName>
+            <smcdo:DocStructuralElementDetails>
+              <smsdo:DocStructuralElementName>статья</smsdo:DocStructuralElementName>
+              <smsdo:DocStructuralElementId>7</smsdo:DocStructuralElementId>
+            </smcdo:DocStructuralElementDetails>
+            <csdo:DescriptionText>По результатам проведенных лабораторных испытаний контрольная проба не соответствуют требованиям по безопасности: в состав томатной пасты входит краситель Понсо 4R, недопустимый при производстве данного вида продукции (фактическое значение показателя по результатам испытаний образца составляет 2,5 мг/кг (расширенная неопределенность U=0,4 мг/кг) и 14,6 мг/кг (расширенная неопределенность U=2,0 мг/кг) – контрольная проба) – протоколы испытаний УЗ «Могилевский областной центр гигиены, эпидемиологии и общественного здоровья» № 828 от 03.11.2025 и № 835 от 06.11.2025 (контрольная проба)</csdo:DescriptionText>
+		  </smcdo:RequirementsDocDetails>
+		  <csdo:DescriptionText>Контрольная проба не соответствуют требованиям Межгосударственного стандарта ГОСТ 3343-2017 «Продукты томатные концентрированные. Общие технические условия» по содержанию массовой доли растворимых сухих веществ (за вычетом хлоридов) (фактическое значение показателя по результатам испытаний образца составляет 13,3% (расширенная неопределенность U=0,2%) и 13,4% (расширенная неопределенность U=0,2%) – контрольная проба, при норме – не менее 25%) – протоколы испытаний УЗ «Могилевский областной центр гигиены, эпидемиологии и общественного здоровья» № 828 от 03.11.2025 и № 835 от 06.11.2025 (контрольная проба)</csdo:DescriptionText>        
+        </smcdo:RequirementViolationDetails>             
+      </smcdo:NonCompliantSanitaryProductBatchDetails>
+    </smcdo:NonCompliantSanitaryProductDetails>
+    <smcdo:DetectionPlaceDetails>
+      <smcdo:OrganizationDetails xsi:type="ccdo:BusinessEntityDetailsType">
+        <csdo:UnifiedCountryCode codeListId="2021">BY</csdo:UnifiedCountryCode>
+        <csdo:BusinessEntityName>Государственное учреждение образования «Кадинская средняя школа»</csdo:BusinessEntityName>
+        <csdo:BusinessEntityBriefName>Кадинская средняя школа</csdo:BusinessEntityBriefName>
+        <csdo:BusinessEntityTypeName>Государственное учреждение образования</csdo:BusinessEntityTypeName>
+        <csdo:BusinessEntityId kindId="BY01">790486235</csdo:BusinessEntityId>
+        <csdo:TaxpayerId>790486235</csdo:TaxpayerId>
+        <ccdo:SubjectAddressDetails>
+          <csdo:AddressKindCode>1</csdo:AddressKindCode>
+          <csdo:UnifiedCountryCode codeListId="2021">BY</csdo:UnifiedCountryCode>
+          <csdo:RegionName>Могилевская область</csdo:RegionName>
+          <csdo:DistrictName>Могилевский район</csdo:DistrictName>
+          <csdo:CityName>Кадинский сельсовет аг. Кадино</csdo:CityName>
+          <csdo:StreetName>ул. Центральная</csdo:StreetName>
+          <csdo:BuildingNumberId>нежилое помещение</csdo:BuildingNumberId>
+          <csdo:PostCode>213112</csdo:PostCode>
+        </ccdo:SubjectAddressDetails>
+        <ccdo:SubjectAddressDetails>
+          <csdo:AddressKindCode>2</csdo:AddressKindCode>
+          <csdo:UnifiedCountryCode codeListId="2021">BY</csdo:UnifiedCountryCode>
+          <csdo:RegionName>Могилевская область</csdo:RegionName>
+          <csdo:DistrictName>Могилевский район</csdo:DistrictName>
+          <csdo:CityName>Кадинский сельсовет аг. Кадино</csdo:CityName>
+          <csdo:StreetName>ул. Центральная</csdo:StreetName>
+          <csdo:BuildingNumberId>складское помещение</csdo:BuildingNumberId>
+          <csdo:PostCode>213112</csdo:PostCode>
+        </ccdo:SubjectAddressDetails>       
+        <ccdo:CommunicationDetails>
+          <csdo:CommunicationChannelCode>TE</csdo:CommunicationChannelCode>
+          <csdo:CommunicationChannelName>телефон</csdo:CommunicationChannelName>
+          <csdo:CommunicationChannelId>+375222-32-29-30</csdo:CommunicationChannelId>
+        </ccdo:CommunicationDetails>
+        <ccdo:CommunicationDetails>
+          <csdo:CommunicationChannelCode>EM</csdo:CommunicationChannelCode>
+          <csdo:CommunicationChannelName>электронная почта</csdo:CommunicationChannelName>
+          <csdo:CommunicationChannelId>kadino@mogilev.edu.by</csdo:CommunicationChannelId>
+        </ccdo:CommunicationDetails>        
+      </smcdo:OrganizationDetails>
+      <csdo:DescriptionText>csdo:DescriptionText</csdo:DescriptionText>
+    </smcdo:DetectionPlaceDetails>
+    <smcdo:SanitaryMeasureBaseDetails>
+      <csdo:LanguageCode>ru</csdo:LanguageCode>
+      <smsdo:MeasureCode codeListId="1067">900</smsdo:MeasureCode>
+      <smsdo:MeasureName>Приостановление (запрет) производства и (или) реализация товаров (работ, услуг), эксплуатация транспортных средств</smsdo:MeasureName>
+      <smcdo:MeasureDocDetails>
+        <csdo:UnifiedCountryCode codeListId="2021">BY</csdo:UnifiedCountryCode>
+        <csdo:LanguageCode>ru</csdo:LanguageCode>
+        <csdo:DocKindName>Предписание</csdo:DocKindName>
+        <csdo:DocName>Предписание о приостановлении (запрете) производства и (или) реализации товаров (работ, услуг), эксплуатации транспортных средств</csdo:DocName>
+        <csdo:DocId>296</csdo:DocId>
+        <csdo:DocCreationDate>2025-11-03</csdo:DocCreationDate>
+        <csdo:DocStartDate>2025-11-03</csdo:DocStartDate>
+        <csdo:AuthorityName>Учреждение здравоохранения "Могилевский зональный центр гигиены и эпидемиологии"</csdo:AuthorityName>
+      </smcdo:MeasureDocDetails>
+      <csdo:StartDate>2025-11-03</csdo:StartDate>
+      <smcdo:MeasureInitiationBasisDetails>
+        <csdo:DocKindName>Постановление</csdo:DocKindName>
+        <csdo:DocName>О временных санитарных мерах</csdo:DocName>
+        <csdo:DocId>4</csdo:DocId>
+        <csdo:DocCreationDate>2019-01-08</csdo:DocCreationDate>
+      </smcdo:MeasureInitiationBasisDetails>
+      <smsdo:MeasureAffectedObjectKindCode>2</smsdo:MeasureAffectedObjectKindCode>
+    </smcdo:SanitaryMeasureBaseDetails>
+    <smcdo:SanitaryMeasureBaseDetails>
+      <csdo:LanguageCode>ru</csdo:LanguageCode>
+      <smsdo:MeasureCode codeListId="1067">900</smsdo:MeasureCode>
+      <smsdo:MeasureName>Приостановление (запрет) производства и (или) реализация товаров (работ, услуг), эксплуатация транспортных средств</smsdo:MeasureName>
+      <smcdo:MeasureDocDetails>
+        <csdo:UnifiedCountryCode codeListId="2021">BY</csdo:UnifiedCountryCode>
+        <csdo:LanguageCode>ru</csdo:LanguageCode>
+        <csdo:DocKindName>Предписание</csdo:DocKindName>
+        <csdo:DocName>Предписание о приостановлении (запрете) производства и (или) реализации товаров (работ, услуг), эксплуатации транспортных средств</csdo:DocName>
+        <csdo:DocId>298</csdo:DocId>
+        <csdo:DocCreationDate>2025-11-09</csdo:DocCreationDate>
+        <csdo:DocStartDate>2025-11-09</csdo:DocStartDate>
+        <csdo:AuthorityName>Учреждение здравоохранения "Могилевский зональный центр гигиены и эпидемиологии"</csdo:AuthorityName>
+      </smcdo:MeasureDocDetails>
+      <csdo:StartDate>2025-11-09</csdo:StartDate>
+      <smcdo:MeasureInitiationBasisDetails>
+        <csdo:DocKindName>Постановление</csdo:DocKindName>
+        <csdo:DocName>О временных санитарных мерах</csdo:DocName>
+        <csdo:DocId>4</csdo:DocId>
+        <csdo:DocCreationDate>2019-01-08</csdo:DocCreationDate>
+      </smcdo:MeasureInitiationBasisDetails>
+      <smsdo:MeasureAffectedObjectKindCode>2</smsdo:MeasureAffectedObjectKindCode>
+    </smcdo:SanitaryMeasureBaseDetails>
+    <smcdo:SanitaryMeasureBaseDetails>
+      <csdo:LanguageCode>ru</csdo:LanguageCode>
+      <smsdo:MeasureCode codeListId="1067">030</smsdo:MeasureCode>
+      <smsdo:MeasureName>Указание об изъятии из обращения продукции</smsdo:MeasureName>
+      <smcdo:MeasureDocDetails>
+        <csdo:UnifiedCountryCode codeListId="2021">BY</csdo:UnifiedCountryCode>
+        <csdo:LanguageCode>ru</csdo:LanguageCode>
+        <csdo:DocKindName>Указание</csdo:DocKindName>
+        <csdo:DocName>Указание об изъятии из обращения продукции</csdo:DocName>
+        <csdo:DocId>238</csdo:DocId>
+        <csdo:DocCreationDate>2025-11-10</csdo:DocCreationDate>
+        <csdo:DocStartDate>2025-11-10</csdo:DocStartDate>
+        <csdo:AuthorityName>Учреждение здравоохранения "Могилевский зональный центр гигиены и эпидемиологии"</csdo:AuthorityName>
+        <csdo:DescriptionText>Указание об изъятии из обращения продукции вышеуказанной продукции в количестве 408 банок массой нетто 500г. каждая</csdo:DescriptionText>
+      </smcdo:MeasureDocDetails>
+      <csdo:StartDate>2025-11-10</csdo:StartDate>
+      <smcdo:MeasureInitiationBasisDetails>
+        <csdo:DocKindName>Постановление</csdo:DocKindName>
+        <csdo:DocName>О временных санитарных мерах</csdo:DocName>
+        <csdo:DocId>4</csdo:DocId>
+        <csdo:DocCreationDate>2019-01-08</csdo:DocCreationDate>
+      </smcdo:MeasureInitiationBasisDetails>
+      <smsdo:MeasureAffectedObjectKindCode>2</smsdo:MeasureAffectedObjectKindCode>
+    </smcdo:SanitaryMeasureBaseDetails>
+    <ccdo:ResourceItemStatusDetails>
+      <ccdo:ValidityPeriodDetails>
+        <csdo:StartDateTime>2025-11-24T12:00:00</csdo:StartDateTime>
+      </ccdo:ValidityPeriodDetails>
+    </ccdo:ResourceItemStatusDetails>
+  </smcdo:DangerousProductAlertDetails>
+</doc:DangerousProductAlertDetails>

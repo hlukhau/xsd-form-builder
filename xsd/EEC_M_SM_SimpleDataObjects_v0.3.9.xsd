@@ -1,0 +1,2483 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema" xmlns:bdt="urn:EEC:M:BaseDataTypes:v0.4.12" xmlns:csdo="urn:EEC:M:SimpleDataObjects:v0.4.12" xmlns:smsdo="urn:EEC:M:SM:SimpleDataObjects:v0.3.9" elementFormDefault="qualified" targetNamespace="urn:EEC:M:SM:SimpleDataObjects:v0.3.9" version="0.3.9">
+    <xs:import namespace="urn:EEC:M:SimpleDataObjects:v0.4.12" schemaLocation="EEC_M_SimpleDataObjects_v0.4.12.xsd"/>
+    <xs:import namespace="urn:EEC:M:BaseDataTypes:v0.4.12" schemaLocation="EEC_M_BaseDataTypes_v0.4.12.xsd"/>
+    <!--M.SM.NSP.00001: - (-) -->
+    <!-- M.SM.SDE.00065: Код действующего вещества (Действующее вещество. Код) -->
+    <xs:element name="ActiveIngredientCode" type="smsdo:ActiveIngredientCodeType">
+        <xs:annotation>
+            <xs:documentation>Кодовое обозначение вещества биологического, биотехнологического, минерального или химического происхождения в составе ветеринарного лекарственного препарата, с действием которого на организм связывают эффективность данного препарата</xs:documentation>
+        </xs:annotation>
+    </xs:element>
+    <!-- M.SM.SDT.00025: Код действующего вещества (Вид действующего вещества_ Код. Тип) -->
+    <xs:simpleType name="ActiveIngredientCodeType">
+        <xs:annotation>
+            <xs:documentation>Строка символов, представляющая краткое условное обозначение вещества биологического, биотехнологического, минерального или химического происхождения в составе ветеринарного лекарственного препарата, с действием которого на организм связывают эффективность данного препарата</xs:documentation>
+        </xs:annotation>
+        <xs:restriction base="bdt:CodeType">
+            <xs:pattern value="[0-9]{5}"/>
+        </xs:restriction>
+    </xs:simpleType>
+    <!-- M.SM.SDE.00081: Наименование действующего вещества (Действующее вещество. Имя) -->
+    <xs:element name="ActiveIngredientName" type="csdo:Name500Type">
+        <xs:annotation>
+            <xs:documentation>Наименование вещества биологического, биотехнологического, минерального или химического происхождения в составе ветеринарного лекарственного препарата, с действием которого на организм связывают эффективность данного препарата</xs:documentation>
+        </xs:annotation>
+    </xs:element>
+    <!-- M.SM.SDE.00638: Дополнительная декларация (Дополнительная декларация. Текст) -->
+    <xs:element name="AdditionalDeclarationText" type="smsdo:LocalizedText4000Type">
+        <xs:annotation>
+            <xs:documentation>Текст дополнительной декларации</xs:documentation>
+        </xs:annotation>
+    </xs:element>
+    <!-- M.SM.SDE.00138: Запрос дополнительной информации (Запрос дополнительной информации. Текст) -->
+    <xs:element name="AdditionalInfoRequestText" type="csdo:Text4000Type">
+        <xs:annotation>
+            <xs:documentation>Текст запроса дополнительной информации о временной карантинной фитосанитарной мере</xs:documentation>
+        </xs:annotation>
+    </xs:element>
+    <!-- M.SM.SDE.00203: Признак гарантий, основанных на дополнительном досмотре (Признак гарантий, основанных на дополнительном досмотре. Индикатор) -->
+    <xs:element name="AdditionalInspectionGuaranteeIndicator" type="bdt:IndicatorType">
+        <xs:annotation>
+            <xs:documentation>Признак, определяющий факт того, что гарантии основаны на дополнительном досмотре: 1 – основаны; 0 – не основаны</xs:documentation>
+        </xs:annotation>
+    </xs:element>
+    <!-- M.SM.SDE.00969: Код возрастной группы (Возрастная группа. Код) -->
+    <xs:element name="AgeGroupCode" type="csdo:Code10Type">
+        <xs:annotation>
+            <xs:documentation>Кодовое обозначение возрастной группы</xs:documentation>
+        </xs:annotation>
+    </xs:element>
+    <!-- M.SM.SDE.00043: Код субъекта семеноводства (Субъект семеноводства. Код) -->
+    <xs:element name="AgriculturalOrganizationCode" type="smsdo:AgriculturalOrganizationCodeType">
+        <xs:annotation>
+            <xs:documentation>Кодовое обозначение субъекта семеноводства</xs:documentation>
+        </xs:annotation>
+    </xs:element>
+    <!-- M.SM.SDT.00013: Код субъекта семеноводства (Субъект семеноводства_ Код. Тип) -->
+    <xs:simpleType name="AgriculturalOrganizationCodeType">
+        <xs:annotation>
+            <xs:documentation>Строка символов, представляющая краткое условное обозначение субъекта семеноводства</xs:documentation>
+        </xs:annotation>
+        <xs:restriction base="bdt:CodeType">
+            <xs:minLength value="1"/>
+            <xs:maxLength value="20"/>
+        </xs:restriction>
+    </xs:simpleType>
+    <!-- M.SM.SDE.00191: Наименование субъекта семеноводства (Субъект семеноводства. Имя) -->
+    <xs:element name="AgriculturalOrganizationName" type="csdo:Name120Type">
+        <xs:annotation>
+            <xs:documentation>Наименование субъекта семеноводства</xs:documentation>
+        </xs:annotation>
+    </xs:element>
+    <!-- M.SM.SDE.00060: Признак допуска сорта к использованию во всех зонах допуска или световых зонах (Допуск сорта к использованию во всех зонах допуска или световых зонах. Индикатор) -->
+    <xs:element name="AllAreasAllowanceIndicator" type="bdt:IndicatorType">
+        <xs:annotation>
+            <xs:documentation>признак, определяющий допуск (разрешение, рекомендацию) сорта к использованию во всех зонах допуска или световых зонах государства-члена: 1 – сорт допущен (разрешен, рекомендован) к использованию во всех зонах допуска или световых зонах; 0 – сорт допущен (разрешен, рекомендован) к использованию не во всех зонах допуска или световых зонах</xs:documentation>
+        </xs:annotation>
+    </xs:element>
+    <!-- M.SM.SDE.00415: Код зоны допуска или световой зоны (Зона допуска или световая зона. Код) -->
+    <xs:element name="AllowanceAreaCode" type="smsdo:AllowanceAreaCodeType">
+        <xs:annotation>
+            <xs:documentation>Кодовое обозначение части территории государства-члена, указанной в национальном реестре, характеризующейся определенной величиной притока естественной фотосинтетически активной радиации, или на которой сорт допущен (разрешен, рекомендован) к использованию</xs:documentation>
+        </xs:annotation>
+    </xs:element>
+    <!-- M.SM.SDT.00405: Зона допуска или световая зона (Зона допуска или световая зона_ Код. Тип) -->
+    <xs:simpleType name="AllowanceAreaCodeType">
+        <xs:annotation>
+            <xs:documentation>Строка символов, представляющая краткое условное обозначение региона, в котором сорт допущен к использованию</xs:documentation>
+        </xs:annotation>
+        <xs:restriction base="bdt:CodeType"/>
+    </xs:simpleType>
+    <!-- M.SM.SDE.00413: Наименование зоны допуска или световой зоны (Зона допуска или световая зона. Имя) -->
+    <xs:element name="AllowanceAreaName" type="smsdo:AllowanceAreaNameType">
+        <xs:annotation>
+            <xs:documentation>Наименование части территории государства-члена, указанной в национальном реестре, характеризующейся определенной величиной притока естественной фотосинтетически активной радиации, или на которой сорт допущен (разрешен, рекомендован) к использованию</xs:documentation>
+        </xs:annotation>
+    </xs:element>
+    <!-- M.SM.SDT.00410: Зона допуска или световая зона (Зона допуска или световая зона_ Имя. Тип) -->
+    <xs:complexType name="AllowanceAreaNameType">
+        <xs:annotation>
+            <xs:documentation>Строка символов, представляющая наименование региона, в котором сорт допущен к использованию</xs:documentation>
+        </xs:annotation>
+        <xs:simpleContent>
+            <xs:extension base="csdo:Name120Type">
+                <xs:attribute default="0" name="lightAreaNameIndicator" type="bdt:IndicatorType">
+                    <xs:annotation>
+                        <xs:documentation>признак, определяющий вид зоны, чье название передается в реквизите: 1 – в реквизите передается имя световой зоны; 0 (значение по умолчанию) – в реквизите передается имя зоны допуска</xs:documentation>
+                    </xs:annotation>
+                </xs:attribute>
+            </xs:extension>
+        </xs:simpleContent>
+    </xs:complexType>
+    <!-- M.SM.SDE.00414: Наименование региона, входящего в зону допуска или световую зону (Регион, входящий в зону допуска или световую зону. Имя) -->
+    <xs:element name="AllowanceRegionName" type="csdo:Name120Type">
+        <xs:annotation>
+            <xs:documentation>Наименование региона, входящего в часть территории государства-члена, указанной в национальном реестре, характеризующейся определенной величиной притока естественной фотосинтетически активной радиации, или на которой сорт допущен (разрешен, рекомендован) к использованию</xs:documentation>
+        </xs:annotation>
+    </xs:element>
+    <!-- M.SM.SDE.00001: Наименование породы животного (Порода животного. Имя) -->
+    <xs:element name="AnimalBreedName" type="csdo:Name120Type">
+        <xs:annotation>
+            <xs:documentation>Наименование породы животного</xs:documentation>
+        </xs:annotation>
+    </xs:element>
+    <!-- M.SM.SDE.00074: Наименование окраса животного (Окрас животного. Имя) -->
+    <xs:element name="AnimalColorName" type="csdo:Name120Type">
+        <xs:annotation>
+            <xs:documentation>Наименование окраса (масти) животного</xs:documentation>
+        </xs:annotation>
+    </xs:element>
+    <!-- M.SM.SDE.00010: Код болезни животного (Болезнь животного. Код) -->
+    <xs:element name="AnimalDiseaseCode" type="smsdo:AnimalDiseaseCodeType">
+        <xs:annotation>
+            <xs:documentation>Кодовое обозначение болезни животного</xs:documentation>
+        </xs:annotation>
+    </xs:element>
+    <!-- M.SM.SDT.00009: Код болезни животного (Болезнь животного_ Код. Тип) -->
+    <xs:complexType name="AnimalDiseaseCodeType">
+        <xs:annotation>
+            <xs:documentation>Строка символов, представляющая краткое условное обозначение болезни животного</xs:documentation>
+        </xs:annotation>
+        <xs:simpleContent>
+            <xs:extension base="csdo:QualifiedCodeType"/>
+        </xs:simpleContent>
+    </xs:complexType>
+    <!-- M.SM.SDE.00009: Наименование болезни животного (Болезнь животного. Имя) -->
+    <xs:element name="AnimalDiseaseName" type="csdo:Name120Type">
+        <xs:annotation>
+            <xs:documentation>Наименование болезни животного</xs:documentation>
+        </xs:annotation>
+    </xs:element>
+    <!-- M.SM.SDE.00058: Номер сообщения об обнаружении эпизоотического очага (Сообщение об обнаружении эпизоотического очага. Идентификатор) -->
+    <xs:element name="AnimalDiseaseOutbreakAlertId" type="csdo:Id20Type">
+        <xs:annotation>
+            <xs:documentation>идентификационный номер сообщения об обнаружении и распространении на территории государства-члена заразных болезней животных, в том числе общих для человека и животных</xs:documentation>
+        </xs:annotation>
+    </xs:element>
+    <!-- M.SM.SDE.00305: Описание особых примет животного (Особые приметы животного. Текст) -->
+    <xs:element name="AnimalDistinguishingMarksText" type="csdo:Text250Type">
+        <xs:annotation>
+            <xs:documentation>Описание особых примет животного</xs:documentation>
+        </xs:annotation>
+    </xs:element>
+    <!-- M.SM.SDE.00118: Описание группы животных (Описание группы животных. Текст) -->
+    <xs:element name="AnimalGroupText" type="csdo:Text250Type">
+        <xs:annotation>
+            <xs:documentation>Описание группы животных</xs:documentation>
+        </xs:annotation>
+    </xs:element>
+    <!-- M.SM.SDE.00302: Идентификатор животного (Животное. Идентификатор) -->
+    <xs:element name="AnimalId" type="csdo:Id40Type">
+        <xs:annotation>
+            <xs:documentation>Уникальный номер, присвоенный животному (группе животных)</xs:documentation>
+        </xs:annotation>
+    </xs:element>
+    <!-- M.SM.SDE.00337: Признак дубликата средства идентификации животного (Дубликат средства идентификации животного. Индикатор) -->
+    <xs:element name="AnimalIdEquipmentDuplicateIndicator" type="bdt:IndicatorType">
+        <xs:annotation>
+            <xs:documentation>Признак, определяющий дубликат средства идентификации животного: 1 – дубликат средства идентификации животного; 0 – оригинал средства идентификации животного</xs:documentation>
+        </xs:annotation>
+    </xs:element>
+    <!-- M.SM.SDE.00335: Идентификатор средства идентификации (Средство идентификации. Идентификатор) -->
+    <xs:element name="AnimalIdEquipmentId" type="csdo:Id40Type">
+        <xs:annotation>
+            <xs:documentation>Идентификационный номер средства идентификации животного</xs:documentation>
+        </xs:annotation>
+    </xs:element>
+    <!-- M.SM.SDE.00336: Описание расположения средства идентификации на теле животного (Описание расположения средства идентификации на теле животного. Текст) -->
+    <xs:element name="AnimalIdEquipmentLocationBodyText" type="csdo:Text1000Type">
+        <xs:annotation>
+            <xs:documentation>Описание расположения средства идентификации на теле животного</xs:documentation>
+        </xs:annotation>
+    </xs:element>
+    <!-- M.SM.SDE.00334: Наименование средства идентификации животного (Средство идентификации животного. Имя) -->
+    <xs:element name="AnimalIdEquipmentName" type="csdo:Name120Type">
+        <xs:annotation>
+            <xs:documentation>Наименование средства идентификации животного</xs:documentation>
+        </xs:annotation>
+    </xs:element>
+    <!-- M.SM.SDT.00005: Код метода идентификации животного (Метод идентификации животного_ Код. Тип) -->
+    <xs:simpleType name="AnimalIdKindCodeType">
+        <xs:annotation>
+            <xs:documentation>Строка символов, представляющая краткое условное обозначение метода идентификации животного</xs:documentation>
+        </xs:annotation>
+        <xs:restriction base="bdt:CodeType">
+            <xs:pattern value="[0-9]{2}"/>
+        </xs:restriction>
+    </xs:simpleType>
+    <!-- M.SM.SDE.00323: Код метода идентификации животного (Метод идентификации животного. Код) -->
+    <xs:element name="AnimalIdentificationMethodCode" type="smsdo:AnimalIdKindCodeType">
+        <xs:annotation>
+            <xs:documentation>Кодовое обозначение метода идентификации животного</xs:documentation>
+        </xs:annotation>
+    </xs:element>
+    <!-- M.SM.SDE.00301: Наименование метода идентификации животного (Метод идентификации животного. Имя) -->
+    <xs:element name="AnimalIdentificationMethodName" type="csdo:Name120Type">
+        <xs:annotation>
+            <xs:documentation>Наименование метода идентификации животного</xs:documentation>
+        </xs:annotation>
+    </xs:element>
+    <!-- M.SM.SDE.00990: Код вида (группы) животного (Вид (группа) животного. Код) -->
+    <xs:element name="AnimalKindCode" type="smsdo:AnimalKindCodeType">
+        <xs:annotation>
+            <xs:documentation>кодовое обозначение вида (группы) животного</xs:documentation>
+        </xs:annotation>
+    </xs:element>
+    <!-- M.SM.SDT.00976: Код вида (группы) животного (Вид (группа) животного_ Код. Тип) -->
+    <xs:simpleType name="AnimalKindCodeType">
+        <xs:annotation>
+            <xs:documentation>Строка символов, представляющая краткое условное обозначение вида (группы) животного</xs:documentation>
+        </xs:annotation>
+        <xs:restriction base="bdt:CodeType"/>
+    </xs:simpleType>
+    <!-- M.SM.SDE.00991: Наименование вида (группы) животного (Вид (группа) животного. Имя) -->
+    <xs:element name="AnimalKindName" type="csdo:Name120Type">
+        <xs:annotation>
+            <xs:documentation>Наименование вида (группы) животного</xs:documentation>
+        </xs:annotation>
+    </xs:element>
+    <!-- M.SM.SDE.00057: Наименование вида животноводческого объекта (Вид животноводческого объекта. Имя) -->
+    <xs:element name="AnimalLivestockFacilityKindName" type="csdo:Name120Type">
+        <xs:annotation>
+            <xs:documentation>Наименование вида животноводческого объекта</xs:documentation>
+        </xs:annotation>
+    </xs:element>
+    <!-- M.SM.SDE.00307: Код вида события при перемещении животного (Вид события при перемещении животного. Код) -->
+    <xs:element name="AnimalMovementEventKindCode" type="smsdo:AnimalMovementEventKindCodeType">
+        <xs:annotation>
+            <xs:documentation>Кодовое обозначение вида события при перемещении животного</xs:documentation>
+        </xs:annotation>
+    </xs:element>
+    <!-- M.SM.SDT.00366: Код вида события при перемещении животного (Вид события при перемещении животного_ Код. Тип) -->
+    <xs:complexType name="AnimalMovementEventKindCodeType">
+        <xs:annotation>
+            <xs:documentation>Строка символов, представляющая краткое условное обозначение вида события, регистрируемого в рамках идентификации и прослеживаемости животных</xs:documentation>
+        </xs:annotation>
+        <xs:simpleContent>
+            <xs:restriction base="csdo:QualifiedCodeType">
+                <xs:pattern value="[0-9]{3}"/>
+            </xs:restriction>
+        </xs:simpleContent>
+    </xs:complexType>
+    <!-- M.SM.SDE.00308: Наименование события при перемещении животного (Событие при перемещении животного. Имя) -->
+    <xs:element name="AnimalMovementEventName" type="csdo:Name120Type">
+        <xs:annotation>
+            <xs:documentation>Наименование события при перемещении животного</xs:documentation>
+        </xs:annotation>
+    </xs:element>
+    <!-- M.SM.SDE.00311: Кличка животного (Животное. Имя) -->
+    <xs:element name="AnimalName" type="csdo:Name120Type">
+        <xs:annotation>
+            <xs:documentation>Кличка животного</xs:documentation>
+        </xs:annotation>
+    </xs:element>
+    <!-- M.SM.SDE.00309: Описание происхождения животного (Происхождение (родословная) животного. Текст) -->
+    <xs:element name="AnimalPedigreeText" type="csdo:Text4000Type">
+        <xs:annotation>
+            <xs:documentation>Описание происхождении животного (родословной животного)</xs:documentation>
+        </xs:annotation>
+    </xs:element>
+    <!-- M.SM.SDE.00365: Изображение животного (Изображение животного. Рисунок) -->
+    <xs:element name="AnimalPicture" type="csdo:PictureType">
+        <xs:annotation>
+            <xs:documentation>Изображение (фотография) животного</xs:documentation>
+        </xs:annotation>
+    </xs:element>
+    <!-- M.SM.SDE.00080: Идентификатор продукции животного происхождения (Продукция животного происхождения. Идентификатор) -->
+    <xs:element name="AnimalProductId" type="csdo:Id20Type">
+        <xs:annotation>
+            <xs:documentation>Идентификационный номер продукции животного происхождения</xs:documentation>
+        </xs:annotation>
+    </xs:element>
+    <!-- M.SM.SDE.00091: Код вида животного (продукции животного происхождения) (Вид животного (продукции животного происхождения). Код) -->
+    <xs:element name="AnimalProductKindCode" type="smsdo:AnimalProductKindCodeType">
+        <xs:annotation>
+            <xs:documentation>Кодовое обозначение вида животного (продукции животного происхождения)</xs:documentation>
+        </xs:annotation>
+    </xs:element>
+    <!-- M.SM.SDT.00006: Код вида животного (продукции животного происхождения) (Код вида животного (продукции животного происхождения)_ Код. Тип) -->
+    <xs:simpleType name="AnimalProductKindCodeType">
+        <xs:annotation>
+            <xs:documentation>Строка символов, представляющая краткое условное обозначение вида животного</xs:documentation>
+        </xs:annotation>
+        <xs:restriction base="bdt:CodeType"/>
+    </xs:simpleType>
+    <!-- M.SM.SDE.00384: Наименование вида животного (продукции животного происхождения) (Вид животного (продукции животного происхождения). Имя) -->
+    <xs:element name="AnimalProductKindName" type="csdo:Name120Type">
+        <xs:annotation>
+            <xs:documentation>Наименование вида животного (продукции животного происхождения)</xs:documentation>
+        </xs:annotation>
+    </xs:element>
+    <!-- M.SM.SDE.00004: Количество животных (Животное. Количество) -->
+    <xs:element name="AnimalQuantity" type="csdo:Quantity4Type">
+        <xs:annotation>
+            <xs:documentation>Количество животных</xs:documentation>
+        </xs:annotation>
+    </xs:element>
+    <!-- M.SM.SDE.00355: Информация о репродукции животного (Репродукция животного. Текст) -->
+    <xs:element name="AnimalReproductionText" type="csdo:Text1000Type">
+        <xs:annotation>
+            <xs:documentation>Информация о репродукции (стерилизации, кастрации) животного</xs:documentation>
+        </xs:annotation>
+    </xs:element>
+    <!-- M.SM.SDE.00310: Признак убоя животного (Признак убоя животного. Индикатор) -->
+    <xs:element name="AnimalSlaughterIndicator" type="bdt:IndicatorType">
+        <xs:annotation>
+            <xs:documentation>Признак, определяющий убой животного: 1 – убой; 0 – гибель (падеж)</xs:documentation>
+        </xs:annotation>
+    </xs:element>
+    <!-- M.SM.SDE.00385: Код типа сведений о прослеживаемости животных (продукции животного происхождения) (Тип сведений о прослеживаемости животных (продукции животного происхождения). Код) -->
+    <xs:element name="AnimalTraceabilityInformationKindCode" type="smsdo:AnimalTraceabilityInformationKindCodeType">
+        <xs:annotation>
+            <xs:documentation>Кодовое обозначение типа сведений о прослеживаемости животных (продукции животного происхождения)</xs:documentation>
+        </xs:annotation>
+    </xs:element>
+    <!-- M.SM.SDT.00385: Код типа сведений о прослеживаемости животных (продукции животного происхождения) (Тип сведений о прослеживаемости животных (продукции животного происхождения)_ Код. Тип) -->
+    <xs:simpleType name="AnimalTraceabilityInformationKindCodeType">
+        <xs:annotation>
+            <xs:documentation>Строка символов, представляющая краткое условное обозначение типа сведений о прослеживаемости животных (продукции животного происхождения)</xs:documentation>
+        </xs:annotation>
+        <xs:restriction base="bdt:CodeType">
+            <xs:minLength value="1"/>
+            <xs:maxLength value="2"/>
+        </xs:restriction>
+    </xs:simpleType>
+    <!-- M.SM.SDT.00399: Код вида участника обращения животных и (или) продукции животного происхождения (Вид участника обращения животных и (или) продукции животного происхождения_ Код. Тип) -->
+    <xs:simpleType name="AnimalTurnoverParticipanKindCodeType">
+        <xs:annotation>
+            <xs:documentation>Строка символов, представляющая краткое условное обозначение вида участника обращения животных и (или) продукции животного происхождения</xs:documentation>
+        </xs:annotation>
+        <xs:restriction base="bdt:CodeType">
+            <xs:minLength value="1"/>
+            <xs:maxLength value="2"/>
+        </xs:restriction>
+    </xs:simpleType>
+    <!-- M.SM.SDE.00387: Идентификационный номер участника обращения животных и (или) продукции животного происхождения (Участник обращения животных и (или) продукции животного происхождения. Идентификатор) -->
+    <xs:element name="AnimalTurnoverParticipantId" type="csdo:Id40Type">
+        <xs:annotation>
+            <xs:documentation>идентификационный (регистрационный, учетный) номер участника обращения животных и (или) продукции животного происхождения в национальной информационной системе</xs:documentation>
+        </xs:annotation>
+    </xs:element>
+    <!-- M.SM.SDE.00399: Код вида участника обращения животных и (или) продукции животного происхождения (Вид участника обращения животных и (или) продукции животного происхождения. Код) -->
+    <xs:element name="AnimalTurnoverParticipantKindCode" type="smsdo:AnimalTurnoverParticipanKindCodeType">
+        <xs:annotation>
+            <xs:documentation>Кодовое обозначение вида участника обращения животных и (или) продукции животного происхождения</xs:documentation>
+        </xs:annotation>
+    </xs:element>
+    <!-- M.SM.SDE.00363: Код ветеринарно-санитарного мероприятия в отношении животного (Ветеринарно-санитарное мероприятие в отношении животного. Код) -->
+    <xs:element name="AnimalVeterinaryEventKindCode" type="smsdo:AnimalVeterinaryEventKindCodeType">
+        <xs:annotation>
+            <xs:documentation>Кодовое обозначение вида ветеринарно-санитарного мероприятия в отношении животного</xs:documentation>
+        </xs:annotation>
+    </xs:element>
+    <!-- M.SM.SDT.00363: Код вида ветеринарно-санитарного мероприятия в отношении животного (Вид ветеринарно-санитарного мероприятия в отношении животного_ Код. Тип) -->
+    <xs:complexType name="AnimalVeterinaryEventKindCodeType">
+        <xs:annotation>
+            <xs:documentation>Строка символов, представляющая краткое условное обозначение вида мероприятия в отношении животного</xs:documentation>
+        </xs:annotation>
+        <xs:simpleContent>
+            <xs:restriction base="csdo:QualifiedCodeType">
+                <xs:pattern value="[0-9]{3}"/>
+            </xs:restriction>
+        </xs:simpleContent>
+    </xs:complexType>
+    <!-- M.SM.SDE.00304: Наименование ветеринарно-санитарном мероприятии в отношении животного (Ветеринарно-санитарное мероприятие в отношении животного. Имя) -->
+    <xs:element name="AnimalVeterinaryEventName" type="csdo:Name500Type">
+        <xs:annotation>
+            <xs:documentation>Наименование пройденного животным ветеринарно-санитарного мероприятия</xs:documentation>
+        </xs:annotation>
+    </xs:element>
+    <!-- M.SM.SDE.00360: Описание результата прохождения животным ветеринарно-санитарного мероприятия (Результат прохождения животным ветеринарно-санитарного мероприятия. Текст) -->
+    <xs:element name="AnimalVeterinaryEventResultText" type="csdo:Text4000Type">
+        <xs:annotation>
+            <xs:documentation>Описание результата прохождения животным ветеринарно-санитарного мероприятия (заключение, диагноз и рекомендации)</xs:documentation>
+        </xs:annotation>
+    </xs:element>
+    <!-- M.SM.SDE.00954: Наименование регионального ведомства подачи заявки (Региональное ведомство подачи заявки. Имя) -->
+    <xs:element name="ApplicationAuthorityName" type="csdo:Name300Type">
+        <xs:annotation>
+            <xs:documentation>Наименование регионального ведомства подачи заявки</xs:documentation>
+        </xs:annotation>
+    </xs:element>
+    <!-- M.SM.SDE.00303: Идентификатор территориального структурного подразделения уполномоченного органа государства-члена (Территориальное структурное подразделение уполномоченного органа государства-члена. Идентификатор) -->
+    <xs:element name="AuthorityUnitId" type="csdo:UnifiedId20Type">
+        <xs:annotation>
+            <xs:documentation>Строка, идентифицирующая территориальное структурное подразделение уполномоченного органа государства-члена</xs:documentation>
+        </xs:annotation>
+    </xs:element>
+    <!-- M.SM.SDE.00176: Номер серии товара (Серия товара. Идентификатор) -->
+    <xs:element name="BatchId" type="csdo:Id50Type">
+        <xs:annotation>
+            <xs:documentation>Уникальный идентификационный номер серии товара</xs:documentation>
+        </xs:annotation>
+    </xs:element>
+    <!-- M.SM.SDE.01013: Локализованное наименование хозяйствующего субъекта (Хозяйствующий субъект: локализованное. Имя) -->
+    <xs:element name="BusinessEntityLocalizedName" type="csdo:LocalizedName500Type">
+        <xs:annotation>
+            <xs:documentation>полное наименование хозяйствующего субъекта или фамилия, имя и отчество физического лица, ведущего хозяйственную деятельность, с указанием используемого языка</xs:documentation>
+        </xs:annotation>
+    </xs:element>
+    <!-- M.SM.SDE.00204: Признак наличия заверенной копии (Признак наличия заверенной копии. Индикатор) -->
+    <xs:element name="CertifiedTrueCopyIndicator" type="bdt:IndicatorType">
+        <xs:annotation>
+            <xs:documentation>Признак, определяющий наличие заверенной копии сертификата: 1 – заверенная копия присутствует; 0 – заверенная копия отсутствует</xs:documentation>
+        </xs:annotation>
+    </xs:element>
+    <!-- M.SM.SDE.00135: Наименование химического вещества (субстанции) (Химическое вещество (субстанция). Имя) -->
+    <xs:element name="ChemicalName" type="csdo:Name250Type">
+        <xs:annotation>
+            <xs:documentation>Наименование химиката, применяемого при дезинфекции или обеззараживании груза</xs:documentation>
+        </xs:annotation>
+    </xs:element>
+    <!-- M.SM.SDE.00164: Код вида растения (Вид растения. Код) -->
+    <xs:element name="ClPlantSpeciesCode" type="smsdo:PlantSpeciesCodeType">
+        <xs:annotation>
+            <xs:documentation>Кодовое обозначение вида растения</xs:documentation>
+        </xs:annotation>
+    </xs:element>
+    <!-- M.SM.SDE.00071: Код клинико-фармакологической группы (Клинико-фармакологическая группа. Код) -->
+    <xs:element name="ClinicPharmacologicalGroupCode" type="smsdo:ClinicPharmacologicalGroupCodeType">
+        <xs:annotation>
+            <xs:documentation>Кодовое обозначение клинико-фармакологической группы ветеринарного препарата</xs:documentation>
+        </xs:annotation>
+    </xs:element>
+    <!-- M.SM.SDT.00030: Код клинико-фармакологической группы (Клинико-фармакологическая группа_ Код. Тип) -->
+    <xs:simpleType name="ClinicPharmacologicalGroupCodeType">
+        <xs:annotation>
+            <xs:documentation>Строка символов, представляющая краткое условное обозначение клинико-фармакологической группы ветеринарного препарата</xs:documentation>
+        </xs:annotation>
+        <xs:restriction base="bdt:CodeType">
+            <xs:pattern value="[0-9]{3}"/>
+        </xs:restriction>
+    </xs:simpleType>
+    <!-- M.SM.SDE.00148: Наименование клинико-фармакологической группы ветеринарного препарата (Клинико-фармакологическая группа ветеринарного препарата. Имя) -->
+    <xs:element name="ClinicPharmacologicalGroupName" type="csdo:Name500Type">
+        <xs:annotation>
+            <xs:documentation>Наименование клинико-фармакологической группы ветеринарного препарата</xs:documentation>
+        </xs:annotation>
+    </xs:element>
+    <!-- M.SM.SDE.00052: Описание клинического признака (Клинический признак. Текст) -->
+    <xs:element name="ClinicalSignText" type="smsdo:ClinicalSignTextType">
+        <xs:annotation>
+            <xs:documentation>Описание клинического признака</xs:documentation>
+        </xs:annotation>
+    </xs:element>
+    <!-- M.SM.SDT.00975: Описание клинического признака с индикатором его наличия (Клинический признак_ Текст. Тип) -->
+    <xs:complexType name="ClinicalSignTextType">
+        <xs:annotation>
+            <xs:documentation>Строка, представляющая описание клинического признака болезни с опциональным индикатором наличия или отсутствия данного признака</xs:documentation>
+        </xs:annotation>
+        <xs:simpleContent>
+            <xs:extension base="csdo:Text1000Type">
+                <xs:attribute name="presenceIndicator" type="bdt:IndicatorType">
+                    <xs:annotation>
+                        <xs:documentation>Индикатор наличия клинического признака болезни: 1 - клинический признак присутствует 0 - клинический признак отсутствует</xs:documentation>
+                    </xs:annotation>
+                </xs:attribute>
+            </xs:extension>
+        </xs:simpleContent>
+    </xs:complexType>
+    <!-- M.SM.SDE.00120: Номер компартмента (Компартмент. Код) -->
+    <xs:element name="CompartmentCode" type="smsdo:CompartmentCodeType">
+        <xs:annotation>
+            <xs:documentation>Кодовое обозначение субпопуляции животных одного или нескольких объектов, подлежащих ветеринарному контролю (надзору) с единой системой управления биологической безопасности, обладающей особым зоосанитарным статусом по одной или нескольких болезням, в отношении которых принимаются ветеринарно-санитарные меры контроля (надзора), профилактики, диагностики и биологической безопасности в целях осуществления торговли</xs:documentation>
+        </xs:annotation>
+    </xs:element>
+    <!-- M.SM.SDT.00047: Номер компартмента (Номер компартмента_ Код. Тип) -->
+    <xs:simpleType name="CompartmentCodeType">
+        <xs:annotation>
+            <xs:documentation>Строка символов, представляющая краткое условное обозначение субпопуляции животных одного или нескольких объектов, подлежащих ветеринарному контролю (надзору) с единой системой управления биологической безопасности, обладающей особым зоосанитарным статусом по одной или нескольких болезням, в отношении которых принимаются ветеринарно-санитарные меры контроля (надзора), профилактики, диагностики и биологической безопасности в целях осуществления торговли</xs:documentation>
+        </xs:annotation>
+        <xs:restriction base="bdt:CodeType">
+            <xs:minLength value="1"/>
+            <xs:maxLength value="1"/>
+        </xs:restriction>
+    </xs:simpleType>
+    <!-- M.SM.SDE.00014: Наименование компартмента (Компартмент. Имя) -->
+    <xs:element name="CompartmentName" type="csdo:Name120Type">
+        <xs:annotation>
+            <xs:documentation>Наименование субпопуляции животных одного или нескольких объектов, подлежащих ветеринарному контролю (надзору) с единой системой управления биологической безопасности, обладающей особым зоосанитарным статусом по одной или нескольких болезням, в отношении которых принимаются ветеринарно-санитарные меры контроля (надзора), профилактики, диагностики и биологической безопасности в целях осуществления торговли</xs:documentation>
+        </xs:annotation>
+    </xs:element>
+    <!-- M.SM.SDE.00099: Признак проведения компартментализации (Признак проведения компартментализации. Индикатор) -->
+    <xs:element name="CompartmentalizationIndicator" type="bdt:IndicatorType">
+        <xs:annotation>
+            <xs:documentation>Признак, определяющий проведение компартментализации: 1 – компартментализация проводится; 0 – компартментализация не проводится</xs:documentation>
+        </xs:annotation>
+    </xs:element>
+    <!-- M.SM.SDE.00106: Концентрация вещества (Концентрация вещества. Измерение) -->
+    <xs:element name="ConcentrationMeasure" type="csdo:UnifiedPhysicalMeasureType">
+        <xs:annotation>
+            <xs:documentation>Концентрация вещества</xs:documentation>
+        </xs:annotation>
+    </xs:element>
+    <!-- M.SM.SDE.00381: Идентификатор грузополучателя (Грузополучатель. Идентификатор) -->
+    <xs:element name="ConsigneeId" type="csdo:BusinessEntityIdType">
+        <xs:annotation>
+            <xs:documentation>Номер (код) записи по реестру (регистру), присвоенный при государственной регистрации</xs:documentation>
+        </xs:annotation>
+    </xs:element>
+    <!-- M.SM.SDE.00997: Код причины приостановления движения подконтрольных товаров (Причина приостановления движения подконтрольных товаров. Код) -->
+    <xs:element name="ConsignmentDetentionReasonCode" type="csdo:UnifiedOptionalCode20Type">
+        <xs:annotation>
+            <xs:documentation>Кодовое обозначение причины приостановления движения подконтрольных товаров</xs:documentation>
+        </xs:annotation>
+    </xs:element>
+    <!-- M.SM.SDE.00998: Описание причины приостановления движения подконтрольных товаров (Причина приостановления движения подконтрольных товаров. Текст) -->
+    <xs:element name="ConsignmentDetentionReasonText" type="csdo:Text1000Type">
+        <xs:annotation>
+            <xs:documentation>описание причины приостановления движения подконтрольных товаров </xs:documentation>
+        </xs:annotation>
+    </xs:element>
+    <!-- M.SM.SDE.00096: Идентификационный номер товарной партии (Товарная партия. Идентификатор) -->
+    <xs:element name="ConsignmentId" type="csdo:Id20Type">
+        <xs:annotation>
+            <xs:documentation>Идентификационный номер товарной партии</xs:documentation>
+        </xs:annotation>
+    </xs:element>
+    <!-- M.SM.SDE.00038: Идентификационный номер единицы товарной партии (Единица товарной партии. Идентификатор) -->
+    <xs:element name="ConsignmentItemId" type="csdo:Id20Type">
+        <xs:annotation>
+            <xs:documentation>Номер единицы партии, указанный при дроблении</xs:documentation>
+        </xs:annotation>
+    </xs:element>
+    <!-- M.SM.SDE.00380: Идентификатор грузоотправителя (Грузоотправитель. Идентификатор) -->
+    <xs:element name="ConsignorId" type="csdo:BusinessEntityIdType">
+        <xs:annotation>
+            <xs:documentation>Номер (код) записи по реестру (регистру), присвоенный при государственной регистрации</xs:documentation>
+        </xs:annotation>
+    </xs:element>
+    <!-- M.SM.SDE.01010: Наименование загрязняющего фактора (Загрязняющий фактор. Имя) -->
+    <xs:element name="ContaminationAgentName" type="csdo:Name120Type">
+        <xs:annotation>
+            <xs:documentation>Наименование загрязняющего фактора (химического вещества, возбудителя инфекционного заболевания)</xs:documentation>
+        </xs:annotation>
+    </xs:element>
+    <!-- M.SM.SDE.00015: Цель перевозки (Цель перевозки. Текст) -->
+    <xs:element name="ConveyancePurposeText" type="csdo:Text250Type">
+        <xs:annotation>
+            <xs:documentation>Цель перемещения (ввоза, вывоза, транзита) товара</xs:documentation>
+        </xs:annotation>
+    </xs:element>
+    <!-- M.SM.SDE.00075: Признак риска трансграничного распространения (Риск трансграничного распространения. Индикатор) -->
+    <xs:element name="CrossborderSpreadRiskIndicator" type="bdt:IndicatorType">
+        <xs:annotation>
+            <xs:documentation>Признак, определяющий наличие риска трансграничного распространения: 1 – риск трансграничного распространения присутствует; 0 – риск трансграничного распространения отсутствует</xs:documentation>
+        </xs:annotation>
+    </xs:element>
+    <!-- M.SM.SDE.00241: Признак изготовления продукции на таможенной территории Союза (Продукция, изготовленная на таможенной территории Союза. Индикатор) -->
+    <xs:element name="CustomsTerritoryManufacturedProductIndicator" type="bdt:IndicatorType">
+        <xs:annotation>
+            <xs:documentation>Признак, определяющий факт того, что продукция изготовлена на таможенной территории Союза: 1 – продукция изготовлена на таможенной территории Союза; 0 – продукция изготовлена вне таможенной территории Союза</xs:documentation>
+        </xs:annotation>
+    </xs:element>
+    <!-- M.SM.SDE.00180: Номер сообщения об обнаружении опасной продукции (Случай обнаружения опасной продукции. Идентификатор) -->
+    <xs:element name="DangerousProductAlertId" type="csdo:Id20Type">
+        <xs:annotation>
+            <xs:documentation>Идентификационный номер сообщения об обнаружении опасной продукции</xs:documentation>
+        </xs:annotation>
+    </xs:element>
+    <!-- M.SM.SDE.00218: Идентификатор опасной продукции (Опасная продукция. Идентификатор) -->
+    <xs:element name="DangerousProductId" type="csdo:Id20Type">
+        <xs:annotation>
+            <xs:documentation>Идентификационный номер опасной продукции</xs:documentation>
+        </xs:annotation>
+    </xs:element>
+    <!-- M.SM.SDE.00115: Наименование вида диагностического средства (Вид диагностического средства. Имя) -->
+    <xs:element name="DiagnosticToolKindName" type="csdo:Name250Type">
+        <xs:annotation>
+            <xs:documentation>Наименование вида диагностического средства</xs:documentation>
+        </xs:annotation>
+    </xs:element>
+    <!-- M.SM.SDE.00156: Код показателя безопасности (Показатель безопасности. Код) -->
+    <xs:element name="DiscrepancyOfQualityIndexCode" type="csdo:UnifiedOptionalCode20Type">
+        <xs:annotation>
+            <xs:documentation>Кодовое обозначение показателя безопасности</xs:documentation>
+        </xs:annotation>
+    </xs:element>
+    <!-- M.SM.SDE.00157: Наименование показателя безопасности (Показатель безопасности. Имя) -->
+    <xs:element name="DiscrepancyOfQualityIndexName" type="csdo:Name500Type">
+        <xs:annotation>
+            <xs:documentation>Наименование показателя безопасности</xs:documentation>
+        </xs:annotation>
+    </xs:element>
+    <!-- M.SM.SDE.00158: Значение показателя безопасности (Показатель безопасности. Значение) -->
+    <xs:element name="DiscrepancyOfQualityIndexValue" type="csdo:Value100Type">
+        <xs:annotation>
+            <xs:documentation>Значение показателя безопасности</xs:documentation>
+        </xs:annotation>
+    </xs:element>
+    <!-- M.SM.SDE.00177: Код болезни или проблемы, связанной со здоровьем человека (Болезнь или проблема, связанная со здоровьем человека. Код) -->
+    <xs:element name="DiseaseHealthProblemCode" type="smsdo:DiseaseHealthProblemCodeType">
+        <xs:annotation>
+            <xs:documentation>Кодовое обозначение болезни или иной проблемы, связанной со здоровьем человека</xs:documentation>
+        </xs:annotation>
+    </xs:element>
+    <!-- M.SM.SDT.00064: Код болезни или проблемы, связанной со здоровьем человека (Код болезни или проблемы, связанной со здоровьем человека_ Код. Тип) -->
+    <xs:complexType name="DiseaseHealthProblemCodeType">
+        <xs:annotation>
+            <xs:documentation>Строка символов, представляющая краткое условное обозначение болезни или иной проблемы, связанной со здоровьем человека</xs:documentation>
+        </xs:annotation>
+        <xs:simpleContent>
+            <xs:extension base="csdo:QualifiedCodeType"/>
+        </xs:simpleContent>
+    </xs:complexType>
+    <!-- M.SM.SDE.00178: Наименование болезни или иной проблемы, связанной со здоровьем человека (Болезнь или проблема, связанная со здоровьем человека. Имя) -->
+    <xs:element name="DiseaseHealthProblemName" type="csdo:Name250Type">
+        <xs:annotation>
+            <xs:documentation>Наименование болезни или иной проблемы, связанной со здоровьем человека</xs:documentation>
+        </xs:annotation>
+    </xs:element>
+    <!-- M.SM.SDE.01006: Код исхода болезни (Исход болезни. Код) -->
+    <xs:element name="DiseaseOutcomeCode" type="csdo:Code10Type">
+        <xs:annotation>
+            <xs:documentation>Кодовое обозначение исхода болезни</xs:documentation>
+        </xs:annotation>
+    </xs:element>
+    <!-- M.SM.SDE.00197: Идентификатор сообщения об обнаружении болезни (отравления) человека (Сообщение об обнаружении болезни (отравления) человека. Идентификатор) -->
+    <xs:element name="DiseasePoisoningAlertId" type="csdo:Id20Type">
+        <xs:annotation>
+            <xs:documentation>Идентификатор сообщения об обнаружении и (или) распространении на территории Союза инфекционной или массовой неинфекционной болезни (отравления) человека, присвоенный уполномоченным органом государства-члена</xs:documentation>
+        </xs:annotation>
+    </xs:element>
+    <!-- M.SM.SDE.00201: Код категории случая заболевания (отравления) человека (Категория случая заболевания (отравления) человека. Код) -->
+    <xs:element name="DiseasePoisoningCategoryCode" type="csdo:Code20Type">
+        <xs:annotation>
+            <xs:documentation>Кодовое обозначение категории случая заболевания (отравления) человека</xs:documentation>
+        </xs:annotation>
+    </xs:element>
+    <!-- M.SM.SDE.00202: Признак места обнаружения или распространения болезни (отравления) (Место обнаружения или распространения болезни (отравления). Индикатор) -->
+    <xs:element name="DiseaseSpreadingIndicator" type="bdt:IndicatorType">
+        <xs:annotation>
+            <xs:documentation>Признак, определяющий принадлежность к месту обнаружения или распространения болезни (отравления): 1 - место обнаружения болезни (отравления), 0 - место распространения болезни (отравления)</xs:documentation>
+        </xs:annotation>
+    </xs:element>
+    <!-- M.SM.SDE.00003: Наименование уполномоченного органа, выдавшего документ (Уполномоченный орган, выдавший документ. Имя) -->
+    <xs:element name="DocIssuerAuthorityName" type="csdo:Name300Type">
+        <xs:annotation>
+            <xs:documentation>Наименование уполномоченного органа, выдавшего документ</xs:documentation>
+        </xs:annotation>
+    </xs:element>
+    <!-- M.SM.SDE.00184: Код вида документа, подтверждающем безопасность продукции (товаров) (Документ, подтверждающий безопасность продукции (товаров). Код) -->
+    <xs:element name="DocKindCode" type="csdo:Code20Type">
+        <xs:annotation>
+            <xs:documentation>Кодовое обозначение вида документа, подтверждающего безопасность продукции (товаров), в части ее соответствия санитарно-эпидемиологическим и гигиеническим требованиям</xs:documentation>
+        </xs:annotation>
+    </xs:element>
+    <!-- M.SM.SDE.00026: Дата регистрации документа (Дата регистрации документа. Дата) -->
+    <xs:element name="DocRegistrationDate" type="bdt:DateType">
+        <xs:annotation>
+            <xs:documentation>Дата регистрации документа</xs:documentation>
+        </xs:annotation>
+    </xs:element>
+    <!-- M.SM.SDE.00079: Номер регистрации документа (Номер регистрации документа. Идентификатор) -->
+    <xs:element name="DocRegistrationId" type="csdo:Id50Type">
+        <xs:annotation>
+            <xs:documentation>Номер регистрации документа</xs:documentation>
+        </xs:annotation>
+    </xs:element>
+    <!-- M.SM.SDE.00104: Номер структурного элемента документа (Структурный элемент документа. Идентификатор) -->
+    <xs:element name="DocStructuralElementId" type="csdo:Id20Type">
+        <xs:annotation>
+            <xs:documentation>Номер структурного элемента документа</xs:documentation>
+        </xs:annotation>
+    </xs:element>
+    <!-- M.SM.SDE.00116: Наименование вида структурного элемента документа (Вид структурного элемента документа. Имя) -->
+    <xs:element name="DocStructuralElementName" type="csdo:Name120Type">
+        <xs:annotation>
+            <xs:documentation>Наименование структурного элемента документа (глава, раздел, подраздел, пункт, подпункт и т.д.)</xs:documentation>
+        </xs:annotation>
+    </xs:element>
+    <!-- M.SM.SDE.00137: Доза вещества (Доза вещества. Измерение) -->
+    <xs:element name="DoseMeasure" type="csdo:UnifiedPhysicalMeasureType">
+        <xs:annotation>
+            <xs:documentation>Доза вещества</xs:documentation>
+        </xs:annotation>
+    </xs:element>
+    <!-- M.SM.SDE.00062: Код фармацевтической субстанции (Фармацевтическая субстанция. Код) -->
+    <xs:element name="DrugSubstanceCode" type="smsdo:DrugSubstanceCodeType">
+        <xs:annotation>
+            <xs:documentation>Кодовое обозначение действующего вещества лекарственного средства, обладающего фармакологической активностью, предназначенного для производства, изготовления ветеринарного лекарственного препарата и определяющее его эффективность</xs:documentation>
+        </xs:annotation>
+    </xs:element>
+    <!-- M.SM.SDT.00035: Код фармацевтической субстанции (Фармацевтическая субстанция_ Код. Тип) -->
+    <xs:simpleType name="DrugSubstanceCodeType">
+        <xs:annotation>
+            <xs:documentation>Строка символов, представляющая краткое условное обозначение действующего вещества лекарственного средства, обладающего фармакологической активностью, предназначенного для производства, изготовления ветеринарного лекарственного препарата и определяющее его эффективность</xs:documentation>
+        </xs:annotation>
+        <xs:restriction base="bdt:CodeType">
+            <xs:pattern value="[0-9]{3}"/>
+        </xs:restriction>
+    </xs:simpleType>
+    <!-- M.SM.SDE.00150: Наименование фармацевтической субстанции (Фармацевтическая субстанция. Имя) -->
+    <xs:element name="DrugSubstanceName" type="csdo:Name250Type">
+        <xs:annotation>
+            <xs:documentation>Наименование действующего вещества лекарственного средства, обладающего фармакологической активностью, предназначенного для производства, изготовления ветеринарного лекарственного препарата и определяющее его эффективность</xs:documentation>
+        </xs:annotation>
+    </xs:element>
+    <!-- M.SM.SDE.00095: Код категории яйца пищевого (Категория яйца пищевого. Код) -->
+    <xs:element name="EggCategoryCode" type="smsdo:EggCategoryCodeType">
+        <xs:annotation>
+            <xs:documentation>Кодовое обозначение категории яйца пищевого</xs:documentation>
+        </xs:annotation>
+    </xs:element>
+    <!-- M.SM.SDT.00038: Код категории яйца пищевого (Категория яйца пищевого_ Код. Тип) -->
+    <xs:complexType name="EggCategoryCodeType">
+        <xs:annotation>
+            <xs:documentation>Строка символов, представляющая краткое условное обозначение категории яйца пищевого</xs:documentation>
+        </xs:annotation>
+        <xs:simpleContent>
+            <xs:restriction base="csdo:QualifiedCodeType">
+                <xs:pattern value="[0-9]{2}"/>
+            </xs:restriction>
+        </xs:simpleContent>
+    </xs:complexType>
+    <!-- M.SM.SDE.00094: Дата и время отгрузки яйца пищевого (Дата и время отгрузки яйца пищевого. Дата и время) -->
+    <xs:element name="EggSortingDateTime" type="bdt:DateTimeType">
+        <xs:annotation>
+            <xs:documentation>Дата и время сортировки яйца пищевого</xs:documentation>
+        </xs:annotation>
+    </xs:element>
+    <!-- M.SM.SDE.00996: Код вида осуществляемой деятельности (Вид деятельности: подконтрольный ветеринарно-санитарному надзору. Код) -->
+    <xs:element name="EnterpriseActivityKindCode" type="smsdo:EnterpriseActivityKindCodeType">
+        <xs:annotation>
+            <xs:documentation>Значение из классификатора видов деятельности организации в отношении подконтрольной ветеринарно-санитарному надзору продукции</xs:documentation>
+        </xs:annotation>
+    </xs:element>
+    <!-- M.SM.SDT.00980: Вид осуществляемой деятельности (Вид деятельности_ Код. Тип) -->
+    <xs:complexType name="EnterpriseActivityKindCodeType">
+        <xs:annotation>
+            <xs:documentation>Строка символов, представляющая краткое условное обозначение вида деятельности организации в отношении подконтрольной ветеринарно-санитарному надзору продукции</xs:documentation>
+        </xs:annotation>
+        <xs:simpleContent>
+            <xs:extension base="csdo:QualifiedCodeType"/>
+        </xs:simpleContent>
+    </xs:complexType>
+    <!-- M.SM.SDE.00499: Наименование вида осуществляемой деятельности (Вид деятельности: подконтрольный ветеринарно-санитарному надзору. Имя) -->
+    <xs:element name="EnterpriseActivityKindName" type="csdo:Name250Type">
+        <xs:annotation>
+            <xs:documentation>Наименование вида деятельности организации в отношении подконтрольной ветеринарно-санитарному надзору продукции</xs:documentation>
+        </xs:annotation>
+    </xs:element>
+    <!-- M.SM.SDE.00994: Код зоосанитарного статуса (Зоосанитарный статус. Код) -->
+    <xs:element name="EpizooticStatusCode" type="smsdo:EpizooticStatusCodeType">
+        <xs:annotation>
+            <xs:documentation>Код зоосанитарного статуса</xs:documentation>
+        </xs:annotation>
+    </xs:element>
+    <!-- M.SM.SDT.00979: Код зоосанитарного статуса (Зоосанитарный статус_ Код. Тип) -->
+    <xs:simpleType name="EpizooticStatusCodeType">
+        <xs:annotation>
+            <xs:documentation>Строка символов, представляющая краткое условное обозначение зоосанитарного статуса региона</xs:documentation>
+        </xs:annotation>
+        <xs:restriction base="bdt:CodeType"/>
+    </xs:simpleType>
+    <!-- M.SM.SDE.00013: Продолжительность эпизоотического благополучия (Эпизоотическое благополучие. Продолжительность) -->
+    <xs:element name="EpizooticWelfareDuration" type="bdt:DurationType">
+        <xs:annotation>
+            <xs:documentation>продолжительность эпизоотического благополучия на определенной территории (хозяйстве) согласно Единым  ветеринарным (ветеринарно-санитарным) требованиям</xs:documentation>
+        </xs:annotation>
+    </xs:element>
+    <!-- M.SM.SDE.00123: Код типа эпизоотической зоны (Эпизоотическая зона: тип. Код) -->
+    <xs:element name="EpizooticZoneTypeCode" type="smsdo:ZoneTypeCodeType">
+        <xs:annotation>
+            <xs:documentation>Кодовое обозначение типа зоны по зоосанитарному статусу по болезни</xs:documentation>
+        </xs:annotation>
+    </xs:element>
+    <!-- M.SM.SDE.00124: Наименование типа эпизоотической зоны (Тип эпизоотической зоны. Имя) -->
+    <xs:element name="EpizooticZoneTypeName" type="csdo:Name120Type">
+        <xs:annotation>
+            <xs:documentation>Наименование типа зоны по зоосанитарному статусу по болезни</xs:documentation>
+        </xs:annotation>
+    </xs:element>
+    <!-- M.SM.SDE.00021: Продолжительность (Событие. Продолжительность) -->
+    <xs:element name="EventDuration" type="bdt:DurationType">
+        <xs:annotation>
+            <xs:documentation>Продолжительность события</xs:documentation>
+        </xs:annotation>
+    </xs:element>
+    <!-- M.SM.SDE.00048: Признак события на территории всей страны (Признак события на территории всей страны. Индикатор) -->
+    <xs:element name="EventZoneIndicator" type="bdt:IndicatorType">
+        <xs:annotation>
+            <xs:documentation>Признак, определяющий охват события на территории всей страны: 1 – страна целиком; 0 – зона внутри страны</xs:documentation>
+        </xs:annotation>
+    </xs:element>
+    <!-- M.SM.SDE.00034: Код страны экспорта (Страна экспорта. Код) -->
+    <xs:element name="ExporterCountryCode" type="csdo:UnifiedCountryCodeType">
+        <xs:annotation>
+            <xs:documentation>Кодовое обозначение страны экспорта</xs:documentation>
+        </xs:annotation>
+    </xs:element>
+    <!-- M.SM.SDT.00043: Продолжительность обработки продукции (Продолжительность обработки продукции_ Продолжительность. Тип) -->
+    <xs:simpleType name="ExpositionDurationType">
+        <xs:annotation>
+            <xs:documentation>Количество времени, характеризующее продолжительность обработки продукции</xs:documentation>
+        </xs:annotation>
+        <xs:restriction base="bdt:DurationType"/>
+    </xs:simpleType>
+    <!-- M.SM.SDE.00160: Иллюстрация признака фальсифицированного или контрафактного ветеринарного препарата (Иллюстрация признака фальсифицированного или контрафактного ветеринарного препарата. Рисунок) -->
+    <xs:element name="FalsificationSignPicture" type="csdo:Picture1MbType">
+        <xs:annotation>
+            <xs:documentation>Иллюстрация признака фальсифицированного или контрафактного ветеринарного препарата</xs:documentation>
+        </xs:annotation>
+    </xs:element>
+    <!-- M.SM.SDE.00205: Признак наложения финансовых обязательств (Признак наложения финансовых обязательств. Индикатор) -->
+    <xs:element name="FinancialLiabilityIndicator" type="bdt:IndicatorType">
+        <xs:annotation>
+            <xs:documentation>Признак, определяющий наложение финансовых обязательств: 1 – финансовые обязательства наложены; 0 – финансовые обязательства не наложены</xs:documentation>
+        </xs:annotation>
+    </xs:element>
+    <!-- M.SM.SDE.00968: Признак содержания генно-инженерного материала (Признак содержания генно-инженерного материала. Индикатор) -->
+    <xs:element name="GeneticallyEngineeredMaterialIndicator" type="bdt:IndicatorType">
+        <xs:annotation>
+            <xs:documentation>Признак, определяющий содержание генно-инженерного материала в генетической программе сорта: 1 – генетическая программа сорта содержит генно-инженерный материал; 0 – генетическая программа сорта не содержит генно-инженерный материал</xs:documentation>
+        </xs:annotation>
+    </xs:element>
+    <!-- M.SM.SDE.00078: Признак группового метода идентификации (Групповой метод идентификации. Индикатор) -->
+    <xs:element name="GroupIdentificationMethodIndicator" type="bdt:IndicatorType">
+        <xs:annotation>
+            <xs:documentation>Признак, определяющий групповой метод идентификации животного: 1 – групповой метод идентификации животного; 0 – не групповой метод идентификации животного</xs:documentation>
+        </xs:annotation>
+    </xs:element>
+    <!-- M.SM.SDE.00973: Код степени вредного воздействия продукции (Степень вредного воздействия продукции. Код) -->
+    <xs:element name="HarmfulImpactLevelCode" type="csdo:Code20Type">
+        <xs:annotation>
+            <xs:documentation>Кодовое обозначение степени вредного воздействия продукции</xs:documentation>
+        </xs:annotation>
+    </xs:element>
+    <!-- M.SM.SDE.00231: Регистрационный номер уведомления о случае обнаружения (распространения) карантинного объекта (Уведомление о случае обнаружения (распространения) карантинного объекта: регистрационный номер. Идентификатор) -->
+    <xs:element name="HarmfulOrganismNotificationId" type="csdo:Id50Type">
+        <xs:annotation>
+            <xs:documentation>Регистрационный номер уведомления о случае обнаружения (распространения) карантинного объекта, присвоенный уполномоченным органом государства-члена</xs:documentation>
+        </xs:annotation>
+    </xs:element>
+    <!-- M.SM.SDE.00233: Исходный регистрационный номер уведомления о случае обнаружения (распространения) карантинного объекта (Уведомление о случае обнаружения (распространения) карантинного объекта: исходный регистрационный номер. Идентификатор) -->
+    <xs:element name="HarmfulOrganismNotificationRefId" type="csdo:Id50Type">
+        <xs:annotation>
+            <xs:documentation>Исходный регистрационный номер уведомления о случае обнаружения (распространения) карантинного объекта, присвоенный уполномоченным органом государства-члена </xs:documentation>
+        </xs:annotation>
+    </xs:element>
+    <!-- M.SM.SDE.00059: Код типа медоносного растения (Тип медоносного растения. Код) -->
+    <xs:element name="HoneyPlantTypeCode" type="smsdo:HoneyPlantTypeCodeType">
+        <xs:annotation>
+            <xs:documentation>Кодовое обозначение типа медоносного растения</xs:documentation>
+        </xs:annotation>
+    </xs:element>
+    <!-- M.SM.SDT.00039: Код типа медоносного растения (Тип медоносного растения_ Код. Тип) -->
+    <xs:complexType name="HoneyPlantTypeCodeType">
+        <xs:annotation>
+            <xs:documentation>Строка символов, представляющая краткое условное обозначение типа медоносного растения</xs:documentation>
+        </xs:annotation>
+        <xs:simpleContent>
+            <xs:restriction base="csdo:QualifiedCodeType">
+                <xs:pattern value="[0-9]{2}"/>
+            </xs:restriction>
+        </xs:simpleContent>
+    </xs:complexType>
+    <!-- M.SM.SDE.00037: Код страны импорта (Страна импорта. Код) -->
+    <xs:element name="ImporterCountryCode" type="csdo:UnifiedCountryCodeType">
+        <xs:annotation>
+            <xs:documentation>Кодовое обозначение страны</xs:documentation>
+        </xs:annotation>
+    </xs:element>
+    <!-- M.SM.SDE.01005: Регистрационный номер уведомления (Уведомление о нежелательной ситуации. Идентификатор) -->
+    <xs:element name="IncidentId" type="csdo:Id40Type">
+        <xs:annotation>
+            <xs:documentation>идентификатор уведомления, присвоенный уполномоченным органом государства-члена</xs:documentation>
+        </xs:annotation>
+    </xs:element>
+    <!-- M.SM.SDE.01004: Вид уведомления о нежелательной ситуации (Уведомление о нежелательной ситуации: вид. Код) -->
+    <xs:element name="IncidentKindCode" type="csdo:Code1to2Type">
+        <xs:annotation>
+            <xs:documentation>кодовое обозначение вида направляемого уведомления</xs:documentation>
+        </xs:annotation>
+    </xs:element>
+    <!-- M.SM.SDE.00225: Описание части груза подвергшейся заражению (Часть груза, подвергшаяся заражению. Текст) -->
+    <xs:element name="InfectedCargoPartText" type="csdo:Text4000Type">
+        <xs:annotation>
+            <xs:documentation>Описание части груза или подкарантинного объекта, в которой обнаружен карантинный объект</xs:documentation>
+        </xs:annotation>
+    </xs:element>
+    <!-- M.SM.SDE.00139: Идентификатор исходной временной меры (Исходная временная мера. Идентификатор) -->
+    <xs:element name="InitialMeasureId" type="csdo:Id20Type">
+        <xs:annotation>
+            <xs:documentation>Идентификационный номер исходной временной меры</xs:documentation>
+        </xs:annotation>
+    </xs:element>
+    <!-- M.SM.SDE.00084: Международное непатентованное наименование (Международное непатентованное наименование. Имя) -->
+    <xs:element name="InternationalNonProprietaryName" type="csdo:Name250Type">
+        <xs:annotation>
+            <xs:documentation>Международное непатентованное наименование ветеринарного препарата</xs:documentation>
+        </xs:annotation>
+    </xs:element>
+    <!-- M.SM.SDE.00082: Код международного непатентованного наименования (Международное непатентованное наименование. Код) -->
+    <xs:element name="InternationalNonProprietaryNameCode" type="smsdo:InternationalNonProprietaryNameCodeType">
+        <xs:annotation>
+            <xs:documentation>Кодовое обозначение международного непатентованного наименования ветеринарного препарата</xs:documentation>
+        </xs:annotation>
+    </xs:element>
+    <!-- M.SM.SDT.00026: Код международного непатентованного наименования (Международное непатентованное наименование_ Код. Тип) -->
+    <xs:simpleType name="InternationalNonProprietaryNameCodeType">
+        <xs:annotation>
+            <xs:documentation>Строка символов, представляющая краткое условное обозначение международного непатентованного наименования ветеринарного препарата</xs:documentation>
+        </xs:annotation>
+        <xs:restriction base="bdt:CodeType">
+            <xs:minLength value="1"/>
+            <xs:maxLength value="5"/>
+        </xs:restriction>
+    </xs:simpleType>
+    <!-- M.SM.SDE.01007: Наличие лабораторного подтверждения (Лабораторное подтверждение. Индикатор) -->
+    <xs:element name="LaboratoryConfirmedIndicator" type="bdt:IndicatorType">
+        <xs:annotation>
+            <xs:documentation>Признак наличия лабораторного подтверждения некоторого факта</xs:documentation>
+        </xs:annotation>
+    </xs:element>
+    <!-- M.SM.SDE.00056: Количество лабораторных проб (Лабораторная проба. Количество) -->
+    <xs:element name="LaboratorySampleQuantity" type="csdo:Quantity4Type">
+        <xs:annotation>
+            <xs:documentation>Количество проб, взятых в ходе лабораторного исследования</xs:documentation>
+        </xs:annotation>
+    </xs:element>
+    <!-- M.SM.SDE.00055: Описание биоматериала (Биоматериал. Текст) -->
+    <xs:element name="LaboratorySampleText" type="csdo:Text250Type">
+        <xs:annotation>
+            <xs:documentation>Описание биоматериала</xs:documentation>
+        </xs:annotation>
+    </xs:element>
+    <!-- M.SM.SDE.00163: Наименование метода лабораторного исследования (Метод лабораторного исследования. Имя) -->
+    <xs:element name="LaboratoryTestMethodName" type="csdo:Name500Type">
+        <xs:annotation>
+            <xs:documentation>Наименование метода лабораторного исследования</xs:documentation>
+        </xs:annotation>
+    </xs:element>
+    <!-- M.SM.SDE.00993: Результат тестирования (Результат тестирования. Текст) -->
+    <xs:element name="LaboratoryTestResultText" type="csdo:Text4000Type">
+        <xs:annotation>
+            <xs:documentation>Описание результата тестирования</xs:documentation>
+        </xs:annotation>
+    </xs:element>
+    <!-- M.SM.SDE.00416: Код световой зоны (Световая зона. Код) -->
+    <xs:element name="LightAreaCode" type="smsdo:LightAreaCodeType">
+        <xs:annotation>
+            <xs:documentation>Кодовое обозначение определенной территории государства-члена, характеризующейся величиной притока естественной фотосинтетически активной радиации</xs:documentation>
+        </xs:annotation>
+    </xs:element>
+    <!-- M.SM.SDT.00406: Световая зона (Световая зона_ Код. Тип) -->
+    <xs:simpleType name="LightAreaCodeType">
+        <xs:annotation>
+            <xs:documentation>Строка символов, представляющая краткое условное обозначение определенной территории с распределением суммарной солнечной радиации в соответствии с географическими координатами в территориальных образованиях государств-членов</xs:documentation>
+        </xs:annotation>
+        <xs:restriction base="bdt:CodeType">
+            <xs:pattern value="[0-9]{2}"/>
+        </xs:restriction>
+    </xs:simpleType>
+    <!-- M.SM.SDE.00417: Наименование световой зоны (Световая зона. Имя) -->
+    <xs:element name="LightAreaName" type="csdo:Name120Type">
+        <xs:annotation>
+            <xs:documentation>Наименование определенной территории государства-члена, характеризующейся величиной притока естественной фотосинтетически активной радиации</xs:documentation>
+        </xs:annotation>
+    </xs:element>
+    <!-- M.SM.SDE.00801: Описание (Описание: локализованное. Текст) -->
+    <xs:element name="LocalizedDescriptionText" type="smsdo:LocalizedText4000Type">
+        <xs:annotation>
+            <xs:documentation>Текстовое представление объекта, явления или процесса в свободной форме c указанием кода используемого языка</xs:documentation>
+        </xs:annotation>
+    </xs:element>
+    <!-- M.SM.SDT.00625: Текст (Текст. До 4000 символов. Локализованный. Тип) -->
+    <xs:complexType name="LocalizedText4000Type">
+        <xs:annotation>
+            <xs:documentation>Неструктурированная текстовая информация, содержащая не более 4000 символов с указанием кода используемого языка</xs:documentation>
+        </xs:annotation>
+        <xs:simpleContent>
+            <xs:extension base="csdo:Text4000Type">
+                <xs:attribute name="languageCode" type="csdo:LanguageCodeType" use="required">
+                    <xs:annotation>
+                        <xs:documentation>Кодовое обозначение языка</xs:documentation>
+                    </xs:annotation>
+                </xs:attribute>
+                <xs:attribute name="codeListId" type="csdo:ReferenceDataIdType" use="required">
+                    <xs:annotation>
+                        <xs:documentation>Обозначение справочника (классификатора), в соответствии с которым указан код</xs:documentation>
+                    </xs:annotation>
+                </xs:attribute>
+            </xs:extension>
+        </xs:simpleContent>
+    </xs:complexType>
+    <!-- M.SM.SDE.00126: Признак основного требования (Признак основного требования. Индикатор) -->
+    <xs:element name="MainRequirementIndicator" type="bdt:IndicatorType">
+        <xs:annotation>
+            <xs:documentation>Признак, определяющий основное требование: 1 – основное требование; 0 – дополнительное требование</xs:documentation>
+        </xs:annotation>
+    </xs:element>
+    <!-- M.SM.SDE.00391: Идентификатор производителя (Производитель. Идентификатор) -->
+    <xs:element name="ManufacturerId" type="csdo:BusinessEntityIdType">
+        <xs:annotation>
+            <xs:documentation>Номер (код) записи по реестру (регистру), присвоенный при государственной регистрации</xs:documentation>
+        </xs:annotation>
+    </xs:element>
+    <!-- M.SM.SDE.00154: Дата производства (Дата производства. Дата) -->
+    <xs:element name="ManufacturingDate" type="bdt:DateType">
+        <xs:annotation>
+            <xs:documentation>Дата производства</xs:documentation>
+        </xs:annotation>
+    </xs:element>
+    <!-- M.SM.SDE.00023: Идентификатор маркировки (Маркировка. Идентификатор) -->
+    <xs:element name="MarkingId" type="csdo:Id20Type">
+        <xs:annotation>
+            <xs:documentation>Совокупность условных знаков, букв, цифр, графических знаков или надписей, нанесенных на объект, с целью его дальнейшей идентификации, указания его свойств и характеристик</xs:documentation>
+        </xs:annotation>
+    </xs:element>
+    <!-- M.SM.SDE.00315: Признак присоединения к мере (Присоединение к мере. Индикатор) -->
+    <xs:element name="MeasureAccessionIndicator" type="bdt:IndicatorType">
+        <xs:annotation>
+            <xs:documentation>Признак присоединения государства-члена к мере</xs:documentation>
+        </xs:annotation>
+    </xs:element>
+    <!-- M.SM.SDE.01003: Вид объекта действия меры (Вид объекта действия меры. Код) -->
+    <xs:element name="MeasureAffectedObjectKindCode" type="csdo:Code1to2Type">
+        <xs:annotation>
+            <xs:documentation>кодовое обозначение объекта действия меры</xs:documentation>
+        </xs:annotation>
+    </xs:element>
+    <!-- M.SM.SDE.00999: Код принятой меры (Принятая мера. Код) -->
+    <xs:element name="MeasureCode" type="csdo:UnifiedOptionalCode20Type">
+        <xs:annotation>
+            <xs:documentation>Кодовое обозначение принятой меры</xs:documentation>
+        </xs:annotation>
+    </xs:element>
+    <!-- M.SM.SDE.00981: Идентификатор контрольной (надзорной) меры (Контрольная (надзорная) мера. Идентификатор) -->
+    <xs:element name="MeasureControlId" type="csdo:Id20Type">
+        <xs:annotation>
+            <xs:documentation>Идентификатор контрольной (надзорной) меры</xs:documentation>
+        </xs:annotation>
+    </xs:element>
+    <!-- M.SM.SDE.00982: Идентификатор исходной контрольной (надзорной) меры (Исходная контрольная (надзорная) мера. Идентификатор) -->
+    <xs:element name="MeasureControlRefId" type="csdo:Id20Type">
+        <xs:annotation>
+            <xs:documentation>Идентификатор исходной контрольной (надзорной) меры</xs:documentation>
+        </xs:annotation>
+    </xs:element>
+    <!-- M.SM.SDE.00133: Код цели введения меры (Цель введения меры. Код) -->
+    <xs:element name="MeasureGoalCode" type="smsdo:MeasureGoalCodeType">
+        <xs:annotation>
+            <xs:documentation>Кодовое обозначение цели введения меры</xs:documentation>
+        </xs:annotation>
+    </xs:element>
+    <!-- M.SM.SDT.00068: Код цели введения меры (Цель введения меры_ Код. Тип) -->
+    <xs:simpleType name="MeasureGoalCodeType">
+        <xs:annotation>
+            <xs:documentation>Строка символов, представляющая краткое условное обозначение цели введения меры</xs:documentation>
+        </xs:annotation>
+        <xs:restriction base="bdt:CodeType">
+            <xs:minLength value="1"/>
+            <xs:maxLength value="20"/>
+        </xs:restriction>
+    </xs:simpleType>
+    <!-- M.SM.SDE.00134: Обоснование меры (Обоснование временной меры. Текст) -->
+    <xs:element name="MeasureJustificationText" type="csdo:Text4000Type">
+        <xs:annotation>
+            <xs:documentation>Текстовое описание обоснования введения меры</xs:documentation>
+        </xs:annotation>
+    </xs:element>
+    <!-- M.SM.SDE.00182: Код вида санитарной меры (Вид санитарной меры. Код) -->
+    <xs:element name="MeasureKindCode" type="smsdo:MeasureKindCodeType">
+        <xs:annotation>
+            <xs:documentation>Кодовое обозначение вида санитарной меры</xs:documentation>
+        </xs:annotation>
+    </xs:element>
+    <!-- M.SM.SDT.00067: Код вида санитарной меры (Вид санитарной меры_ Код. Тип) -->
+    <xs:simpleType name="MeasureKindCodeType">
+        <xs:annotation>
+            <xs:documentation>Строка символов, представляющая краткое условное обозначение вида санитарной меры</xs:documentation>
+        </xs:annotation>
+        <xs:restriction base="bdt:CodeType">
+            <xs:minLength value="1"/>
+            <xs:maxLength value="5"/>
+        </xs:restriction>
+    </xs:simpleType>
+    <!-- M.SM.SDE.00183: Наименование вида санитарной меры (Вид санитарной меры. Имя) -->
+    <xs:element name="MeasureKindName" type="csdo:Name120Type">
+        <xs:annotation>
+            <xs:documentation>Наименование вида санитарной меры</xs:documentation>
+        </xs:annotation>
+    </xs:element>
+    <!-- M.SM.SDE.00132: Наименование меры (Мера. Имя) -->
+    <xs:element name="MeasureName" type="csdo:Name300Type">
+        <xs:annotation>
+            <xs:documentation>Наименование меры</xs:documentation>
+        </xs:annotation>
+    </xs:element>
+    <!-- M.SM.SDE.01000: Код причины (основания) введения временной меры (Причина введения временной меры. Код) -->
+    <xs:element name="MeasureReasonCode" type="csdo:Code1Type">
+        <xs:annotation>
+            <xs:documentation>Кодовое обозначение причины введения временной меры</xs:documentation>
+        </xs:annotation>
+    </xs:element>
+    <!-- M.SM.SDE.01001: Описание условия снятия временной меры (Условия снятия временной меры. Текст) -->
+    <xs:element name="MeasureRepealConditionText" type="csdo:Text4000Type">
+        <xs:annotation>
+            <xs:documentation>Описание условия снятия временной меры</xs:documentation>
+        </xs:annotation>
+    </xs:element>
+    <!-- M.SM.SDE.00119: Признак принятия меры (Признак принятия меры. Индикатор) -->
+    <xs:element name="MeasureTakenIndicator" type="bdt:IndicatorType">
+        <xs:annotation>
+            <xs:documentation>Признак, определяющий принятие меры: 1 – мера принята; 0 – принятие меры планируется</xs:documentation>
+        </xs:annotation>
+    </xs:element>
+    <!-- M.SM.SDE.00144: Описание промежуточной упаковки ветеринарного препарата (Промежуточная упаковка ветеринарного препарата. Текст) -->
+    <xs:element name="MiddlePackageText" type="csdo:Text100Type">
+        <xs:annotation>
+            <xs:documentation>Текстовое описание промежуточной упаковки ветеринарного препарата</xs:documentation>
+        </xs:annotation>
+    </xs:element>
+    <!-- M.SM.SDE.00093: Дата и время отгрузки молочного сырья, не прошедшего тепловую обработку (Дата и время отгрузки молочного сырья, не прошедшего тепловую обработку. Дата и время) -->
+    <xs:element name="MilkShipmentDateTime" type="bdt:DateTimeType">
+        <xs:annotation>
+            <xs:documentation>Дата и время отгрузки молочного сырья, не прошедшего тепловую обработку</xs:documentation>
+        </xs:annotation>
+    </xs:element>
+    <!-- M.SM.SDE.00431: Регистрационный номер хозяйствующего субъекта в информационной системе уполномоченного органа (Ресурс национального реестра: хозяйствующий субъект. Идентификатор) -->
+    <xs:element name="NationalRegisterBusinessEntityId" type="csdo:Id20Type">
+        <xs:annotation>
+            <xs:documentation>Регистрационный номер хозяйствующего субъекта, присваиваемый уполномоченным органом государства-члена</xs:documentation>
+        </xs:annotation>
+    </xs:element>
+    <!-- M.SM.SDE.00102: Признак естественного происхождения (Признак естественного происхождения. Индикатор) -->
+    <xs:element name="NaturalOriginIndicator" type="bdt:IndicatorType">
+        <xs:annotation>
+            <xs:documentation>Признак, определяющий вид естественного происхождения объекта: 1 – выведено или выращено в естественных условиях; 0 – выведено или выращено в искусственных условиях</xs:documentation>
+        </xs:annotation>
+    </xs:element>
+    <!-- M.SM.SDE.00159: Код негативного эффекта ветеринарного препарата (Негативный эффект ветеринарного препарата. Код) -->
+    <xs:element name="NegativeEffectCode" type="smsdo:NegativeEffectCodeType">
+        <xs:annotation>
+            <xs:documentation>Кодовое обозначение негативного эффекта ветеринарного препарата</xs:documentation>
+        </xs:annotation>
+    </xs:element>
+    <!-- M.SM.SDT.00053: Код негативного эффекта ветеринарного препарата (Негативный эффект ветеринарного препарата_ Код. Тип) -->
+    <xs:simpleType name="NegativeEffectCodeType">
+        <xs:annotation>
+            <xs:documentation>Строка символов, представляющая краткое условное обозначение негативного эффекта ветеринарного препарата</xs:documentation>
+        </xs:annotation>
+        <xs:restriction base="bdt:CodeType">
+            <xs:pattern value="[0-9]{1,2}"/>
+        </xs:restriction>
+    </xs:simpleType>
+    <!-- M.SM.SDE.00174: Наименование негативного эффекта (Негативный эффект. Имя) -->
+    <xs:element name="NegativeEffectName" type="csdo:Name120Type">
+        <xs:annotation>
+            <xs:documentation>Наименование негативного эффекта ветеринарного препарата</xs:documentation>
+        </xs:annotation>
+    </xs:element>
+    <!-- M.SM.SDE.00162: Описание исхода негативного эффекта (Исход негативного эффекта. Текст) -->
+    <xs:element name="NegativeEffectResultText" type="csdo:Text250Type">
+        <xs:annotation>
+            <xs:documentation>Текстовое описание исхода негативного эффекта ветеринарного препарата</xs:documentation>
+        </xs:annotation>
+    </xs:element>
+    <!-- M.SM.SDE.00206: Признак использования нового контейнера (Признак использования нового контейнера. Индикатор) -->
+    <xs:element name="NewContainerIndicator" type="bdt:IndicatorType">
+        <xs:annotation>
+            <xs:documentation>Признак, определяющий использование нового контейнера для товара: 1 – используется новый контейнер; 0 – используется исходный контейнер</xs:documentation>
+        </xs:annotation>
+    </xs:element>
+    <!-- M.SM.SDE.01018: Статус региона, определенный в соответствии с рекомендациями МЭБ (Статус региона в соответствии с рекомендациями МЭБ. Текст) -->
+    <xs:element name="OIEStatusText" type="smsdo:OIEStatusTextType">
+        <xs:annotation>
+            <xs:documentation>Сведения о статусе региона, определенном в соответствии с рекомендациями Кодекса здоровья наземных животных и Кодекса здоровья водных животных МЭБ и законодательством государств-членов по конкретной болезни животных</xs:documentation>
+        </xs:annotation>
+    </xs:element>
+    <!-- M.SM.SDT.00981: Статус региона в соответствии с рекомендациями МЭБ (Статус региона в соответствии с рекомендациями МЭБ_ Текст. Тип) -->
+    <xs:complexType name="OIEStatusTextType">
+        <xs:annotation>
+            <xs:documentation>Описание статуса региона, определенного соответствии с рекомендациями Кодекса здоровья наземных животных и Кодекса здоровья водных животных МЭБ и законодательством государств-членов по конкретной болезни животных</xs:documentation>
+        </xs:annotation>
+        <xs:simpleContent>
+            <xs:extension base="csdo:Text1000Type">
+                <xs:attribute name="statusName" type="csdo:Name250Type" use="required">
+                    <xs:annotation>
+                        <xs:documentation>Наименование статуса региона, определенного в соответствии с рекомендациями МЭБ</xs:documentation>
+                    </xs:annotation>
+                </xs:attribute>
+            </xs:extension>
+        </xs:simpleContent>
+    </xs:complexType>
+    <!-- M.SM.SDE.00117: Код вида продукции по ОКП (Вид продукции по ОКП. Код) -->
+    <xs:element name="OKPCode" type="smsdo:OKPCodeType">
+        <xs:annotation>
+            <xs:documentation>Кодовое обозначение вида продукции в соответствии с Общероссийским классификатором продукции.</xs:documentation>
+        </xs:annotation>
+    </xs:element>
+    <!-- M.SM.SDT.00046: Код ОКП (ОКП_ Код. Тип) -->
+    <xs:simpleType name="OKPCodeType">
+        <xs:annotation>
+            <xs:documentation>Строка символов, представляющая кодовое обозначение вида продукции в соответствии с Общероссийским классификатором продукции.</xs:documentation>
+        </xs:annotation>
+        <xs:restriction base="bdt:CodeType">
+            <xs:pattern value="\d{6}"/>
+        </xs:restriction>
+    </xs:simpleType>
+    <!-- M.SM.SDE.00151: Идентификатор производственной площадки (Производственная площадка. Идентификатор) -->
+    <xs:element name="OrganizationManufacturingSiteId" type="csdo:Id20Type">
+        <xs:annotation>
+            <xs:documentation>Идентификатор производственной площадки</xs:documentation>
+        </xs:annotation>
+    </xs:element>
+    <!-- M.SM.SDE.00209: Код договаривающейся стороны происхождения (Договаривающаяся сторона происхождения. Код) -->
+    <xs:element name="OriginContractingPartyCode" type="csdo:UnifiedCountryCodeType">
+        <xs:annotation>
+            <xs:documentation>Кодовое обозначение договаривающейся стороны происхождения товара</xs:documentation>
+        </xs:annotation>
+    </xs:element>
+    <!-- M.SM.SDE.00036: Код страны происхождения товара (Страна происхождения товара. Код) -->
+    <xs:element name="OriginCountryCode" type="csdo:UnifiedCountryCodeType">
+        <xs:annotation>
+            <xs:documentation>Кодовое обозначение страны происхождения товара</xs:documentation>
+        </xs:annotation>
+    </xs:element>
+    <!-- M.SM.SDE.00207: Признак гарантий, основанных на оригинальном фитосанитарном сертификате (Признак гарантий, основанных на оригинальном фитосанитарном сертификате. Индикатор) -->
+    <xs:element name="OriginalCertificateGuaranteeIndicator" type="bdt:IndicatorType">
+        <xs:annotation>
+            <xs:documentation>Признак, определяющий факт того, что гарантии основаны на оригинальном фитосанитарном сертификате: 1 – основаны; 0 – не основаны</xs:documentation>
+        </xs:annotation>
+    </xs:element>
+    <!-- M.SM.SDE.00208: Признак наличия оригинального сертификата (Признак наличия оригинального сертификата. Индикатор) -->
+    <xs:element name="OriginalCertificateIndicator" type="bdt:IndicatorType">
+        <xs:annotation>
+            <xs:documentation>Признак, определяющий наличие оригинального сертификата: 1 – оригинальный сертификат присутствует; 0 – оригинальный сертификат отсутствует</xs:documentation>
+        </xs:annotation>
+    </xs:element>
+    <!-- M.SM.SDE.00049: Источник инфекции и риски (Эпизоотический очаг: описание причин возникнования. Текст) -->
+    <xs:element name="OutbreakCauseText" type="csdo:Text4000Type">
+        <xs:annotation>
+            <xs:documentation>Описание причины инфекции и рисков, способствовавших возникновению очага</xs:documentation>
+        </xs:annotation>
+    </xs:element>
+    <!-- M.SM.SDE.00030: Количество очагов заболевания (Очаг заболевания. Количество) -->
+    <xs:element name="OutbreaksQuantity" type="csdo:Quantity4Type">
+        <xs:annotation>
+            <xs:documentation>Количество очагов заболевания</xs:documentation>
+        </xs:annotation>
+    </xs:element>
+    <!-- M.SM.SDE.00149: Документ. Размер до 1,5 Мб и формат PDF (Документ. Размер до 1,5 Мб и формат PDF. Бинарный текст) -->
+    <xs:element name="PDF1536KbDocBinaryText" type="smsdo:PDF1536KbDocBinaryTextType">
+        <xs:annotation>
+            <xs:documentation>Документ в бинарном текстовом формате</xs:documentation>
+        </xs:annotation>
+    </xs:element>
+    <!-- M.SM.SDT.00088: Документ в формате PDF размером до 1,5 Мб (Документ в формате PDF_ Бинарный текст: до 1,5 Мб. Тип) -->
+    <xs:simpleType name="PDF1536KbDocBinaryTextType">
+        <xs:annotation>
+            <xs:documentation>Текстовая информация, представленная в двоичной форме, с указанием формата данных</xs:documentation>
+        </xs:annotation>
+        <xs:restriction base="bdt:BinaryTextType"/>
+    </xs:simpleType>
+    <!-- M.SM.SDE.00108: Описание упаковки ветеринарного препарата (Описание упаковки ветеринарного препарата. Текст) -->
+    <xs:element name="PackageMaterialText" type="csdo:Text250Type">
+        <xs:annotation>
+            <xs:documentation>Текстовое описание упаковки ветеринарного лекарственного препарата</xs:documentation>
+        </xs:annotation>
+    </xs:element>
+    <!-- M.SM.SDE.00107: Количество товара в упаковке (Количество товара в упаковке. Измерение) -->
+    <xs:element name="PackageMeasure" type="csdo:UnifiedPhysicalMeasureType">
+        <xs:annotation>
+            <xs:documentation>Количество товара в упаковке ветеринарного препарата</xs:documentation>
+        </xs:annotation>
+    </xs:element>
+    <!-- M.SM.SDE.00172: Количество упакованных единиц ветеринарного препарата во вторичной упаковке (Упакованная единица ветеринарного препарата во вторичной упаковке. Количество) -->
+    <xs:element name="PackagedUnitQuantity" type="csdo:Quantity4Type">
+        <xs:annotation>
+            <xs:documentation>Количество упакованных единиц ветеринарного препарата во вторичной упаковке</xs:documentation>
+        </xs:annotation>
+    </xs:element>
+    <!-- M.SM.SDE.00967: Признак охраняемости сорта (Признак охраняемости сорта. Индикатор) -->
+    <xs:element name="PatentIndicator" type="bdt:IndicatorType">
+        <xs:annotation>
+            <xs:documentation>Признак наличия правовой охраны в соответствии с законодательством государства-члена: 1 – сорт является  объектом правовой охраны в соответствии с законодательством государства-члена; 0 – сорт не является объектом правовой охраны в соответствии с законодательством государства-члена</xs:documentation>
+        </xs:annotation>
+    </xs:element>
+    <!-- M.SM.SDE.00989: Код типа возбудителя инфекционной болезни (Возбудитель инфекционной болезни: тип. Код) -->
+    <xs:element name="PathogenKindCode" type="smsdo:PathogenKindCodeType">
+        <xs:annotation>
+            <xs:documentation>Код типа возбудителя инфекционной болезни</xs:documentation>
+        </xs:annotation>
+    </xs:element>
+    <!-- M.SM.SDT.00974: Код типа возбудителя инфекционной болезни (Код типа возбудителя инфекционной болезни_ Код. Тип) -->
+    <xs:complexType name="PathogenKindCodeType">
+        <xs:annotation>
+            <xs:documentation>Строка символов, представляющая краткое условное обозначение типа возбудителя инфекционной болезни</xs:documentation>
+        </xs:annotation>
+        <xs:simpleContent>
+            <xs:restriction base="csdo:QualifiedCodeType">
+                <xs:minLength value="1"/>
+                <xs:maxLength value="2"/>
+            </xs:restriction>
+        </xs:simpleContent>
+    </xs:complexType>
+    <!-- M.SM.SDE.00125: Наименование типа возбудителя инфекционной болезни (Возбудитель инфекционной болезни: тип. Имя) -->
+    <xs:element name="PathogenKindName" type="csdo:Name40Type">
+        <xs:annotation>
+            <xs:documentation>Наименование типа возбудителя инфекционной болезни</xs:documentation>
+        </xs:annotation>
+    </xs:element>
+    <!-- M.SM.SDE.00047: Наименование возбудителя инфекционной болезни (Возбудитель инфекционной болезни. Имя) -->
+    <xs:element name="PathogenName" type="csdo:Name120Type">
+        <xs:annotation>
+            <xs:documentation>Наименование возбудителя инфекционной болезни</xs:documentation>
+        </xs:annotation>
+    </xs:element>
+    <!-- M.SM.SDE.00377: Описание образца патологического материала (Образец патологического материала. Текст) -->
+    <xs:element name="PathologicalMaterialSamplesText" type="csdo:Text4000Type">
+        <xs:annotation>
+            <xs:documentation>Описание образца патологического материала (объекта исследования)</xs:documentation>
+        </xs:annotation>
+    </xs:element>
+    <!-- M.SM.SDE.00181: Количество человек (Человек. Количество) -->
+    <xs:element name="PersonQuantity" type="csdo:Quantity4Type">
+        <xs:annotation>
+            <xs:documentation>Количество людей</xs:documentation>
+        </xs:annotation>
+    </xs:element>
+    <!-- M.SM.SDE.00295: Код типа представляемой информации о фитосанитарном контроле (надзоре) (Тип представляемой информации о фитосанитарном контроле (надзоре). Код) -->
+    <xs:element name="PhytoCertInfoKindCode" type="smsdo:PhytoCertInfoKindCodeType">
+        <xs:annotation>
+            <xs:documentation>Кодовое обозначение типа представляемой информации о фитосанитарном контроле (надзоре)</xs:documentation>
+        </xs:annotation>
+    </xs:element>
+    <!-- M.SM.SDT.00295: Код типа представляемой информации о фитосанитарном контроле (Тип представляемой информации о фитосанитарном контроле_ Код. Тип) -->
+    <xs:simpleType name="PhytoCertInfoKindCodeType">
+        <xs:annotation>
+            <xs:documentation>Строка символов, представляющая краткое условное обозначение типа информации о фитосанитарном контроле</xs:documentation>
+        </xs:annotation>
+        <xs:restriction base="bdt:CodeType">
+            <xs:minLength value="1"/>
+            <xs:maxLength value="2"/>
+        </xs:restriction>
+    </xs:simpleType>
+    <!-- M.SM.SDE.00251: Количество выданных фитосанитарных сертификатов (Выданный фитосанитарный сертификат. Количество) -->
+    <xs:element name="PhytosanitaryCertificateQuantity" type="csdo:Quantity8Type">
+        <xs:annotation>
+            <xs:documentation>Количество выданных фитосанитарных сертификатов</xs:documentation>
+        </xs:annotation>
+    </xs:element>
+    <!-- M.SM.SDE.00171: Код вида нарушения, выявленного при проведении фитосанитарного контроля (надзора) (Вид нарушения, выявленного при проведении фитосанитарного контроля (надзора). Код) -->
+    <xs:element name="PhytosanitaryControlViolationCode" type="csdo:Code2Type">
+        <xs:annotation>
+            <xs:documentation>Кодовое обозначение вида нарушения, выявленного при проведении фитосанитарного контроля (надзора)</xs:documentation>
+        </xs:annotation>
+    </xs:element>
+    <!-- M.SM.SDE.00250: Код группы подкарантинной продукции (Группа подкарантинной продукции. Код) -->
+    <xs:element name="PhytosanitaryProductCode" type="smsdo:PhytosanitaryProductCodeType">
+        <xs:annotation>
+            <xs:documentation>Кодовое обозначение вида подкарантинной продукции</xs:documentation>
+        </xs:annotation>
+    </xs:element>
+    <!-- M.SM.SDT.00250: Код группы подкарантинной продукции (Группа подкарантинной продукции_ Код. Тип) -->
+    <xs:simpleType name="PhytosanitaryProductCodeType">
+        <xs:annotation>
+            <xs:documentation>Строка символов, представляющая краткое условное обозначение вида подкарантинной продукции</xs:documentation>
+        </xs:annotation>
+        <xs:restriction base="bdt:CodeType">
+            <xs:pattern value="[0-9]{2}"/>
+        </xs:restriction>
+    </xs:simpleType>
+    <!-- M.SM.SDE.00403: Наименование группы подкарантинной продукции (Группа подкарантинной продукции. Имя) -->
+    <xs:element name="PhytosanitaryProductName" type="csdo:Name120Type">
+        <xs:annotation>
+            <xs:documentation>Наименование группы подкарантинной продукции</xs:documentation>
+        </xs:annotation>
+    </xs:element>
+    <!-- M.SM.SDE.00223: Описание фитосанитарных требований, к которым относится несоответствие (Фитосанитарные требования, к которым относится несоответствие. Текст) -->
+    <xs:element name="PhytosanitaryRequirementsMismatchText" type="csdo:Text4000Type">
+        <xs:annotation>
+            <xs:documentation>Текстовое описание назначения (области применения) продукции</xs:documentation>
+        </xs:annotation>
+    </xs:element>
+    <!-- M.SM.SDE.00979: Ботаническое название растения (Ботаническое название растения. Имя) -->
+    <xs:element name="PlantBotanicName" type="csdo:Name120Type">
+        <xs:annotation>
+            <xs:documentation>Ботаническое название растения</xs:documentation>
+        </xs:annotation>
+    </xs:element>
+    <!-- M.SM.SDE.00412: Код группы растений (культуры) (Группа растений (культура). Код) -->
+    <xs:element name="PlantCropCode" type="smsdo:PlantCropCodeType">
+        <xs:annotation>
+            <xs:documentation>Кодовое обозначение группы растений (культуры)</xs:documentation>
+        </xs:annotation>
+    </xs:element>
+    <!-- M.SM.SDT.00404: Код группы растений (Группа растений_ Код. Тип) -->
+    <xs:simpleType name="PlantCropCodeType">
+        <xs:annotation>
+            <xs:documentation>Строка символов, представляющая краткое условное обозначение группы растений</xs:documentation>
+        </xs:annotation>
+        <xs:restriction base="bdt:CodeType">
+            <xs:pattern value="[0-9]{3}"/>
+        </xs:restriction>
+    </xs:simpleType>
+    <!-- M.SM.SDE.00411: Наименование группы растений (культуры) (Группа растений (культура). Имя) -->
+    <xs:element name="PlantCropName" type="csdo:Name120Type">
+        <xs:annotation>
+            <xs:documentation>Наименование группы растений (культуры)</xs:documentation>
+        </xs:annotation>
+    </xs:element>
+    <!-- M.SM.SDE.00422: Код рода растения (Род растения. Код) -->
+    <xs:element name="PlantGenusCode" type="smsdo:PlantGenusCodeType">
+        <xs:annotation>
+            <xs:documentation>Кодовое обозначение рода растения</xs:documentation>
+        </xs:annotation>
+    </xs:element>
+    <!-- M.SM.SDT.00409: Код рода растения (Род растения_ Код. Тип) -->
+    <xs:simpleType name="PlantGenusCodeType">
+        <xs:annotation>
+            <xs:documentation>Строка символов, представляющая краткое условное обозначение рода растения</xs:documentation>
+        </xs:annotation>
+        <xs:restriction base="bdt:CodeType">
+            <xs:pattern value="[0-9A-Z]{5}"/>
+        </xs:restriction>
+    </xs:simpleType>
+    <!-- M.SM.SDE.00976: Латинское название рода растения (Латинское название рода растения. Имя) -->
+    <xs:element name="PlantGenusLatinName" type="csdo:Name120Type">
+        <xs:annotation>
+            <xs:documentation>Латинское название рода растения</xs:documentation>
+        </xs:annotation>
+    </xs:element>
+    <!-- M.SM.SDE.00988: Название рода растения на русском языке (Род растения. Имя) -->
+    <xs:element name="PlantGenusName" type="csdo:Name120Type">
+        <xs:annotation>
+            <xs:documentation>Название рода растения на русском языке</xs:documentation>
+        </xs:annotation>
+    </xs:element>
+    <!-- M.SM.SDE.00959: Код рода и вида растения (Род и вид растения. Код) -->
+    <xs:element name="PlantSpeciesCode" type="smsdo:PlantSpeciesCodeType">
+        <xs:annotation>
+            <xs:documentation>Кодовое обозначение рода и вида растения</xs:documentation>
+        </xs:annotation>
+    </xs:element>
+    <!-- M.SM.SDT.00055: Код вида и рода растения (Вид и род растения_ Код. Тип) -->
+    <xs:simpleType name="PlantSpeciesCodeType">
+        <xs:annotation>
+            <xs:documentation>Строка символов, представляющая краткое условное обозначение вида и рода растения</xs:documentation>
+        </xs:annotation>
+        <xs:restriction base="bdt:CodeType"/>
+    </xs:simpleType>
+    <!-- M.SM.SDE.00986: Латинское название вида растения (Латинское название вида растения. Имя) -->
+    <xs:element name="PlantSpeciesLatinName" type="csdo:Name120Type">
+        <xs:annotation>
+            <xs:documentation>Латинское название вида растения</xs:documentation>
+        </xs:annotation>
+    </xs:element>
+    <!-- M.SM.SDE.00022: Название вида растения на русском языке (Вид растения. Имя) -->
+    <xs:element name="PlantSpeciesName" type="csdo:Name120Type">
+        <xs:annotation>
+            <xs:documentation>Название вида растения на русском языке</xs:documentation>
+        </xs:annotation>
+    </xs:element>
+    <!-- M.SM.SDE.00033: Регистрационный номер сорта в национальном реестре (Ресурс национального реестра: сорт. Идентификатор) -->
+    <xs:element name="PlantVarietyId" type="csdo:Id40Type">
+        <xs:annotation>
+            <xs:documentation>Регистрационный номер сорта, присваиваемый уполномоченным органом государства-члена</xs:documentation>
+        </xs:annotation>
+    </xs:element>
+    <!-- M.SM.SDE.00040: Наименование сорта (Сорт. Имя) -->
+    <xs:element name="PlantVarietyName" type="csdo:Name120Type">
+        <xs:annotation>
+            <xs:documentation>Наименование сорта</xs:documentation>
+        </xs:annotation>
+    </xs:element>
+    <!-- M.SM.SDE.00017: Код категории птицы (Категория птицы. Код) -->
+    <xs:element name="PoultryCategoryCode" type="smsdo:PoultryCategoryCodeType">
+        <xs:annotation>
+            <xs:documentation>Кодовое обозначение категории птицы</xs:documentation>
+        </xs:annotation>
+    </xs:element>
+    <!-- M.SM.SDT.00001: Код категории птицы (Категория птицы_ Код. Тип) -->
+    <xs:complexType name="PoultryCategoryCodeType">
+        <xs:annotation>
+            <xs:documentation>Строка символов, представляющая краткое условное обозначение категории птицы, с указанием классификатора</xs:documentation>
+        </xs:annotation>
+        <xs:simpleContent>
+            <xs:restriction base="csdo:QualifiedCodeType">
+                <xs:pattern value="[0-9]{1,2}"/>
+            </xs:restriction>
+        </xs:simpleContent>
+    </xs:complexType>
+    <!-- M.SM.SDE.00087: Признак первичной упаковки ветеринарного препарата (Признак первичной упаковки ветеринарного препарата. Индикатор) -->
+    <xs:element name="PrimaryPackageIndicator" type="bdt:IndicatorType">
+        <xs:annotation>
+            <xs:documentation>Признак, определяющий первичную упаковку ветеринарного препарата: 1 – первичная; 0 – потребительская</xs:documentation>
+        </xs:annotation>
+    </xs:element>
+    <!-- M.SM.SDE.00950: Описание способа применения продукции (Способ применения продукции. Текст) -->
+    <xs:element name="ProductApplicationMethodText" type="csdo:Text1000Type">
+        <xs:annotation>
+            <xs:documentation>Текстовое описание способа применения продукции</xs:documentation>
+        </xs:annotation>
+    </xs:element>
+    <!-- M.SM.SDE.00170: Код продукции животного происхождения (Продукция животного происхождения. Код) -->
+    <xs:element name="ProductCode" type="smsdo:ProductCodeType">
+        <xs:annotation>
+            <xs:documentation>Кодовое обозначение продукции животного происхождения</xs:documentation>
+        </xs:annotation>
+    </xs:element>
+    <!-- M.SM.SDT.00059: Код продукции животного происхождения (Продукция животного происхождения_ Код. Тип) -->
+    <xs:simpleType name="ProductCodeType">
+        <xs:annotation>
+            <xs:documentation>Строка символов, представляющая краткое условное обозначение продукции животного происхождения</xs:documentation>
+        </xs:annotation>
+        <xs:restriction base="bdt:CodeType">
+            <xs:pattern value="[0-9]{1,2}"/>
+        </xs:restriction>
+    </xs:simpleType>
+    <!-- M.SM.SDE.00064: Информация на этикетке (Информация на этикетке. Текст) -->
+    <xs:element name="ProductLabelText" type="csdo:Text4000Type">
+        <xs:annotation>
+            <xs:documentation>Текстовое описание, указанное на этикетке продукции</xs:documentation>
+        </xs:annotation>
+    </xs:element>
+    <!-- M.SM.SDE.00092: Описание назначения продукции (Назначение продукции. Текст) -->
+    <xs:element name="ProductPurposeText" type="csdo:Text1000Type">
+        <xs:annotation>
+            <xs:documentation>Текстовое описание назначения (области применения) продукции</xs:documentation>
+        </xs:annotation>
+    </xs:element>
+    <!-- M.SM.SDE.01002: Название продукции (Продукция: название. Имя) -->
+    <xs:element name="ProductTradeName" type="csdo:Name300Type">
+        <xs:annotation>
+            <xs:documentation>Название продукции (дополняющее наименование продукции)</xs:documentation>
+        </xs:annotation>
+    </xs:element>
+    <!-- M.SM.SDE.00230: Описание части груза, подвергшейся применению карантинных фитосанитарных мер (Часть груза, подвергшаяся применению карантинных фитосанитарных мер. Текст) -->
+    <xs:element name="QuarantineCargoPartText" type="csdo:Text4000Type">
+        <xs:annotation>
+            <xs:documentation>Текстовое описание части груза к которой применена карантинная фитосанитарная мера</xs:documentation>
+        </xs:annotation>
+    </xs:element>
+    <!-- M.SM.SDE.00401: Код раздела справочника карантинных объектов Евразийского экономического союза (Раздел справочника карантинных объектов Евразийского экономического союза. Код) -->
+    <xs:element name="QuarantineObjectClassifierSectionCode" type="smsdo:QuarantineObjectClassifierSectionCodeType">
+        <xs:annotation>
+            <xs:documentation>Кодовое обозначение группы подкарантинной продукции</xs:documentation>
+        </xs:annotation>
+    </xs:element>
+    <!-- M.SM.SDT.00401: Код раздела справочника карантинных объектов Евразийского экономического союза (Раздел справочника карантинных объектов Евразийского экономического союза_ Код. Тип) -->
+    <xs:simpleType name="QuarantineObjectClassifierSectionCodeType">
+        <xs:annotation>
+            <xs:documentation>Строка символов, представляющая краткое условное обозначение группы подкарантинной продукции</xs:documentation>
+        </xs:annotation>
+        <xs:restriction base="bdt:CodeType">
+            <xs:pattern value="\d"/>
+        </xs:restriction>
+    </xs:simpleType>
+    <!-- M.SM.SDE.00404: Наименование раздела справочника карантинных объектов Евразийского экономического союза (Раздел справочника карантинных объектов Евразийского экономического союза. Имя) -->
+    <xs:element name="QuarantineObjectClassifierSectionName" type="csdo:Name300Type">
+        <xs:annotation>
+            <xs:documentation>Наименование группы подкарантинной продукции</xs:documentation>
+        </xs:annotation>
+    </xs:element>
+    <!-- M.SM.SDE.00402: Код подраздела справочника карантинных объектов Евразийского экономического союза (Подраздел справочника карантинных объектов Евразийского экономического союза. Код) -->
+    <xs:element name="QuarantineObjectClassifierSubSectionCode" type="smsdo:QuarantineObjectClassifierSubSectionCodeType">
+        <xs:annotation>
+            <xs:documentation>Кодовое обозначение группы подкарантинной продукции</xs:documentation>
+        </xs:annotation>
+    </xs:element>
+    <!-- M.SM.SDT.00402: Код подраздела справочника карантинных объектов Евразийского экономического союза (Подраздел справочника карантинных объектов Евразийского экономического союза_ Код. Тип) -->
+    <xs:simpleType name="QuarantineObjectClassifierSubSectionCodeType">
+        <xs:annotation>
+            <xs:documentation>Строка символов, представляющая краткое условное обозначение группы подкарантинной продукции</xs:documentation>
+        </xs:annotation>
+        <xs:restriction base="bdt:CodeType">
+            <xs:pattern value="[A-Z]"/>
+        </xs:restriction>
+    </xs:simpleType>
+    <!-- M.SM.SDE.00405: Наименование подраздела справочника карантинных объектов Евразийского экономического союза (Подраздел справочника карантинных объектов Евразийского экономического союза. Имя) -->
+    <xs:element name="QuarantineObjectClassifierSubSectionName" type="csdo:Name300Type">
+        <xs:annotation>
+            <xs:documentation>Наименование группы подкарантинной продукции</xs:documentation>
+        </xs:annotation>
+    </xs:element>
+    <!-- M.SM.SDE.00219: Код карантинного объекта (Карантинный объект. Код) -->
+    <xs:element name="QuarantineObjectCode" type="smsdo:QuarantineObjectCodeType">
+        <xs:annotation>
+            <xs:documentation>Кодовое обозначение карантинного объекта</xs:documentation>
+        </xs:annotation>
+    </xs:element>
+    <!-- M.SM.SDT.00071: Код карантинного объекта (Карантинный объект_ Код. Тип) -->
+    <xs:simpleType name="QuarantineObjectCodeType">
+        <xs:annotation>
+            <xs:documentation>Строка символов, представляющая краткое условное обозначение карантинного объекта</xs:documentation>
+        </xs:annotation>
+        <xs:restriction base="bdt:CodeType">
+            <xs:pattern value="[A-Z0-9]{6}|[A-Z0-9]{5}"/>
+        </xs:restriction>
+    </xs:simpleType>
+    <!-- M.SM.SDE.00972: Идентификатор случая обнаружения карантинного объекта (Случай обнаружения карантинного объекта. Идентификатор) -->
+    <xs:element name="QuarantineObjectDetectionId" type="csdo:Id20Type">
+        <xs:annotation>
+            <xs:documentation>Уникальный идентификатор случая обнаружения карантинного объекта</xs:documentation>
+        </xs:annotation>
+    </xs:element>
+    <!-- M.SM.SDE.00220: Название карантинного объекта (Карантинный объект. Имя) -->
+    <xs:element name="QuarantineObjectName" type="csdo:Name500Type">
+        <xs:annotation>
+            <xs:documentation>Название карантинного объекта</xs:documentation>
+        </xs:annotation>
+    </xs:element>
+    <!-- M.SM.SDE.00427: Номер карантинного объекта в соответствии с Единым перечнем карантинных объектов Евразийского экономического союза (Номер карантинного объекта в соответствии с Единым перечнем карантинных объектов Евразийского экономического союза. Порядковый номер) -->
+    <xs:element name="QuarantineObjectOrdinal" type="csdo:Ordinal3Type">
+        <xs:annotation>
+            <xs:documentation>Номер карантинного объекта в соответствии с Единым перечнем карантинных объектов Евразийского экономического союза</xs:documentation>
+        </xs:annotation>
+    </xs:element>
+    <!-- M.SM.SDE.00221: Международное научное название карантинного объекта (Карантинный объект: международное научное название. Имя) -->
+    <xs:element name="QuarantineObjectScientificName" type="csdo:Name120Type">
+        <xs:annotation>
+            <xs:documentation>Международное научное название карантинного объекта</xs:documentation>
+        </xs:annotation>
+    </xs:element>
+    <!-- M.SM.SDE.00224: Признак распространения карантинного объекта (Признак распространения карантинного объекта. Индикатор) -->
+    <xs:element name="QuarantineObjectSpreadIndicator" type="bdt:IndicatorType">
+        <xs:annotation>
+            <xs:documentation>признак распространения карантинного объекта: 1 – распространение карантинного объекта; 0 – обнаружение карантинного объекта</xs:documentation>
+        </xs:annotation>
+    </xs:element>
+    <!-- M.SM.SDE.00222: Признак распространения карантинного объекта на таможенной территории Союза (Распространение карантинного объекта на таможенной территории Союза. Индикатор) -->
+    <xs:element name="QuarantineObjectStatusIndicator" type="bdt:IndicatorType">
+        <xs:annotation>
+            <xs:documentation>признак распространения карантинного объекта на таможенной территории Союза</xs:documentation>
+        </xs:annotation>
+    </xs:element>
+    <!-- M.SM.SDE.00130: Код вида происхождения сырья (кормов) (Код вида происхождения сырья (кормов). Код) -->
+    <xs:element name="RawMaterialsOriginCode" type="smsdo:RawMaterialsOriginCodeType">
+        <xs:annotation>
+            <xs:documentation>Кодовое обозначение вида происхождения сырья (кормов)</xs:documentation>
+        </xs:annotation>
+    </xs:element>
+    <!-- M.SM.SDT.00003: Кодовое обозначение вида происхождения сырья (кормов) (Вид происхождения сырья (кормов)_ Код. Тип) -->
+    <xs:complexType name="RawMaterialsOriginCodeType">
+        <xs:annotation>
+            <xs:documentation>Строка символов, представляющая краткое условное обозначение вида происхождения сырья (кормов)</xs:documentation>
+        </xs:annotation>
+        <xs:simpleContent>
+            <xs:extension base="csdo:QualifiedOptionalCodeType"/>
+        </xs:simpleContent>
+    </xs:complexType>
+    <!-- M.SM.SDE.00211: Признак реэкспортного сертификата (Признак реэкспортного сертификата. Индикатор) -->
+    <xs:element name="ReExportCertificateIndicator" type="bdt:IndicatorType">
+        <xs:annotation>
+            <xs:documentation>Признак, определяющий реэкспортный сертификат: 1 – реэкспортный сертификат; 0 – не реэкспортный сертификат</xs:documentation>
+        </xs:annotation>
+    </xs:element>
+    <!-- M.SM.SDE.00212: Код договаривающейся стороны-реэкспортера (Договаривающаяся сторона-реэкспортер. Код) -->
+    <xs:element name="ReExportContractingPartyCode" type="csdo:UnifiedCountryCodeType">
+        <xs:annotation>
+            <xs:documentation>Кодовое обозначение договаривающейся стороны-реэкспортера товара</xs:documentation>
+        </xs:annotation>
+    </xs:element>
+    <!-- M.SM.SDE.00213: Код страны реэкспорта товара (Страна реэкспорта товара. Код) -->
+    <xs:element name="ReExporterCountryCode" type="csdo:UnifiedCountryCodeType">
+        <xs:annotation>
+            <xs:documentation>Кодовое обозначение страны реэкспорта товара</xs:documentation>
+        </xs:annotation>
+    </xs:element>
+    <!-- M.SM.SDE.00970: Порядковый номер первой записи (Запрашиваемая запись. Порядковый номер) -->
+    <xs:element name="RecordOrdinal" type="bdt:OrdinalType">
+        <xs:annotation>
+            <xs:documentation>номер позиции в массиве запрашиваемых записей, отсчитываемый от 0, начиная с которой будет формироваться ответное сообщение</xs:documentation>
+        </xs:annotation>
+    </xs:element>
+    <!-- M.SM.SDE.00971: Количество запрашиваемых записей (Запрашиваемая запись. Количество) -->
+    <xs:element name="RecordQuantity" type="csdo:Quantity4Type">
+        <xs:annotation>
+            <xs:documentation>Количество запрашиваемых записей</xs:documentation>
+        </xs:annotation>
+    </xs:element>
+    <!-- M.SM.SDE.00054: Признак повторного очага заболевания (Признак повторного очага заболевания. Индикатор) -->
+    <xs:element name="RecurringOutbreakIndicator" type="bdt:IndicatorType">
+        <xs:annotation>
+            <xs:documentation>Признак, определяющий повторность очага заболевания: 1 – повторный; 0 – первичный</xs:documentation>
+        </xs:annotation>
+    </xs:element>
+    <!-- M.SM.SDE.00100: Признак проведения регионализации (Признак проведения регионализации. Индикатор) -->
+    <xs:element name="RegionalizationIndicator" type="bdt:IndicatorType">
+        <xs:annotation>
+            <xs:documentation>Признак, определяющий проведение регионализации 1 – регионализация проводится; 0 – регионализация не проводится</xs:documentation>
+        </xs:annotation>
+    </xs:element>
+    <!-- M.SM.SDE.00121: Карта территории (Карта: адрес ресурса. Идентификатор) -->
+    <xs:element name="RegionalizationMapResourceId" type="csdo:ResourceIdType">
+        <xs:annotation>
+            <xs:documentation>Ссылка на карту территории</xs:documentation>
+        </xs:annotation>
+    </xs:element>
+    <!-- M.SM.SDE.01019: Код статуса региона (Статус региона при проведении регионализации. Код) -->
+    <xs:element name="RegionalizationStatusCode" type="csdo:UnifiedCode20Type">
+        <xs:annotation>
+            <xs:documentation>Код статуса региона по результатам проведения регионализации в соответствии со справочником, идентификатор которого указан в атрибуте «Идентификатор справочника (классификатора)»</xs:documentation>
+        </xs:annotation>
+    </xs:element>
+    <!-- M.SM.SDE.00097: Регистрационный номер свидетельства (Свидетельство о государственной регистрации продукции. Идентификатор) -->
+    <xs:element name="RegistrationCertificateId" type="smsdo:RegistrationCertificateIdType">
+        <xs:annotation>
+            <xs:documentation>регистрационный номер свидетельства о государственной регистрации продукции</xs:documentation>
+        </xs:annotation>
+    </xs:element>
+    <!-- M.SM.SDT.00022: Номер свидетельства о государственной регистрации (Номер свидетельства о государственной регистрации_ Идентификатор. Тип) -->
+    <xs:simpleType name="RegistrationCertificateIdType">
+        <xs:annotation>
+            <xs:documentation>Строка символов, идентифицирующая свидетельство о государственной регистрации</xs:documentation>
+        </xs:annotation>
+        <xs:restriction base="bdt:IdentifierType">
+            <xs:pattern value="[A-Z]{2}\.\d{2}\.[А-ЯЁ0-9]{2}\.\d{2}\.\d{3}\.[ЕR]\.\d{6}\.(0[1-9]|1[0-2])\.\d{2}"/>
+        </xs:restriction>
+    </xs:simpleType>
+    <!-- M.SM.SDE.00240: Код вида свидетельства о государственной регистрации продукции (Вид свидетельства о государственной регистрации продукции. Код) -->
+    <xs:element name="RegistrationCertificateKindCode" type="csdo:Code1Type">
+        <xs:annotation>
+            <xs:documentation>Кодовое обозначение вида свидетельства о государственной регистрации продукции</xs:documentation>
+        </xs:annotation>
+    </xs:element>
+    <!-- M.SM.SDE.00143: Наименование вида документа регистрационного досье на ветеринарный препарат (Вид документа регистрационного досье на ветеринарный препарат. Имя) -->
+    <xs:element name="RegistrationDocName" type="csdo:Name500Type">
+        <xs:annotation>
+            <xs:documentation>Наименование вида документа регистрационного досье на ветеринарный препарат</xs:documentation>
+        </xs:annotation>
+    </xs:element>
+    <!-- M.SM.SDE.00085: Код вида документа регистрационного досье на ветеринарный препарат (Вид документа регистрационного досье на ветеринарный препарат. Код) -->
+    <xs:element name="RegistrationDossierKindCode" type="smsdo:RegistrationDossierKindCodeType">
+        <xs:annotation>
+            <xs:documentation>кодовое обозначение вида документа, представляемого на регистрацию ветеринарного лекарственного препарата</xs:documentation>
+        </xs:annotation>
+    </xs:element>
+    <!-- M.SM.SDT.00034: Код вида документа регистрационного досье на ветеринарный препарат (Вид документа регистрационного досье на ветеринарный препарат_ Код. Тип) -->
+    <xs:simpleType name="RegistrationDossierKindCodeType">
+        <xs:annotation>
+            <xs:documentation>Строка символов, представляющая краткое условное обозначение вида документа, представляемого на регистрацию ветеринарного лекарственного препарата</xs:documentation>
+        </xs:annotation>
+        <xs:restriction base="bdt:CodeType">
+            <xs:pattern value="[0-9]{2}"/>
+        </xs:restriction>
+    </xs:simpleType>
+    <!-- M.SM.SDE.00110: Код вида документа регистрационного дела на ветеринарный препарат (Вид документа регистрационного дела на ветеринарный препарат. Код) -->
+    <xs:element name="RegistrationFileCode" type="smsdo:RegistrationFileCodeType">
+        <xs:annotation>
+            <xs:documentation>Кодовое обозначение вида документа, сформированного уполномоченным органом либо по его запросу в процессе осуществления регистрационных процедур</xs:documentation>
+        </xs:annotation>
+    </xs:element>
+    <!-- M.SM.SDT.00044: Код вида документа регистрационного дела на ветеринарный препарат (Вид документа регистрационного дела на ветеринарный препарат_ Код. Тип) -->
+    <xs:simpleType name="RegistrationFileCodeType">
+        <xs:annotation>
+            <xs:documentation>Строка символов, представляющая краткое условное обозначение вида документа, сформированного уполномоченными органами либо по их запросу в процессе осуществления регистрационных процедур</xs:documentation>
+        </xs:annotation>
+        <xs:restriction base="bdt:CodeType">
+            <xs:minLength value="1"/>
+            <xs:maxLength value="10"/>
+        </xs:restriction>
+    </xs:simpleType>
+    <!-- M.SM.SDE.00111: Признак принадлежности документа к регистрационному досье (Признак принадлежности документа к регистрационному досье. Индикатор) -->
+    <xs:element name="RegistrationFileIndicator" type="bdt:IndicatorType">
+        <xs:annotation>
+            <xs:documentation>Признак, определяющий принадлежность документа к регистрационному досье: 1 – документ регистрационного досье; 0 – документ регистрационного дела</xs:documentation>
+        </xs:annotation>
+    </xs:element>
+    <!-- M.SM.SDE.00142: Наименование вида документа регистрационного дела на ветеринарный препарат (Вид документа регистрационного дела на ветеринарный препарат. Имя) -->
+    <xs:element name="RegistrationFileName" type="csdo:Name500Type">
+        <xs:annotation>
+            <xs:documentation>Наименование вида документа, сформированного уполномоченными органами либо по их запросу в процессе осуществления регистрационных процедур</xs:documentation>
+        </xs:annotation>
+    </xs:element>
+    <!-- M.SM.SDE.00031: Описание формы выпуска продукции (Форма выпуска продукции. Текст) -->
+    <xs:element name="ReleaseFormText" type="csdo:Text1000Type">
+        <xs:annotation>
+            <xs:documentation>Текстовое описание формы выпуска продукции</xs:documentation>
+        </xs:annotation>
+    </xs:element>
+    <!-- M.SM.SDE.00214: Признак переупакованного товара (Признак переупакованного товара. Индикатор) -->
+    <xs:element name="RepackedIndicator" type="bdt:IndicatorType">
+        <xs:annotation>
+            <xs:documentation>Признак, определяющий производилась ли переупаковка товара: 1 – товар переупакован; 0 – товар не переупакован</xs:documentation>
+        </xs:annotation>
+    </xs:element>
+    <!-- M.SM.SDE.00215: Признак сертификата, выданного на замену (Сертификат, выданный на замену. Индикатор) -->
+    <xs:element name="ReplacementCertificateIndicator" type="bdt:IndicatorType">
+        <xs:annotation>
+            <xs:documentation>Признак, определяющий сертификат, выданный на замену</xs:documentation>
+        </xs:annotation>
+    </xs:element>
+    <!-- M.SM.SDE.00252: Код вида общего запрашиваемого ресурса (Вид общего запрашиваемого ресурса. Код) -->
+    <xs:element name="ResourceKindCode" type="csdo:Code20Type">
+        <xs:annotation>
+            <xs:documentation>Кодовое обозначение вида общего ресурса</xs:documentation>
+        </xs:annotation>
+    </xs:element>
+    <!-- M.SM.SDE.00073: Код вида продукции, подлежащей государственной регистрации (Вид продукции, подлежащей государственной регистрации. Код) -->
+    <xs:element name="SanitaryProductKindCode" type="smsdo:SanitaryProductKindCodeType">
+        <xs:annotation>
+            <xs:documentation>Кодовое обозначение вида продукции, подлежащей государственной регистрации</xs:documentation>
+        </xs:annotation>
+    </xs:element>
+    <!-- M.SM.SDT.00028: Код вида продукции, подлежащей государственной регистрации (Вид продукции, подлежащей государственной регистрации_ Код. Тип) -->
+    <xs:simpleType name="SanitaryProductKindCodeType">
+        <xs:annotation>
+            <xs:documentation>Строка символов, представляющая краткое условное обозначение вида продукции, подлежащей государственной регистрации, с указанием классификатора</xs:documentation>
+        </xs:annotation>
+        <xs:restriction base="bdt:CodeType">
+            <xs:pattern value="[0-9]{3}"/>
+        </xs:restriction>
+    </xs:simpleType>
+    <!-- M.SM.SDE.00185: Наименование вида продукции, подлежащей государственной регистрации (Вид продукции, подлежащей государственной регистрации. Имя) -->
+    <xs:element name="SanitaryProductKindName" type="csdo:Name500Type">
+        <xs:annotation>
+            <xs:documentation>Наименование вида продукции, подлежащей государственной регистрации</xs:documentation>
+        </xs:annotation>
+    </xs:element>
+    <!-- M.SM.SDE.00408: Код вида продукции, подлежащей санитарно-эпидемиологическому надзору (контролю) (Вид продукции, подлежащей санитарно-эпидемиологическому надзору (контролю). Код) -->
+    <xs:element name="SanitaryProductTypeCode" type="smsdo:SanitaryProductTypeCodeType">
+        <xs:annotation>
+            <xs:documentation>Кодовое обозначение вида продукции, подлежащей санитарно-эпидемиологическому надзору (контролю)</xs:documentation>
+        </xs:annotation>
+    </xs:element>
+    <!-- M.SM.SDT.00066: Код вида продукции, подлежащей санитарно-эпидемиологическому надзору (Вид продукции, подлежащей санитарно-эпидемиологическому надзору_ Код. Тип) -->
+    <xs:complexType name="SanitaryProductTypeCodeType">
+        <xs:annotation>
+            <xs:documentation>Строка символов, представляющая краткое условное обозначение вида продукции, подлежащей санитарно-эпидемиологическому надзору, с указанием классификатора</xs:documentation>
+        </xs:annotation>
+        <xs:simpleContent>
+            <xs:restriction base="csdo:QualifiedCodeType">
+                <xs:pattern value="[0-9]{3}"/>
+            </xs:restriction>
+        </xs:simpleContent>
+    </xs:complexType>
+    <!-- M.SM.SDE.00406: Наименование вида продукции, подлежащей санитарно-эпидемиологическому надзору (контролю) (Вид продукции, подлежащей санитарно-эпидемиологическому надзору (контролю). Имя) -->
+    <xs:element name="SanitaryProductTypeName" type="csdo:Name300Type">
+        <xs:annotation>
+            <xs:documentation>Наименование вида продукции, подлежащей санитарно-эпидемиологическому надзору (контролю)</xs:documentation>
+        </xs:annotation>
+    </xs:element>
+    <!-- M.SM.SDE.00409: Код показателя несоответствия продукции санитарно-эпидемиологическому или гигиеническому требованию (Показатель несоответствия продукции санитарно-эпидемиологическому или гигиеническому требованию. Код) -->
+    <xs:element name="SanitaryRequirementDiscrepancyIndexCode" type="smsdo:SanitaryRequirementDiscrepancyIndexCodeType">
+        <xs:annotation>
+            <xs:documentation>Кодовое обозначение показателя несоответствия продукции санитарно-эпидемиологическому или гигиеническому требованию</xs:documentation>
+        </xs:annotation>
+    </xs:element>
+    <!-- M.SM.SDT.00403: Код показателя несоответствия продукции санитарно-эпидемиологическому или гигиеническому требованию (Показатель несоответствия продукции санитарно-эпидемиологическому или гигиеническому требованию_ Код. Тип) -->
+    <xs:simpleType name="SanitaryRequirementDiscrepancyIndexCodeType">
+        <xs:annotation>
+            <xs:documentation>Строка символов, представляющая краткое условное обозначение показателя несоответствия продукции санитарно-эпидемиологическому или гигиеническому требованию</xs:documentation>
+        </xs:annotation>
+        <xs:restriction base="bdt:CodeType">
+            <xs:pattern value="[0-9]{2}"/>
+        </xs:restriction>
+    </xs:simpleType>
+    <!-- M.SM.SDE.00407: Наименование показателя несоответствия продукции санитарно-эпидемиологическим или гигиеническим требованиям (Показатель несоответствия продукции санитарно-эпидемиологическим или гигиеническим требованиям. Имя) -->
+    <xs:element name="SanitaryRequirementDiscrepancyIndexName" type="csdo:Name300Type">
+        <xs:annotation>
+            <xs:documentation>Наименование показателя несоответствия продукции санитарно-эпидемиологическим или гигиеническим требованиям</xs:documentation>
+        </xs:annotation>
+    </xs:element>
+    <!-- M.SM.SDE.00088: Продолжительность срока годности (Срок годности. Продолжительность) -->
+    <xs:element name="ShelfLifeDuration" type="bdt:DurationType">
+        <xs:annotation>
+            <xs:documentation>Продолжительность времени, в течение которого товар сохраняет свои свойства в мере, обеспечивающей его функционирование, использование</xs:documentation>
+        </xs:annotation>
+    </xs:element>
+    <!-- M.SM.SDE.00051: Наименование статистического показателя (Статистический показатель. Имя) -->
+    <xs:element name="StaticIndexName" type="csdo:Name120Type">
+        <xs:annotation>
+            <xs:documentation>Наименование статистического показателя, характеризующего отношение животных к очагу поражения</xs:documentation>
+        </xs:annotation>
+    </xs:element>
+    <!-- M.SM.SDE.00072: Код категории ветеринарного препарата (Категория ветеринарного препарата. Код) -->
+    <xs:element name="StatusLowQualityCode" type="smsdo:StatusLowQualityCodeType">
+        <xs:annotation>
+            <xs:documentation>Кодовое обозначение категории ветеринарного препарата в связи с несоответствием требованиям к качеству ветеринарного препарата, фальсификацией и (или) контрафактным характером происхождения</xs:documentation>
+        </xs:annotation>
+    </xs:element>
+    <!-- M.SM.SDT.00021: Код категории ветеринарного препарата (Категория ветеринарного препарата_ Код. Тип) -->
+    <xs:simpleType name="StatusLowQualityCodeType">
+        <xs:annotation>
+            <xs:documentation>Строка символов, представляющая краткое условное обозначение категории ветеринарного препарата в связи с несоответствием требованиям к качеству ветеринарного препарата, фальсификацией и (или) контрафактным характером происхождения</xs:documentation>
+        </xs:annotation>
+        <xs:restriction base="bdt:CodeType">
+            <xs:pattern value="[0-9]{1,2}"/>
+        </xs:restriction>
+    </xs:simpleType>
+    <!-- M.SM.SDE.00008: Продолжительность пребывания на территории ЕАЭС (Срок пребывания на территории ЕАЭС. Продолжительность) -->
+    <xs:element name="StayingDuration" type="bdt:DurationType">
+        <xs:annotation>
+            <xs:documentation>Продолжительность пребывания животного на территории Евразийского экономического союза</xs:documentation>
+        </xs:annotation>
+    </xs:element>
+    <!-- M.SM.SDE.00063: Описание условий хранения (Описание условий хранения. Текст) -->
+    <xs:element name="StorageConditionText" type="csdo:Text1000Type">
+        <xs:annotation>
+            <xs:documentation>Требования к температуре, влажности при хранении продукции</xs:documentation>
+        </xs:annotation>
+    </xs:element>
+    <!-- M.SM.SDE.00089: Количество вещества (Вещество. Измерение) -->
+    <xs:element name="SubstanceMeasure" type="csdo:UnifiedPhysicalMeasureType">
+        <xs:annotation>
+            <xs:documentation>Количество вещества, выраженное в единицах массы, объемных или условных (биологических) единицах</xs:documentation>
+        </xs:annotation>
+    </xs:element>
+    <!-- M.SM.SDE.00155: Наименование вещества (Вещество. Имя) -->
+    <xs:element name="SubstanceName" type="csdo:Name250Type">
+        <xs:annotation>
+            <xs:documentation>Наименование вещества</xs:documentation>
+        </xs:annotation>
+    </xs:element>
+    <!-- M.SM.SDE.01011: Код вида участника цепочки поставки (Вид участника цепочки поставки. Код) -->
+    <xs:element name="SupplyChainPartyKindCode" type="csdo:Code2Type">
+        <xs:annotation>
+            <xs:documentation>Кодовое обозначение вида участника цепочки поставки</xs:documentation>
+        </xs:annotation>
+    </xs:element>
+    <!-- M.SM.SDE.00992: Количество животных в эпизоотическом очаге (Агрегированная информация: количество животных в эпизоотическом очаге. Измерение) -->
+    <xs:element name="SusceptibleAnimalsMeasure" type="smsdo:SusceptibleAnimalsMeasureType">
+        <xs:annotation>
+            <xs:documentation>физическая величина, соответствующая измерению количества животных в указанных единицах измерения с учетом конкретного статуса животного в эпизоотическом очаге</xs:documentation>
+        </xs:annotation>
+    </xs:element>
+    <!-- M.SM.SDT.00977: Количество животных в эпизоотическом очаге (Количество животных в эпизоотическом очаге_ Измерение. Тип) -->
+    <xs:complexType name="SusceptibleAnimalsMeasureType">
+        <xs:annotation>
+            <xs:documentation>Физическая величина, соответствующая измерению количества животных в указанных единицах измерения с учетом конкретного статуса животного в эпизоотическом очаге</xs:documentation>
+        </xs:annotation>
+        <xs:simpleContent>
+            <xs:extension base="csdo:PhysicalMeasureType">
+                <xs:attribute name="stateCode" type="smsdo:SusceptibleAnimalsStateCodeType" use="required">
+                    <xs:annotation>
+                        <xs:documentation>код статуса животного</xs:documentation>
+                    </xs:annotation>
+                </xs:attribute>
+            </xs:extension>
+        </xs:simpleContent>
+    </xs:complexType>
+    <!-- M.SM.SDT.00978: Код состояния животного в эпизоотическом очаге (Состояние животного в эпизоотическом очаге_ Код. Тип) -->
+    <xs:simpleType name="SusceptibleAnimalsStateCodeType">
+        <xs:annotation>
+            <xs:documentation>Строка символов, представляющая краткое условное обозначение состояния животного в эпизоотическом очаге</xs:documentation>
+        </xs:annotation>
+        <xs:restriction base="bdt:CodeType"/>
+    </xs:simpleType>
+    <!-- M.SM.SDE.00975: Номер технического регламента (Технический регламент. Идентификатор) -->
+    <xs:element name="TechnicalRegulationId" type="smsdo:TechnicalRegulationIdType">
+        <xs:annotation>
+            <xs:documentation>Номер технического регламента Евразийского экономического союза (технического регламента Таможенного союза)</xs:documentation>
+        </xs:annotation>
+    </xs:element>
+    <!-- M.SM.SDT.00973: Номер технического регламента (Технический регламент_ Идентификатор. Тип) -->
+    <xs:simpleType name="TechnicalRegulationIdType">
+        <xs:annotation>
+            <xs:documentation>Строка символов, идентифицирующая технический регламент</xs:documentation>
+        </xs:annotation>
+        <xs:restriction base="bdt:IdentifierType">
+            <xs:pattern value="ТР (ТС|ЕАЭС) \d{3}/\d{4}"/>
+        </xs:restriction>
+    </xs:simpleType>
+    <!-- M.SM.SDE.00112: Температура термической обработки (Температура термической обработки. Измерение) -->
+    <xs:element name="TemperatureMeasure" type="smsdo:TemperatureMeasureType">
+        <xs:annotation>
+            <xs:documentation>Температура термической обработки, выраженная в °С</xs:documentation>
+        </xs:annotation>
+    </xs:element>
+    <!-- M.SM.SDT.00040: Температура термической обработки (Температура термической обработки_ Измерение. Тип) -->
+    <xs:simpleType name="TemperatureMeasureType">
+        <xs:annotation>
+            <xs:documentation>Числовая величина, характеризующая температуру термической обработки в °С</xs:documentation>
+        </xs:annotation>
+        <xs:restriction base="bdt:MeasureType">
+            <xs:totalDigits value="3"/>
+            <xs:fractionDigits value="1"/>
+        </xs:restriction>
+    </xs:simpleType>
+    <!-- M.SM.SDE.00101: Признак дополнительного условия (Признак дополнительного условия. Индикатор) -->
+    <xs:element name="TemporaryRequirementIndicator" type="bdt:IndicatorType">
+        <xs:annotation>
+            <xs:documentation>Признак, определяющий тип условия: 1 – дополнительное условие; 0 – основное условие</xs:documentation>
+        </xs:annotation>
+    </xs:element>
+    <!-- M.SM.SDE.00953: Наименование территориального управления уполномоченного органа государства-члена (Территориальное управление уполномоченного органа государства-члена. Имя) -->
+    <xs:element name="TerritorialAuthorityName" type="csdo:Name300Type">
+        <xs:annotation>
+            <xs:documentation>Наименование территориального управления уполномоченного органа государства-члена</xs:documentation>
+        </xs:annotation>
+    </xs:element>
+    <!-- M.SM.SDE.01015: Регистрационный номер предприятия (Регистрационный номер: предприятие третьей страны. Идентификатор) -->
+    <xs:element name="ThirdCountryEnterpriseId" type="csdo:Id50Type">
+        <xs:annotation>
+            <xs:documentation>регистрационный номер предприятия, присвоенный компетентным органом третьей страны</xs:documentation>
+        </xs:annotation>
+    </xs:element>
+    <!-- M.SM.SDE.01014: Мероприятие-основание для включения в реестр предприятий третьих стран (Мероприятие-основание для включения в реестр предприятий третьих стран. Код) -->
+    <xs:element name="ThirdCountryLivestockEnterpriseRegistryInclusionBasisCode" type="csdo:Code1Type">
+        <xs:annotation>
+            <xs:documentation>кодовое значение вида мероприятия, послужившего основанием для включения предприятия в реестр предприятий третьих стран</xs:documentation>
+        </xs:annotation>
+    </xs:element>
+    <!-- M.SM.SDE.00042: Код страны транзита товара (Страна транзита товара. Код) -->
+    <xs:element name="TransitCountryCode" type="csdo:UnifiedCountryCodeType">
+        <xs:annotation>
+            <xs:documentation>Кодовое обозначение страны транзита товара</xs:documentation>
+        </xs:annotation>
+    </xs:element>
+    <!-- M.SM.SDE.00025: Описание условий транспортировки (Описание условий транспортировки. Текст) -->
+    <xs:element name="TransportConditionText" type="csdo:Text1000Type">
+        <xs:annotation>
+            <xs:documentation>Требования к температуре, влажности при перевозке продукции</xs:documentation>
+        </xs:annotation>
+    </xs:element>
+    <!-- M.SM.SDE.00007: Идентификатор грузового контейнера (Грузовой контейнер. Идентификатор) -->
+    <xs:element name="TransportContainerId" type="csdo:Id20Type">
+        <xs:annotation>
+            <xs:documentation>Идентификатор грузового контейнера</xs:documentation>
+        </xs:annotation>
+    </xs:element>
+    <!-- M.SM.SDE.00103: Код вида направления транспортировки (Вид направления транспортировки. Код) -->
+    <xs:element name="TransportationDirectionCode" type="smsdo:TransportationDirectionCodeType">
+        <xs:annotation>
+            <xs:documentation>Кодовое обозначение вида направления транспортировки</xs:documentation>
+        </xs:annotation>
+    </xs:element>
+    <!-- M.SM.SDT.00042: Код вида направления транспортировки (Вид направления транспортировки_ Код. Тип) -->
+    <xs:simpleType name="TransportationDirectionCodeType">
+        <xs:annotation>
+            <xs:documentation>Строка символов, представляющая краткое условное обозначение вида направления движения груза</xs:documentation>
+        </xs:annotation>
+        <xs:restriction base="bdt:CodeType">
+            <xs:pattern value="[0-9]{1}"/>
+        </xs:restriction>
+    </xs:simpleType>
+    <!-- M.SM.SDE.00109: Продолжительность обработки (Обработка. Продолжительность) -->
+    <xs:element name="TreatmentDuration" type="smsdo:ExpositionDurationType">
+        <xs:annotation>
+            <xs:documentation>Продолжительность обработки</xs:documentation>
+        </xs:annotation>
+    </xs:element>
+    <!-- M.SM.SDE.00136: Наименование типа обработки (Тип обработки. Имя) -->
+    <xs:element name="TreatmentTypeName" type="csdo:Name250Type">
+        <xs:annotation>
+            <xs:documentation>Наименование типа обработки</xs:documentation>
+        </xs:annotation>
+    </xs:element>
+    <!-- M.SM.SDE.00995: Статус региона по вакцинации (Статус региона по вакцинации. Индикатор) -->
+    <xs:element name="VaccinationStatusIndicator" type="bdt:IndicatorType">
+        <xs:annotation>
+            <xs:documentation>Статус региона по вакцинации: 1 -- вакцинирован 0 -- не вакцинирован</xs:documentation>
+        </xs:annotation>
+    </xs:element>
+    <!-- M.SM.SDE.00127: Год действия разрешения на ввоз (вывоз, транзит) (Год действия разрешения на ввоз (вывоз, транзит). Год) -->
+    <xs:element name="ValidityYear" type="bdt:YearType">
+        <xs:annotation>
+            <xs:documentation>Год действия разрешения на ввоз (вывоз, транзит) подконтрольных ветеринарной службе грузов</xs:documentation>
+        </xs:annotation>
+    </xs:element>
+    <!-- M.SM.SDE.00418: Код признака (свойства) сорта (Признак (свойство) сорта. Код) -->
+    <xs:element name="VarietyAttributeCode" type="smsdo:VarietyAttributeCodeType">
+        <xs:annotation>
+            <xs:documentation>Кодовое обозначение признака (свойства) сорта</xs:documentation>
+        </xs:annotation>
+    </xs:element>
+    <!-- M.SM.SDT.00407: Код признака (свойства) сорта (Код признака (свойства) сорта_ Код. Тип) -->
+    <xs:complexType name="VarietyAttributeCodeType">
+        <xs:annotation>
+            <xs:documentation>Строка символов, представляющая краткое условное обозначение признака (свойства) сорта</xs:documentation>
+        </xs:annotation>
+        <xs:simpleContent>
+            <xs:restriction base="csdo:QualifiedCodeType">
+                <xs:pattern value="\d{2}"/>
+            </xs:restriction>
+        </xs:simpleContent>
+    </xs:complexType>
+    <!-- M.SM.SDE.00421: Наименование признака (свойства) сорта (Признак (свойство) сорта. Имя) -->
+    <xs:element name="VarietyAttributeName" type="csdo:Name120Type">
+        <xs:annotation>
+            <xs:documentation>Наименование признака (свойства) сорта</xs:documentation>
+        </xs:annotation>
+    </xs:element>
+    <!-- M.SM.SDE.00419: Код значения признака (свойства) сорта (Значение признака (свойства) сорта. Код) -->
+    <xs:element name="VarietyAttributeValueCode" type="smsdo:VarietyAttributeValueCodeType">
+        <xs:annotation>
+            <xs:documentation>Кодовое обозначение значения признака (свойства) сорта</xs:documentation>
+        </xs:annotation>
+    </xs:element>
+    <!-- M.SM.SDT.00408: Код значение признака (свойства) сорта (Значение признака (свойства) сорта_ Код. Тип) -->
+    <xs:simpleType name="VarietyAttributeValueCodeType">
+        <xs:annotation>
+            <xs:documentation>Строка символов, представляющая краткое условное обозначение значения признака (свойства) сорта</xs:documentation>
+        </xs:annotation>
+        <xs:restriction base="bdt:CodeType"/>
+    </xs:simpleType>
+    <!-- M.SM.SDE.00420: Наименование значения признака (свойства) сорта (Значение признака (свойства) сорта. Имя) -->
+    <xs:element name="VarietyAttributeValueName" type="csdo:Name120Type">
+        <xs:annotation>
+            <xs:documentation>Наименование значения признака (свойства) сорта</xs:documentation>
+        </xs:annotation>
+    </xs:element>
+    <!-- M.SM.SDE.00430: Описание сорта (Описание сорта. Текст) -->
+    <xs:element name="VarietyDescriptionText" type="bdt:TextType">
+        <xs:annotation>
+            <xs:documentation>Описание хозяйственных и биологических свойств сорта</xs:documentation>
+        </xs:annotation>
+    </xs:element>
+    <!-- M.SM.SDE.00253: Код типа субъекта семеноводства (Тип субъекта семеноводства. Код) -->
+    <xs:element name="VarietySubjectTypeCode" type="csdo:Code2Type">
+        <xs:annotation>
+            <xs:documentation>Кодовое обозначение типа субъекта семеноводства</xs:documentation>
+        </xs:annotation>
+    </xs:element>
+    <!-- M.SM.SDE.00083: Идентификатор заявки на регистрацию ветеринарного препарата (Заявка на регистрацию ветеринарного препарата. Идентификатор) -->
+    <xs:element name="VetApplicationId" type="csdo:Id50Type">
+        <xs:annotation>
+            <xs:documentation>Уникальный идентификатор заявки на регистрацию ветеринарного препарата</xs:documentation>
+        </xs:annotation>
+    </xs:element>
+    <!-- M.SM.SDE.00129: Номер ветеринарного сертификата (Ветеринарный сертификат. Идентификатор) -->
+    <xs:element name="VeterinaryCertificateId" type="smsdo:VeterinaryCertificateIdType">
+        <xs:annotation>
+            <xs:documentation>Номер ветеринарного сертификата</xs:documentation>
+        </xs:annotation>
+    </xs:element>
+    <!-- M.SM.SDT.00051: Номер ветеринарного сертификата (Номер ветеринарного сертификата_ Идентификатор. Тип) -->
+    <xs:simpleType name="VeterinaryCertificateIdType">
+        <xs:annotation>
+            <xs:documentation>Номер ветеринарного сертификата</xs:documentation>
+        </xs:annotation>
+        <xs:restriction base="bdt:IdentifierType">
+            <xs:pattern value="[A-Z]{2}[0-9]{10}"/>
+        </xs:restriction>
+    </xs:simpleType>
+    <!-- M.SM.SDE.01017: Код вида (формы) ветеринарного сертификата (Ветеринарный сертификат: вид. Код) -->
+    <xs:element name="VeterinaryCertificateKindCode" type="csdo:Code1Type">
+        <xs:annotation>
+            <xs:documentation>Кодовое обозначение вида (формы) ветеринарного сертификата</xs:documentation>
+        </xs:annotation>
+    </xs:element>
+    <!-- M.SM.SDE.00114: Наименование компонента ветеринарного препарата (Наименование компонента ветеринарного препарата. Имя) -->
+    <xs:element name="VeterinaryDrugComponentName" type="csdo:Name250Type">
+        <xs:annotation>
+            <xs:documentation>Наименование компонента диагностического средства ветеринарного назначения</xs:documentation>
+        </xs:annotation>
+    </xs:element>
+    <!-- M.SM.SDE.00167: Код класса опасности ветеринарного препарата (Класс опасности ветеринарного препарата. Код) -->
+    <xs:element name="VeterinaryDrugHazardClassCode" type="smsdo:VeterinaryDrugHazardClassCodeType">
+        <xs:annotation>
+            <xs:documentation>Кодовое обозначение класса опасности ветеринарного лекарственного препарата, диагностического средства ветеринарного назначения, дезинфицирующего, дезинсекционного и дератизационного средства ветеринарного назначения, кормовой добавки</xs:documentation>
+        </xs:annotation>
+    </xs:element>
+    <!-- M.SM.SDT.00057: Код класса опасности ветеринарного препарата (Класс опасности ветеринарного препарата_ Код. Тип) -->
+    <xs:simpleType name="VeterinaryDrugHazardClassCodeType">
+        <xs:annotation>
+            <xs:documentation>Строка символов, представляющая краткое условное обозначение класса опасности ветеринарного лекарственного препарата, диагностического средства ветеринарного назначения, дезинфицирующего, дезинсекционного и дератизационного средства ветеринарного назначения, кормовой добавки</xs:documentation>
+        </xs:annotation>
+        <xs:restriction base="bdt:CodeType">
+            <xs:pattern value="[0-9]{1,2}"/>
+        </xs:restriction>
+    </xs:simpleType>
+    <!-- M.SM.SDE.00070: Идентификатор ветеринарного препарата (Ветеринарный препарат. Идентификатор) -->
+    <xs:element name="VeterinaryDrugId" type="csdo:Id20Type">
+        <xs:annotation>
+            <xs:documentation>Уникальный идентификационный номер ветеринарного препарата в реестре ветеринарных препаратов</xs:documentation>
+        </xs:annotation>
+    </xs:element>
+    <!-- M.SM.SDE.00067: Наименование ветеринарного препарата (Ветеринарный препарат. Имя) -->
+    <xs:element name="VeterinaryDrugName" type="csdo:Name500Type">
+        <xs:annotation>
+            <xs:documentation>Наименование ветеринарного препарата, присвоенное правообладателем</xs:documentation>
+        </xs:annotation>
+    </xs:element>
+    <!-- M.SM.SDE.00086: Код вида первичной упаковки ветеринарного препарата (Вид первичной упаковки ветеринарного препарата. Код) -->
+    <xs:element name="VeterinaryDrugPackageKindCode" type="smsdo:VeterinaryDrugPackageKindCodeType">
+        <xs:annotation>
+            <xs:documentation>Кодовое обозначение вида первичной упаковки ветеринарного лекарственного препарата, диагностического средства ветеринарного назначения, дезинфицирующего, дезинсекционного и дератизационного средства ветеринарного назначения, кормовой добавки</xs:documentation>
+        </xs:annotation>
+    </xs:element>
+    <!-- M.SM.SDT.00029: Код вида первичной упаковки ветеринарного препарата (Вид первичной упаковки ветеринарного препарата_ Код. Тип) -->
+    <xs:simpleType name="VeterinaryDrugPackageKindCodeType">
+        <xs:annotation>
+            <xs:documentation>Строка символов, представляющая краткое условное обозначение вида первичной упаковки ветеринарного лекарственного препарата, диагностического средства ветеринарного назначения, дезинфицирующего, дезинсекционного и дератизационного средства ветеринарного назначения, кормовой добавки</xs:documentation>
+        </xs:annotation>
+        <xs:restriction base="bdt:CodeType">
+            <xs:minLength value="1"/>
+            <xs:maxLength value="5"/>
+        </xs:restriction>
+    </xs:simpleType>
+    <!-- M.SM.SDE.00146: Наименование вида первичной упаковки ветеринарного препарата (Вид первичной упаковки ветеринарного препарата. Имя) -->
+    <xs:element name="VeterinaryDrugPackageKindName" type="csdo:Name500Type">
+        <xs:annotation>
+            <xs:documentation>Наименование вида первичной упаковки ветеринарного лекарственного препарата, диагностического средства ветеринарного назначения, дезинфицирующего, дезинсекционного и дератизационного средства ветеринарного назначения, кормовой добавки</xs:documentation>
+        </xs:annotation>
+    </xs:element>
+    <!-- M.SM.SDE.00168: Код вида макета упаковки ветеринарного препарата (Вид макета упаковки ветеринарного препарата. Код) -->
+    <xs:element name="VeterinaryDrugPackageLayoutKindCode" type="smsdo:VeterinaryDrugPackageLayoutKindCodeType">
+        <xs:annotation>
+            <xs:documentation>Кодовое обозначение вида макета упаковки ветеринарного лекарственного препарата, диагностического средства ветеринарного назначения, дезинфицирующего, дезинсекционного и дератизационного средства ветеринарного назначения, кормовой добавки</xs:documentation>
+        </xs:annotation>
+    </xs:element>
+    <!-- M.SM.SDT.00058: Код вида макета упаковки ветеринарного препарата (Вид макета упаковки ветеринарного препарата_ Код. Тип) -->
+    <xs:simpleType name="VeterinaryDrugPackageLayoutKindCodeType">
+        <xs:annotation>
+            <xs:documentation>Строка символов, представляющая краткое условное обозначение вида макета упаковки ветеринарного лекарственного препарата, диагностического средства ветеринарного назначения, дезинфицирующего, дезинсекционного и дератизационного средства ветеринарного назначения, кормовой добавки</xs:documentation>
+        </xs:annotation>
+        <xs:restriction base="bdt:CodeType">
+            <xs:pattern value="[0-9]{1,2}"/>
+        </xs:restriction>
+    </xs:simpleType>
+    <!-- M.SM.SDE.00068: Описание назначения ветеринарного препарата (Назначение ветеринарного препарата. Текст) -->
+    <xs:element name="VeterinaryDrugPurposeText" type="csdo:Text1000Type">
+        <xs:annotation>
+            <xs:documentation>Текстовое описание назначения ветеринарного лекарственного препарата, диагностического средства ветеринарного назначения, дезинфицирующего, дезинсекционного и дератизационного средства ветеринарного назначения, кормовой добавки</xs:documentation>
+        </xs:annotation>
+    </xs:element>
+    <!-- M.SM.SDE.00069: Код лекарственной формы ветеринарного препарата (Лекарственная форма ветеринарного препарата. Код) -->
+    <xs:element name="VeterinaryDrugReleaseFormCode" type="smsdo:VeterinaryDrugReleaseFormCodeType">
+        <xs:annotation>
+            <xs:documentation>Кодовое обозначение лекарственной формы ветеринарного лекарственного препарата, диагностического средства ветеринарного назначения, дезинфицирующего, дезинсекционного и дератизационного средства ветеринарного назначения, кормовой добавки</xs:documentation>
+        </xs:annotation>
+    </xs:element>
+    <!-- M.SM.SDT.00024: Код лекарственной формы ветеринарного препарата (Лекарственная форма ветеринарного препарата_ Код. Тип) -->
+    <xs:simpleType name="VeterinaryDrugReleaseFormCodeType">
+        <xs:annotation>
+            <xs:documentation>Строка символов, представляющая краткое условное обозначение лекарственной формы ветеринарного лекарственного препарата, диагностического средства ветеринарного назначения, дезинфицирующего, дезинсекционного и дератизационного средства ветеринарного назначения, кормовой добавки</xs:documentation>
+        </xs:annotation>
+        <xs:restriction base="bdt:CodeType">
+            <xs:pattern value="[0-9]{5}"/>
+        </xs:restriction>
+    </xs:simpleType>
+    <!-- M.SM.SDE.00145: Наименование лекарственной формы ветеринарного препарата (Лекарственная форма ветеринарного препарата. Имя) -->
+    <xs:element name="VeterinaryDrugReleaseFormName" type="csdo:Name500Type">
+        <xs:annotation>
+            <xs:documentation>Наименование лекарственной формы ветеринарного лекарственного препарата, диагностического средства ветеринарного назначения, дезинфицирующего, дезинсекционного и дератизационного средства ветеринарного назначения, кормовой добавки</xs:documentation>
+        </xs:annotation>
+    </xs:element>
+    <!-- M.SM.SDE.00090: Продолжительность периода выведения ветеринарного препарата (Период выведения ветеринарного препарата. Продолжительность) -->
+    <xs:element name="VeterinaryDrugRemovalPeriodDuration" type="bdt:DurationType">
+        <xs:annotation>
+            <xs:documentation>Период выведения ветеринарного препарата из продукции животного происхождения</xs:documentation>
+        </xs:annotation>
+    </xs:element>
+    <!-- M.SM.SDE.00173: Код комплектующего средства ветеринарного препарата (Комплектующее средство ветеринарного препарата. Код) -->
+    <xs:element name="VeterinaryDrugToolCode" type="smsdo:VeterinaryDrugToolCodeType">
+        <xs:annotation>
+            <xs:documentation>Кодовое обозначение комплектующего средства ветеринарного препарата</xs:documentation>
+        </xs:annotation>
+    </xs:element>
+    <!-- M.SM.SDT.00062: Код комплектующего средства ветеринарного препарата (Комплектующее средство ветеринарного препарата_ Код. Тип) -->
+    <xs:simpleType name="VeterinaryDrugToolCodeType">
+        <xs:annotation>
+            <xs:documentation>Строка символов, представляющая краткое условное обозначение комплектующего средства ветеринарного препарата</xs:documentation>
+        </xs:annotation>
+        <xs:restriction base="bdt:CodeType">
+            <xs:minLength value="1"/>
+            <xs:maxLength value="20"/>
+        </xs:restriction>
+    </xs:simpleType>
+    <!-- M.SM.SDE.00175: Наименование комплектующего средства ветеринарного препарата (Комплектующее средство ветеринарного препарата. Имя) -->
+    <xs:element name="VeterinaryDrugToolName" type="csdo:Name120Type">
+        <xs:annotation>
+            <xs:documentation>Наименование комплектующего средства ветеринарного препарата</xs:documentation>
+        </xs:annotation>
+    </xs:element>
+    <!-- M.SM.SDE.00066: Код вида ветеринарного препарата (Вид ветеринарного препарата. Код) -->
+    <xs:element name="VeterinaryDrugTypeCode" type="smsdo:VeterinaryDrugTypeCodeType">
+        <xs:annotation>
+            <xs:documentation>Кодовое обозначение вида ветеринарного препарата</xs:documentation>
+        </xs:annotation>
+    </xs:element>
+    <!-- M.SM.SDT.00023: Код вида ветеринарного препарата (Вид ветеринарного препарата_ Код. Тип) -->
+    <xs:simpleType name="VeterinaryDrugTypeCodeType">
+        <xs:annotation>
+            <xs:documentation>Строка символов, представляющая краткое условное обозначение вида ветеринарного препарата, с указанием классификатора</xs:documentation>
+        </xs:annotation>
+        <xs:restriction base="bdt:CodeType">
+            <xs:pattern value="[0-9]{1,2}"/>
+        </xs:restriction>
+    </xs:simpleType>
+    <!-- M.SM.SDE.00147: Наименование вида ветеринарного препарата (Вид ветеринарного препарата. Имя) -->
+    <xs:element name="VeterinaryDrugTypeName" type="csdo:Name250Type">
+        <xs:annotation>
+            <xs:documentation>Наименование вида ветеринарного препарата</xs:documentation>
+        </xs:annotation>
+    </xs:element>
+    <!-- M.SM.SDE.00113: Код вида особого условия регистрации ветеринарного препарата (Вид особого условия регистрации ветеринарного препарата. Код) -->
+    <xs:element name="VeterinaryDrugUsageRestrictionKindCode" type="smsdo:VeterinaryDrugUsageRestrictionKindCodeType">
+        <xs:annotation>
+            <xs:documentation>Кодовое обозначение вида особого условия регистрации ветеринарного лекарственного препарата</xs:documentation>
+        </xs:annotation>
+    </xs:element>
+    <!-- M.SM.SDT.00061: Код вида особого условия регистрации ветеринарного препарата (Вид особого условия регистрации ветеринарного препарата_ Код. Тип) -->
+    <xs:simpleType name="VeterinaryDrugUsageRestrictionKindCodeType">
+        <xs:annotation>
+            <xs:documentation>Строка символов, представляющая краткое условное обозначение вида особого условия регистрации ветеринарного лекарственного препарата</xs:documentation>
+        </xs:annotation>
+        <xs:restriction base="bdt:CodeType">
+            <xs:pattern value="[0-9]{1,2}"/>
+        </xs:restriction>
+    </xs:simpleType>
+    <!-- M.SM.SDE.00141: Наименование вида особого условия регистрации ветеринарного препарата (Вид особого условия регистрации ветеринарного препарата. Имя) -->
+    <xs:element name="VeterinaryDrugUsageRestrictionKindName" type="csdo:Name500Type">
+        <xs:annotation>
+            <xs:documentation>Наименование вида особого условия регистрации ветеринарного лекарственного препарата</xs:documentation>
+        </xs:annotation>
+    </xs:element>
+    <!-- M.SM.SDE.00161: Продолжительность использования ветеринарного препарата (Использование ветеринарного препарата. Продолжительность) -->
+    <xs:element name="VeterinaryDrugUseDuration" type="bdt:DurationType">
+        <xs:annotation>
+            <xs:documentation>Продолжительность времени, в течение которого животному вводился ветеринарный препарат</xs:documentation>
+        </xs:annotation>
+    </xs:element>
+    <!-- M.SM.SDE.00019: Предмет ветеринарно-санитарной экспертизы (Предмет ветеринарно-санитарной экспертизы. Код) -->
+    <xs:element name="VeterinaryExaminationObjectCode" type="csdo:Code1Type">
+        <xs:annotation>
+            <xs:documentation>Кодовое обозначение предмета ветеринарно-санитарной экспертизы</xs:documentation>
+        </xs:annotation>
+    </xs:element>
+    <!-- M.SM.SDE.00020: Код санитарной оценки продукции (Санитарная оценка продукции. Код) -->
+    <xs:element name="VeterinaryExaminationOutcomeCode" type="smsdo:VeterinaryExaminationOutcomeCodeType">
+        <xs:annotation>
+            <xs:documentation>Кодовое обозначение санитарной оценки продукции</xs:documentation>
+        </xs:annotation>
+    </xs:element>
+    <!-- M.SM.SDT.00036: Код санитарной оценки продукции (Санитарная оценка продукции_ Код. Тип) -->
+    <xs:complexType name="VeterinaryExaminationOutcomeCodeType">
+        <xs:annotation>
+            <xs:documentation>Строка символов, представляющая краткое условное обозначение санитарной оценки продукции</xs:documentation>
+        </xs:annotation>
+        <xs:simpleContent>
+            <xs:extension base="csdo:QualifiedOptionalCodeType"/>
+        </xs:simpleContent>
+    </xs:complexType>
+    <!-- M.SM.SDE.01016: Наименование пункта ветеринарного контроля (надзора) (Пункт ветеринарного контроля (надзора). Имя) -->
+    <xs:element name="VeterinaryInspectionPostName" type="csdo:Name250Type">
+        <xs:annotation>
+            <xs:documentation>Наименование пункта ветеринарного контроля (надзора)</xs:documentation>
+        </xs:annotation>
+    </xs:element>
+    <!-- M.SM.SDE.00041: Код вида деятельности предприятия в отношении подконтрольной ветеринарному контролю (надзору) продукции (Вид деятельности предприятия в отношении подконтрольной ветеринарному контролю (надзору) продукции. Код) -->
+    <xs:element name="VeterinaryOrganizationActivityKindCode" type="smsdo:VeterinaryOrganizationActivityKindCodeType">
+        <xs:annotation>
+            <xs:documentation>Кодовое обозначение вида деятельности предприятия в отношении подконтрольной ветеринарному контролю (надзору) продукции</xs:documentation>
+        </xs:annotation>
+    </xs:element>
+    <!-- M.SM.SDT.00016: Код вида деятельности предприятия в отношении подконтрольной ветеринарному контролю (надзору) продукции (Вид деятельности предприятия в отношении подконтрольной ветеринарному контролю (надзору) продукции_ Код. Тип) -->
+    <xs:simpleType name="VeterinaryOrganizationActivityKindCodeType">
+        <xs:annotation>
+            <xs:documentation>Строка символов, представляющая краткое условное обозначение вида деятельности предприятия в отношении подконтрольной ветеринарному контролю (надзору) продукции</xs:documentation>
+        </xs:annotation>
+        <xs:restriction base="bdt:CodeType">
+            <xs:pattern value="[0-9]{1,2}"/>
+        </xs:restriction>
+    </xs:simpleType>
+    <!-- M.SM.SDE.00881: Наименование вида деятельности предприятия в отношении подконтрольной ветеринарному контролю (надзору) продукции (Наименование деятельности предприятия в отношении подконтрольной ветеринарному контролю (надзору) продукции. Имя) -->
+    <xs:element name="VeterinaryOrganizationActivityKindName" type="csdo:Name40Type">
+        <xs:annotation>
+            <xs:documentation>Наименование вида деятельности предприятия в отношении подконтрольной ветеринарному контролю (надзору) продукции</xs:documentation>
+        </xs:annotation>
+    </xs:element>
+    <!-- M.SM.SDE.00045: Регистрационный номер предприятия, осуществляющего деятельность, подконтрольную ветеринарному контролю (надзору) (Регистрационный номер: предприятие, осуществляющее деятельность, подконтрольную ветеринарному контролю (надзору). Идентификатор) -->
+    <xs:element name="VeterinaryOrganizationId" type="csdo:Id40Type">
+        <xs:annotation>
+            <xs:documentation>учетный номер объекта, подлежащего ветеринарному контролю (надзору), из реестра организаций и лиц, осуществляющих производство, переработку и (или) хранение товаров, перемещаемых с территории одного государства-члена Евразийского экономического союза на  территорию другого государства-члена Евразийского экономического союза</xs:documentation>
+        </xs:annotation>
+    </xs:element>
+    <!-- M.SM.SDE.00410: Код подлежащей ветеринарному контролю (надзору) продукции (Подлежащая ветеринарному контролю продукция. Код) -->
+    <xs:element name="VeterinaryProductCode" type="smsdo:VeterinaryProductCodeType">
+        <xs:annotation>
+            <xs:documentation>Кодовое обозначение подлежащей ветеринарному контролю (надзору) продукции</xs:documentation>
+        </xs:annotation>
+    </xs:element>
+    <!-- M.SM.SDT.00390: Код подлежащей ветеринарному контролю (надзору) продукции (Подлежащая ветеринарному контролю продукция_ Код. Тип) -->
+    <xs:complexType name="VeterinaryProductCodeType">
+        <xs:annotation>
+            <xs:documentation>Строка символов, представляющая краткое условное обозначение вида деятельности предприятия в отношении подконтрольной ветеринарно-санитарному надзору продукции, с указанием классификатора</xs:documentation>
+        </xs:annotation>
+        <xs:simpleContent>
+            <xs:restriction base="csdo:QualifiedCodeType">
+                <xs:pattern value="\d{5}"/>
+            </xs:restriction>
+        </xs:simpleContent>
+    </xs:complexType>
+    <!-- M.SM.SDE.00887: Наименование подлежащей ветеринарному контролю (надзору) продукции (Подлежащая ветеринарному контролю продукция. Имя) -->
+    <xs:element name="VeterinaryProductName" type="csdo:Name120Type">
+        <xs:annotation>
+            <xs:documentation>Наименование подлежащей ветеринарному контролю (надзору) продукции</xs:documentation>
+        </xs:annotation>
+    </xs:element>
+    <!-- M.SM.SDE.00128: Код типа субъекта транспортировки товаров (Тип субъекта транспортировки товаров. Код) -->
+    <xs:element name="VeterinaryProductTransportSubjectTypeCode" type="smsdo:VeterinaryProductTransportSubjectTypeCodeType">
+        <xs:annotation>
+            <xs:documentation>Кодовое обозначение типа субъекта транспортировки товаров</xs:documentation>
+        </xs:annotation>
+    </xs:element>
+    <!-- M.SM.SDT.00050: Код типа субъекта транспортировки товаров (Тип субъекта транспортировки товаров_ Код. Тип) -->
+    <xs:simpleType name="VeterinaryProductTransportSubjectTypeCodeType">
+        <xs:annotation>
+            <xs:documentation>Строка символов, представляющая кодовое обозначение типа субъекта транспортировки товаров</xs:documentation>
+        </xs:annotation>
+        <xs:restriction base="bdt:CodeType">
+            <xs:pattern value="[0-9]{2}"/>
+        </xs:restriction>
+    </xs:simpleType>
+    <!-- M.SM.SDE.00179: Наименование типа субъекта транспортировки товаров (Тип субъекта транспортировки товаров. Имя) -->
+    <xs:element name="VeterinaryProductTransportSubjectTypeName" type="csdo:Name120Type">
+        <xs:annotation>
+            <xs:documentation>Наименование типа субъекта транспортировки товаров</xs:documentation>
+        </xs:annotation>
+    </xs:element>
+    <!-- M.SM.SDE.00044: Код ветеринарно-санитарного статуса предприятия (Ветеринарно-санитарный статус предприятия. Код) -->
+    <xs:element name="VeterinaryStateCode" type="smsdo:VeterinaryStateCodeType">
+        <xs:annotation>
+            <xs:documentation>Кодовое обозначение вида деятельности предприятия в отношении подконтрольной ветеринарно-санитарному надзору продукции</xs:documentation>
+        </xs:annotation>
+    </xs:element>
+    <!-- M.SM.SDT.00087: Код ветеринарно-санитарного статуса предприятия (Ветеринарно-санитарный статус предприятия_ Код. Тип) -->
+    <xs:complexType name="VeterinaryStateCodeType">
+        <xs:annotation>
+            <xs:documentation>Строка символов, представляющая краткое условное обозначение ветеринарно-санитарного статуса предприятия, определяющего наличие или отсутствие запретов (ограничений) на ввоз (транзит, реализацию) подконтрольных товаров, производимых данным предприятием, с указанием классификатора</xs:documentation>
+        </xs:annotation>
+        <xs:simpleContent>
+            <xs:restriction base="csdo:QualifiedCodeType">
+                <xs:pattern value="[0-9]{1,2}"/>
+            </xs:restriction>
+        </xs:simpleContent>
+    </xs:complexType>
+    <!-- M.SM.SDE.00884: Наименование ветеринарно-санитарного статуса предприятия (Ветеринарно-санитарный статус предприятия. Имя) -->
+    <xs:element name="VeterinaryStateName" type="csdo:Name40Type">
+        <xs:annotation>
+            <xs:documentation>Наименование вида деятельности предприятия в отношении подконтрольной ветеринарно-санитарному надзору продукции</xs:documentation>
+        </xs:annotation>
+    </xs:element>
+    <!-- M.SM.SDE.00131: Код метода ветеринарной обработки (Метод ветеринарной обработки. Код) -->
+    <xs:element name="VeterinaryTreatmentMethodCode" type="smsdo:VeterinaryTreatmentMethodCodeType">
+        <xs:annotation>
+            <xs:documentation>Кодовое обозначение метода ветеринарной обработки</xs:documentation>
+        </xs:annotation>
+    </xs:element>
+    <!-- M.SM.SDT.00007: Код метода ветеринарной обработки (Метод ветеринарной обработки_ Код. Тип) -->
+    <xs:simpleType name="VeterinaryTreatmentMethodCodeType">
+        <xs:annotation>
+            <xs:documentation>Строка символов, представляющая краткое условное обозначение метода ветеринарной обработки</xs:documentation>
+        </xs:annotation>
+        <xs:restriction base="bdt:CodeType">
+            <xs:pattern value="[0-9]{2}"/>
+        </xs:restriction>
+    </xs:simpleType>
+    <!-- M.SM.SDE.00027: Наименование метода ветеринарной обработки (Метод ветеринарной обработки. Имя) -->
+    <xs:element name="VeterinaryTreatmentMethodName" type="csdo:Name120Type">
+        <xs:annotation>
+            <xs:documentation>Наименование метода ветеринарной обработки</xs:documentation>
+        </xs:annotation>
+    </xs:element>
+    <!-- M.SM.SDT.00049: Код типа эпизоотической зоны (Тип эпизоотической зоны_ Код. Тип) -->
+    <xs:complexType name="ZoneTypeCodeType">
+        <xs:annotation>
+            <xs:documentation>Строка символов, представляющая краткое условное обозначение типа зоны по зоосанитарному статусу по болезни</xs:documentation>
+        </xs:annotation>
+        <xs:simpleContent>
+            <xs:restriction base="csdo:QualifiedOptionalCodeType">
+                <xs:minLength value="1"/>
+                <xs:maxLength value="5"/>
+            </xs:restriction>
+        </xs:simpleContent>
+    </xs:complexType>
+</xs:schema>

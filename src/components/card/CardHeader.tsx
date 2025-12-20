@@ -1,0 +1,48 @@
+import { Descriptions } from 'antd'
+import { format } from 'date-fns'
+import { ru } from 'date-fns/locale'
+import type { CardData } from '@/types/card'
+
+interface CardHeaderProps {
+  data: CardData
+  onStatusClick: () => void
+}
+
+const CardHeader: React.FC<CardHeaderProps> = ({ data, onStatusClick }) => {
+  const formatDateTime = (dateTime: string | null | undefined) => {
+    if (!dateTime) return '-'
+    const date = new Date(dateTime)
+    if (isNaN(date.getTime())) return dateTime // Возвращаем исходное значение, если дата невалидна
+    return format(date, 'dd.MM.yyyy HH:mm:ss', { locale: ru })
+  }
+
+  return (
+    <Descriptions
+      column={3}
+      bordered
+      size="small"
+      style={{ marginBottom: '16px' }}
+    >
+      <Descriptions.Item label="Страна">{data.country}</Descriptions.Item>
+      <Descriptions.Item label="Регистрационный номер">
+        {data.registrationNumber}
+      </Descriptions.Item>
+      <Descriptions.Item label="Версия">{data.version}</Descriptions.Item>
+      <Descriptions.Item label="Источник">{data.source || '-'}</Descriptions.Item>
+      <Descriptions.Item label="Создана">
+        {formatDateTime(data.createdAt)}
+      </Descriptions.Item>
+      <Descriptions.Item label="Изменена">
+        {formatDateTime(data.modifiedAt)}
+      </Descriptions.Item>
+      <Descriptions.Item label="Статус">
+        <a onClick={onStatusClick} style={{ cursor: 'pointer' }}>
+          {data.status}
+        </a>
+      </Descriptions.Item>
+    </Descriptions>
+  )
+}
+
+export default CardHeader
+
