@@ -68,10 +68,14 @@ const mockCardData: CardData = {
 
 function App() {
   const [cardData, setCardData] = useState<CardData | null>(null)
+  const [originalXML, setOriginalXML] = useState<string | null>(null)
 
-  const handleFileLoaded = (data: CardData) => {
+  const handleFileLoaded = (data: CardData, xmlText?: string) => {
     console.log('App: получены данные из FileSelector:', data)
     setCardData(data)
+    if (xmlText) {
+      setOriginalXML(xmlText)
+    }
     console.log('App: cardData установлен')
   }
 
@@ -79,7 +83,7 @@ function App() {
     <div className="app">
       <FileSelector onFileLoaded={handleFileLoaded} />
       {cardData ? (
-        <DangerousProductCard data={cardData} onUpdate={setCardData} />
+        <DangerousProductCard data={cardData} onUpdate={setCardData} originalXML={originalXML} />
       ) : (
         <div style={{ padding: '24px', textAlign: 'center', color: '#999' }}>
           Выберите XML файл для загрузки

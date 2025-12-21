@@ -5,7 +5,7 @@ import { loadXMLFile, parseXMLToCardData } from '@/utils/xmlParser'
 import type { CardData } from '@/types/card'
 
 interface FileSelectorProps {
-  onFileLoaded: (data: CardData) => void
+  onFileLoaded: (data: CardData, xmlText?: string) => void
 }
 
 // Список доступных XML файлов из папки public/xml
@@ -47,9 +47,13 @@ const FileSelector: React.FC<FileSelectorProps> = ({ onFileLoaded }) => {
       console.log('Загружаем файл:', file.path)
       const xmlText = await loadXMLFile(file.path)
       console.log('Файл загружен, размер:', xmlText.length, 'символов')
+      
+      // Сохраняем исходный XML в localStorage для последующего сравнения
+      localStorage.setItem('originalXML', xmlText)
+      
       const cardData = parseXMLToCardData(xmlText)
       console.log('Данные успешно распарсены, передаем в компонент')
-      onFileLoaded(cardData)
+      onFileLoaded(cardData, xmlText)
       message.success('Файл успешно загружен')
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Неизвестная ошибка'
@@ -68,9 +72,13 @@ const FileSelector: React.FC<FileSelectorProps> = ({ onFileLoaded }) => {
         try {
           const xmlText = e.target?.result as string
           console.log('Загружен XML файл, размер:', xmlText.length, 'символов')
+          
+          // Сохраняем исходный XML в localStorage для последующего сравнения
+          localStorage.setItem('originalXML', xmlText)
+          
           const cardData = parseXMLToCardData(xmlText)
           console.log('Данные успешно распарсены, передаем в компонент')
-          onFileLoaded(cardData)
+          onFileLoaded(cardData, xmlText)
           message.success('Файл успешно загружен')
         } catch (error) {
           const errorMessage = error instanceof Error ? error.message : 'Неизвестная ошибка'
