@@ -100,41 +100,43 @@ const FileSelector: React.FC<FileSelectorProps> = ({ onFileLoaded }) => {
     return false // Предотвращаем автоматическую загрузку
   }
 
-  return (
-    <div style={{ padding: '16px', background: '#f5f5f5', marginBottom: '16px' }}>
-      <Space wrap>
-        <FileTextOutlined />
-        <Select
-          placeholder="Выберите XML файл из папки xml"
-          style={{ width: 400 }}
-          value={selectedFile}
-          onChange={setSelectedFile}
-          options={availableFiles.map((file) => ({
-            label: file.name,
-            value: file.name,
-          }))}
-        />
-        <Button
-          type="primary"
-          onClick={handleLoadFile}
-          loading={loading}
-          disabled={!selectedFile}
-        >
-          Загрузить из папки
-        </Button>
-        <span style={{ color: '#999' }}>или</span>
-        <Upload
-          accept=".xml"
-          beforeUpload={handleFileUpload}
-          showUploadList={false}
-        >
-          <Button icon={<UploadOutlined />} loading={loading}>
-            Загрузить файл
-          </Button>
-        </Upload>
-      </Space>
-    </div>
-  )
+      return (
+        <div className="file-selector-container fade-in">
+          <Space wrap size="middle" style={{ width: '100%' }}>
+            <FileTextOutlined style={{ fontSize: '20px', color: '#1890ff' }} />
+            <Select
+              placeholder="Выберите XML файл из папки xml"
+              style={{ width: 400, minWidth: 300 }}
+              value={selectedFile}
+              onChange={setSelectedFile}
+              options={availableFiles.map((file) => ({
+                label: file.name,
+                value: file.name,
+              }))}
+              size="large"
+            />
+            <Button
+              type="primary"
+              onClick={handleLoadFile}
+              loading={loading}
+              disabled={!selectedFile}
+              size="large"
+            >
+              Загрузить из папки
+            </Button>
+            <span style={{ color: '#8c8c8c', fontWeight: 500 }}>или</span>
+            <Upload
+              accept=".xml"
+              beforeUpload={handleFileUpload}
+              showUploadList={false}
+            >
+              <Button icon={<UploadOutlined />} loading={loading} size="large">
+                Загрузить файл
+              </Button>
+            </Upload>
+          </Space>
+        </div>
+      )
 }
 
 export default FileSelector

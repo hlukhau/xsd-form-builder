@@ -383,27 +383,34 @@ const DangerousProductCard: React.FC<DangerousProductCardProps> = ({
   })
 
   return (
-    <div style={{ padding: '24px' }}>
+    <div style={{ padding: '0' }} className="fade-in">
       <Card
-        title="Карта сведений об обнаружении опасной продукции"
+        title={
+          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+            <span>Карта сведений об обнаружении опасной продукции</span>
+          </div>
+        }
         extra={
-          <Space>
-            <Switch
-              checked={isEditMode}
-              onChange={setIsEditMode}
-              checkedChildren={<EditOutlined />}
-              unCheckedChildren={<EyeOutlined />}
-            />
-            <span style={{ marginLeft: '8px' }}>Режим редактирования</span>
+          <Space size="middle" wrap>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <Switch
+                checked={isEditMode}
+                onChange={setIsEditMode}
+                checkedChildren={<EditOutlined />}
+                unCheckedChildren={<EyeOutlined />}
+                size="default"
+              />
+              <span style={{ color: '#ffffff', fontWeight: 500 }}>Режим редактирования</span>
+            </div>
             {isEditMode && (
               <>
-                <Button onClick={handleCancel}>Отмена</Button>
-                <Button type="primary" onClick={handleSave}>Сохранить</Button>
-                <Button icon={<DownloadOutlined />} onClick={handleExportXML}>Экспорт XML</Button>
-                <Button onClick={handleCompareXML}>Сравнить с исходным</Button>
+                <Button onClick={handleCancel} size="middle">Отмена</Button>
+                <Button type="primary" onClick={handleSave} size="middle">Сохранить</Button>
+                <Button icon={<DownloadOutlined />} onClick={handleExportXML} size="middle">Экспорт XML</Button>
+                <Button onClick={handleCompareXML} size="middle">Сравнить с исходным</Button>
               </>
             )}
-            <Button onClick={() => console.log('Закрыть')}>Закрыть</Button>
+            <Button onClick={() => console.log('Закрыть')} size="middle">Закрыть</Button>
           </Space>
         }
       >

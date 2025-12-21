@@ -85,8 +85,14 @@ function App() {
       {cardData ? (
         <DangerousProductCard data={cardData} onUpdate={setCardData} originalXML={originalXML} />
       ) : (
-        <div style={{ padding: '24px', textAlign: 'center', color: '#999' }}>
-          Выберите XML файл для загрузки
+        <div className="empty-state">
+          <div style={{ fontSize: '48px', marginBottom: '16px', opacity: 0.3 }}>📄</div>
+          <div style={{ fontSize: '18px', fontWeight: 500, color: '#595959', marginBottom: '8px' }}>
+            Выберите XML файл для загрузки
+          </div>
+          <div style={{ fontSize: '14px', color: '#8c8c8c' }}>
+            Используйте селектор выше для выбора файла из папки или загрузите свой файл
+          </div>
         </div>
       )}
     </div>
