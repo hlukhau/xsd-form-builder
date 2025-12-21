@@ -49,7 +49,7 @@ body {
     sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-  background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+  background: #f0f2f5;
   color: var(--text-primary);
   line-height: 1.6;
 }
@@ -79,27 +79,29 @@ body {
 /* Промышленный стиль для карточек */
 .ant-card {
   border-radius: var(--radius-lg);
-  box-shadow: var(--shadow-md);
-  border: 1px solid var(--border-light);
-  transition: all 0.3s ease;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+  border: 1px solid #e8e8e8;
+  transition: box-shadow 0.2s ease;
+  background: #ffffff;
 }
 
 .ant-card:hover {
-  box-shadow: var(--shadow-lg);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.2);
 }
 
 .ant-card-head {
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  background: #1890ff;
   border-radius: var(--radius-lg) var(--radius-lg) 0 0;
   border-bottom: none;
-  padding: var(--spacing-md) var(--spacing-lg);
+  padding: var(--spacing-lg) var(--spacing-xl);
+  min-height: 64px;
 }
 
 .ant-card-head-title {
   color: #ffffff;
   font-weight: 600;
-  font-size: 18px;
-  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
+  font-size: 20px;
+  letter-spacing: 0.3px;
 }
 
 .ant-card-extra {
@@ -131,52 +133,279 @@ body {
   background: var(--bg-secondary);
 }
 
-/* Стили для вкладок */
+/* Стили для вкладок - классический дизайн вкладок */
 .ant-tabs {
   background: var(--bg-secondary);
-  border-radius: var(--radius-md);
-  padding: var(--spacing-md);
+  border-radius: var(--radius-lg);
+  padding: 0;
+  box-shadow: var(--shadow-md);
+  border: 1px solid #d9d9d9;
+  overflow: visible;
+}
+
+.ant-tabs-nav {
+  margin: 0;
+  padding: var(--spacing-md) var(--spacing-md) 0;
+  background: #f5f5f5;
+  border: none !important;
+  border-bottom: none !important;
+  position: relative;
+  box-shadow: none !important;
+  z-index: 0;
+  overflow: visible;
+}
+
+.ant-tabs-nav-list {
+  position: relative;
+  z-index: 10;
+}
+
+.ant-tabs-nav-wrap {
+  position: relative;
+  z-index: 10;
+}
+
+.ant-tabs-nav::before {
+  display: none !important;
+  content: none !important;
+  border: none !important;
+}
+
+.ant-tabs-nav::after {
+  content: '';
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 1px;
+  background: #d9d9d9;
+  z-index: 1;
+  display: block !important;
+}
+
+.ant-tabs-nav-list {
+  border: none !important;
+  box-shadow: none !important;
+  outline: none !important;
+}
+
+.ant-tabs-nav-wrap {
+  border: none !important;
+  box-shadow: none !important;
+  outline: none !important;
 }
 
 .ant-tabs-tab {
   font-weight: 500;
-  transition: all 0.3s ease;
+  font-size: 14px;
+  padding: 10px 16px !important;
+  margin: 0 2px 0 0 !important;
+  border-radius: var(--radius-md) var(--radius-md) 0 0;
+  transition: all 0.2s ease;
+  color: var(--text-secondary) !important;
+  position: relative;
+  border: 1px solid #d9d9d9 !important;
+  border-bottom: 1px solid #d9d9d9 !important;
+  background: #fafafa !important;
+  min-height: 40px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: none !important;
+  outline: none !important;
+  cursor: pointer;
+  box-sizing: border-box;
+  z-index: 3;
+}
+
+.ant-tabs-tab::before {
+  display: none !important;
+}
+
+.ant-tabs-tab::after {
+  display: none !important;
+}
+
+.ant-tabs-tab-btn {
+  padding: 0 !important;
+  margin: 0 !important;
+  white-space: nowrap;
+  display: inline-block;
+  border: none !important;
+  box-shadow: none !important;
+  outline: none !important;
 }
 
 .ant-tabs-tab:hover {
-  color: var(--primary-hover);
+  color: var(--primary-color) !important;
+  background: #ffffff !important;
+  border-left-color: #d9d9d9 !important;
+  border-right-color: #d9d9d9 !important;
+  border-top-color: #d9d9d9 !important;
+  border-bottom-color: #d9d9d9 !important;
+  z-index: 1;
+}
+
+.ant-tabs-tab-active {
+  background: #ffffff !important;
+  border: 1px solid #d9d9d9 !important;
+  border-bottom: none !important;
+  z-index: 20 !important;
+  margin-bottom: -1px !important;
+  box-shadow: none !important;
+  position: relative;
+  overflow: visible;
+}
+
+.ant-tabs-tab-active::before {
+  display: none !important;
+}
+
+.ant-tabs-tab-active::after {
+  display: none !important;
 }
 
 .ant-tabs-tab-active .ant-tabs-tab-btn {
-  color: var(--primary-color);
+  color: var(--primary-color) !important;
   font-weight: 600;
+  font-size: 14px;
 }
 
 .ant-tabs-ink-bar {
-  background: linear-gradient(90deg, var(--primary-color), var(--primary-hover));
-  height: 3px;
+  display: none !important;
 }
 
-/* Стили для кнопок */
+.ant-tabs-content-holder {
+  padding: var(--spacing-lg);
+  background: #ffffff;
+  border-top: none;
+  border-radius: 0 0 var(--radius-lg) var(--radius-lg);
+  margin-top: 0;
+}
+
+.ant-tabs-tabpane {
+  animation: fadeInTab 0.2s ease-out;
+}
+
+@keyframes fadeInTab {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+/* Стили для кнопок - чистый профессиональный дизайн */
 .ant-btn {
   border-radius: var(--radius-md);
   font-weight: 500;
-  transition: all 0.3s ease;
-  box-shadow: var(--shadow-sm);
+  font-size: 14px;
+  height: 36px;
+  padding: 4px 16px;
+  transition: all 0.2s ease;
+  border: 1.5px solid var(--border-color);
+  background: var(--bg-secondary);
+  color: var(--text-primary);
 }
 
 .ant-btn:hover {
-  transform: translateY(-1px);
-  box-shadow: var(--shadow-md);
+  border-color: var(--primary-color);
+  color: var(--primary-color);
+  background: var(--bg-secondary);
+  transform: none;
+}
+
+.ant-btn:active {
+  transform: scale(0.98);
 }
 
 .ant-btn-primary {
-  background: linear-gradient(135deg, var(--primary-color), var(--primary-hover));
-  border: none;
+  background: var(--primary-color);
+  border-color: var(--primary-color);
+  color: #ffffff;
+  box-shadow: 0 2px 4px rgba(24, 144, 255, 0.2);
 }
 
 .ant-btn-primary:hover {
-  background: linear-gradient(135deg, var(--primary-hover), var(--primary-active));
+  background: var(--primary-hover);
+  border-color: var(--primary-hover);
+  color: #ffffff;
+  box-shadow: 0 4px 8px rgba(24, 144, 255, 0.3);
+}
+
+.ant-btn-primary:active {
+  background: var(--primary-active);
+  border-color: var(--primary-active);
+}
+
+.ant-btn-default {
+  background: var(--bg-secondary);
+  border-color: var(--border-color);
+  color: var(--text-primary);
+}
+
+.ant-btn-default:hover {
+  background: var(--bg-tertiary);
+  border-color: var(--primary-hover);
+  color: var(--primary-hover);
+}
+
+.ant-btn-dashed {
+  border-style: dashed;
+  border-color: var(--border-color);
+  background: var(--bg-secondary);
+}
+
+.ant-btn-dashed:hover {
+  border-color: var(--primary-hover);
+  color: var(--primary-hover);
+  background: rgba(24, 144, 255, 0.05);
+}
+
+.ant-btn-text {
+  border: none;
+  box-shadow: none;
+  background: transparent;
+}
+
+.ant-btn-text:hover {
+  background: var(--bg-tertiary);
+  box-shadow: none;
+}
+
+.ant-btn-link {
+  border: none;
+  box-shadow: none;
+  background: transparent;
+  color: var(--primary-color);
+}
+
+.ant-btn-link:hover {
+  color: var(--primary-hover);
+  text-decoration: underline;
+}
+
+/* Кнопки с иконками */
+.ant-btn-icon-only {
+  width: 36px;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* Размеры кнопок */
+.ant-btn-lg {
+  height: 40px;
+  padding: 6px 20px;
+  font-size: 16px;
+}
+
+.ant-btn-sm {
+  height: 28px;
+  padding: 2px 12px;
+  font-size: 12px;
 }
 
 /* Стили для форм */
@@ -245,13 +474,41 @@ body {
   padding: var(--spacing-lg);
 }
 
-/* Стили для переключателей */
+/* Стили для переключателей - профессиональный дизайн */
 .ant-switch {
   background-color: var(--border-color);
+  min-width: 44px;
+  height: 22px;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.ant-switch:hover:not(.ant-switch-disabled) {
+  background-color: var(--text-tertiary);
 }
 
 .ant-switch-checked {
-  background-color: var(--primary-color);
+  background: linear-gradient(135deg, var(--primary-color) 0%, var(--primary-hover) 100%);
+  box-shadow: 0 2px 8px rgba(24, 144, 255, 0.3);
+}
+
+.ant-switch-checked:hover:not(.ant-switch-disabled) {
+  background: linear-gradient(135deg, var(--primary-hover) 0%, var(--primary-active) 100%);
+  box-shadow: 0 4px 12px rgba(24, 144, 255, 0.4);
+}
+
+.ant-switch-handle {
+  width: 18px;
+  height: 18px;
+  top: 2px;
+  left: 2px;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+}
+
+.ant-switch-checked .ant-switch-handle {
+  left: calc(100% - 18px - 2px);
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.3);
 }
 
 /* Стили для селекторов */
@@ -259,24 +516,91 @@ body {
   border-radius: var(--radius-md);
 }
 
-/* Стили для коллапсов */
+/* Стили для коллапсов - профессиональный дизайн */
 .ant-collapse {
-  border-radius: var(--radius-md);
+  border-radius: var(--radius-lg);
   border: 1px solid var(--border-light);
   background: var(--bg-secondary);
+  box-shadow: var(--shadow-sm);
+  overflow: hidden;
 }
 
 .ant-collapse-item {
-  border-bottom: 1px solid var(--border-light);
+  border-bottom: 1px solid #e8e8e8;
+  transition: background 0.2s ease;
+}
+
+.ant-collapse-item:last-child {
+  border-bottom: none;
+}
+
+.ant-collapse-item-active {
+  background: #fafafa;
 }
 
 .ant-collapse-header {
-  font-weight: 500;
+  font-weight: 600;
+  font-size: 15px;
   padding: var(--spacing-md) var(--spacing-lg);
+  background: #ffffff;
+  transition: all 0.2s ease;
+  color: var(--text-primary);
+  border-radius: 0;
+  user-select: none;
+}
+
+.ant-collapse-header:hover {
+  background: #f5f5f5;
+  color: var(--primary-color);
+}
+
+.ant-collapse-item-active > .ant-collapse-header {
+  background: #f0f7ff;
+  color: var(--primary-color);
+  border-bottom: 1px solid #e8e8e8;
+}
+
+.ant-collapse-header:focus {
+  outline: none;
+}
+
+.ant-collapse-expand-icon {
+  color: var(--text-secondary);
+  transition: transform 0.2s ease;
+  font-size: 12px;
+  margin-right: var(--spacing-sm);
+}
+
+.ant-collapse-item-active > .ant-collapse-header .ant-collapse-expand-icon {
+  color: var(--primary-color);
+  transform: rotate(90deg);
+}
+
+.ant-collapse-header:hover .ant-collapse-expand-icon {
+  color: var(--primary-color);
 }
 
 .ant-collapse-content {
+  background: #ffffff;
+  border-top: 1px solid #e8e8e8;
+}
+
+.ant-collapse-content-box {
+  padding: var(--spacing-lg);
+  background: #ffffff;
+}
+
+/* Улучшенные стили для вложенных коллапсов */
+.ant-collapse .ant-collapse {
+  margin-top: var(--spacing-sm);
+  border: 1px solid var(--border-light);
   background: var(--bg-tertiary);
+}
+
+.ant-collapse .ant-collapse-header {
+  font-weight: 500;
+  font-size: 14px;
+  padding: var(--spacing-sm) var(--spacing-md);
 }
 
 /* Стили для описаний */
