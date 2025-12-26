@@ -139,3 +139,4 @@ const DetectionPlaceTabEdit: React.FC<DetectionPlaceTabEditProps> = ({ data, onC
 
 export default DetectionPlaceTabEdit
 
+

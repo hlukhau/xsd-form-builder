@@ -248,3 +248,4 @@ const ManufacturerDetailsEdit: React.FC<ManufacturerDetailsEditProps> = ({
 
 export default ManufacturerDetailsEdit
 
+

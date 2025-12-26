@@ -179,7 +179,7 @@ body {
   right: 0;
   height: 1px;
   background: #d9d9d9;
-  z-index: 1;
+  z-index: 2;
   display: block !important;
 }
 
@@ -205,7 +205,7 @@ body {
   color: var(--text-secondary) !important;
   position: relative;
   border: 1px solid #d9d9d9 !important;
-  border-bottom: 1px solid #d9d9d9 !important;
+  border-bottom: none !important;
   background: #fafafa !important;
   min-height: 40px;
   display: inline-flex;
@@ -218,11 +218,18 @@ body {
   z-index: 3;
 }
 
-.ant-tabs-tab::before {
-  display: none !important;
+.ant-tabs-tab::after {
+  content: '';
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 1px;
+  background: #d9d9d9;
+  z-index: 1;
 }
 
-.ant-tabs-tab::after {
+.ant-tabs-tab::before {
   display: none !important;
 }
 
@@ -252,7 +259,7 @@ body {
   border-bottom: none !important;
   z-index: 20 !important;
   margin-bottom: -1px !important;
-  box-shadow: none !important;
+  box-shadow: 0 2px 0 0 #ffffff, 0 3px 0 0 #ffffff !important;
   position: relative;
   overflow: visible;
 }
