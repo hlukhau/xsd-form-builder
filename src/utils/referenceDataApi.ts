@@ -32,6 +32,11 @@ export interface AuthorityOption {
   countryCode: string
 }
 
+export interface SanitaryProdTypeOption {
+  code: string
+  name: string
+}
+
 /**
  * Получить все активные страны
  */
@@ -172,6 +177,52 @@ export async function getAuthorityOptions(countryCode?: string): Promise<Authori
   }
 }
 
+/**
+ * Получить опции для выпадающего списка типов санитарной продукции
+ */
+export async function getSanitaryProdTypeOptions(): Promise<SanitaryProdTypeOption[]> {
+  try {
+    const response = await fetch(`${BASE_URL}api/sanitary-prod-types/options`)
+    if (!response.ok) {
+      throw new Error(`Ошибка загрузки опций типов санитарной продукции: ${response.statusText}`)
+    }
+    return await response.json()
+  } catch (error) {
+    console.error('Ошибка загрузки опций типов санитарной продукции:', error)
+    throw error
+  }
+}
 
+/**
+ * Проверить существование типа санитарной продукции по коду
+ */
+export async function checkSanitaryProdTypeExists(code: string): Promise<boolean> {
+  if (!code || code.trim().length === 0) {
+    return false
+  }
+  try {
+    const options = await getSanitaryProdTypeOptions()
+    return options.some(opt => opt.code === code)
+  } catch (error) {
+    console.error('Ошибка проверки типа санитарной продукции:', error)
+    return false
+  }
+}
 
+/**
+ * Получить название типа санитарной продукции по коду
+ */
+export async function getSanitaryProdTypeNameByCode(code: string): Promise<string | null> {
+  if (!code || code.trim().length === 0) {
+    return null
+  }
+  try {
+    const options = await getSanitaryProdTypeOptions()
+    const option = options.find(opt => opt.code === code)
+    return option ? option.name : null
+  } catch (error) {
+    console.error('Ошибка получения названия типа санитарной продукции:', error)
+    return null
+  }
+}
 

@@ -5,6 +5,7 @@ import com.eec.util.DictionaryCache;
 import com.eec.util.DictionaryCache.CountryOption;
 import com.eec.util.DictionaryCache.IncidentAlertKindOption;
 import com.eec.util.DictionaryCache.AuthorityOption;
+import com.eec.util.DictionaryCache.SanitaryProdTypeOption;
 
 import javax.servlet.ServletContextEvent;
 import javax.servlet.ServletContextListener;
@@ -31,6 +32,7 @@ public class DictionaryInitializerListener implements ServletContextListener {
         loadCountriesDictionary();
         loadIncidentAlertKindsDictionary();
         loadAuthoritiesDictionary();
+        loadSanitaryProdTypesDictionary();
         
         System.out.println("========================================");
         System.out.println("[DictionaryInitializer] Dictionary loading completed");
@@ -44,6 +46,7 @@ public class DictionaryInitializerListener implements ServletContextListener {
         DictionaryCache.clearCountriesCache();
         DictionaryCache.clearIncidentAlertKindsCache();
         DictionaryCache.clearAuthoritiesCache();
+        DictionaryCache.clearSanitaryProdTypesCache();
     }
     
     /**
@@ -174,6 +177,52 @@ public class DictionaryInitializerListener implements ServletContextListener {
             
         } catch (SQLException e) {
             System.err.println("[DictionaryInitializer] ERROR loading authorities dictionary: " + e.getMessage());
+            e.printStackTrace();
+        } finally {
+            DatabaseUtil.closeConnection(conn);
+        }
+    }
+    
+    /**
+     * Загружает справочник типов санитарной продукции из базы данных в кеш
+     */
+    private void loadSanitaryProdTypesDictionary() {
+        Connection conn = null;
+        try {
+            System.out.println("[DictionaryInitializer] Loading sanitary product types dictionary...");
+            conn = DatabaseUtil.getConnection();
+            
+            // Загружаем только активные записи (где SANITARYPRODTYPEEDATE IS NULL или в будущем)
+            String sql = "SELECT SANITARYPRODTYPECODE, SANITARYPRODTYPENAME " +
+                        "FROM SESINT.SANITARYPRODTYPE " +
+                        "WHERE SANITARYPRODTYPEEDATE IS NULL OR SANITARYPRODTYPEEDATE >= SYSDATE " +
+                        "ORDER BY SANITARYPRODTYPECODE";
+            
+            PreparedStatement stmt = conn.prepareStatement(sql);
+            ResultSet rs = stmt.executeQuery();
+            
+            List<SanitaryProdTypeOption> types = new ArrayList<>();
+            int count = 0;
+            
+            while (rs.next()) {
+                String code = rs.getString("SANITARYPRODTYPECODE");
+                String name = rs.getString("SANITARYPRODTYPENAME");
+                
+                types.add(new SanitaryProdTypeOption(
+                    code != null ? code : "",
+                    name != null ? name : ""
+                ));
+                count++;
+            }
+            
+            DictionaryCache.setSanitaryProdTypesCache(types);
+            System.out.println("[DictionaryInitializer] Loaded " + count + " sanitary product types into cache");
+            
+            rs.close();
+            stmt.close();
+            
+        } catch (SQLException e) {
+            System.err.println("[DictionaryInitializer] ERROR loading sanitary product types dictionary: " + e.getMessage());
             e.printStackTrace();
         } finally {
             DatabaseUtil.closeConnection(conn);

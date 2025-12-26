@@ -46,21 +46,36 @@ public class AuthorityOptionsServlet extends HttpServlet {
         }
         
         try {
+            // Проверяем, загружен ли кеш
+            List<AuthorityOption> allAuthorities = DictionaryCache.getAllAuthorities();
+            System.out.println("[AuthorityOptionsServlet] Total authorities in cache: " + allAuthorities.size());
+            
+            if (allAuthorities.isEmpty()) {
+                System.out.println("[AuthorityOptionsServlet] WARNING: Authorities cache is empty, returning 503");
+                response.setStatus(HttpServletResponse.SC_SERVICE_UNAVAILABLE);
+                out.print("{\"error\":\"Справочник уполномоченных органов не загружен\"}");
+                return;
+            }
+            
             // Получаем данные из кеша
             List<AuthorityOption> authorities;
             
             if (countryCode != null && !countryCode.trim().isEmpty()) {
+                String normalizedCountryCode = countryCode.trim().toUpperCase();
+                System.out.println("[AuthorityOptionsServlet] Requested countryCode: '" + countryCode + "' -> normalized: '" + normalizedCountryCode + "'");
                 // Фильтруем по стране
-                authorities = DictionaryCache.getAuthoritiesByCountry(countryCode.trim().toUpperCase());
+                authorities = DictionaryCache.getAuthoritiesByCountry(normalizedCountryCode);
+                System.out.println("[AuthorityOptionsServlet] Filtering by countryCode: " + normalizedCountryCode + ", found: " + authorities.size());
             } else {
                 // Возвращаем все органы (из всех стран)
-                authorities = DictionaryCache.getAllAuthorities();
+                authorities = allAuthorities;
                 // Сортируем по стране и названию
                 authorities.sort((a1, a2) -> {
                     int countryCompare = (a1.countryCode != null ? a1.countryCode : "").compareTo(a2.countryCode != null ? a2.countryCode : "");
                     if (countryCompare != 0) return countryCompare;
                     return (a1.name != null ? a1.name : "").compareTo(a2.name != null ? a2.name : "");
                 });
+                System.out.println("[AuthorityOptionsServlet] Returning all authorities: " + authorities.size());
             }
             
             out.print("[");
@@ -115,6 +130,12 @@ public class AuthorityOptionsServlet extends HttpServlet {
                 errorMsg = "Unknown error";
             }
             out.print("{\"error\":\"Ошибка: " + errorMsg + "\"}");
+        } catch (Throwable t) {
+            System.err.println("[AuthorityOptionsServlet] FATAL ERROR: " + t.getMessage());
+            t.printStackTrace();
+            if (response.getStatus() == HttpServletResponse.SC_OK) {
+                response.setStatus(HttpServletResponse.SC_INTERNAL_SERVER_ERROR);
+            }
         } finally {
             if (out != null) {
                 out.close();

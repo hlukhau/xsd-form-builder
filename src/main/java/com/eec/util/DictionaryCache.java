@@ -25,9 +25,14 @@ public class DictionaryCache {
     // Кеш уполномоченных органов по стране: код страны -> список органов
     private static final Map<String, List<AuthorityOption>> authoritiesByCountryCache = new ConcurrentHashMap<>();
     
+    // Кеш типов санитарной продукции: код -> название
+    private static final Map<String, String> sanitaryProdTypesCache = new ConcurrentHashMap<>();
+    private static final List<SanitaryProdTypeOption> sanitaryProdTypesListCache = new ArrayList<>();
+    
     // Флаги загрузки
     private static volatile boolean countriesLoaded = false;
     private static volatile boolean incidentAlertKindsLoaded = false;
+    private static volatile boolean sanitaryProdTypesLoaded = false;
     
     /**
      * Класс для опции страны
@@ -69,6 +74,19 @@ public class DictionaryCache {
             this.name = name;
             this.briefName = briefName;
             this.countryCode = countryCode;
+        }
+    }
+    
+    /**
+     * Класс для опции типа санитарной продукции
+     */
+    public static class SanitaryProdTypeOption {
+        public String code;
+        public String name;
+        
+        public SanitaryProdTypeOption(String code, String name) {
+            this.code = code;
+            this.name = name;
         }
     }
     
@@ -182,20 +200,36 @@ public class DictionaryCache {
                 // Добавляем в общий кеш
                 authoritiesCache.put(authority.uid, authority);
                 
-                // Группируем по стране
-                String countryCode = authority.countryCode != null ? authority.countryCode : "";
+                // Группируем по стране (приводим к верхнему регистру для единообразия)
+                String countryCode = authority.countryCode != null ? authority.countryCode.trim().toUpperCase() : "";
                 byCountry.computeIfAbsent(countryCode, k -> new ArrayList<>()).add(authority);
             }
             
             // Сохраняем сгруппированные данные
             authoritiesByCountryCache.putAll(byCountry);
+            
+            // Логируем статистику по странам
+            System.out.println("[DictionaryCache] Authorities grouped by country:");
+            for (Map.Entry<String, List<AuthorityOption>> entry : byCountry.entrySet()) {
+                System.out.println("  " + entry.getKey() + ": " + entry.getValue().size() + " authorities");
+            }
         }
     }
     
     public static List<AuthorityOption> getAuthoritiesByCountry(String countryCode) {
         synchronized (authoritiesCache) {
-            List<AuthorityOption> cached = authoritiesByCountryCache.get(countryCode);
-            return cached != null ? new ArrayList<>(cached) : new ArrayList<>();
+            // Приводим код страны к верхнему регистру для поиска
+            String normalizedCountryCode = countryCode != null ? countryCode.trim().toUpperCase() : "";
+            List<AuthorityOption> cached = authoritiesByCountryCache.get(normalizedCountryCode);
+            
+            if (cached == null) {
+                System.out.println("[DictionaryCache] No authorities found for countryCode: " + normalizedCountryCode);
+                System.out.println("[DictionaryCache] Available country codes: " + authoritiesByCountryCache.keySet());
+                return new ArrayList<>();
+            }
+            
+            System.out.println("[DictionaryCache] Found " + cached.size() + " authorities for countryCode: " + normalizedCountryCode);
+            return new ArrayList<>(cached);
         }
     }
     
@@ -210,6 +244,50 @@ public class DictionaryCache {
         synchronized (authoritiesCache) {
             return new ArrayList<>(authoritiesCache.values());
         }
+    }
+    
+    // ========== Методы для типов санитарной продукции ==========
+    
+    public static void clearSanitaryProdTypesCache() {
+        synchronized (sanitaryProdTypesCache) {
+            sanitaryProdTypesCache.clear();
+            sanitaryProdTypesListCache.clear();
+            sanitaryProdTypesLoaded = false;
+        }
+    }
+    
+    public static void setSanitaryProdTypesCache(List<SanitaryProdTypeOption> types) {
+        synchronized (sanitaryProdTypesCache) {
+            sanitaryProdTypesCache.clear();
+            sanitaryProdTypesListCache.clear();
+            for (SanitaryProdTypeOption type : types) {
+                sanitaryProdTypesCache.put(type.code, type.name);
+                sanitaryProdTypesListCache.add(type);
+            }
+            sanitaryProdTypesLoaded = true;
+        }
+    }
+    
+    public static List<SanitaryProdTypeOption> getSanitaryProdTypesList() {
+        synchronized (sanitaryProdTypesCache) {
+            return new ArrayList<>(sanitaryProdTypesListCache);
+        }
+    }
+    
+    public static String getSanitaryProdTypeName(String code) {
+        synchronized (sanitaryProdTypesCache) {
+            return sanitaryProdTypesCache.get(code);
+        }
+    }
+    
+    public static boolean isSanitaryProdTypeExists(String code) {
+        synchronized (sanitaryProdTypesCache) {
+            return sanitaryProdTypesCache.containsKey(code);
+        }
+    }
+    
+    public static boolean isSanitaryProdTypesLoaded() {
+        return sanitaryProdTypesLoaded;
     }
 }
 

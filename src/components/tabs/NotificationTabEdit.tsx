@@ -30,7 +30,6 @@ const NotificationTabEdit: React.FC<NotificationTabEditProps> = ({ data, onChang
     setSelectedAuthorityUid(authorityUid)
     
     form.setFieldsValue({
-      country: normalizeCountryCode(data.country),
       registrationNumber: data.registrationNumber,
       type: data.type, // Код вида уведомления
       formationDate: data.formationDate ? dayjs(data.formationDate) : undefined,
@@ -38,6 +37,7 @@ const NotificationTabEdit: React.FC<NotificationTabEditProps> = ({ data, onChang
       authorizedBodyCountry: normalizeCountryCode(data.authorizedBody?.country),
     })
   }, [data, form, normalizeCountryCode])
+
   
   // Обработчик изменения страны уполномоченного органа
   const handleAuthorizedBodyCountryChange = (countryCode: string | undefined) => {
@@ -55,7 +55,22 @@ const NotificationTabEdit: React.FC<NotificationTabEditProps> = ({ data, onChang
   }
   
   // Обработчик выбора уполномоченного органа из справочника
-  const handleAuthoritySelect = (uid: string) => {
+  const handleAuthoritySelect = (uid: string | null) => {
+    if (!uid) {
+      // Очистка выбора
+      setSelectedAuthorityUid(undefined)
+      onChange({
+        ...data,
+        authorizedBody: {
+          country: data.authorizedBody?.country || '',
+          identifier: '',
+          name: '',
+          shortName: '',
+        },
+      })
+      return
+    }
+    
     const authority = getAuthorityByUid(uid)
     if (authority) {
       setSelectedAuthorityUid(uid)
@@ -68,6 +83,9 @@ const NotificationTabEdit: React.FC<NotificationTabEditProps> = ({ data, onChang
           shortName: authority.briefName || '',
         },
       })
+    } else {
+      // Если орган не найден, всё равно устанавливаем UID (для случая, когда справочник еще загружается)
+      setSelectedAuthorityUid(uid)
     }
   }
 
@@ -81,7 +99,6 @@ const NotificationTabEdit: React.FC<NotificationTabEditProps> = ({ data, onChang
     
     onChange({
       ...data,
-      country: allValues.country || data.country,
       registrationNumber: allValues.registrationNumber || data.registrationNumber,
       type: allValues.type || data.type,
       formationDate: allValues.formationDate ? allValues.formationDate.format('YYYY-MM-DD') : data.formationDate,
@@ -96,13 +113,6 @@ const NotificationTabEdit: React.FC<NotificationTabEditProps> = ({ data, onChang
       layout="vertical"
       onValuesChange={handleValuesChange}
     >
-      <Form.Item label="Страна" name="country">
-        <CountrySelect
-          loading={loading}
-          countryOptions={countryOptions}
-          normalizeCountryCode={normalizeCountryCode}
-        />
-      </Form.Item>
       <Form.Item label="Регистрационный номер" name="registrationNumber">
         <Input />
       </Form.Item>
@@ -138,15 +148,19 @@ const NotificationTabEdit: React.FC<NotificationTabEditProps> = ({ data, onChang
         <Form.Item label="Уполномоченный орган">
           <Select
             showSearch
-            placeholder="Выберите уполномоченный орган"
+            placeholder={authorizedBodyCountryCode 
+              ? "Выберите уполномоченный орган" 
+              : "Сначала выберите страну"}
             loading={loadingAuthorities}
             value={selectedAuthorityUid}
             onChange={handleAuthoritySelect}
+            allowClear
             filterOption={(input, option) =>
               (option?.label ?? '').toLowerCase().includes(input.toLowerCase())
             }
             options={getAuthoritySelectOptions()}
             disabled={!authorizedBodyCountryCode}
+            notFoundContent={loadingAuthorities ? 'Загрузка...' : authorityOptions.length === 0 ? 'Нет данных. Проверьте, что справочник загружен.' : 'Не найдено'}
           />
         </Form.Item>
         <Form.Item label="Идентификатор">

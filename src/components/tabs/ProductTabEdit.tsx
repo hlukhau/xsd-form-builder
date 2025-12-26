@@ -1,8 +1,10 @@
 import { useState, useEffect } from 'react'
-import { Form, Input, Button, Space } from 'antd'
+import { Form, Input, Button, Space, Select } from 'antd'
 import { PlusOutlined, DeleteOutlined } from '@ant-design/icons'
 import ManufacturerDetailsEdit from '../common/ManufacturerDetailsEdit'
 import type { ProductData, TechnicalDocument } from '@/types/card'
+import { useSanitaryProdTypeOptions } from '@/hooks/useSanitaryProdTypeOptions'
+import { checkSanitaryProdTypeExists } from '@/utils/referenceDataApi'
 
 interface ProductTabEditProps {
   data: ProductData
@@ -11,7 +13,10 @@ interface ProductTabEditProps {
 
 const ProductTabEdit: React.FC<ProductTabEditProps> = ({ data, onChange }) => {
   const [form] = Form.useForm()
+  const { options: sanitaryProdTypeOptions, loading: loadingSanitaryProdTypes, getSelectOptions: getSanitaryProdTypeSelectOptions, getNameByCode } = useSanitaryProdTypeOptions()
+  const [typeCodeError, setTypeCodeError] = useState<boolean>(false)
 
+  // Проверяем валидность кода при загрузке данных
   useEffect(() => {
     form.setFieldsValue({
       typeName: data.typeName,
@@ -27,13 +32,43 @@ const ProductTabEdit: React.FC<ProductTabEditProps> = ({ data, onChange }) => {
       storageCondition: data.productDetails.storageCondition,
       labelText: data.productDetails.labelText,
     })
+    
+    // Проверяем валидность кода типа продукции
+    if (data.typeCode) {
+      checkSanitaryProdTypeExists(data.typeCode)
+        .then((exists) => {
+          setTypeCodeError(!exists)
+        })
+        .catch(() => {
+          // Если справочник недоступен, не показываем ошибку
+          setTypeCodeError(false)
+        })
+    } else {
+      setTypeCodeError(false)
+    }
   }, [data, form])
 
+  // Обработчик выбора типа санитарной продукции
+  const handleSanitaryProdTypeSelect = (code: string) => {
+    const typeName = getNameByCode(code) || ''
+    setTypeCodeError(false) // Сбрасываем ошибку при выборе из справочника
+    onChange({
+      ...data,
+      typeCode: code,
+      typeName: typeName,
+    })
+  }
+
   const handleValuesChange = (_: any, allValues: any) => {
+    // Игнорируем изменения в typeCode и typeName (они обрабатываются отдельно)
+    if (allValues.typeCode !== undefined || allValues.typeName !== undefined) {
+      return
+    }
+    
     const updatedData: ProductData = {
       ...data,
-      typeName: allValues.typeName || data.typeName,
-      typeCode: allValues.typeCode || data.typeCode,
+      typeName: data.typeName,
+      typeCode: data.typeCode,
       productDetails: {
         ...data.productDetails,
         productId: allValues.productId,
@@ -115,11 +150,28 @@ const ProductTabEdit: React.FC<ProductTabEditProps> = ({ data, onChange }) => {
       layout="vertical"
       onValuesChange={handleValuesChange}
     >
-      <Form.Item label="Наименование вида" name="typeName">
-        <Input />
+      <Form.Item 
+        label="Вид продукции" 
+        name="typeCode"
+        validateStatus={typeCodeError ? 'error' : ''}
+        help={typeCodeError ? 'Код не найден в справочнике' : ''}
+      >
+        <Select
+          showSearch
+          placeholder="Выберите вид продукции"
+          loading={loadingSanitaryProdTypes}
+          value={data.typeCode}
+          onChange={handleSanitaryProdTypeSelect}
+          filterOption={(input, option) =>
+            (option?.label ?? '').toLowerCase().includes(input.toLowerCase())
+          }
+          options={getSanitaryProdTypeSelectOptions()}
+          allowClear
+          status={typeCodeError ? 'error' : undefined}
+        />
       </Form.Item>
-      <Form.Item label="Код вида" name="typeCode">
-        <Input />
+      <Form.Item label="Наименование вида">
+        <Input readOnly value={data.typeName || ''} />
       </Form.Item>
       <Form.Item label="Идентификатор" name="productId">
         <Input placeholder="штрихкод" />

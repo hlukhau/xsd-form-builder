@@ -33,7 +33,7 @@ import type {
   DocumentReferenceDetails,
   MeasurePlaceDetails,
 } from '@/types/card'
-import { getIncidentAlertKindNameByCode, checkIncidentAlertKindExists, getIncidentAlertKindOptions } from '@/utils/referenceDataApi'
+import { getIncidentAlertKindNameByCode, checkIncidentAlertKindExists, getIncidentAlertKindOptions, checkSanitaryProdTypeExists, getSanitaryProdTypeOptions } from '@/utils/referenceDataApi'
 
 /**
  * Парсит XML документ и преобразует его в структуру CardData
@@ -2931,6 +2931,23 @@ export async function validateAndEnrichCardData(cardData: CardData, incidentKind
     }
   } else {
     warnings.push('Код вида уведомления (INCIDENTALERTKINDCODE) не указан в XML')
+  }
+
+  // Валидация типа санитарной продукции - проверяем код на присутствие в справочнике
+  // Визуальная индикация будет показана в форме редактирования
+  if (cardData.product?.typeCode) {
+    try {
+      const exists = await checkSanitaryProdTypeExists(cardData.product.typeCode)
+      if (exists === false) {
+        console.warn(`Код типа санитарной продукции "${cardData.product.typeCode}" не найден в справочнике SANITARYPRODTYPE`)
+        // Не добавляем предупреждение - визуальная индикация будет в форме
+      } else {
+        console.log(`Код типа санитарной продукции "${cardData.product.typeCode}" успешно найден в справочнике`)
+      }
+    } catch (error) {
+      console.error('Ошибка при валидации типа санитарной продукции:', error)
+      // Не добавляем предупреждение - визуальная индикация будет в форме
+    }
   }
 
   return {

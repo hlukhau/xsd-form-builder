@@ -11,7 +11,10 @@ export function useAuthorityOptions(countryCode?: string) {
   useEffect(() => {
     setLoading(true)
     getAuthorityOptions(countryCode)
-      .then(setOptions)
+      .then((data) => {
+        console.log(`[useAuthorityOptions] Загружено ${data.length} уполномоченных органов для страны: ${countryCode || 'все'}`)
+        setOptions(data)
+      })
       .catch((error) => {
         console.error('Ошибка загрузки справочника уполномоченных органов:', error)
         setOptions([])
