@@ -29,10 +29,15 @@ public class DictionaryCache {
     private static final Map<String, String> sanitaryProdTypesCache = new ConcurrentHashMap<>();
     private static final List<SanitaryProdTypeOption> sanitaryProdTypesListCache = new ArrayList<>();
     
+    // Кеш единиц измерения: код -> данные
+    private static final Map<String, MeasurementUnitOption> measurementUnitsCache = new ConcurrentHashMap<>();
+    private static final List<MeasurementUnitOption> measurementUnitsListCache = new ArrayList<>();
+    
     // Флаги загрузки
     private static volatile boolean countriesLoaded = false;
     private static volatile boolean incidentAlertKindsLoaded = false;
     private static volatile boolean sanitaryProdTypesLoaded = false;
+    private static volatile boolean measurementUnitsLoaded = false;
     
     /**
      * Класс для опции страны
@@ -87,6 +92,21 @@ public class DictionaryCache {
         public SanitaryProdTypeOption(String code, String name) {
             this.code = code;
             this.name = name;
+        }
+    }
+    
+    /**
+     * Класс для опции единицы измерения
+     */
+    public static class MeasurementUnitOption {
+        public String code;
+        public String name;
+        public String briefName;
+        
+        public MeasurementUnitOption(String code, String name, String briefName) {
+            this.code = code;
+            this.name = name;
+            this.briefName = briefName;
         }
     }
     
@@ -288,6 +308,44 @@ public class DictionaryCache {
     
     public static boolean isSanitaryProdTypesLoaded() {
         return sanitaryProdTypesLoaded;
+    }
+    
+    // ========== Методы для единиц измерения ==========
+    
+    public static void clearMeasurementUnitsCache() {
+        synchronized (measurementUnitsCache) {
+            measurementUnitsCache.clear();
+            measurementUnitsListCache.clear();
+            measurementUnitsLoaded = false;
+        }
+    }
+    
+    public static void setMeasurementUnitsCache(List<MeasurementUnitOption> units) {
+        synchronized (measurementUnitsCache) {
+            measurementUnitsCache.clear();
+            measurementUnitsListCache.clear();
+            for (MeasurementUnitOption unit : units) {
+                measurementUnitsCache.put(unit.code, unit);
+                measurementUnitsListCache.add(unit);
+            }
+            measurementUnitsLoaded = true;
+        }
+    }
+    
+    public static List<MeasurementUnitOption> getMeasurementUnitsList() {
+        synchronized (measurementUnitsCache) {
+            return new ArrayList<>(measurementUnitsListCache);
+        }
+    }
+    
+    public static MeasurementUnitOption getMeasurementUnitByCode(String code) {
+        synchronized (measurementUnitsCache) {
+            return measurementUnitsCache.get(code);
+        }
+    }
+    
+    public static boolean isMeasurementUnitsLoaded() {
+        return measurementUnitsLoaded;
     }
 }
 

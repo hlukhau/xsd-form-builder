@@ -37,6 +37,12 @@ export interface SanitaryProdTypeOption {
   name: string
 }
 
+export interface MeasurementUnitOption {
+  code: string
+  name: string
+  briefName?: string
+}
+
 /**
  * Получить все активные страны
  */
@@ -222,6 +228,38 @@ export async function getSanitaryProdTypeNameByCode(code: string): Promise<strin
     return option ? option.name : null
   } catch (error) {
     console.error('Ошибка получения названия типа санитарной продукции:', error)
+    return null
+  }
+}
+
+/**
+ * Получить опции для выпадающего списка единиц измерения
+ */
+export async function getMeasurementUnitOptions(): Promise<MeasurementUnitOption[]> {
+  try {
+    const response = await fetch(`${BASE_URL}api/measurement-units/options`)
+    if (!response.ok) {
+      throw new Error(`Ошибка загрузки опций единиц измерения: ${response.statusText}`)
+    }
+    return await response.json()
+  } catch (error) {
+    console.error('Ошибка загрузки опций единиц измерения:', error)
+    throw error
+  }
+}
+
+/**
+ * Получить единицу измерения по коду
+ */
+export async function getMeasurementUnitByCode(code: string): Promise<MeasurementUnitOption | null> {
+  if (!code || code.trim().length === 0) {
+    return null
+  }
+  try {
+    const options = await getMeasurementUnitOptions()
+    return options.find(opt => opt.code === code) || null
+  } catch (error) {
+    console.error('Ошибка получения единицы измерения:', error)
     return null
   }
 }

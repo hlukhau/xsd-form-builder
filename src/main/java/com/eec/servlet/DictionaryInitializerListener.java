@@ -6,6 +6,7 @@ import com.eec.util.DictionaryCache.CountryOption;
 import com.eec.util.DictionaryCache.IncidentAlertKindOption;
 import com.eec.util.DictionaryCache.AuthorityOption;
 import com.eec.util.DictionaryCache.SanitaryProdTypeOption;
+import com.eec.util.DictionaryCache.MeasurementUnitOption;
 
 import javax.servlet.ServletContextEvent;
 import javax.servlet.ServletContextListener;
@@ -33,6 +34,7 @@ public class DictionaryInitializerListener implements ServletContextListener {
         loadIncidentAlertKindsDictionary();
         loadAuthoritiesDictionary();
         loadSanitaryProdTypesDictionary();
+        loadMeasurementUnitsDictionary();
         
         System.out.println("========================================");
         System.out.println("[DictionaryInitializer] Dictionary loading completed");
@@ -47,6 +49,7 @@ public class DictionaryInitializerListener implements ServletContextListener {
         DictionaryCache.clearIncidentAlertKindsCache();
         DictionaryCache.clearAuthoritiesCache();
         DictionaryCache.clearSanitaryProdTypesCache();
+        DictionaryCache.clearMeasurementUnitsCache();
     }
     
     /**
@@ -223,6 +226,54 @@ public class DictionaryInitializerListener implements ServletContextListener {
             
         } catch (SQLException e) {
             System.err.println("[DictionaryInitializer] ERROR loading sanitary product types dictionary: " + e.getMessage());
+            e.printStackTrace();
+        } finally {
+            DatabaseUtil.closeConnection(conn);
+        }
+    }
+    
+    /**
+     * Загружает справочник единиц измерения из базы данных в кеш
+     */
+    private void loadMeasurementUnitsDictionary() {
+        Connection conn = null;
+        try {
+            System.out.println("[DictionaryInitializer] Loading measurement units dictionary...");
+            conn = DatabaseUtil.getConnection();
+            
+            // Загружаем только активные записи (где MEASUREMENTUNITEDATE >= SYSDATE)
+            String sql = "SELECT MEASUREMENTUNITCODE, MEASUREMENTUNITNAME, MEASUREMENTUNITBRIEFNAME " +
+                        "FROM SESINT.MEASUREMENTUNIT " +
+                        "WHERE MEASUREMENTUNITEDATE >= SYSDATE " +
+                        "ORDER BY NVL(SEQNUM, 999999), MEASUREMENTUNITCODE";
+            
+            PreparedStatement stmt = conn.prepareStatement(sql);
+            ResultSet rs = stmt.executeQuery();
+            
+            List<MeasurementUnitOption> units = new ArrayList<>();
+            int count = 0;
+            
+            while (rs.next()) {
+                String code = rs.getString("MEASUREMENTUNITCODE");
+                String name = rs.getString("MEASUREMENTUNITNAME");
+                String briefName = rs.getString("MEASUREMENTUNITBRIEFNAME");
+                
+                units.add(new MeasurementUnitOption(
+                    code != null ? code : "",
+                    name != null ? name : "",
+                    briefName != null ? briefName : ""
+                ));
+                count++;
+            }
+            
+            DictionaryCache.setMeasurementUnitsCache(units);
+            System.out.println("[DictionaryInitializer] Loaded " + count + " measurement units into cache");
+            
+            rs.close();
+            stmt.close();
+            
+        } catch (SQLException e) {
+            System.err.println("[DictionaryInitializer] ERROR loading measurement units dictionary: " + e.getMessage());
             e.printStackTrace();
         } finally {
             DatabaseUtil.closeConnection(conn);

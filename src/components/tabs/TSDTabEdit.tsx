@@ -1,9 +1,10 @@
 import { useState } from 'react'
-import { Form, Input, Button, Table, Space, DatePicker, Collapse } from 'antd'
+import { Form, Input, Button, Table, Space, DatePicker, Collapse, Select, Row, Col } from 'antd'
 import { PlusOutlined, DeleteOutlined } from '@ant-design/icons'
 import dayjs from 'dayjs'
 import ManufacturerDetailsEdit from '../common/ManufacturerDetailsEdit'
-import type { TSDData, ProductBatchDetails, ShippingDocument, ProductDetails, SupplyChainPartyDetails } from '@/types/card'
+import type { TSDData, ProductBatchDetails, ShippingDocument, ProductDetails, SupplyChainPartyDetails, MeasureWithUnit } from '@/types/card'
+import { useMeasurementUnitOptions } from '@/hooks/useMeasurementUnitOptions'
 
 interface TSDTabEditProps {
   data: TSDData
@@ -12,6 +13,7 @@ interface TSDTabEditProps {
 
 const TSDTabEdit: React.FC<TSDTabEditProps> = ({ data, onChange }) => {
   const [selectedDocumentIndex, setSelectedDocumentIndex] = useState<number | null>(null)
+  const { options: measurementUnitOptions, loading: loadingMeasurementUnits, getSelectOptions: getMeasurementUnitSelectOptions, getUnitByCode } = useMeasurementUnitOptions()
 
   const handleBatchChange = (field: string, value: any) => {
     const batch = data.batches[0] || { shippingDocuments: [] }
@@ -22,6 +24,44 @@ const TSDTabEdit: React.FC<TSDTabEditProps> = ({ data, onChange }) => {
     onChange({
       ...data,
       batches: [updatedBatch],
+    })
+  }
+
+  // Обработчик изменения количества товара
+  const handleCommodityMeasureChange = (value: string, unitCode: string | undefined) => {
+    const batch = data.batches[0] || { shippingDocuments: [] }
+    const unit = unitCode ? getUnitByCode(unitCode) : undefined
+    const commodityMeasure: MeasureWithUnit = {
+      value: value || '',
+      unitCode: unitCode,
+      unitCodeListId: unitCode ? '1025' : undefined, // Идентификатор справочника единиц измерения
+      unitName: unit?.name || unit?.briefName,
+    }
+    onChange({
+      ...data,
+      batches: [{
+        ...batch,
+        commodityMeasure: value || unitCode ? commodityMeasure : undefined,
+      }],
+    })
+  }
+
+  // Обработчик изменения количества товара в партии
+  const handleBatchCommodityMeasureChange = (value: string, unitCode: string | undefined) => {
+    const batch = data.batches[0] || { shippingDocuments: [] }
+    const unit = unitCode ? getUnitByCode(unitCode) : undefined
+    const batchCommodityMeasure: MeasureWithUnit = {
+      value: value || '',
+      unitCode: unitCode,
+      unitCodeListId: unitCode ? '1025' : undefined, // Идентификатор справочника единиц измерения
+      unitName: unit?.name || unit?.briefName,
+    }
+    onChange({
+      ...data,
+      batches: [{
+        ...batch,
+        batchCommodityMeasure: value || unitCode ? batchCommodityMeasure : undefined,
+      }],
     })
   }
 
@@ -204,6 +244,65 @@ const TSDTabEdit: React.FC<TSDTabEditProps> = ({ data, onChange }) => {
             value={batch.note}
             onChange={(e) => handleBatchChange('note', e.target.value)}
           />
+        </Form.Item>
+        
+        <Form.Item label="Количество товара">
+          <Row gutter={8}>
+            <Col span={16}>
+              <Input
+                placeholder="Значение"
+                value={batch.commodityMeasure?.value || ''}
+                onChange={(e) => handleCommodityMeasureChange(e.target.value, batch.commodityMeasure?.unitCode)}
+              />
+            </Col>
+            <Col span={8}>
+              <Select
+                placeholder="Единица измерения"
+                loading={loadingMeasurementUnits}
+                value={batch.commodityMeasure?.unitCode}
+                onChange={(code) => handleCommodityMeasureChange(batch.commodityMeasure?.value || '', code)}
+                options={getMeasurementUnitSelectOptions()}
+                allowClear
+                showSearch
+                filterOption={(input, option) =>
+                  (option?.label ?? '').toLowerCase().includes(input.toLowerCase())
+                }
+              />
+            </Col>
+          </Row>
+        </Form.Item>
+        
+        <Form.Item label="Номер товарной партии">
+          <Input
+            value={batch.consignmentId}
+            onChange={(e) => handleBatchChange('consignmentId', e.target.value)}
+          />
+        </Form.Item>
+        
+        <Form.Item label="Количество товара в партии">
+          <Row gutter={8}>
+            <Col span={16}>
+              <Input
+                placeholder="Значение"
+                value={batch.batchCommodityMeasure?.value || ''}
+                onChange={(e) => handleBatchCommodityMeasureChange(e.target.value, batch.batchCommodityMeasure?.unitCode)}
+              />
+            </Col>
+            <Col span={8}>
+              <Select
+                placeholder="Единица измерения"
+                loading={loadingMeasurementUnits}
+                value={batch.batchCommodityMeasure?.unitCode}
+                onChange={(code) => handleBatchCommodityMeasureChange(batch.batchCommodityMeasure?.value || '', code)}
+                options={getMeasurementUnitSelectOptions()}
+                allowClear
+                showSearch
+                filterOption={(input, option) =>
+                  (option?.label ?? '').toLowerCase().includes(input.toLowerCase())
+                }
+              />
+            </Col>
+          </Row>
         </Form.Item>
       </Form>
 
