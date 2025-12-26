@@ -33,7 +33,7 @@ import type {
   DocumentReferenceDetails,
   MeasurePlaceDetails,
 } from '@/types/card'
-import { getIncidentAlertKindNameByCode, checkIncidentAlertKindExists } from '@/utils/referenceDataApi'
+import { getIncidentAlertKindNameByCode, checkIncidentAlertKindExists, getIncidentAlertKindOptions } from '@/utils/referenceDataApi'
 
 /**
  * Парсит XML документ и преобразует его в структуру CardData
@@ -2908,14 +2908,26 @@ export async function validateAndEnrichCardData(cardData: CardData, incidentKind
   if (codeToValidate) {
     try {
       const exists = await checkIncidentAlertKindExists(codeToValidate)
-      if (!exists) {
-        warnings.push(`Код вида уведомления "${codeToValidate}" не найден в справочнике INCIDENTALERTKIND`)
+      if (exists === false) {
+        // Проверяем, не была ли ошибка загрузки справочника
+        // Если справочник не загрузился, не показываем предупреждение о коде
+        try {
+          // Пробуем загрузить справочник еще раз, чтобы понять, доступен ли он
+          const options = await getIncidentAlertKindOptions()
+          // Если справочник загрузился, но кода нет - показываем предупреждение
+          warnings.push(`Код вида уведомления "${codeToValidate}" не найден в справочнике INCIDENTALERTKIND`)
+        } catch (loadError) {
+          // Если справочник не загрузился - не показываем предупреждение о коде
+          console.warn(`Справочник видов уведомлений недоступен, пропускаем валидацию кода "${codeToValidate}"`)
+          warnings.push(`Справочник видов уведомлений недоступен, проверка кода "${codeToValidate}" пропущена`)
+        }
       } else {
         console.log(`Код вида уведомления "${codeToValidate}" успешно найден в справочнике`)
       }
     } catch (error) {
       console.error('Ошибка при валидации вида уведомления:', error)
-      warnings.push(`Не удалось проверить код вида уведомления "${codeToValidate}" в справочнике`)
+      // Не показываем предупреждение, если справочник недоступен
+      warnings.push(`Не удалось проверить код вида уведомления "${codeToValidate}" в справочнике (справочник может быть недоступен)`)
     }
   } else {
     warnings.push('Код вида уведомления (INCIDENTALERTKINDCODE) не указан в XML')

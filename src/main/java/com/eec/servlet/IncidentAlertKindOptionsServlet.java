@@ -1,6 +1,7 @@
 package com.eec.servlet;
 
-import com.eec.util.DatabaseUtil;
+import com.eec.util.DictionaryCache;
+import com.eec.util.DictionaryCache.IncidentAlertKindOption;
 
 import javax.servlet.ServletException;
 import javax.servlet.http.HttpServlet;
@@ -8,10 +9,7 @@ import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
 import java.io.IOException;
 import java.io.PrintWriter;
-import java.sql.Connection;
-import java.sql.PreparedStatement;
-import java.sql.ResultSet;
-import java.sql.SQLException;
+import java.util.List;
 
 /**
  * Сервлет для получения списка видов уведомлений (INCIDENTALERTKIND) для выпадающего списка
@@ -23,25 +21,30 @@ public class IncidentAlertKindOptionsServlet extends HttpServlet {
     @Override
     public void init() throws ServletException {
         super.init();
-        System.out.println("[IncidentAlertKindOptionsServlet] Initialized");
-        System.out.println("[IncidentAlertKindOptionsServlet] Ready to load incident alert kinds from database");
+        System.out.println("========================================");
+        System.out.println("[IncidentAlertKindOptionsServlet] INIT CALLED");
+        System.out.println("[IncidentAlertKindOptionsServlet] Servlet initialized successfully");
+        System.out.println("[IncidentAlertKindOptionsServlet] Ready to serve incident alert kinds from cache");
+        System.out.println("========================================");
     }
     
     @Override
     protected void doGet(HttpServletRequest request, HttpServletResponse response)
             throws ServletException, IOException {
         
-        System.out.println("[IncidentAlertKindOptionsServlet] Loading incident alert kinds from database...");
+        System.out.println("========================================");
+        System.out.println("[IncidentAlertKindOptionsServlet] doGet CALLED");
+        System.out.println("[IncidentAlertKindOptionsServlet] Request URI: " + request.getRequestURI());
+        System.out.println("[IncidentAlertKindOptionsServlet] Context Path: " + request.getContextPath());
+        System.out.println("[IncidentAlertKindOptionsServlet] Loading incident alert kinds from cache...");
+        System.out.println("========================================");
         
         response.setContentType("application/json;charset=UTF-8");
         response.setCharacterEncoding("UTF-8");
         response.setHeader("Access-Control-Allow-Origin", "*");
         
-        Connection conn = null;
         PrintWriter out = null;
-        int count = 0;
         
-        // Создаем writer заранее, чтобы гарантировать ответ даже при ошибке
         try {
             out = response.getWriter();
         } catch (IOException e) {
@@ -50,57 +53,48 @@ public class IncidentAlertKindOptionsServlet extends HttpServlet {
         }
         
         try {
-            conn = DatabaseUtil.getConnection();
-            System.out.println("[IncidentAlertKindOptionsServlet] Database connection established");
+            // Получаем данные из кеша
+            if (!DictionaryCache.isIncidentAlertKindsLoaded()) {
+                response.setStatus(HttpServletResponse.SC_SERVICE_UNAVAILABLE);
+                out.print("{\"error\":\"Справочник видов уведомлений не загружен. Дождитесь инициализации приложения.\"}");
+                System.err.println("[IncidentAlertKindOptionsServlet] Incident alert kinds cache not loaded");
+                return;
+            }
             
-            // Запрос активных видов уведомлений (где INCIDENTALERTKINDACTFL = 1)
-            String sql = "SELECT INCIDENTALERTKINDCODE, INCIDENTALERTKINDNAME " +
-                        "FROM SESINT.INCIDENTALERTKIND " +
-                        "WHERE INCIDENTALERTKINDACTFL = 1 " +
-                        "ORDER BY INCIDENTALERTKINDSEQNUM, INCIDENTALERTKINDNAME";
-            
-            PreparedStatement stmt = conn.prepareStatement(sql);
-            ResultSet rs = stmt.executeQuery();
+            List<IncidentAlertKindOption> kinds = DictionaryCache.getIncidentAlertKindsList();
             
             out.print("[");
-            
             boolean first = true;
-            while (rs.next()) {
+            int count = 0;
+            
+            for (IncidentAlertKindOption kind : kinds) {
                 if (!first) {
                     out.print(",");
                 }
                 first = false;
                 count++;
                 
-                String code = rs.getString("INCIDENTALERTKINDCODE");
-                String name = rs.getString("INCIDENTALERTKINDNAME");
+                String code = kind.code;
+                String name = kind.name;
                 
-                // Экранируем кавычки в названии
+                // Экранируем кавычки
                 if (name != null) {
                     name = name.replace("\\", "\\\\");
                     name = name.replace("\"", "\\\"");
-                } else {
-                    name = "";
                 }
-                
                 if (code != null) {
                     code = code.replace("\\", "\\\\");
                     code = code.replace("\"", "\\\"");
-                } else {
-                    code = "";
                 }
                 
                 out.print("{\"code\":\"" + code + "\",\"name\":\"" + name + "\"}");
             }
             
             out.print("]");
-            System.out.println("[IncidentAlertKindOptionsServlet] Loaded " + count + " incident alert kinds from database");
+            System.out.println("[IncidentAlertKindOptionsServlet] Loaded " + count + " incident alert kinds from cache");
             
-            rs.close();
-            stmt.close();
-            
-        } catch (SQLException e) {
-            System.err.println("[IncidentAlertKindOptionsServlet] ERROR loading incident alert kinds: " + e.getMessage());
+        } catch (Exception e) {
+            System.err.println("[IncidentAlertKindOptionsServlet] ERROR: " + e.getMessage());
             e.printStackTrace();
             response.setStatus(HttpServletResponse.SC_INTERNAL_SERVER_ERROR);
             
@@ -120,15 +114,15 @@ public class IncidentAlertKindOptionsServlet extends HttpServlet {
                 errorMsg = errorMsg.replace("\n", " ");
                 errorMsg = errorMsg.replace("\r", " ");
             } else {
-                errorMsg = "Unknown database error";
+                errorMsg = "Unknown error";
             }
-            out.print("{\"error\":\"Ошибка базы данных: " + errorMsg + "\"}");
+            out.print("{\"error\":\"Ошибка: " + errorMsg + "\"}");
         } finally {
-            DatabaseUtil.closeConnection(conn);
             if (out != null) {
                 out.close();
             }
         }
     }
 }
+
 

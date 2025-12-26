@@ -97,6 +97,15 @@
         <url-pattern>/api/incident-alert-kinds/options</url-pattern>
     </servlet-mapping>
 
+    <servlet>
+        <servlet-name>AuthorityOptionsServlet</servlet-name>
+        <servlet-class>com.eec.servlet.AuthorityOptionsServlet</servlet-class>
+    </servlet>
+    <servlet-mapping>
+        <servlet-name>AuthorityOptionsServlet</servlet-name>
+        <url-pattern>/api/authorities/options</url-pattern>
+    </servlet-mapping>
+
     <!-- SPA Servlet для обработки маршрутизации (должен быть последним) -->
     <!-- НЕ используем паттерн / или /*, чтобы не перехватывать API запросы -->
     <!-- Используем error-page для 404, чтобы возвращать index.html для SPA routes -->

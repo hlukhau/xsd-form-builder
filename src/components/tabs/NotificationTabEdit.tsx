@@ -1,9 +1,10 @@
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import { Form, Input, DatePicker, Select } from 'antd'
 import dayjs from 'dayjs'
 import type { Notification } from '@/types/card'
 import { useCountryOptions } from '@/hooks/useCountryOptions'
 import { useIncidentAlertKindOptions } from '@/hooks/useIncidentAlertKindOptions'
+import { useAuthorityOptions } from '@/hooks/useAuthorityOptions'
 import CountrySelect from '@/components/common/CountrySelect'
 
 interface NotificationTabEditProps {
@@ -15,8 +16,19 @@ const NotificationTabEdit: React.FC<NotificationTabEditProps> = ({ data, onChang
   const [form] = Form.useForm()
   const { countryOptions, loading, normalizeCountryCode, getSelectOptions } = useCountryOptions()
   const { options: incidentAlertKindOptions, loading: loadingIncidentAlertKinds, getSelectOptions: getIncidentAlertKindSelectOptions } = useIncidentAlertKindOptions()
+  
+  // Получаем код страны уполномоченного органа для фильтрации справочника
+  const authorizedBodyCountryCode = normalizeCountryCode(data.authorizedBody?.country)
+  const { options: authorityOptions, loading: loadingAuthorities, getSelectOptions: getAuthoritySelectOptions, getAuthorityByUid } = useAuthorityOptions(authorizedBodyCountryCode)
+  
+  // Отслеживаем изменение страны уполномоченного органа
+  const [selectedAuthorityUid, setSelectedAuthorityUid] = useState<string | undefined>(undefined)
 
   useEffect(() => {
+    // Ищем UID уполномоченного органа по идентификатору
+    const authorityUid = data.authorizedBody?.identifier
+    setSelectedAuthorityUid(authorityUid)
+    
     form.setFieldsValue({
       country: normalizeCountryCode(data.country),
       registrationNumber: data.registrationNumber,
@@ -24,13 +36,49 @@ const NotificationTabEdit: React.FC<NotificationTabEditProps> = ({ data, onChang
       formationDate: data.formationDate ? dayjs(data.formationDate) : undefined,
       endDate: data.endDate ? dayjs(data.endDate) : undefined,
       authorizedBodyCountry: normalizeCountryCode(data.authorizedBody?.country),
-      authorizedBodyIdentifier: data.authorizedBody?.identifier,
-      authorizedBodyName: data.authorizedBody?.name,
-      authorizedBodyShortName: data.authorizedBody?.shortName,
     })
   }, [data, form, normalizeCountryCode])
+  
+  // Обработчик изменения страны уполномоченного органа
+  const handleAuthorizedBodyCountryChange = (countryCode: string | undefined) => {
+    // При изменении страны сбрасываем выбранный орган
+    setSelectedAuthorityUid(undefined)
+    onChange({
+      ...data,
+      authorizedBody: {
+        country: countryCode || '',
+        identifier: '',
+        name: '',
+        shortName: '',
+      },
+    })
+  }
+  
+  // Обработчик выбора уполномоченного органа из справочника
+  const handleAuthoritySelect = (uid: string) => {
+    const authority = getAuthorityByUid(uid)
+    if (authority) {
+      setSelectedAuthorityUid(uid)
+      onChange({
+        ...data,
+        authorizedBody: {
+          country: authority.countryCode || data.authorizedBody?.country || '',
+          identifier: authority.uid,
+          name: authority.name,
+          shortName: authority.briefName || '',
+        },
+      })
+    }
+  }
 
-  const handleValuesChange = (_: any, allValues: any) => {
+  const handleValuesChange = (changedValues: any, allValues: any) => {
+    // Игнорируем изменения в полях уполномоченного органа (они обрабатываются отдельно)
+    if (changedValues.authorizedBodyCountry || changedValues.authorizedBody || 
+        changedValues.authorizedBodyIdentifier || changedValues.authorizedBodyName || 
+        changedValues.authorizedBodyShortName) {
+      return
+    }
+    
     onChange({
       ...data,
       country: allValues.country || data.country,
@@ -38,12 +86,7 @@ const NotificationTabEdit: React.FC<NotificationTabEditProps> = ({ data, onChang
       type: allValues.type || data.type,
       formationDate: allValues.formationDate ? allValues.formationDate.format('YYYY-MM-DD') : data.formationDate,
       endDate: allValues.endDate ? allValues.endDate.format('YYYY-MM-DD') : (allValues.endDate === null ? null : data.endDate),
-      authorizedBody: {
-        country: allValues.authorizedBodyCountry || data.authorizedBody?.country || '',
-        identifier: allValues.authorizedBodyIdentifier || data.authorizedBody?.identifier || '',
-        name: allValues.authorizedBodyName || data.authorizedBody?.name || '',
-        shortName: allValues.authorizedBodyShortName || data.authorizedBody?.shortName || '',
-      },
+      authorizedBody: data.authorizedBody, // Сохраняем текущее значение
     })
   }
 
@@ -89,16 +132,31 @@ const NotificationTabEdit: React.FC<NotificationTabEditProps> = ({ data, onChang
             loading={loading}
             countryOptions={countryOptions}
             normalizeCountryCode={normalizeCountryCode}
+            onChange={handleAuthorizedBodyCountryChange}
           />
         </Form.Item>
-        <Form.Item label="Идентификатор" name="authorizedBodyIdentifier">
-          <Input />
+        <Form.Item label="Уполномоченный орган">
+          <Select
+            showSearch
+            placeholder="Выберите уполномоченный орган"
+            loading={loadingAuthorities}
+            value={selectedAuthorityUid}
+            onChange={handleAuthoritySelect}
+            filterOption={(input, option) =>
+              (option?.label ?? '').toLowerCase().includes(input.toLowerCase())
+            }
+            options={getAuthoritySelectOptions()}
+            disabled={!authorizedBodyCountryCode}
+          />
         </Form.Item>
-        <Form.Item label="Наименование" name="authorizedBodyName">
-          <Input />
+        <Form.Item label="Идентификатор">
+          <Input readOnly value={data.authorizedBody?.identifier || ''} />
         </Form.Item>
-        <Form.Item label="Краткое наименование" name="authorizedBodyShortName">
-          <Input />
+        <Form.Item label="Наименование">
+          <Input readOnly value={data.authorizedBody?.name || ''} />
+        </Form.Item>
+        <Form.Item label="Краткое наименование">
+          <Input readOnly value={data.authorizedBody?.shortName || ''} />
         </Form.Item>
       </div>
     </Form>

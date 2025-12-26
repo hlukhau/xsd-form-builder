@@ -108,148 +108,74 @@ set "SRC_DIR=src\main\java"
 set "CLASS_DIR=target\%APP_NAME%\WEB-INF\classes"
 set "CLASSPATH=%TOMCAT_HOME%\lib\servlet-api.jar"
 
-REM Create package structure
-mkdir "%CLASS_DIR%\com" 2>nul
-mkdir "%CLASS_DIR%\com\eec" 2>nul
-mkdir "%CLASS_DIR%\com\eec\servlet" 2>nul
-mkdir "%CLASS_DIR%\com\eec\util" 2>nul
+REM Create package structure (создаем все необходимые директории)
+for /r "%SRC_DIR%" %%d in (.) do (
+    set "REL_PATH=%%d"
+    setlocal enabledelayedexpansion
+    set "REL_PATH=!REL_PATH:%SRC_DIR%\=!"
+    if not "!REL_PATH!"=="" (
+        if not exist "%CLASS_DIR%\!REL_PATH!" mkdir "%CLASS_DIR%\!REL_PATH!" 2>nul
+    )
+    endlocal
+)
 
-REM Compile each Java file separately
+REM Компилируем все Java файлы автоматически
 set "COMPILE_ERROR=0"
+set "TEMP_LIST=%TEMP%\javafiles_%RANDOM%.txt"
 
-REM First compile DatabaseUtil (needed by servlets)
-if exist "%SRC_DIR%\com\eec\util\DatabaseUtil.java" (
-    echo Compiling DatabaseUtil.java...
-    "%JAVA_HOME%\bin\javac.exe" -encoding UTF-8 -sourcepath "%SRC_DIR%" -d "%CLASS_DIR%" -cp "%CLASSPATH%" "%SRC_DIR%\com\eec\util\DatabaseUtil.java" 2>compile-util.log
-    if !ERRORLEVEL! NEQ 0 (
-        echo [ERROR] Compilation error DatabaseUtil.java
-        type compile-util.log 2>nul
-        set "COMPILE_ERROR=1"
-    ) else (
-        del compile-util.log 2>nul
-    )
-) else (
-    echo [ERROR] File DatabaseUtil.java not found!
+echo Collecting Java files...
+
+REM Создаем список файлов через простой цикл
+for /r "%SRC_DIR%" %%f in (*.java) do (
+    echo %%f >> "%TEMP_LIST%"
+)
+
+REM Проверяем, создался ли файл и не пустой ли он
+if not exist "%TEMP_LIST%" (
+    echo [ERROR] No Java files found in %SRC_DIR%
     set "COMPILE_ERROR=1"
-)
-
-REM Update CLASSPATH for servlets (add compiled DatabaseUtil)
-set "CLASSPATH=%CLASSPATH%;%CLASS_DIR%"
-
-REM Compile servlets
-REM First compile TestServlet (simple test servlet)
-if exist "%SRC_DIR%\com\eec\servlet\TestServlet.java" (
-    echo Compiling TestServlet.java...
-    "%JAVA_HOME%\bin\javac.exe" -encoding UTF-8 -sourcepath "%SRC_DIR%" -d "%CLASS_DIR%" -cp "%CLASSPATH%" "%SRC_DIR%\com\eec\servlet\TestServlet.java" 2>compile-test.log
+) else (
+    echo Compiling all Java files...
+    
+    REM Компилируем все файлы одной командой через @file
+    "%JAVA_HOME%\bin\javac.exe" -encoding UTF-8 -sourcepath "%SRC_DIR%" -d "%CLASS_DIR%" -cp "%CLASSPATH%" @"%TEMP_LIST%" 2>compile-all.log
+    
     if !ERRORLEVEL! NEQ 0 (
-        echo [ERROR] Compilation error TestServlet.java
-        type compile-test.log 2>nul
+        echo [ERROR] Compilation errors found
+        echo.
+        echo Compilation errors:
+        type compile-all.log 2>nul
         set "COMPILE_ERROR=1"
     ) else (
-        del compile-test.log 2>nul
+        echo [OK] All Java files compiled successfully
+        del compile-all.log 2>nul
     )
-) else (
-    echo [WARN] File TestServlet.java not found!
-)
-
-if exist "%SRC_DIR%\com\eec\servlet\CountriesOptionsServlet.java" (
-    echo Compiling CountriesOptionsServlet.java...
-    "%JAVA_HOME%\bin\javac.exe" -encoding UTF-8 -sourcepath "%SRC_DIR%" -d "%CLASS_DIR%" -cp "%CLASSPATH%" "%SRC_DIR%\com\eec\servlet\CountriesOptionsServlet.java" 2>compile-options.log
-    if !ERRORLEVEL! NEQ 0 (
-        echo [ERROR] Compilation error CountriesOptionsServlet.java
-        type compile-options.log 2>nul
-        set "COMPILE_ERROR=1"
-    ) else (
-        del compile-options.log 2>nul
-    )
-) else (
-    echo [ERROR] File CountriesOptionsServlet.java not found!
-    set "COMPILE_ERROR=1"
-)
-
-if exist "%SRC_DIR%\com\eec\servlet\CountryExistsServlet.java" (
-    echo Compiling CountryExistsServlet.java...
-    "%JAVA_HOME%\bin\javac.exe" -encoding UTF-8 -sourcepath "%SRC_DIR%" -d "%CLASS_DIR%" -cp "%CLASSPATH%" "%SRC_DIR%\com\eec\servlet\CountryExistsServlet.java" 2>compile-exists.log
-    if !ERRORLEVEL! NEQ 0 (
-        echo [ERROR] Compilation error CountryExistsServlet.java
-        type compile-exists.log 2>nul
-        set "COMPILE_ERROR=1"
-    ) else (
-        del compile-exists.log 2>nul
-    )
-) else (
-    echo [ERROR] File CountryExistsServlet.java not found!
-    set "COMPILE_ERROR=1"
-)
-
-if exist "%SRC_DIR%\com\eec\servlet\SpaServlet.java" (
-    echo Compiling SpaServlet.java...
-    "%JAVA_HOME%\bin\javac.exe" -encoding UTF-8 -sourcepath "%SRC_DIR%" -d "%CLASS_DIR%" -cp "%CLASSPATH%" "%SRC_DIR%\com\eec\servlet\SpaServlet.java" 2>compile-spa.log
-    if !ERRORLEVEL! NEQ 0 (
-        echo [ERROR] Compilation error SpaServlet.java
-        type compile-spa.log 2>nul
-        set "COMPILE_ERROR=1"
-    ) else (
-        del compile-spa.log 2>nul
-    )
-) else (
-    echo [ERROR] File SpaServlet.java not found!
-    set "COMPILE_ERROR=1"
-)
-
-if exist "%SRC_DIR%\com\eec\servlet\DictionaryInitializerListener.java" (
-    echo   Compiling DictionaryInitializerListener.java...
-    "%JAVA_HOME%\bin\javac.exe" -encoding UTF-8 -sourcepath "%SRC_DIR%" -d "%CLASS_DIR%" -cp "%CLASSPATH%" "%SRC_DIR%\com\eec\servlet\DictionaryInitializerListener.java" 2>compile-listener.log
-    if !ERRORLEVEL! NEQ 0 (
-        echo [ERROR] Compilation error DictionaryInitializerListener.java
-        type compile-listener.log 2>nul
-        set "COMPILE_ERROR=1"
-    ) else (
-        del compile-listener.log 2>nul
-    )
-) else (
-    echo [WARN] File DictionaryInitializerListener.java not found - dictionary loading on startup will not work
+    
+    del "%TEMP_LIST%" 2>nul
 )
 
 if !COMPILE_ERROR! EQU 0 (
+    echo.
     echo [OK] Java classes compiled
-    REM Check compiled classes
-    if exist "%CLASS_DIR%\com\eec\servlet\CountriesOptionsServlet.class" (
-        echo [OK] CountriesOptionsServlet.class found
+    echo Checking compiled classes...
+    
+    REM Подсчитываем скомпилированные классы
+    set "CLASS_COUNT=0"
+    for /r "%CLASS_DIR%" %%c in (*.class) do (
+        set /a CLASS_COUNT+=1
+    )
+    
+    if !CLASS_COUNT! GTR 0 (
+        echo [OK] Found !CLASS_COUNT! compiled class^(es^)
     ) else (
-        echo [ERROR] CountriesOptionsServlet.class not found after compilation!
+        echo [ERROR] No compiled classes found!
         set "COMPILE_ERROR=1"
     )
-    if exist "%CLASS_DIR%\com\eec\servlet\CountryExistsServlet.class" (
-        echo [OK] CountryExistsServlet.class found
-    ) else (
-        echo [ERROR] CountryExistsServlet.class not found after compilation!
-        set "COMPILE_ERROR=1"
-    )
-    if exist "%CLASS_DIR%\com\eec\servlet\SpaServlet.class" (
-        echo [OK] SpaServlet.class found
-    ) else (
-        echo [ERROR] SpaServlet.class not found after compilation!
-        set "COMPILE_ERROR=1"
-    )
-    if exist "%CLASS_DIR%\com\eec\util\DatabaseUtil.class" (
-        echo [OK] DatabaseUtil.class found
-    ) else (
-        echo [ERROR] DatabaseUtil.class not found after compilation!
-        set "COMPILE_ERROR=1"
-    )
-    if exist "%CLASS_DIR%\com\eec\servlet\DictionaryInitializerListener.class" (
-        echo [OK] DictionaryInitializerListener.class found
-    ) else (
-        echo [WARN] DictionaryInitializerListener.class not found
-    )
-) else (
-    echo [ERROR] Java compilation errors
-    exit /b 1
 )
 
+REM Проверяем финальный статус
 if !COMPILE_ERROR! NEQ 0 (
-    echo [ERROR] Not all classes compiled!
+    echo [ERROR] Java compilation errors
     exit /b 1
 )
 echo.

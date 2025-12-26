@@ -25,6 +25,13 @@ export interface IncidentAlertKindOption {
   name: string
 }
 
+export interface AuthorityOption {
+  uid: string
+  name: string
+  briefName: string
+  countryCode: string
+}
+
 /**
  * Получить все активные страны
  */
@@ -142,6 +149,26 @@ export async function getIncidentAlertKindNameByCode(code: string): Promise<stri
   } catch (error) {
     console.error('Ошибка получения названия вида уведомления:', error)
     return null
+  }
+}
+
+/**
+ * Получить опции для выпадающего списка уполномоченных органов
+ * @param countryCode - код страны для фильтрации (опционально)
+ */
+export async function getAuthorityOptions(countryCode?: string): Promise<AuthorityOption[]> {
+  try {
+    const url = countryCode 
+      ? `${BASE_URL}api/authorities/options?countryCode=${encodeURIComponent(countryCode)}`
+      : `${BASE_URL}api/authorities/options`
+    const response = await fetch(url)
+    if (!response.ok) {
+      throw new Error(`Ошибка загрузки опций уполномоченных органов: ${response.statusText}`)
+    }
+    return await response.json()
+  } catch (error) {
+    console.error('Ошибка загрузки опций уполномоченных органов:', error)
+    throw error
   }
 }
 

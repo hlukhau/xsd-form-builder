@@ -1,6 +1,7 @@
 package com.eec.servlet;
 
-import com.eec.util.DatabaseUtil;
+import com.eec.util.DictionaryCache;
+import com.eec.util.DictionaryCache.AuthorityOption;
 
 import javax.servlet.ServletException;
 import javax.servlet.http.HttpServlet;
@@ -8,10 +9,7 @@ import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
 import java.io.IOException;
 import java.io.PrintWriter;
-import java.sql.Connection;
-import java.sql.PreparedStatement;
-import java.sql.ResultSet;
-import java.sql.SQLException;
+import java.util.List;
 
 /**
  * Сервлет для получения списка уполномоченных органов (AUTHORITY) для выпадающего списка
@@ -24,7 +22,7 @@ public class AuthorityOptionsServlet extends HttpServlet {
     public void init() throws ServletException {
         super.init();
         System.out.println("[AuthorityOptionsServlet] Initialized");
-        System.out.println("[AuthorityOptionsServlet] Ready to load authorities from database");
+        System.out.println("[AuthorityOptionsServlet] Ready to serve authorities from cache");
     }
     
     @Override
@@ -32,17 +30,14 @@ public class AuthorityOptionsServlet extends HttpServlet {
             throws ServletException, IOException {
         
         String countryCode = request.getParameter("countryCode");
-        System.out.println("[AuthorityOptionsServlet] Loading authorities from database, countryCode: " + countryCode);
+        System.out.println("[AuthorityOptionsServlet] Loading authorities from cache, countryCode: " + countryCode);
         
         response.setContentType("application/json;charset=UTF-8");
         response.setCharacterEncoding("UTF-8");
         response.setHeader("Access-Control-Allow-Origin", "*");
         
-        Connection conn = null;
         PrintWriter out = null;
-        int count = 0;
         
-        // Создаем writer заранее, чтобы гарантировать ответ даже при ошибке
         try {
             out = response.getWriter();
         } catch (IOException e) {
@@ -51,85 +46,53 @@ public class AuthorityOptionsServlet extends HttpServlet {
         }
         
         try {
-            conn = DatabaseUtil.getConnection();
-            System.out.println("[AuthorityOptionsServlet] Database connection established");
-            
-            // Запрос уполномоченных органов
-            // Если указан countryCode, фильтруем по нему
-            String sql;
-            PreparedStatement stmt;
+            // Получаем данные из кеша
+            List<AuthorityOption> authorities;
             
             if (countryCode != null && !countryCode.trim().isEmpty()) {
-                sql = "SELECT AUTHORITYUID, AUTHORITYNAME, AUTHORITYBRIEFNAME, COUNTRYCODE " +
-                      "FROM SESINT.AUTHORITY " +
-                      "WHERE COUNTRYCODE = ? " +
-                      "ORDER BY AUTHORITYNAME";
-                stmt = conn.prepareStatement(sql);
-                stmt.setString(1, countryCode.trim().toUpperCase());
+                // Фильтруем по стране
+                authorities = DictionaryCache.getAuthoritiesByCountry(countryCode.trim().toUpperCase());
             } else {
-                sql = "SELECT AUTHORITYUID, AUTHORITYNAME, AUTHORITYBRIEFNAME, COUNTRYCODE " +
-                      "FROM SESINT.AUTHORITY " +
-                      "ORDER BY COUNTRYCODE, AUTHORITYNAME";
-                stmt = conn.prepareStatement(sql);
+                // Возвращаем все органы (из всех стран)
+                authorities = DictionaryCache.getAllAuthorities();
+                // Сортируем по стране и названию
+                authorities.sort((a1, a2) -> {
+                    int countryCompare = (a1.countryCode != null ? a1.countryCode : "").compareTo(a2.countryCode != null ? a2.countryCode : "");
+                    if (countryCompare != 0) return countryCompare;
+                    return (a1.name != null ? a1.name : "").compareTo(a2.name != null ? a2.name : "");
+                });
             }
             
-            ResultSet rs = stmt.executeQuery();
-            
             out.print("[");
-            
             boolean first = true;
-            while (rs.next()) {
+            int count = 0;
+            
+            for (AuthorityOption authority : authorities) {
                 if (!first) {
                     out.print(",");
                 }
                 first = false;
                 count++;
                 
-                String uid = rs.getString("AUTHORITYUID");
-                String name = rs.getString("AUTHORITYNAME");
-                String briefName = rs.getString("AUTHORITYBRIEFNAME");
-                String code = rs.getString("COUNTRYCODE");
+                String uid = authority.uid != null ? authority.uid : "";
+                String name = authority.name != null ? authority.name : "";
+                String briefName = authority.briefName != null ? authority.briefName : "";
+                String code = authority.countryCode != null ? authority.countryCode : "";
                 
                 // Экранируем кавычки
-                if (uid != null) {
-                    uid = uid.replace("\\", "\\\\");
-                    uid = uid.replace("\"", "\\\"");
-                } else {
-                    uid = "";
-                }
-                
-                if (name != null) {
-                    name = name.replace("\\", "\\\\");
-                    name = name.replace("\"", "\\\"");
-                } else {
-                    name = "";
-                }
-                
-                if (briefName != null) {
-                    briefName = briefName.replace("\\", "\\\\");
-                    briefName = briefName.replace("\"", "\\\"");
-                } else {
-                    briefName = "";
-                }
-                
-                if (code != null) {
-                    code = code.replace("\\", "\\\\");
-                    code = code.replace("\"", "\\\"");
-                } else {
-                    code = "";
-                }
+                uid = uid.replace("\\", "\\\\").replace("\"", "\\\"");
+                name = name.replace("\\", "\\\\").replace("\"", "\\\"");
+                briefName = briefName.replace("\\", "\\\\").replace("\"", "\\\"");
+                code = code.replace("\\", "\\\\").replace("\"", "\\\"");
                 
                 out.print("{\"uid\":\"" + uid + "\",\"name\":\"" + name + "\",\"briefName\":\"" + briefName + "\",\"countryCode\":\"" + code + "\"}");
             }
             
             out.print("]");
-            System.out.println("[AuthorityOptionsServlet] Loaded " + count + " authorities from database");
+            System.out.println("[AuthorityOptionsServlet] Loaded " + count + " authorities from cache");
             
-            rs.close();
-            stmt.close();
-            
-        } catch (SQLException e) {
-            System.err.println("[AuthorityOptionsServlet] ERROR loading authorities: " + e.getMessage());
+        } catch (Exception e) {
+            System.err.println("[AuthorityOptionsServlet] ERROR: " + e.getMessage());
             e.printStackTrace();
             response.setStatus(HttpServletResponse.SC_INTERNAL_SERVER_ERROR);
             
@@ -149,15 +112,15 @@ public class AuthorityOptionsServlet extends HttpServlet {
                 errorMsg = errorMsg.replace("\n", " ");
                 errorMsg = errorMsg.replace("\r", " ");
             } else {
-                errorMsg = "Unknown database error";
+                errorMsg = "Unknown error";
             }
-            out.print("{\"error\":\"Ошибка базы данных: " + errorMsg + "\"}");
+            out.print("{\"error\":\"Ошибка: " + errorMsg + "\"}");
         } finally {
-            DatabaseUtil.closeConnection(conn);
             if (out != null) {
                 out.close();
             }
         }
     }
 }
+
 
