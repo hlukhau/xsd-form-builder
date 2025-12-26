@@ -3,6 +3,8 @@ import { Form, Input, Button, Table, Space, DatePicker, Modal, Descriptions } fr
 import { PlusOutlined, DeleteOutlined, EyeOutlined } from '@ant-design/icons'
 import dayjs from 'dayjs'
 import type { ComplianceDocumentsData, ComplianceDocument, UnifiedAuthorityDetails } from '@/types/card'
+import { useCountryOptions } from '@/hooks/useCountryOptions'
+import CountrySelect from '@/components/common/CountrySelect'
 
 interface ComplianceDocumentsTabEditProps {
   data: ComplianceDocumentsData
@@ -11,6 +13,7 @@ interface ComplianceDocumentsTabEditProps {
 
 const ComplianceDocumentsTabEdit: React.FC<ComplianceDocumentsTabEditProps> = ({ data, onChange }) => {
   const [selectedDocIndex, setSelectedDocIndex] = useState<number | null>(null)
+  const { countryOptions, loading: loadingCountries, normalizeCountryCode } = useCountryOptions()
   const [authorityModalVisible, setAuthorityModalVisible] = useState(false)
 
   const handleAddDocument = () => {
@@ -178,9 +181,12 @@ const ComplianceDocumentsTabEdit: React.FC<ComplianceDocumentsTabEditProps> = ({
         {selectedDocIndex !== null && data.documents[selectedDocIndex] && (
           <Form layout="vertical">
             <Form.Item label="Страна">
-              <Input
+              <CountrySelect
                 value={data.documents[selectedDocIndex].authority?.country}
-                onChange={(e) => handleAuthorityChange(selectedDocIndex, 'country', e.target.value)}
+                onChange={(value) => handleAuthorityChange(selectedDocIndex, 'country', value || '')}
+                loading={loadingCountries}
+                countryOptions={countryOptions}
+                normalizeCountryCode={normalizeCountryCode}
               />
             </Form.Item>
             <Form.Item label="Наименование">
@@ -209,6 +215,8 @@ const ComplianceDocumentsTabEdit: React.FC<ComplianceDocumentsTabEditProps> = ({
 }
 
 export default ComplianceDocumentsTabEdit
+
+
 
 
 

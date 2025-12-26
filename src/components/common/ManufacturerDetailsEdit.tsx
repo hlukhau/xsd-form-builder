@@ -2,6 +2,8 @@ import { useState, useEffect } from 'react'
 import { Collapse, Form, Input, Button, Space } from 'antd'
 import { PlusOutlined, DeleteOutlined } from '@ant-design/icons'
 import type { SupplyChainPartyDetails, AddressDetails, ContactDetails } from '@/types/card'
+import { useCountryOptions } from '@/hooks/useCountryOptions'
+import CountrySelect from '@/components/common/CountrySelect'
 
 interface ManufacturerDetailsEditProps {
   data: SupplyChainPartyDetails
@@ -16,10 +18,11 @@ const ManufacturerDetailsEdit: React.FC<ManufacturerDetailsEditProps> = ({
 }) => {
   const [isOpen, setIsOpen] = useState(false)
   const [form] = Form.useForm()
+  const { countryOptions, loading, normalizeCountryCode } = useCountryOptions()
 
   useEffect(() => {
     form.setFieldsValue({
-      country: data.country,
+      country: normalizeCountryCode(data.country),
       businessEntityName: data.businessEntityName,
       shortName: data.shortName,
       organizationalForm: data.organizationalForm,
@@ -98,7 +101,11 @@ const ManufacturerDetailsEdit: React.FC<ManufacturerDetailsEditProps> = ({
                 onValuesChange={handleValuesChange}
               >
                 <Form.Item label="Страна" name="country">
-                  <Input />
+                  <CountrySelect
+                    loading={loading}
+                    countryOptions={countryOptions}
+                    normalizeCountryCode={normalizeCountryCode}
+                  />
                 </Form.Item>
                 <Form.Item label="Наименование субъекта" name="businessEntityName">
                   <Input />
@@ -126,10 +133,13 @@ const ManufacturerDetailsEdit: React.FC<ManufacturerDetailsEditProps> = ({
                 <div style={{ marginTop: '16px' }}>
                   <h4>Адрес регистрации</h4>
                   <Space direction="vertical" style={{ width: '100%' }}>
-                    <Input
+                    <CountrySelect
                       placeholder="Страна"
+                      loading={loading}
                       value={data.registrationAddress?.country}
-                      onChange={(e) => handleAddressChange('1', 'country', e.target.value)}
+                      onChange={(value) => handleAddressChange('1', 'country', value || '')}
+                      countryOptions={countryOptions}
+                      normalizeCountryCode={normalizeCountryCode}
                     />
                     <Input
                       placeholder="Город"
@@ -152,10 +162,13 @@ const ManufacturerDetailsEdit: React.FC<ManufacturerDetailsEditProps> = ({
                 <div style={{ marginTop: '16px' }}>
                   <h4>Фактический адрес</h4>
                   <Space direction="vertical" style={{ width: '100%' }}>
-                    <Input
+                    <CountrySelect
                       placeholder="Страна"
+                      loading={loading}
                       value={data.actualAddress?.country}
-                      onChange={(e) => handleAddressChange('2', 'country', e.target.value)}
+                      onChange={(value) => handleAddressChange('2', 'country', value || '')}
+                      countryOptions={countryOptions}
+                      normalizeCountryCode={normalizeCountryCode}
                     />
                     <Input
                       placeholder="Город"
@@ -178,10 +191,13 @@ const ManufacturerDetailsEdit: React.FC<ManufacturerDetailsEditProps> = ({
                 <div style={{ marginTop: '16px' }}>
                   <h4>Почтовый адрес</h4>
                   <Space direction="vertical" style={{ width: '100%' }}>
-                    <Input
+                    <CountrySelect
                       placeholder="Страна"
+                      loading={loading}
                       value={data.mailingAddress?.country}
-                      onChange={(e) => handleAddressChange('3', 'country', e.target.value)}
+                      onChange={(value) => handleAddressChange('3', 'country', value || '')}
+                      countryOptions={countryOptions}
+                      normalizeCountryCode={normalizeCountryCode}
                     />
                     <Input
                       placeholder="Город"
@@ -247,6 +263,8 @@ const ManufacturerDetailsEdit: React.FC<ManufacturerDetailsEditProps> = ({
 }
 
 export default ManufacturerDetailsEdit
+
+
 
 
 

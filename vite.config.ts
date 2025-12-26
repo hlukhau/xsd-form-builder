@@ -13,7 +13,7 @@ export default defineConfig({
   // Base path для развертывания на Tomcat
   // Если приложение будет развернуто в корне контекста, используйте '/'
   // Если в подпути (например /xsd-form-builder), используйте '/xsd-form-builder/'
-  base: '/',
+  base: '/xsd_form_builder/',
   // Директория для сборки (будет скопирована в WAR)
   build: {
     outDir: 'dist',
@@ -21,7 +21,7 @@ export default defineConfig({
     // Генерировать source maps для production (опционально)
     sourcemap: false,
     // Оптимизация для production
-    minify: 'terser',
+    minify: 'esbuild',
     rollupOptions: {
       output: {
         manualChunks: {

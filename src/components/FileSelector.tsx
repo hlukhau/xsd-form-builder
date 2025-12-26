@@ -9,14 +9,16 @@ interface FileSelectorProps {
 }
 
 // Список доступных XML файлов из папки public/xml
+// Используем import.meta.env.BASE_URL для получения base path из конфигурации Vite
+const BASE_URL = import.meta.env.BASE_URL || '/';
 const XML_FILES = [
   {
     name: 'EEC_R_SM_SS_08_DangerousProductAlert_v1.0.0.xml',
-    path: '/xml/EEC_R_SM_SS_08_DangerousProductAlert_v1.0.0.xml',
+    path: `${BASE_URL}xml/EEC_R_SM_SS_08_DangerousProductAlert_v1.0.0.xml`,
   },
   {
     name: 'EEC_R_SM_SS_08_DangerousProductAlert_Ex1.xml',
-    path: '/xml/EEC_R_SM_SS_08_DangerousProductAlert_Ex1.xml',
+    path: `${BASE_URL}xml/EEC_R_SM_SS_08_DangerousProductAlert_Ex1.xml`,
   },
 ]
 

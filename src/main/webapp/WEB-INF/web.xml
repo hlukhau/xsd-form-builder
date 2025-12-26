@@ -4,7 +4,7 @@
          xsi:schemaLocation="http://xmlns.jcp.org/xml/ns/javaee
          http://xmlns.jcp.org/xml/ns/javaee/web-app_3_1.xsd"
          version="3.1"
-         metadata-complete="true">
+         metadata-complete="false">
 
     <display-name>XSD Form Builder</display-name>
     <description>Frontend application for visualizing Dangerous Product Alert Details card</description>
@@ -17,16 +17,6 @@
     <welcome-file-list>
         <welcome-file>index.html</welcome-file>
     </welcome-file-list>
-
-    <!-- Сервлет для обработки SPA маршрутизации (fallback на index.html) -->
-    <servlet>
-        <servlet-name>spa-servlet</servlet-name>
-        <servlet-class>com.eec.servlet.SpaServlet</servlet-class>
-    </servlet>
-    <servlet-mapping>
-        <servlet-name>spa-servlet</servlet-name>
-        <url-pattern>/*</url-pattern>
-    </servlet-mapping>
 
     <!-- MIME типы для статических ресурсов -->
     <mime-mapping>
@@ -56,15 +46,59 @@
     </session-config>
 
     <!-- Обработка ошибок -->
-    <error-page>
-        <error-code>404</error-code>
-        <location>/index.html</location>
-    </error-page>
+    <!-- Убираем error-page для 404, чтобы не вызывать рекурсию через SpaServlet -->
     <error-page>
         <error-code>500</error-code>
         <location>/index.html</location>
     </error-page>
 
+    <!-- Listener для инициализации справочников при старте -->
+    <listener>
+        <listener-class>com.eec.servlet.DictionaryInitializerListener</listener-class>
+    </listener>
+
+    <!-- Тестовый сервлет для проверки деплоя -->
+    <servlet>
+        <servlet-name>TestServlet</servlet-name>
+        <servlet-class>com.eec.servlet.TestServlet</servlet-class>
+    </servlet>
+    <servlet-mapping>
+        <servlet-name>TestServlet</servlet-name>
+        <url-pattern>/test</url-pattern>
+    </servlet-mapping>
+
+    <!-- Регистрация сервлетов для API -->
+    <servlet>
+        <servlet-name>CountriesOptionsServlet</servlet-name>
+        <servlet-class>com.eec.servlet.CountriesOptionsServlet</servlet-class>
+    </servlet>
+    <servlet-mapping>
+        <servlet-name>CountriesOptionsServlet</servlet-name>
+        <url-pattern>/api/countries/options</url-pattern>
+    </servlet-mapping>
+
+    <servlet>
+        <servlet-name>CountryExistsServlet</servlet-name>
+        <servlet-class>com.eec.servlet.CountryExistsServlet</servlet-class>
+    </servlet>
+    <servlet-mapping>
+        <servlet-name>CountryExistsServlet</servlet-name>
+        <!-- Используем паттерн /api/countries/* чтобы перехватить все запросы к /api/countries/... -->
+        <!-- Сервлет сам определит, заканчивается ли путь на /exists -->
+        <url-pattern>/api/countries/*</url-pattern>
+    </servlet-mapping>
+
+    <!-- SPA Servlet для обработки маршрутизации (должен быть последним) -->
+    <!-- НЕ используем паттерн / или /*, чтобы не перехватывать API запросы -->
+    <!-- Используем error-page для 404, чтобы возвращать index.html для SPA routes -->
+    <!-- SpaServlet будет обрабатывать только явные запросы к index.html -->
+    <servlet>
+        <servlet-name>SpaServlet</servlet-name>
+        <servlet-class>com.eec.servlet.SpaServlet</servlet-class>
+    </servlet>
+    <servlet-mapping>
+        <servlet-name>SpaServlet</servlet-name>
+        <url-pattern>/index.html</url-pattern>
+    </servlet-mapping>
+
 </web-app>
-
-

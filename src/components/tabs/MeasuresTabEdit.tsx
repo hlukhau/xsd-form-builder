@@ -3,6 +3,9 @@ import { Form, Input, Button, Table, Space, DatePicker, Collapse, Select } from 
 import { PlusOutlined, DeleteOutlined } from '@ant-design/icons'
 import dayjs from 'dayjs'
 import ManufacturerDetailsEdit from '../common/ManufacturerDetailsEdit'
+import { useCountryOptions } from '@/hooks/useCountryOptions'
+import CountrySelect from '@/components/common/CountrySelect'
+import type { CountryOption } from '@/utils/referenceDataApi'
 import type {
   MeasuresData,
   SanitaryMeasure,
@@ -27,6 +30,7 @@ interface MeasuresTabEditProps {
 const MeasuresTabEdit: React.FC<MeasuresTabEditProps> = ({ data, onChange }) => {
   const [selectedMeasureIndex, setSelectedMeasureIndex] = useState<number | null>(null)
   const [selectedImplementationIndex, setSelectedImplementationIndex] = useState<number | null>(null)
+  const { countryOptions, loading: loadingCountries, normalizeCountryCode } = useCountryOptions()
 
   const handleAddMeasure = () => {
     const newMeasure: SanitaryMeasure = {
@@ -163,9 +167,12 @@ const MeasuresTabEdit: React.FC<MeasuresTabEditProps> = ({ data, onChange }) => 
     return (
       <Form layout="vertical">
         <Form.Item label="Страна">
-          <Input
+          <CountrySelect
             value={doc.country}
-            onChange={(e) => onChange({ ...doc, country: e.target.value })}
+            onChange={(value) => onChange({ ...doc, country: value || '' })}
+            loading={loadingCountries}
+            countryOptions={countryOptions}
+            normalizeCountryCode={normalizeCountryCode}
           />
         </Form.Item>
         <Form.Item label="Язык">
@@ -571,6 +578,9 @@ const MeasuresTabEdit: React.FC<MeasuresTabEditProps> = ({ data, onChange }) => 
                         implIndex={selectedImplementationIndex}
                         item={selectedMeasure.measureImplementationDetails[selectedImplementationIndex]}
                         onChange={(field, value) => handleImplementationChange(selectedMeasureIndex, selectedImplementationIndex, field, value)}
+                        countryOptions={countryOptions}
+                        loadingCountries={loadingCountries}
+                        normalizeCountryCode={normalizeCountryCode}
                       />
                     )}
                   </div>
@@ -590,7 +600,10 @@ const MeasureImplementationDetailsEdit: React.FC<{
   implIndex: number
   item: MeasureImplementationItem
   onChange: (field: string, value: any) => void
-}> = ({ item, onChange }) => {
+  countryOptions: CountryOption[]
+  loadingCountries: boolean
+  normalizeCountryCode: (country: string | undefined) => string | undefined
+}> = ({ item, onChange, countryOptions, loadingCountries, normalizeCountryCode }) => {
   return (
     <div style={{ marginTop: '16px', padding: '12px', border: '1px solid #d9d9d9', borderRadius: '4px' }}>
       <h5>Детализация мероприятия</h5>
@@ -603,9 +616,12 @@ const MeasureImplementationDetailsEdit: React.FC<{
             children: item.authority ? (
               <Form layout="vertical">
                 <Form.Item label="Страна">
-                  <Input
+                  <CountrySelect
                     value={item.authority.country}
-                    onChange={(e) => onChange('authority', { ...item.authority, country: e.target.value })}
+                    onChange={(value) => onChange('authority', { ...item.authority, country: value || '' })}
+                    loading={loadingCountries}
+                    countryOptions={countryOptions}
+                    normalizeCountryCode={normalizeCountryCode}
                   />
                 </Form.Item>
                 <Form.Item label="Идентификатор">
@@ -661,6 +677,9 @@ const MeasureImplementationDetailsEdit: React.FC<{
                   <SubjectPersonEdit
                     subject={item.subjectDetails}
                     onChange={(subject) => onChange('subjectDetails', subject)}
+                    countryOptions={countryOptions}
+                    loadingCountries={loadingCountries}
+                    normalizeCountryCode={normalizeCountryCode}
                   />
                 )}
                 <Button
@@ -804,7 +823,10 @@ const MeasureImplementationDetailsEdit: React.FC<{
 const SubjectPersonEdit: React.FC<{
   subject: SubjectDetails
   onChange: (subject: SubjectDetails) => void
-}> = ({ subject, onChange }) => {
+  countryOptions: CountryOption[]
+  loadingCountries: boolean
+  normalizeCountryCode: (country: string | undefined) => string | undefined
+}> = ({ subject, onChange, countryOptions, loadingCountries, normalizeCountryCode }) => {
   return (
     <Form layout="vertical">
       <Form.Item label="Страна">
@@ -824,9 +846,12 @@ const SubjectPersonEdit: React.FC<{
           <h5>Удостоверение личности</h5>
           <Form layout="vertical">
             <Form.Item label="Страна">
-              <Input
+              <CountrySelect
                 value={subject.identityDoc.country}
-                onChange={(e) => onChange({ ...subject, identityDoc: { ...subject.identityDoc, country: e.target.value } })}
+                onChange={(value) => onChange({ ...subject, identityDoc: { ...subject.identityDoc, country: value || '' } })}
+                loading={loadingCountries}
+                countryOptions={countryOptions}
+                normalizeCountryCode={normalizeCountryCode}
               />
             </Form.Item>
             <Form.Item label="Вид документа">

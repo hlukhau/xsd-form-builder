@@ -1,6 +1,8 @@
-import { Descriptions } from 'antd'
+import { Descriptions, Tag } from 'antd'
 import { format } from 'date-fns'
 import { ru } from 'date-fns/locale'
+import { useState, useEffect } from 'react'
+import { checkCountryExists } from '@/utils/referenceDataApi'
 import type { Notification } from '@/types/card'
 
 interface NotificationTabProps {
@@ -8,6 +10,19 @@ interface NotificationTabProps {
 }
 
 const NotificationTab: React.FC<NotificationTabProps> = ({ data }) => {
+  const [countryValid, setCountryValid] = useState<boolean | null>(null)
+  const [authorizedBodyCountryValid, setAuthorizedBodyCountryValid] = useState<boolean | null>(null)
+
+  useEffect(() => {
+    // Проверка страны при загрузке
+    if (data.country) {
+      checkCountryExists(data.country).then(setCountryValid)
+    }
+    if (data.authorizedBody?.country) {
+      checkCountryExists(data.authorizedBody.country).then(setAuthorizedBodyCountryValid)
+    }
+  }, [data.country, data.authorizedBody?.country])
+
   const formatDate = (date: string | null | undefined) => {
     if (!date) return '-'
     const dateObj = new Date(date)
@@ -15,9 +30,25 @@ const NotificationTab: React.FC<NotificationTabProps> = ({ data }) => {
     return format(dateObj, 'dd.MM.yyyy', { locale: ru })
   }
 
+  const renderCountry = (countryCode: string, isValid: boolean | null) => {
+    if (isValid === false) {
+      return (
+        <span>
+          <Tag color="red" style={{ marginRight: 8 }}>
+            Не найдено в справочнике
+          </Tag>
+          {countryCode}
+        </span>
+      )
+    }
+    return countryCode
+  }
+
   return (
     <Descriptions column={1} bordered>
-      <Descriptions.Item label="Страна">{data.country}</Descriptions.Item>
+      <Descriptions.Item label="Страна">
+        {renderCountry(data.country, countryValid)}
+      </Descriptions.Item>
       <Descriptions.Item label="Регистрационный номер">
         {data.registrationNumber}
       </Descriptions.Item>
@@ -31,7 +62,7 @@ const NotificationTab: React.FC<NotificationTabProps> = ({ data }) => {
       <Descriptions.Item label="Уполномоченный орган">
         <Descriptions column={1} size="small" bordered>
           <Descriptions.Item label="Страна">
-            {data.authorizedBody.country}
+            {renderCountry(data.authorizedBody.country, authorizedBodyCountryValid)}
           </Descriptions.Item>
           <Descriptions.Item label="Идентификатор">
             {data.authorizedBody.identifier || '-'}

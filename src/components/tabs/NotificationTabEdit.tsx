@@ -2,6 +2,8 @@ import { useEffect } from 'react'
 import { Form, Input, DatePicker } from 'antd'
 import dayjs from 'dayjs'
 import type { Notification } from '@/types/card'
+import { useCountryOptions } from '@/hooks/useCountryOptions'
+import CountrySelect from '@/components/common/CountrySelect'
 
 interface NotificationTabEditProps {
   data: Notification
@@ -10,20 +12,21 @@ interface NotificationTabEditProps {
 
 const NotificationTabEdit: React.FC<NotificationTabEditProps> = ({ data, onChange }) => {
   const [form] = Form.useForm()
+  const { countryOptions, loading, normalizeCountryCode, getSelectOptions } = useCountryOptions()
 
   useEffect(() => {
     form.setFieldsValue({
-      country: data.country,
+      country: normalizeCountryCode(data.country),
       registrationNumber: data.registrationNumber,
       type: data.type,
       formationDate: data.formationDate ? dayjs(data.formationDate) : undefined,
       endDate: data.endDate ? dayjs(data.endDate) : undefined,
-      authorizedBodyCountry: data.authorizedBody?.country,
+      authorizedBodyCountry: normalizeCountryCode(data.authorizedBody?.country),
       authorizedBodyIdentifier: data.authorizedBody?.identifier,
       authorizedBodyName: data.authorizedBody?.name,
       authorizedBodyShortName: data.authorizedBody?.shortName,
     })
-  }, [data, form])
+  }, [data, form, normalizeCountryCode])
 
   const handleValuesChange = (_: any, allValues: any) => {
     onChange({
@@ -49,7 +52,11 @@ const NotificationTabEdit: React.FC<NotificationTabEditProps> = ({ data, onChang
       onValuesChange={handleValuesChange}
     >
       <Form.Item label="Страна" name="country">
-        <Input />
+        <CountrySelect
+          loading={loading}
+          countryOptions={countryOptions}
+          normalizeCountryCode={normalizeCountryCode}
+        />
       </Form.Item>
       <Form.Item label="Регистрационный номер" name="registrationNumber">
         <Input />
@@ -67,7 +74,11 @@ const NotificationTabEdit: React.FC<NotificationTabEditProps> = ({ data, onChang
       <div style={{ marginTop: '16px', padding: '12px', border: '1px solid #d9d9d9', borderRadius: '4px' }}>
         <h4>Уполномоченный орган</h4>
         <Form.Item label="Страна" name="authorizedBodyCountry">
-          <Input />
+          <CountrySelect
+            loading={loading}
+            countryOptions={countryOptions}
+            normalizeCountryCode={normalizeCountryCode}
+          />
         </Form.Item>
         <Form.Item label="Идентификатор" name="authorizedBodyIdentifier">
           <Input />

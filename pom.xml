@@ -32,16 +32,25 @@
             <version>${servlet-api.version}</version>
             <scope>provided</scope>
         </dependency>
+
+        <!-- Oracle JDBC Driver -->
+        <dependency>
+            <groupId>com.oracle.database.jdbc</groupId>
+            <artifactId>ojdbc8</artifactId>
+            <version>21.9.0.0</version>
+        </dependency>
+
+        <!-- Зависимости не нужны - используем простой JSON через PrintWriter -->
     </dependencies>
 
     <build>
         <finalName>${project.artifactId}</finalName>
         <plugins>
-            <!-- Maven Compiler Plugin для Java 8 -->
+            <!-- Maven Compiler Plugin для Java 8 - старая версия, которая может быть в локальном репозитории -->
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-compiler-plugin</artifactId>
-                <version>3.8.1</version>
+                <version>3.1</version>
                 <configuration>
                     <source>1.8</source>
                     <target>1.8</target>
@@ -49,55 +58,20 @@
                 </configuration>
             </plugin>
 
-            <!-- Frontend Maven Plugin для сборки React приложения -->
-            <plugin>
-                <groupId>com.github.eirslett</groupId>
-                <artifactId>frontend-maven-plugin</artifactId>
-                <version>1.15.0</version>
-                <configuration>
-                    <nodeVersion>${node.version}</nodeVersion>
-                    <npmVersion>${npm.version}</npmVersion>
-                    <workingDirectory>${project.basedir}</workingDirectory>
-                </configuration>
-                <executions>
-                    <!-- Установка Node.js и npm -->
-                    <execution>
-                        <id>install node and npm</id>
-                        <goals>
-                            <goal>install-node-and-npm</goal>
-                        </goals>
-                    </execution>
-                    <!-- Установка npm зависимостей -->
-                    <execution>
-                        <id>npm install</id>
-                        <goals>
-                            <goal>npm</goal>
-                        </goals>
-                        <configuration>
-                            <arguments>install</arguments>
-                        </configuration>
-                    </execution>
-                    <!-- Сборка React приложения -->
-                    <execution>
-                        <id>npm run build</id>
-                        <goals>
-                            <goal>npm</goal>
-                        </goals>
-                        <configuration>
-                            <arguments>run build</arguments>
-                        </configuration>
-                    </execution>
-                </executions>
-            </plugin>
+            <!-- Frontend Maven Plugin отключен из-за проблем с SSL -->
+            <!-- React приложение должно быть собрано вручную: npm run build -->
+            <!-- После сборки файлы будут в папке dist/ -->
 
-            <!-- Maven WAR Plugin для упаковки в WAR -->
+
+            <!-- Maven WAR Plugin для упаковки в WAR - старая версия, которая может быть в локальном репозитории -->
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-war-plugin</artifactId>
-                <version>3.3.1</version>
+                <version>2.6</version>
                 <configuration>
                     <warSourceDirectory>src/main/webapp</warSourceDirectory>
                     <failOnMissingWebXml>false</failOnMissingWebXml>
+                    <!-- Убираем packagingIncludes чтобы включить все зависимости -->
                     <webResources>
                         <resource>
                             <directory>dist</directory>
@@ -107,22 +81,7 @@
                 </configuration>
             </plugin>
 
-            <!-- Maven Clean Plugin -->
-            <plugin>
-                <groupId>org.apache.maven.plugins</groupId>
-                <artifactId>maven-clean-plugin</artifactId>
-                <version>3.2.0</version>
-                <configuration>
-                    <filesets>
-                        <fileset>
-                            <directory>dist</directory>
-                        </fileset>
-                        <fileset>
-                            <directory>node_modules</directory>
-                        </fileset>
-                    </filesets>
-                </configuration>
-            </plugin>
+            <!-- Maven Clean Plugin - убираем, используем стандартный -->
         </plugins>
     </build>
 </project>
