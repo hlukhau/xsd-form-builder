@@ -4,12 +4,19 @@
 
 ## Технологический стек
 
+### Frontend
 - **React 18** + **TypeScript**
 - **Ant Design 5** - UI компоненты
 - **Vite** - сборщик
 - **Zustand** - управление состоянием (планируется)
 - **React Hook Form** - формы (планируется)
 - **date-fns** - работа с датами
+
+### Backend/Deployment
+- **Java 8** - для сервлетов
+- **Apache Maven** - система сборки
+- **Apache Tomcat 8.5.23** - сервер приложений
+- **WAR** - формат развертывания
 
 ## Структура проекта
 
@@ -28,16 +35,49 @@ xsd-form-builder/
 
 ## Установка и запуск
 
+### Разработка (локально)
+
 ```bash
 # Установка зависимостей
 npm install
 
 # Запуск dev сервера
 npm run dev
-
-# Сборка для production
-npm run build
+# Приложение будет доступно на http://localhost:3000
 ```
+
+### Развертывание на Apache Tomcat 8.5.23
+
+Приложение может быть развернуто на Apache Tomcat в виде WAR-файла.
+
+**Требования:**
+- Java 8 (JDK 1.8)
+- Apache Maven 3.6+
+- Apache Tomcat 8.5.23
+
+**Сборка WAR-файла:**
+
+```bash
+# Автоматическая сборка (Maven установит Node.js, соберет React и упакует в WAR)
+mvn clean package
+
+# Или используйте скрипты:
+# Linux/Mac:
+./build.sh
+
+# Windows:
+build.bat
+```
+
+Результат: `target/xsd-form-builder.war`
+
+**Развертывание:**
+
+1. Скопируйте `target/xsd-form-builder.war` в `$CATALINA_HOME/webapps/`
+2. Перезапустите Tomcat
+3. Приложение будет доступно по адресу: `http://localhost:8080/xsd-form-builder/`
+
+**Подробные инструкции:** см. [DEPLOYMENT.md](./DEPLOYMENT.md)
 
 ## Функциональность
 
@@ -71,3 +111,7 @@ XML файлы должны соответствовать схеме `EEC_R_SM_
 ## Анализ XSD
 
 Подробный анализ структуры XSD схем и типовых блоков см. в файле [ANALYSIS.md](./ANALYSIS.md).
+
+## Развертывание
+
+Подробная инструкция по развертыванию на Apache Tomcat 8.5.23 см. в файле [DEPLOYMENT.md](./DEPLOYMENT.md).

@@ -10,6 +10,27 @@ export default defineConfig({
       '@': path.resolve(__dirname, './src'),
     },
   },
+  // Base path для развертывания на Tomcat
+  // Если приложение будет развернуто в корне контекста, используйте '/'
+  // Если в подпути (например /xsd-form-builder), используйте '/xsd-form-builder/'
+  base: '/',
+  // Директория для сборки (будет скопирована в WAR)
+  build: {
+    outDir: 'dist',
+    assetsDir: 'assets',
+    // Генерировать source maps для production (опционально)
+    sourcemap: false,
+    // Оптимизация для production
+    minify: 'terser',
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          'react-vendor': ['react', 'react-dom'],
+          'antd-vendor': ['antd'],
+        },
+      },
+    },
+  },
   server: {
     port: 3000,
     open: true,
