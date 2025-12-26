@@ -33,6 +33,7 @@ import type {
   DocumentReferenceDetails,
   MeasurePlaceDetails,
 } from '@/types/card'
+import { getIncidentAlertKindNameByCode, checkIncidentAlertKindExists } from '@/utils/referenceDataApi'
 
 /**
  * Парсит XML документ и преобразует его в структуру CardData
@@ -226,15 +227,11 @@ export function parseXMLToCardData(xmlText: string): CardData {
   // Парсинг принятых мер
   const measuresData = parseMeasures(alertDetails, xmlDoc.documentElement)
 
-  // Определение типа уведомления по коду
-  const incidentKindMap: Record<string, string> = {
-    '7': 'обнаружение продукции, опасной для жизни, здоровья человека и среды его обитания',
-  }
-
+  // Сохраняем код вида уведомления в notification.type
   const notification: Notification = {
     country,
     registrationNumber,
-    type: incidentKindMap[incidentKindCode] || `Вид уведомления (код: ${incidentKindCode})`,
+    type: incidentKindCode || '', // Сохраняем код
     formationDate: docCreationDate,
     endDate: endDate || null,
     authorizedBody,
@@ -268,7 +265,7 @@ export function parseXMLToCardData(xmlText: string): CardData {
       ...notification,
       country: notification.country || 'RU',
       registrationNumber: notification.registrationNumber || 'N/A',
-      type: notification.type || 'Не указано',
+      type: notification.type || '', // Код вида уведомления
       formationDate: notification.formationDate || new Date().toISOString().split('T')[0],
       endDate: notification.endDate,
       authorizedBody: {
@@ -313,7 +310,7 @@ export function parseXMLToCardData(xmlText: string): CardData {
  * Извлекает текстовое содержимое элемента по имени тега
  * Поддерживает поиск с учетом namespace
  */
-function getTextContent(
+export function getTextContent(
   parent: Element | null,
   tagName: string
 ): string | null {
@@ -2891,6 +2888,43 @@ export async function loadXMLFile(filePath: string): Promise<string> {
     return await response.text()
   } catch (error) {
     throw new Error(`Не удалось загрузить файл: ${error}`)
+  }
+}
+
+/**
+ * Валидирует и обновляет данные карточки, используя справочники
+ * Проверяет код вида уведомления (INCIDENTALERTKINDCODE) на присутствие в справочнике
+ */
+export async function validateAndEnrichCardData(cardData: CardData, incidentKindCode?: string): Promise<{
+  cardData: CardData
+  validationErrors: string[]
+  validationWarnings: string[]
+}> {
+  const errors: string[] = []
+  const warnings: string[] = []
+
+  // Валидация вида уведомления - проверяем код на присутствие в справочнике
+  const codeToValidate = incidentKindCode || cardData.notification.type
+  if (codeToValidate) {
+    try {
+      const exists = await checkIncidentAlertKindExists(codeToValidate)
+      if (!exists) {
+        warnings.push(`Код вида уведомления "${codeToValidate}" не найден в справочнике INCIDENTALERTKIND`)
+      } else {
+        console.log(`Код вида уведомления "${codeToValidate}" успешно найден в справочнике`)
+      }
+    } catch (error) {
+      console.error('Ошибка при валидации вида уведомления:', error)
+      warnings.push(`Не удалось проверить код вида уведомления "${codeToValidate}" в справочнике`)
+    }
+  } else {
+    warnings.push('Код вида уведомления (INCIDENTALERTKINDCODE) не указан в XML')
+  }
+
+  return {
+    cardData,
+    validationErrors: errors,
+    validationWarnings: warnings,
   }
 }
 

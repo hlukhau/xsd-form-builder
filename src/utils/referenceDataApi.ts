@@ -20,6 +20,11 @@ export interface CountryOption {
   name: string
 }
 
+export interface IncidentAlertKindOption {
+  code: string
+  name: string
+}
+
 /**
  * Получить все активные страны
  */
@@ -90,6 +95,56 @@ export async function checkCountryExists(code: string): Promise<boolean> {
     return false
   }
 }
+
+/**
+ * Получить опции для выпадающего списка видов уведомлений
+ */
+export async function getIncidentAlertKindOptions(): Promise<IncidentAlertKindOption[]> {
+  try {
+    const response = await fetch(`${BASE_URL}api/incident-alert-kinds/options`)
+    if (!response.ok) {
+      throw new Error(`Ошибка загрузки опций видов уведомлений: ${response.statusText}`)
+    }
+    return await response.json()
+  } catch (error) {
+    console.error('Ошибка загрузки опций видов уведомлений:', error)
+    throw error
+  }
+}
+
+/**
+ * Проверить существование вида уведомления по коду
+ */
+export async function checkIncidentAlertKindExists(code: string): Promise<boolean> {
+  if (!code || code.trim().length === 0) {
+    return false
+  }
+  try {
+    const options = await getIncidentAlertKindOptions()
+    return options.some(opt => opt.code === code)
+  } catch (error) {
+    console.error('Ошибка проверки вида уведомления:', error)
+    return false
+  }
+}
+
+/**
+ * Получить название вида уведомления по коду
+ */
+export async function getIncidentAlertKindNameByCode(code: string): Promise<string | null> {
+  if (!code || code.trim().length === 0) {
+    return null
+  }
+  try {
+    const options = await getIncidentAlertKindOptions()
+    const option = options.find(opt => opt.code === code)
+    return option ? option.name : null
+  } catch (error) {
+    console.error('Ошибка получения названия вида уведомления:', error)
+    return null
+  }
+}
+
 
 
 

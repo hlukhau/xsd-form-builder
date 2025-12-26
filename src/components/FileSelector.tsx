@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { Select, Button, Space, message, Upload } from 'antd'
 import { FileTextOutlined, UploadOutlined } from '@ant-design/icons'
-import { loadXMLFile, parseXMLToCardData } from '@/utils/xmlParser'
+import { loadXMLFile, parseXMLToCardData, validateAndEnrichCardData, getTextContent } from '@/utils/xmlParser'
 import type { CardData } from '@/types/card'
 
 interface FileSelectorProps {
@@ -54,9 +54,44 @@ const FileSelector: React.FC<FileSelectorProps> = ({ onFileLoaded }) => {
       localStorage.setItem('originalXML', xmlText)
       
       const cardData = parseXMLToCardData(xmlText)
-      console.log('Данные успешно распарсены, передаем в компонент')
-      onFileLoaded(cardData, xmlText)
-      message.success('Файл успешно загружен')
+      console.log('Данные успешно распарсены')
+      
+      // Извлекаем код вида уведомления из XML для валидации
+      const parser = new DOMParser()
+      const xmlDoc = parser.parseFromString(xmlText, 'text/xml')
+      // Ищем DangerousProductAlertDetails по той же логике, что и в парсере
+      let alertDetails: Element | null = null
+      const allElements = xmlDoc.getElementsByTagName('*')
+      for (let i = 0; i < allElements.length; i++) {
+        const el = allElements[i]
+        const localName = el.localName || el.tagName.split(':').pop()?.toLowerCase()
+        if (localName === 'dangerousproductalertdetails') {
+          alertDetails = el
+          break
+        }
+      }
+      const incidentKindCode = getTextContent(alertDetails, 'IncidentKindCode') || ''
+      
+      // Валидация и обогащение данных справочниками
+      const validationResult = await validateAndEnrichCardData(cardData, incidentKindCode || undefined)
+      
+      // Показываем предупреждения, если есть
+      if (validationResult.validationWarnings.length > 0) {
+        validationResult.validationWarnings.forEach(warning => {
+          message.warning(warning)
+        })
+      }
+      
+      // Показываем ошибки, если есть
+      if (validationResult.validationErrors.length > 0) {
+        validationResult.validationErrors.forEach(error => {
+          message.error(error)
+        })
+      }
+      
+      console.log('Валидация завершена, передаем в компонент')
+      onFileLoaded(validationResult.cardData, xmlText)
+      message.success('Файл успешно загружен и проверен')
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Неизвестная ошибка'
       message.error(`Ошибка загрузки файла: ${errorMessage}`)
@@ -70,7 +105,7 @@ const FileSelector: React.FC<FileSelectorProps> = ({ onFileLoaded }) => {
     setLoading(true)
     try {
       const reader = new FileReader()
-      reader.onload = (e) => {
+      reader.onload = async (e) => {
         try {
           const xmlText = e.target?.result as string
           console.log('Загружен XML файл, размер:', xmlText.length, 'символов')
@@ -79,9 +114,44 @@ const FileSelector: React.FC<FileSelectorProps> = ({ onFileLoaded }) => {
           localStorage.setItem('originalXML', xmlText)
           
           const cardData = parseXMLToCardData(xmlText)
-          console.log('Данные успешно распарсены, передаем в компонент')
-          onFileLoaded(cardData, xmlText)
-          message.success('Файл успешно загружен')
+          console.log('Данные успешно распарсены')
+          
+          // Извлекаем код вида уведомления из XML для валидации
+          const parser = new DOMParser()
+          const xmlDoc = parser.parseFromString(xmlText, 'text/xml')
+          // Ищем DangerousProductAlertDetails по той же логике, что и в парсере
+          let alertDetails: Element | null = null
+          const allElements = xmlDoc.getElementsByTagName('*')
+          for (let i = 0; i < allElements.length; i++) {
+            const el = allElements[i]
+            const localName = el.localName || el.tagName.split(':').pop()?.toLowerCase()
+            if (localName === 'dangerousproductalertdetails') {
+              alertDetails = el
+              break
+            }
+          }
+          const incidentKindCode = getTextContent(alertDetails, 'IncidentKindCode') || ''
+          
+          // Валидация и обогащение данных справочниками
+          const validationResult = await validateAndEnrichCardData(cardData, incidentKindCode || undefined)
+          
+          // Показываем предупреждения, если есть
+          if (validationResult.validationWarnings.length > 0) {
+            validationResult.validationWarnings.forEach(warning => {
+              message.warning(warning)
+            })
+          }
+          
+          // Показываем ошибки, если есть
+          if (validationResult.validationErrors.length > 0) {
+            validationResult.validationErrors.forEach(error => {
+              message.error(error)
+            })
+          }
+          
+          console.log('Валидация завершена, передаем в компонент')
+          onFileLoaded(validationResult.cardData, xmlText)
+          message.success('Файл успешно загружен и проверен')
         } catch (error) {
           const errorMessage = error instanceof Error ? error.message : 'Неизвестная ошибка'
           message.error(`Ошибка парсинга XML: ${errorMessage}`)

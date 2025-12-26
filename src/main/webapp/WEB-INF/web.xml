@@ -88,6 +88,15 @@
         <url-pattern>/api/countries/*</url-pattern>
     </servlet-mapping>
 
+    <servlet>
+        <servlet-name>IncidentAlertKindOptionsServlet</servlet-name>
+        <servlet-class>com.eec.servlet.IncidentAlertKindOptionsServlet</servlet-class>
+    </servlet>
+    <servlet-mapping>
+        <servlet-name>IncidentAlertKindOptionsServlet</servlet-name>
+        <url-pattern>/api/incident-alert-kinds/options</url-pattern>
+    </servlet-mapping>
+
     <!-- SPA Servlet для обработки маршрутизации (должен быть последним) -->
     <!-- НЕ используем паттерн / или /*, чтобы не перехватывать API запросы -->
     <!-- Используем error-page для 404, чтобы возвращать index.html для SPA routes -->

@@ -1,8 +1,9 @@
 import { useEffect } from 'react'
-import { Form, Input, DatePicker } from 'antd'
+import { Form, Input, DatePicker, Select } from 'antd'
 import dayjs from 'dayjs'
 import type { Notification } from '@/types/card'
 import { useCountryOptions } from '@/hooks/useCountryOptions'
+import { useIncidentAlertKindOptions } from '@/hooks/useIncidentAlertKindOptions'
 import CountrySelect from '@/components/common/CountrySelect'
 
 interface NotificationTabEditProps {
@@ -13,12 +14,13 @@ interface NotificationTabEditProps {
 const NotificationTabEdit: React.FC<NotificationTabEditProps> = ({ data, onChange }) => {
   const [form] = Form.useForm()
   const { countryOptions, loading, normalizeCountryCode, getSelectOptions } = useCountryOptions()
+  const { options: incidentAlertKindOptions, loading: loadingIncidentAlertKinds, getSelectOptions: getIncidentAlertKindSelectOptions } = useIncidentAlertKindOptions()
 
   useEffect(() => {
     form.setFieldsValue({
       country: normalizeCountryCode(data.country),
       registrationNumber: data.registrationNumber,
-      type: data.type,
+      type: data.type, // Код вида уведомления
       formationDate: data.formationDate ? dayjs(data.formationDate) : undefined,
       endDate: data.endDate ? dayjs(data.endDate) : undefined,
       authorizedBodyCountry: normalizeCountryCode(data.authorizedBody?.country),
@@ -62,7 +64,16 @@ const NotificationTabEdit: React.FC<NotificationTabEditProps> = ({ data, onChang
         <Input />
       </Form.Item>
       <Form.Item label="Вид" name="type">
-        <Input />
+        <Select
+          showSearch
+          placeholder="Выберите вид уведомления"
+          loading={loadingIncidentAlertKinds}
+          filterOption={(input, option) =>
+            (option?.label ?? '').toLowerCase().includes(input.toLowerCase())
+          }
+          options={getIncidentAlertKindSelectOptions()}
+          // value - код, label - "код - название"
+        />
       </Form.Item>
       <Form.Item label="Дата формирования" name="formationDate">
         <DatePicker style={{ width: '100%' }} />
