@@ -151,6 +151,24 @@
         <url-pattern>/api/tech-reguls/options</url-pattern>
     </servlet-mapping>
 
+    <servlet>
+        <servlet-name>SanitaryMeasureObjKindOptionsServlet</servlet-name>
+        <servlet-class>com.eec.servlet.SanitaryMeasureObjKindOptionsServlet</servlet-class>
+    </servlet>
+    <servlet-mapping>
+        <servlet-name>SanitaryMeasureObjKindOptionsServlet</servlet-name>
+        <url-pattern>/api/sanitary-measure-obj-kinds/options</url-pattern>
+    </servlet-mapping>
+
+    <servlet>
+        <servlet-name>SanitaryMeasureOptionsServlet</servlet-name>
+        <servlet-class>com.eec.servlet.SanitaryMeasureOptionsServlet</servlet-class>
+    </servlet>
+    <servlet-mapping>
+        <servlet-name>SanitaryMeasureOptionsServlet</servlet-name>
+        <url-pattern>/api/sanitary-measures/options</url-pattern>
+    </servlet-mapping>
+
     <!-- SPA Servlet для обработки маршрутизации (должен быть последним) -->
     <!-- НЕ используем паттерн / или /*, чтобы не перехватывать API запросы -->
     <!-- Используем error-page для 404, чтобы возвращать index.html для SPA routes -->

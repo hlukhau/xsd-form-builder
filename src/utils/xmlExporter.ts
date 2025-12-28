@@ -517,6 +517,7 @@ function exportMeasureImplementation(xmlParts: string[], impl: MeasureImplementa
   if (impl.startDate) xmlParts.push(`${indent}  <csdo:StartDate>${escapeXML(impl.startDate)}</csdo:StartDate>`)
   if (impl.endDate) xmlParts.push(`${indent}  <csdo:EndDate>${escapeXML(impl.endDate)}</csdo:EndDate>`)
   if (impl.description) xmlParts.push(`${indent}  <csdo:DescriptionText>${escapeXML(impl.description)}</csdo:DescriptionText>`)
+  if (impl.measureAffectedObjectKindCode) xmlParts.push(`${indent}  <smsdo:MeasureAffectedObjectKindCode>${escapeXML(impl.measureAffectedObjectKindCode)}</smsdo:MeasureAffectedObjectKindCode>`)
   
   if (impl.authority) {
     xmlParts.push(`${indent}  <ccdo:UnifiedAuthorityDetails>`)

@@ -33,7 +33,7 @@ import type {
   DocumentReferenceDetails,
   MeasurePlaceDetails,
 } from '@/types/card'
-import { getIncidentAlertKindNameByCode, checkIncidentAlertKindExists, getIncidentAlertKindOptions, checkSanitaryProdTypeExists, getSanitaryProdTypeOptions, checkShipDocKindExists, checkSupplyChainPartyKindExists } from '@/utils/referenceDataApi'
+import { getIncidentAlertKindNameByCode, checkIncidentAlertKindExists, getIncidentAlertKindOptions, checkSanitaryProdTypeExists, getSanitaryProdTypeOptions, checkShipDocKindExists, checkSupplyChainPartyKindExists, checkSanitaryMeasureObjKindExists } from '@/utils/referenceDataApi'
 
 /**
  * Парсит XML документ и преобразует его в структуру CardData
@@ -3228,6 +3228,47 @@ export async function validateAndEnrichCardData(cardData: CardData, incidentKind
                   // Не добавляем предупреждение - визуальная индикация будет в форме
                 }
               }
+            }
+          }
+        }
+      }
+    }
+  }
+
+  // Валидация видов объектов действия мер в мероприятиях
+  if (cardData.measures?.measures) {
+    for (const measure of cardData.measures.measures) {
+      // Валидация для основного measureAffectedObjectKindCode
+      if (measure.measureAffectedObjectKindCode) {
+        try {
+          const exists = await checkSanitaryMeasureObjKindExists(measure.measureAffectedObjectKindCode)
+          if (exists === false) {
+            console.warn(`Код вида объекта действия мер "${measure.measureAffectedObjectKindCode}" не найден в справочнике SANITARYMEASUREOBJKIND`)
+            // Не добавляем предупреждение - визуальная индикация будет в форме
+          } else {
+            console.log(`Код вида объекта действия мер "${measure.measureAffectedObjectKindCode}" успешно найден в справочнике`)
+          }
+        } catch (error) {
+          console.error('Ошибка при валидации вида объекта действия мер:', error)
+          // Не добавляем предупреждение - визуальная индикация будет в форме
+        }
+      }
+      
+      // Валидация для measureAffectedObjectKindCode в мероприятиях
+      if (measure.measureImplementationDetails) {
+        for (const impl of measure.measureImplementationDetails) {
+          if (impl.measureAffectedObjectKindCode) {
+            try {
+              const exists = await checkSanitaryMeasureObjKindExists(impl.measureAffectedObjectKindCode)
+              if (exists === false) {
+                console.warn(`Код вида объекта действия мер "${impl.measureAffectedObjectKindCode}" не найден в справочнике SANITARYMEASUREOBJKIND`)
+                // Не добавляем предупреждение - визуальная индикация будет в форме
+              } else {
+                console.log(`Код вида объекта действия мер "${impl.measureAffectedObjectKindCode}" успешно найден в справочнике`)
+              }
+            } catch (error) {
+              console.error('Ошибка при валидации вида объекта действия мер:', error)
+              // Не добавляем предупреждение - визуальная индикация будет в форме
             }
           }
         }

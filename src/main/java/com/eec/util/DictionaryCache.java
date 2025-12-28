@@ -45,6 +45,14 @@ public class DictionaryCache {
     private static final Map<String, String> techRegulsCache = new ConcurrentHashMap<>();
     private static final List<TechRegulOption> techRegulsListCache = new ArrayList<>();
     
+    // Кеш видов объектов действия мер: код -> название
+    private static final Map<String, String> sanitaryMeasureObjKindsCache = new ConcurrentHashMap<>();
+    private static final List<SanitaryMeasureObjKindOption> sanitaryMeasureObjKindsListCache = new ArrayList<>();
+    
+    // Кеш санитарных мер: код -> название
+    private static final Map<String, String> sanitaryMeasuresCache = new ConcurrentHashMap<>();
+    private static final List<SanitaryMeasureOption> sanitaryMeasuresListCache = new ArrayList<>();
+    
     // Флаги загрузки
     private static volatile boolean countriesLoaded = false;
     private static volatile boolean incidentAlertKindsLoaded = false;
@@ -53,6 +61,8 @@ public class DictionaryCache {
     private static volatile boolean shipDocKindsLoaded = false;
     private static volatile boolean supplyChainPartyKindsLoaded = false;
     private static volatile boolean techRegulsLoaded = false;
+    private static volatile boolean sanitaryMeasureObjKindsLoaded = false;
+    private static volatile boolean sanitaryMeasuresLoaded = false;
     
     /**
      * Класс для опции страны
@@ -163,6 +173,32 @@ public class DictionaryCache {
             this.code = code;
             this.name = name;
             this.regNum = regNum;
+        }
+    }
+    
+    /**
+     * Класс для опции вида объекта действия мер
+     */
+    public static class SanitaryMeasureObjKindOption {
+        public String code;
+        public String name;
+        
+        public SanitaryMeasureObjKindOption(String code, String name) {
+            this.code = code;
+            this.name = name;
+        }
+    }
+    
+    /**
+     * Класс для опции санитарной меры
+     */
+    public static class SanitaryMeasureOption {
+        public String code;
+        public String name;
+        
+        public SanitaryMeasureOption(String code, String name) {
+            this.code = code;
+            this.name = name;
         }
     }
     
@@ -534,6 +570,94 @@ public class DictionaryCache {
     
     public static boolean isTechRegulsLoaded() {
         return techRegulsLoaded;
+    }
+    
+    // ========== Методы для видов объектов действия мер ==========
+    
+    public static void clearSanitaryMeasureObjKindsCache() {
+        synchronized (sanitaryMeasureObjKindsCache) {
+            sanitaryMeasureObjKindsCache.clear();
+            sanitaryMeasureObjKindsListCache.clear();
+            sanitaryMeasureObjKindsLoaded = false;
+        }
+    }
+    
+    public static void setSanitaryMeasureObjKindsCache(List<SanitaryMeasureObjKindOption> kinds) {
+        synchronized (sanitaryMeasureObjKindsCache) {
+            sanitaryMeasureObjKindsCache.clear();
+            sanitaryMeasureObjKindsListCache.clear();
+            for (SanitaryMeasureObjKindOption kind : kinds) {
+                sanitaryMeasureObjKindsCache.put(kind.code, kind.name);
+                sanitaryMeasureObjKindsListCache.add(kind);
+            }
+            sanitaryMeasureObjKindsLoaded = true;
+        }
+    }
+    
+    public static List<SanitaryMeasureObjKindOption> getSanitaryMeasureObjKindsList() {
+        synchronized (sanitaryMeasureObjKindsCache) {
+            return new ArrayList<>(sanitaryMeasureObjKindsListCache);
+        }
+    }
+    
+    public static String getSanitaryMeasureObjKindName(String code) {
+        synchronized (sanitaryMeasureObjKindsCache) {
+            return sanitaryMeasureObjKindsCache.get(code);
+        }
+    }
+    
+    public static boolean isSanitaryMeasureObjKindExists(String code) {
+        synchronized (sanitaryMeasureObjKindsCache) {
+            return sanitaryMeasureObjKindsCache.containsKey(code);
+        }
+    }
+    
+    public static boolean isSanitaryMeasureObjKindsLoaded() {
+        return sanitaryMeasureObjKindsLoaded;
+    }
+    
+    // ========== Методы для санитарных мер ==========
+    
+    public static void clearSanitaryMeasuresCache() {
+        synchronized (sanitaryMeasuresCache) {
+            sanitaryMeasuresCache.clear();
+            sanitaryMeasuresListCache.clear();
+            sanitaryMeasuresLoaded = false;
+        }
+    }
+    
+    public static void setSanitaryMeasuresCache(List<SanitaryMeasureOption> measures) {
+        synchronized (sanitaryMeasuresCache) {
+            sanitaryMeasuresCache.clear();
+            sanitaryMeasuresListCache.clear();
+            for (SanitaryMeasureOption measure : measures) {
+                sanitaryMeasuresCache.put(measure.code, measure.name);
+                sanitaryMeasuresListCache.add(measure);
+            }
+            sanitaryMeasuresLoaded = true;
+        }
+    }
+    
+    public static List<SanitaryMeasureOption> getSanitaryMeasuresList() {
+        synchronized (sanitaryMeasuresCache) {
+            return new ArrayList<>(sanitaryMeasuresListCache);
+        }
+    }
+    
+    public static String getSanitaryMeasureName(String code) {
+        synchronized (sanitaryMeasuresCache) {
+            return sanitaryMeasuresCache.get(code);
+        }
+    }
+    
+    public static boolean isSanitaryMeasureExists(String code) {
+        synchronized (sanitaryMeasuresCache) {
+            return sanitaryMeasuresCache.containsKey(code);
+        }
+    }
+    
+    public static boolean isSanitaryMeasuresLoaded() {
+        return sanitaryMeasuresLoaded;
     }
 }
 

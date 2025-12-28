@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { Card, Tabs, Button, Space, Switch } from 'antd'
 import { EditOutlined, EyeOutlined, DownloadOutlined, PlusOutlined } from '@ant-design/icons'
 import ProductTabEdit from '../tabs/ProductTabEdit'
@@ -59,29 +59,38 @@ const DangerousProductCard: React.FC<DangerousProductCardProps> = ({
     }
   }, [propOriginalXML, originalXML])
   
-  // Обновляем editedData при изменении data (только если не в режиме редактирования)
+  // Обновляем editedData при изменении data только если это новый документ
+  // (определяем по registrationNumber или version), чтобы не перезаписывать изменения пользователя
   useEffect(() => {
-    if (!isEditMode && editedData !== data) {
+    // Если это новый документ (другой registrationNumber или version), обновляем editedData
+    if (data.registrationNumber !== editedData.registrationNumber || 
+        data.version !== editedData.version) {
       setEditedData(data)
     }
-  }, [data, isEditMode])
+  }, [data.registrationNumber, data.version])
   
   // Проверка наличия данных
   if (!data) {
     return <div>Нет данных для отображения</div>
   }
 
-  const tabItems = [
+  // Используем editedData для отображения, чтобы изменения были видны даже в режиме просмотра
+  // Это позволяет пользователю видеть изменения без необходимости сохранять их
+  const currentData = editedData
+
+  // Создаем tabItems с использованием currentData, чтобы изменения были видны в режиме просмотра
+  // Используем useMemo, чтобы пересоздавать tabItems при изменении currentData
+  const tabItems = useMemo(() => [
     {
       key: 'notification',
       label: 'Уведомление',
-      children: <NotificationTab data={data.notification} />,
+      children: <NotificationTab data={currentData.notification} />,
     },
     {
       key: 'product',
       label: 'Продукция',
-      children: data.product ? (
-        <ProductTab data={data.product} />
+      children: currentData.product ? (
+        <ProductTab data={currentData.product} />
       ) : (
         <div>Данные о продукции не найдены</div>
       ),
@@ -89,8 +98,8 @@ const DangerousProductCard: React.FC<DangerousProductCardProps> = ({
     {
       key: 'tsd',
       label: 'ТСД',
-      children: data.tsd ? (
-        <TSDTab data={data.tsd} />
+      children: currentData.tsd ? (
+        <TSDTab data={currentData.tsd} />
       ) : (
         <div>Данные о партиях продукции не найдены</div>
       ),
@@ -98,8 +107,8 @@ const DangerousProductCard: React.FC<DangerousProductCardProps> = ({
     {
       key: 'compliance',
       label: 'Документы соответствия',
-      children: data.complianceDocuments ? (
-        <ComplianceDocumentsTab data={data.complianceDocuments} hasEditPermission={true} />
+      children: currentData.complianceDocuments ? (
+        <ComplianceDocumentsTab data={currentData.complianceDocuments} hasEditPermission={true} />
       ) : (
         <div>Данные о документах соответствия не найдены</div>
       ),
@@ -107,8 +116,8 @@ const DangerousProductCard: React.FC<DangerousProductCardProps> = ({
     {
       key: 'violations',
       label: 'Нарушения',
-      children: data.violations ? (
-        <ViolationsTab data={data.violations} />
+      children: currentData.violations ? (
+        <ViolationsTab data={currentData.violations} />
       ) : (
         <div>Данные о нарушениях не найдены</div>
       ),
@@ -116,8 +125,8 @@ const DangerousProductCard: React.FC<DangerousProductCardProps> = ({
     {
       key: 'detectionPlace',
       label: 'Место обнаружения',
-      children: data.detectionPlace ? (
-        <DetectionPlaceTab data={data.detectionPlace} />
+      children: currentData.detectionPlace ? (
+        <DetectionPlaceTab data={currentData.detectionPlace} />
       ) : (
         <div>Данные о месте обнаружения не найдены</div>
       ),
@@ -125,13 +134,13 @@ const DangerousProductCard: React.FC<DangerousProductCardProps> = ({
     {
       key: 'measures',
       label: 'Принятые меры',
-      children: data.measures ? (
-        <MeasuresTab data={data.measures} />
+      children: currentData.measures ? (
+        <MeasuresTab data={currentData.measures} />
       ) : (
         <div>Данные о принятых мерах не найдены</div>
       ),
     },
-  ]
+  ], [currentData])
 
   const handleExportXML = () => {
     const xmlString = exportCardDataToXML(editedData)
@@ -197,8 +206,6 @@ const DangerousProductCard: React.FC<DangerousProductCardProps> = ({
     setEditedData(data)
     setIsEditMode(false)
   }
-
-  const currentData = isEditMode ? editedData : data
 
   // Создаем редактируемые версии вкладок
   const tabItemsWithEdit = tabItems.map(item => {

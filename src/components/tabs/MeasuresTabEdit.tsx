@@ -4,6 +4,8 @@ import { PlusOutlined, DeleteOutlined } from '@ant-design/icons'
 import dayjs from 'dayjs'
 import ManufacturerDetailsEdit from '../common/ManufacturerDetailsEdit'
 import { useCountryOptions } from '@/hooks/useCountryOptions'
+import { useSanitaryMeasureObjKindOptions } from '@/hooks/useSanitaryMeasureObjKindOptions'
+import { useSanitaryMeasureOptions } from '@/hooks/useSanitaryMeasureOptions'
 import CountrySelect from '@/components/common/CountrySelect'
 import type { CountryOption } from '@/utils/referenceDataApi'
 import type {
@@ -31,6 +33,8 @@ const MeasuresTabEdit: React.FC<MeasuresTabEditProps> = ({ data, onChange }) => 
   const [selectedMeasureIndex, setSelectedMeasureIndex] = useState<number | null>(null)
   const [selectedImplementationIndex, setSelectedImplementationIndex] = useState<number | null>(null)
   const { countryOptions, loading: loadingCountries, normalizeCountryCode } = useCountryOptions()
+  const { getSelectOptions: getSanitaryMeasureObjKindSelectOptions, getNameByCode: getSanitaryMeasureObjKindNameByCode } = useSanitaryMeasureObjKindOptions()
+  const { getSelectOptions: getSanitaryMeasureSelectOptions, loading: loadingSanitaryMeasures } = useSanitaryMeasureOptions()
 
   const handleAddMeasure = () => {
     const newMeasure: SanitaryMeasure = {
@@ -277,10 +281,97 @@ const MeasuresTabEdit: React.FC<MeasuresTabEditProps> = ({ data, onChange }) => 
       title: 'Наименование меры',
       key: 'measureName',
       width: 300,
+      render: (_: any, record: SanitaryMeasure, index: number) => {
+        // Всегда показываем Select для выбора из справочника
+        // Если measureCodeListId не указан, устанавливаем его при выборе
+        return (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+            <Select
+              showSearch
+              placeholder="Выберите меру из справочника"
+              loading={loadingSanitaryMeasures}
+              value={record.measureCode}
+              onChange={(value) => {
+                const selectedOption = getSanitaryMeasureSelectOptions().find(opt => opt.value === value)
+                if (selectedOption) {
+                  // Извлекаем наименование из label (формат: "код - наименование")
+                  const measureName = selectedOption.label.includes(' - ') 
+                    ? selectedOption.label.split(' - ').slice(1).join(' - ')
+                    : selectedOption.label
+                  
+                  // Обновляем все поля одновременно через один вызов onChange
+                  const updatedMeasures = [...(data.measures || [])]
+                  updatedMeasures[index] = {
+                    ...updatedMeasures[index],
+                    measureCode: value,
+                    measureCodeListId: '1026', // Идентификатор справочника санитарных мер
+                    measureName: measureName,
+                  }
+                  onChange({
+                    ...data,
+                    measures: updatedMeasures,
+                  })
+                } else if (value === null || value === undefined) {
+                  // Если значение очищено, сбрасываем все связанные поля
+                  const updatedMeasures = [...(data.measures || [])]
+                  updatedMeasures[index] = {
+                    ...updatedMeasures[index],
+                    measureCode: undefined,
+                    measureCodeListId: undefined,
+                    measureName: undefined,
+                  }
+                  onChange({
+                    ...data,
+                    measures: updatedMeasures,
+                  })
+                } else {
+                  // Если опция не найдена, устанавливаем только код
+                  handleMeasureChange(index, 'measureCode', value)
+                }
+              }}
+              filterOption={(input, option) =>
+                (option?.label ?? '').toLowerCase().includes(input.toLowerCase())
+              }
+              options={getSanitaryMeasureSelectOptions()}
+              style={{ width: '100%' }}
+              allowClear
+            />
+            {/* Если measureCode не выбран, показываем Input для ручного ввода */}
+            {!record.measureCode && (
+              <Input
+                value={record.measureName || ''}
+                onChange={(e) => {
+                  handleMeasureChange(index, 'measureName', e.target.value)
+                  // Если вводим вручную, сбрасываем measureCode и measureCodeListId
+                  if (record.measureCode) {
+                    handleMeasureChange(index, 'measureCode', undefined)
+                    handleMeasureChange(index, 'measureCodeListId', undefined)
+                  }
+                }}
+                placeholder="Или введите наименование меры вручную"
+                size="small"
+              />
+            )}
+          </div>
+        )
+      },
+    },
+    {
+      title: 'Вид объекта действия',
+      key: 'affectedObject',
+      width: 200,
       render: (_: any, record: SanitaryMeasure, index: number) => (
-        <Input
-          value={record.measureName}
-          onChange={(e) => handleMeasureChange(index, 'measureName', e.target.value)}
+        <Select
+          showSearch
+          placeholder="Выберите вид объекта"
+          value={record.measureAffectedObjectKindCode}
+          onChange={(value) => handleMeasureChange(index, 'measureAffectedObjectKindCode', value)}
+          filterOption={(input, option) =>
+            (option?.label ?? '').toLowerCase().includes(input.toLowerCase())
+          }
+          options={getSanitaryMeasureObjKindSelectOptions()}
+          style={{ width: '100%' }}
+          allowClear
         />
       ),
     },
@@ -305,6 +396,32 @@ const MeasuresTabEdit: React.FC<MeasuresTabEditProps> = ({ data, onChange }) => 
           value={record.endDate ? dayjs(record.endDate) : null}
           onChange={(date) => handleMeasureChange(index, 'endDate', date ? date.format('YYYY-MM-DD') : '')}
           style={{ width: '100%' }}
+        />
+      ),
+    },
+    {
+      title: 'Обоснование',
+      key: 'justification',
+      width: 200,
+      render: (_: any, record: SanitaryMeasure, index: number) => (
+        <Input.TextArea
+          rows={2}
+          value={record.measureJustificationText || ''}
+          onChange={(e) => handleMeasureChange(index, 'measureJustificationText', e.target.value)}
+          placeholder="Текстовое описание обоснования"
+        />
+      ),
+    },
+    {
+      title: 'Описание',
+      key: 'description',
+      width: 200,
+      render: (_: any, record: SanitaryMeasure, index: number) => (
+        <Input.TextArea
+          rows={2}
+          value={record.description || ''}
+          onChange={(e) => handleMeasureChange(index, 'description', e.target.value)}
+          placeholder="Содержание (описание) вводимой меры"
         />
       ),
     },
@@ -352,6 +469,7 @@ const MeasuresTabEdit: React.FC<MeasuresTabEditProps> = ({ data, onChange }) => 
         columns={columns}
         rowKey={(record, index) => `measure-${index}`}
         pagination={false}
+        scroll={{ x: 'max-content' }}
         onRow={(record, index) => ({
           onClick: () => setSelectedMeasureIndex(selectedMeasureIndex === index ? null : index),
           style: { cursor: 'pointer' },
@@ -534,6 +652,27 @@ const MeasuresTabEdit: React.FC<MeasuresTabEditProps> = ({ data, onChange }) => 
                               onChange={(e) => handleImplementationChange(selectedMeasureIndex, implIndex, 'description', e.target.value)}
                             />
                           ),
+                        },
+                        {
+                          title: 'Вид объекта действия',
+                          key: 'measureAffectedObjectKindCode',
+                          width: 200,
+                          render: (_: any, record: MeasureImplementationItem, implIndex: number) => {
+                            const hasError = record.measureAffectedObjectKindCode && !getSanitaryMeasureObjKindNameByCode(record.measureAffectedObjectKindCode)
+                            return (
+                              <Select
+                                value={record.measureAffectedObjectKindCode}
+                                onChange={(value) => handleImplementationChange(selectedMeasureIndex, implIndex, 'measureAffectedObjectKindCode', value)}
+                                options={getSanitaryMeasureObjKindSelectOptions()}
+                                placeholder="Выберите вид объекта действия"
+                                style={{ width: '100%', borderColor: hasError ? '#ff4d4f' : undefined }}
+                                showSearch
+                                filterOption={(input, option) =>
+                                  (option?.label ?? '').toLowerCase().includes(input.toLowerCase())
+                                }
+                              />
+                            )
+                          },
                         },
                         {
                           title: 'Действия',

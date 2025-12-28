@@ -10,6 +10,8 @@ import com.eec.util.DictionaryCache.MeasurementUnitOption;
 import com.eec.util.DictionaryCache.ShipDocKindOption;
 import com.eec.util.DictionaryCache.SupplyChainPartyKindOption;
 import com.eec.util.DictionaryCache.TechRegulOption;
+import com.eec.util.DictionaryCache.SanitaryMeasureObjKindOption;
+import com.eec.util.DictionaryCache.SanitaryMeasureOption;
 
 import javax.servlet.ServletContextEvent;
 import javax.servlet.ServletContextListener;
@@ -41,6 +43,8 @@ public class DictionaryInitializerListener implements ServletContextListener {
         loadShipDocKindsDictionary();
         loadSupplyChainPartyKindsDictionary();
         loadTechRegulsDictionary();
+        loadSanitaryMeasureObjKindsDictionary();
+        loadSanitaryMeasuresDictionary();
         
         System.out.println("========================================");
         System.out.println("[DictionaryInitializer] Dictionary loading completed");
@@ -59,6 +63,8 @@ public class DictionaryInitializerListener implements ServletContextListener {
         DictionaryCache.clearShipDocKindsCache();
         DictionaryCache.clearSupplyChainPartyKindsCache();
         DictionaryCache.clearTechRegulsCache();
+        DictionaryCache.clearSanitaryMeasureObjKindsCache();
+        DictionaryCache.clearSanitaryMeasuresCache();
     }
     
     /**
@@ -424,6 +430,99 @@ public class DictionaryInitializerListener implements ServletContextListener {
             
         } catch (SQLException e) {
             System.err.println("[DictionaryInitializer] ERROR loading technical regulations dictionary: " + e.getMessage());
+            e.printStackTrace();
+        } finally {
+            DatabaseUtil.closeConnection(conn);
+        }
+    }
+    
+    /**
+     * Загружает справочник видов объектов действия мер из базы данных в кеш
+     */
+    private void loadSanitaryMeasureObjKindsDictionary() {
+        Connection conn = null;
+        try {
+            System.out.println("[DictionaryInitializer] Loading sanitary measure object kinds dictionary...");
+            conn = DatabaseUtil.getConnection();
+            
+            // Загружаем только активные записи (где SANITARYMEASUREOBJKINDACTFL = 1)
+            String sql = "SELECT SANITARYMEASUREOBJKINDCODE, SANITARYMEASUREOBJKINDNAME " +
+                        "FROM SESINT.SANITARYMEASUREOBJKIND " +
+                        "WHERE SANITARYMEASUREOBJKINDACTFL = 1 " +
+                        "ORDER BY NVL(SANITARYMEASUREOBJKINDSEQNUM, 999999), SANITARYMEASUREOBJKINDNAME";
+            
+            PreparedStatement stmt = conn.prepareStatement(sql);
+            ResultSet rs = stmt.executeQuery();
+            
+            List<SanitaryMeasureObjKindOption> kinds = new ArrayList<>();
+            int count = 0;
+            
+            while (rs.next()) {
+                String code = rs.getString("SANITARYMEASUREOBJKINDCODE");
+                String name = rs.getString("SANITARYMEASUREOBJKINDNAME");
+                
+                kinds.add(new SanitaryMeasureObjKindOption(
+                    code != null ? code : "",
+                    name != null ? name : ""
+                ));
+                count++;
+            }
+            
+            DictionaryCache.setSanitaryMeasureObjKindsCache(kinds);
+            System.out.println("[DictionaryInitializer] Loaded " + count + " sanitary measure object kinds into cache");
+            
+            rs.close();
+            stmt.close();
+            
+        } catch (SQLException e) {
+            System.err.println("[DictionaryInitializer] ERROR loading sanitary measure object kinds dictionary: " + e.getMessage());
+            e.printStackTrace();
+        } finally {
+            DatabaseUtil.closeConnection(conn);
+        }
+    }
+    
+    /**
+     * Загружает справочник санитарных мер из базы данных в кеш
+     */
+    private void loadSanitaryMeasuresDictionary() {
+        Connection conn = null;
+        try {
+            System.out.println("[DictionaryInitializer] Loading sanitary measures dictionary...");
+            conn = DatabaseUtil.getConnection();
+            
+            // Загружаем только активные записи (где SANITARYMEASURESDATE <= SYSDATE и (SANITARYMEASUREEDATE IS NULL или SANITARYMEASUREEDATE >= SYSDATE))
+            String sql = "SELECT SANITARYMEASURECODE, SANITARYMEASURENAME " +
+                        "FROM SESINT.SANITARYMEASURE " +
+                        "WHERE SANITARYMEASURESDATE <= SYSDATE " +
+                        "AND (SANITARYMEASUREEDATE IS NULL OR SANITARYMEASUREEDATE >= SYSDATE) " +
+                        "ORDER BY SANITARYMEASURECODE";
+            
+            PreparedStatement stmt = conn.prepareStatement(sql);
+            ResultSet rs = stmt.executeQuery();
+            
+            List<SanitaryMeasureOption> measures = new ArrayList<>();
+            int count = 0;
+            
+            while (rs.next()) {
+                String code = rs.getString("SANITARYMEASURECODE");
+                String name = rs.getString("SANITARYMEASURENAME");
+                
+                measures.add(new SanitaryMeasureOption(
+                    code != null ? code : "",
+                    name != null ? name : ""
+                ));
+                count++;
+            }
+            
+            DictionaryCache.setSanitaryMeasuresCache(measures);
+            System.out.println("[DictionaryInitializer] Loaded " + count + " sanitary measures into cache");
+            
+            rs.close();
+            stmt.close();
+            
+        } catch (SQLException e) {
+            System.err.println("[DictionaryInitializer] ERROR loading sanitary measures dictionary: " + e.getMessage());
             e.printStackTrace();
         } finally {
             DatabaseUtil.closeConnection(conn);

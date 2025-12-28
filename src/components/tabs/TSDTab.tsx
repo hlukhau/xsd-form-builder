@@ -1,6 +1,5 @@
 import { useState } from 'react'
 import { Descriptions, Table, Collapse, Button, Modal } from 'antd'
-import { EyeOutlined } from '@ant-design/icons'
 import { format } from 'date-fns'
 import { ru } from 'date-fns/locale'
 import ProductTab from './ProductTab'
@@ -93,19 +92,6 @@ const TSDTab: React.FC<TSDTabProps> = ({ data }) => {
       key: 'docCreationDate',
       render: (date: string) => formatDate(date),
     },
-    {
-      title: 'Действия',
-      key: 'actions',
-      render: (_: any, record: ShippingDocument) => (
-        <Button
-          type="link"
-          icon={<EyeOutlined />}
-          onClick={() => setSelectedDocument(record)}
-        >
-          Детализация
-        </Button>
-      ),
-    },
   ]
 
   return (
@@ -143,6 +129,21 @@ const TSDTab: React.FC<TSDTabProps> = ({ data }) => {
           columns={shippingDocsColumns}
           rowKey={(record, index) => index?.toString() || ''}
           pagination={false}
+          onRow={(record, index) => ({
+            onClick: () => {
+              // Переключаем детализацию: если уже выбран этот документ, скрываем, иначе показываем
+              if (selectedDocument === record) {
+                setSelectedDocument(null)
+              } else {
+                setSelectedDocument(record)
+              }
+            },
+            style: { cursor: 'pointer' },
+          })}
+          rowClassName={(record, index) => {
+            // Выделяем выбранную строку
+            return selectedDocument === record ? 'ant-table-row-selected' : ''
+          }}
         />
       </div>
 

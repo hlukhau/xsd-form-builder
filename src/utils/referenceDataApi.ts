@@ -59,6 +59,16 @@ export interface TechRegulOption {
   regNum: string
 }
 
+export interface SanitaryMeasureObjKindOption {
+  code: string
+  name: string
+}
+
+export interface SanitaryMeasureOption {
+  code: string
+  name: string
+}
+
 /**
  * Получить все активные страны
  */
@@ -423,6 +433,104 @@ export async function getTechRegulNameByCode(code: string): Promise<string | nul
     return option ? option.name : null
   } catch (error) {
     console.error('Ошибка получения названия технического регламента:', error)
+    return null
+  }
+}
+
+/**
+ * Получить все опции видов объектов действия мер
+ */
+export async function getSanitaryMeasureObjKindOptions(): Promise<SanitaryMeasureObjKindOption[]> {
+  try {
+    const response = await fetch(`${BASE_URL}api/sanitary-measure-obj-kinds/options`)
+    if (!response.ok) {
+      throw new Error(`Ошибка загрузки опций видов объектов действия мер: ${response.statusText}`)
+    }
+    return await response.json()
+  } catch (error) {
+    console.error('Ошибка загрузки опций видов объектов действия мер:', error)
+    throw error
+  }
+}
+
+/**
+ * Проверить существование вида объекта действия мер по коду
+ */
+export async function checkSanitaryMeasureObjKindExists(code: string): Promise<boolean> {
+  if (!code || code.trim().length === 0) {
+    return false
+  }
+  try {
+    const options = await getSanitaryMeasureObjKindOptions()
+    return options.some(opt => opt.code === code)
+  } catch (error) {
+    console.error('Ошибка проверки вида объекта действия мер:', error)
+    return false
+  }
+}
+
+/**
+ * Получить название вида объекта действия мер по коду
+ */
+export async function getSanitaryMeasureObjKindNameByCode(code: string): Promise<string | null> {
+  if (!code || code.trim().length === 0) {
+    return null
+  }
+  try {
+    const options = await getSanitaryMeasureObjKindOptions()
+    const option = options.find(opt => opt.code === code)
+    return option ? option.name : null
+  } catch (error) {
+    console.error('Ошибка получения названия вида объекта действия мер:', error)
+    return null
+  }
+}
+
+/**
+ * Получить все опции санитарных мер
+ */
+export async function getSanitaryMeasureOptions(): Promise<SanitaryMeasureOption[]> {
+  try {
+    const response = await fetch(`${BASE_URL}api/sanitary-measures/options`)
+    if (!response.ok) {
+      throw new Error(`Ошибка загрузки опций санитарных мер: ${response.statusText}`)
+    }
+    return await response.json()
+  } catch (error) {
+    console.error('Ошибка загрузки опций санитарных мер:', error)
+    throw error
+  }
+}
+
+/**
+ * Проверить существование санитарной меры по коду
+ */
+export async function checkSanitaryMeasureExists(code: string): Promise<boolean> {
+  if (!code || code.trim().length === 0) {
+    return false
+  }
+  try {
+    const options = await getSanitaryMeasureOptions()
+    return options.some(opt => opt.code === code)
+  } catch (error) {
+    console.error('Ошибка проверки санитарной меры:', error)
+    return false
+  }
+}
+
+/**
+ * Получить название санитарной меры по коду
+ */
+export async function getSanitaryMeasureNameByCode(code: string): Promise<string | null> {
+  if (!code || code.trim().length === 0) {
+    return null
+  }
+  try {
+    const options = await getSanitaryMeasureOptions()
+    const option = options.find(opt => opt.code === code)
+    return option ? option.name : null
+  } catch (error) {
+    console.error('Ошибка получения названия санитарной меры:', error)
     return null
   }
 }

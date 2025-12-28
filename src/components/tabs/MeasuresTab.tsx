@@ -1,9 +1,12 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Table, Button, Descriptions, Collapse } from 'antd'
 import { DownloadOutlined } from '@ant-design/icons'
 import { format } from 'date-fns'
 import { ru } from 'date-fns/locale'
 import ManufacturerDetails from '../common/ManufacturerDetails'
+import { getLanguageName } from '@/hooks/useLanguageOptions'
+import { useSanitaryMeasureOptions } from '@/hooks/useSanitaryMeasureOptions'
+import { useSanitaryMeasureObjKindOptions } from '@/hooks/useSanitaryMeasureObjKindOptions'
 import type {
   MeasuresData,
   SanitaryMeasure,
@@ -22,6 +25,8 @@ interface MeasuresTabProps {
 const MeasuresTab: React.FC<MeasuresTabProps> = ({ data }) => {
   const [selectedMeasureIndex, setSelectedMeasureIndex] = useState<number | null>(null)
   const [selectedImplementationIndex, setSelectedImplementationIndex] = useState<number | null>(null)
+  const { getNameByCode: getSanitaryMeasureNameByCode } = useSanitaryMeasureOptions()
+  const { getNameByCode: getSanitaryMeasureObjKindNameByCode } = useSanitaryMeasureObjKindOptions()
 
   const formatDate = (date: string | null | undefined) => {
     if (!date) return '-'
@@ -30,21 +35,22 @@ const MeasuresTab: React.FC<MeasuresTabProps> = ({ data }) => {
     return format(dateObj, 'dd.MM.yyyy', { locale: ru })
   }
 
-  const getLanguageName = (code?: string): string => {
-    const langMap: Record<string, string> = {
-      'ru': 'Русский',
-      'en': 'Английский',
-      'by': 'Белорусский',
-    }
-    return code ? (langMap[code] || code) : '-'
+  const getMeasureAffectedObjectKindName = (code?: string): string => {
+    if (!code) return '-'
+    const name = getSanitaryMeasureObjKindNameByCode(code)
+    return name || `Вид объекта (код: ${code})`
   }
 
-  const getMeasureAffectedObjectKindName = (code?: string): string => {
-    const kindMap: Record<string, string> = {
-      '1': 'Продукция',
-      '2': 'Объект',
+  const getMeasureName = (measure: SanitaryMeasure): string => {
+    // Если указаны MeasureCode и codeListId, используем справочник
+    if (measure.measureCode && measure.measureCodeListId) {
+      const nameFromDict = getSanitaryMeasureNameByCode(measure.measureCode)
+      if (nameFromDict) {
+        return nameFromDict
+      }
     }
-    return code ? (kindMap[code] || `Вид объекта (код: ${code})`) : '-'
+    // Иначе используем MeasureName
+    return measure.measureName || '-'
   }
 
   const getCountryName = (code?: string): string => {
@@ -72,10 +78,10 @@ const MeasuresTab: React.FC<MeasuresTabProps> = ({ data }) => {
     {
       title: 'Язык',
       key: 'language',
-      width: 100,
+      width: 150,
       render: (_: any, record: SanitaryMeasure) => (
         <div style={{ wordWrap: 'break-word', whiteSpace: 'normal' }}>
-          {getLanguageName(record.languageCode)}
+          {record.languageCode ? `${record.languageCode.toUpperCase()} - ${getLanguageName(record.languageCode)}` : '-'}
         </div>
       ),
     },
@@ -85,7 +91,7 @@ const MeasuresTab: React.FC<MeasuresTabProps> = ({ data }) => {
       width: 300,
       render: (_: any, record: SanitaryMeasure) => (
         <div style={{ wordWrap: 'break-word', whiteSpace: 'normal' }}>
-          {record.measureName || '-'}
+          {getMeasureName(record)}
         </div>
       ),
     },
@@ -226,14 +232,6 @@ const MeasureDocDetailsView: React.FC<{ doc: MeasureDocDetails }> = ({ doc }) =>
     return format(dateObj, 'dd.MM.yyyy', { locale: ru })
   }
 
-  const getLanguageName = (code?: string): string => {
-    const langMap: Record<string, string> = {
-      'ru': 'Русский',
-      'en': 'Английский',
-    }
-    return code ? (langMap[code] || code) : '-'
-  }
-
   const getCountryName = (code?: string): string => {
     const countryMap: Record<string, string> = {
       'RU': 'Россия',
@@ -302,6 +300,31 @@ const MeasureImplementationView: React.FC<{
   selectedIndex: number | null
   onRowClick: (index: number) => void
 }> = ({ items, selectedIndex, onRowClick }) => {
+  const { getNameByCode: getSanitaryMeasureObjKindNameByCode } = useSanitaryMeasureObjKindOptions()
+  const [objKindNamesCache, setObjKindNamesCache] = useState<Record<string, string>>({})
+
+  // Загружаем названия видов объектов действия
+  useEffect(() => {
+    const loadObjKindNames = async () => {
+      const names: Record<string, string> = {}
+      for (const item of items) {
+        if (item.measureAffectedObjectKindCode) {
+          try {
+            const name = await getSanitaryMeasureObjKindNameByCode(item.measureAffectedObjectKindCode)
+            if (name) {
+              names[item.measureAffectedObjectKindCode] = name
+            }
+          } catch (error) {
+            console.error('Ошибка загрузки названия вида объекта действия:', error)
+          }
+        }
+      }
+      setObjKindNamesCache(names)
+    }
+
+    loadObjKindNames()
+  }, [items, getSanitaryMeasureObjKindNameByCode])
+
   const formatDate = (date: string | null | undefined) => {
     if (!date) return '-'
     const dateObj = new Date(date)
@@ -319,11 +342,9 @@ const MeasureImplementationView: React.FC<{
   }
 
   const getMeasureAffectedObjectKindName = (code?: string): string => {
-    const kindMap: Record<string, string> = {
-      '1': 'Продукция',
-      '2': 'Объект',
-    }
-    return code ? (kindMap[code] || `Вид объекта (код: ${code})`) : '-'
+    if (!code) return '-'
+    const name = getSanitaryMeasureObjKindNameByCode(code)
+    return name || `Вид объекта (код: ${code})`
   }
 
   const columns = [
