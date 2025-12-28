@@ -124,6 +124,33 @@
         <url-pattern>/api/measurement-units/options</url-pattern>
     </servlet-mapping>
 
+    <servlet>
+        <servlet-name>ShipDocKindOptionsServlet</servlet-name>
+        <servlet-class>com.eec.servlet.ShipDocKindOptionsServlet</servlet-class>
+    </servlet>
+    <servlet-mapping>
+        <servlet-name>ShipDocKindOptionsServlet</servlet-name>
+        <url-pattern>/api/ship-doc-kinds/options</url-pattern>
+    </servlet-mapping>
+
+    <servlet>
+        <servlet-name>SupplyChainPartyKindOptionsServlet</servlet-name>
+        <servlet-class>com.eec.servlet.SupplyChainPartyKindOptionsServlet</servlet-class>
+    </servlet>
+    <servlet-mapping>
+        <servlet-name>SupplyChainPartyKindOptionsServlet</servlet-name>
+        <url-pattern>/api/supply-chain-party-kinds/options</url-pattern>
+    </servlet-mapping>
+
+    <servlet>
+        <servlet-name>TechRegulOptionsServlet</servlet-name>
+        <servlet-class>com.eec.servlet.TechRegulOptionsServlet</servlet-class>
+    </servlet>
+    <servlet-mapping>
+        <servlet-name>TechRegulOptionsServlet</servlet-name>
+        <url-pattern>/api/tech-reguls/options</url-pattern>
+    </servlet-mapping>
+
     <!-- SPA Servlet для обработки маршрутизации (должен быть последним) -->
     <!-- НЕ используем паттерн / или /*, чтобы не перехватывать API запросы -->
     <!-- Используем error-page для 404, чтобы возвращать index.html для SPA routes -->

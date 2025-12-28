@@ -33,7 +33,7 @@ import type {
   DocumentReferenceDetails,
   MeasurePlaceDetails,
 } from '@/types/card'
-import { getIncidentAlertKindNameByCode, checkIncidentAlertKindExists, getIncidentAlertKindOptions, checkSanitaryProdTypeExists, getSanitaryProdTypeOptions } from '@/utils/referenceDataApi'
+import { getIncidentAlertKindNameByCode, checkIncidentAlertKindExists, getIncidentAlertKindOptions, checkSanitaryProdTypeExists, getSanitaryProdTypeOptions, checkShipDocKindExists, checkSupplyChainPartyKindExists } from '@/utils/referenceDataApi'
 
 /**
  * Парсит XML документ и преобразует его в структуру CardData
@@ -147,29 +147,50 @@ export function parseXMLToCardData(xmlText: string): CardData {
   
   console.log('Извлеченные данные:', { country, registrationNumber, incidentKindCode, docCreationDate })
 
-  // Уполномоченный орган - ищем по локальному имени
+  // Уполномоченный орган - ищем по namespace и локальному имени
   let authority: Element | null = null
-  const allElements = alertDetails.getElementsByTagName('*')
-  for (let i = 0; i < allElements.length; i++) {
-    const el = allElements[i]
-    const localName = el.localName || el.tagName.split(':').pop()?.toLowerCase()
-    if (localName === 'unifiedauthoritydetails') {
-      authority = el
-      break
+  try {
+    const authorityElements = alertDetails.getElementsByTagName('ccdo:UnifiedAuthorityDetails')
+    if (authorityElements.length > 0) {
+      authority = authorityElements[0]
+      console.log('[parseXMLToCardData] Найден UnifiedAuthorityDetails через namespace')
+    }
+  } catch (e) {
+    console.log('[parseXMLToCardData] Ошибка при поиске через namespace:', e)
+  }
+  
+  // Если не нашли через namespace, ищем по локальному имени
+  if (!authority) {
+    const allElements = alertDetails.getElementsByTagName('*')
+    for (let i = 0; i < allElements.length; i++) {
+      const el = allElements[i]
+      const localName = el.localName || el.tagName.split(':').pop()?.toLowerCase()
+      if (localName === 'unifiedauthoritydetails') {
+        authority = el
+        console.log('[parseXMLToCardData] Найден UnifiedAuthorityDetails по локальному имени')
+        break
+      }
     }
   }
   
-  const authorizedBody = {
-    country: getTextContent(authority, 'UnifiedCountryCode') || '',
-    identifier: getTextContent(authority, 'AuthorityId') || '',
-    name: getTextContent(authority, 'AuthorityName') || '',
-    shortName: getTextContent(authority, 'AuthorityShortName') || '',
+  if (!authority) {
+    console.warn('[parseXMLToCardData] UnifiedAuthorityDetails не найден!')
   }
+  
+  const authorizedBody = {
+    country: authority ? (getTextContent(authority, 'UnifiedCountryCode') || '') : '',
+    identifier: authority ? (getTextContent(authority, 'AuthorityId') || '') : '',
+    name: authority ? (getTextContent(authority, 'AuthorityName') || '') : '',
+    shortName: authority ? (getTextContent(authority, 'AuthorityBriefName') || getTextContent(authority, 'AuthorityShortName') || '') : '',
+  }
+  
+  console.log('[parseXMLToCardData] authorizedBody:', authorizedBody)
 
   // ResourceItemStatusDetails - ищем по локальному имени
   let resourceStatus: Element | null = null
-  for (let i = 0; i < allElements.length; i++) {
-    const el = allElements[i]
+  const allElementsForResource = alertDetails.getElementsByTagName('*')
+  for (let i = 0; i < allElementsForResource.length; i++) {
+    const el = allElementsForResource[i]
     const localName = el.localName || el.tagName.split(':').pop()?.toLowerCase()
     if (localName === 'resourceitemstatusdetails') {
       resourceStatus = el
@@ -569,23 +590,13 @@ function parseTechnicalDocs(parent: Element | null): TechnicalDocument[] {
   if (!parent) return []
 
   const docs: TechnicalDocument[] = []
-  const allElements = parent.getElementsByTagName('*')
-
-  for (let i = 0; i < allElements.length; i++) {
-    const el = allElements[i]
-    const localName = el.localName || el.tagName.split(':').pop()?.toLowerCase()
-    
-    // Ищем элементы, которые могут быть документами
-    // DocReferenceDetails, DocContentDetailsType, TechnicalDocDetails, DocDetails и т.д.
-    if (
-      localName === 'docreferencedetails' ||
-      localName?.includes('docdetails') ||
-      localName === 'technicaldocdetails' ||
-      localName === 'doccontentdetails'
-    ) {
+  
+  // Сначала пробуем найти через namespace
+  try {
+    const docRefElements = parent.getElementsByTagName('ccdo:DocReferenceDetails')
+    for (let i = 0; i < docRefElements.length; i++) {
+      const el = docRefElements[i]
       const doc: TechnicalDocument = {
-        docKindCode: getTextContent(el, 'DocKindCode') || undefined,
-        docKindName: getTextContent(el, 'DocKindName') || undefined,
         docName: getTextContent(el, 'DocName') || undefined,
         docId: getTextContent(el, 'DocId') || undefined,
         docCreationDate: getTextContent(el, 'DocCreationDate') || undefined,
@@ -593,12 +604,47 @@ function parseTechnicalDocs(parent: Element | null): TechnicalDocument[] {
       }
       
       // Добавляем только если есть хотя бы одно поле
-      if (doc.docName || doc.docId || doc.docKindCode) {
+      if (doc.docName || doc.docId) {
         docs.push(doc)
+      }
+    }
+  } catch (e) {
+    console.log('[parseTechnicalDocs] Ошибка при поиске через namespace:', e)
+  }
+  
+  // Если не нашли через namespace, ищем по локальному имени
+  if (docs.length === 0) {
+    const allElements = parent.getElementsByTagName('*')
+    for (let i = 0; i < allElements.length; i++) {
+      const el = allElements[i]
+      const localName = el.localName || el.tagName.split(':').pop()?.toLowerCase()
+      
+      // Ищем элементы, которые могут быть документами
+      // DocReferenceDetails, DocContentDetailsType, TechnicalDocDetails, DocDetails и т.д.
+      if (
+        localName === 'docreferencedetails' ||
+        localName?.includes('docdetails') ||
+        localName === 'technicaldocdetails' ||
+        localName === 'doccontentdetails'
+      ) {
+        const doc: TechnicalDocument = {
+          docKindCode: getTextContent(el, 'DocKindCode') || undefined,
+          docKindName: getTextContent(el, 'DocKindName') || undefined,
+          docName: getTextContent(el, 'DocName') || undefined,
+          docId: getTextContent(el, 'DocId') || undefined,
+          docCreationDate: getTextContent(el, 'DocCreationDate') || undefined,
+          docStartDate: getTextContent(el, 'DocStartDate') || undefined,
+        }
+        
+        // Добавляем только если есть хотя бы одно поле
+        if (doc.docName || doc.docId || doc.docKindCode) {
+          docs.push(doc)
+        }
       }
     }
   }
 
+  console.log('[parseTechnicalDocs] Найдено документов:', docs.length)
   return docs
 }
 
@@ -738,27 +784,51 @@ function parseSupplyChainPartyDetails(supplyChainEl: Element): SupplyChainPartyD
   
   // Метод идентификации может быть в kindId атрибуте BusinessEntityId
   let identificationMethod = getTextContent(supplyChainEl, 'IdentificationMethodText') || undefined
-  if (!identificationMethod && subjectIdentifier) {
+  if (!identificationMethod) {
     // Пробуем найти BusinessEntityId элемент и получить kindId
-    const businessEntityIdEl = supplyChainEl.querySelector('BusinessEntityId') || 
-      Array.from(supplyChainEl.getElementsByTagName('*')).find(el => {
+    // Ищем с учетом пространств имен
+    const namespaces = ['ccdo', 'csdo', 'smsdo', 'smcdo', 'doc']
+    let businessEntityIdEl: Element | null = null
+    
+    for (const ns of namespaces) {
+      try {
+        const elements = supplyChainEl.getElementsByTagName(`${ns}:BusinessEntityId`)
+        if (elements.length > 0) {
+          businessEntityIdEl = elements[0]
+          break
+        }
+      } catch (e) {
+        // Игнорируем ошибки
+      }
+    }
+    
+    // Если не нашли через namespace, ищем по локальному имени
+    if (!businessEntityIdEl) {
+      const allElements = supplyChainEl.getElementsByTagName('*')
+      for (let i = 0; i < allElements.length; i++) {
+        const el = allElements[i]
         const localName = el.localName || el.tagName.split(':').pop()?.toLowerCase()
-        return localName === 'businessentityid'
-      })
+        if (localName === 'businessentityid') {
+          businessEntityIdEl = el
+          break
+        }
+      }
+    }
+    
     if (businessEntityIdEl) {
       const kindId = businessEntityIdEl.getAttribute('kindId')
       if (kindId) {
         // В реальном приложении здесь обращение к справочнику
-        const kindIdMap: Record<string, string> = {
-          'RU01': 'ОГРН - основной государственный регистрационный номер юридического лица, указанный в Едином государственном реестре юридических лиц',
-        }
-        identificationMethod = kindIdMap[kindId] || `Метод идентификации (код: ${kindId})`
+        // Сохраняем код kindId, а не описание, чтобы можно было экспортировать обратно
+        identificationMethod = kindId
+        console.log('[parseSupplyChainPartyDetails] Найден identificationMethod (kindId):', kindId)
       }
     }
   }
   
   const customsNumber = getTextContent(supplyChainEl, 'CustomsNumber') || undefined
   const taxpayerId = getTextContent(supplyChainEl, 'TaxpayerId') || undefined
+  const taxRegistrationReasonCode = getTextContent(supplyChainEl, 'TaxRegistrationReasonCode') || undefined
   const supplyChainPartyKindCode = getTextContent(supplyChainEl, 'SupplyChainPartyKindCode') || undefined
 
   // Парсим адреса - находим все адреса
@@ -774,10 +844,12 @@ function parseSupplyChainPartyDetails(supplyChainEl: Element): SupplyChainPartyD
     businessEntityName,
     shortName,
     organizationalForm,
+    businessEntityTypeCode,
     subjectIdentifier,
     identificationMethod,
     customsNumber,
     taxpayerId,
+    taxRegistrationReasonCode,
     registrationAddress,
     actualAddress,
     mailingAddress,
@@ -834,24 +906,19 @@ function parseAddressDetails(addressEl: Element): AddressDetails {
   const buildingNumberId = getTextContent(addressEl, 'BuildingNumberId') || ''
   const roomNumberId = getTextContent(addressEl, 'RoomNumberId') || ''
   const postCode = getTextContent(addressEl, 'PostCode') || ''
-  
-  const parts = []
-  if (country) parts.push(country)
-  if (regionName) parts.push(regionName)
-  if (districtName) parts.push(districtName)
-  if (cityName) parts.push(cityName)
-  if (streetName) parts.push(streetName)
-  if (buildingNumberId) parts.push(buildingNumberId)
-  if (roomNumberId) parts.push(roomNumberId)
-  if (postCode) parts.push(postCode)
+  const fullAddress = getTextContent(addressEl, 'FullAddress') || undefined
   
   return {
     addressKindCode: getTextContent(addressEl, 'AddressKindCode') || undefined,
     country: country || undefined,
+    regionName: regionName || undefined,
+    districtName: districtName || undefined,
     cityName: cityName || undefined,
     streetName: streetName || undefined,
     buildingNumberId: buildingNumberId || undefined,
-    fullAddress: parts.length > 0 ? parts.join(', ') : undefined,
+    roomNumberId: roomNumberId || undefined,
+    postCode: postCode || undefined,
+    fullAddress: fullAddress,
   }
 }
 
@@ -864,24 +931,23 @@ function parseContacts(parent: Element): ContactDetails[] {
   // Пробуем найти через getElementsByTagName
   try {
     const commElements = parent.getElementsByTagName('ccdo:CommunicationDetails')
-    console.log('Найдено CommunicationDetails через getElementsByTagName:', commElements.length)
+    console.log('[parseContacts] Найдено CommunicationDetails через getElementsByTagName:', commElements.length)
     for (let i = 0; i < commElements.length; i++) {
       const el = commElements[i]
       const channelCode = getTextContent(el, 'CommunicationChannelCode') || undefined
+      const channelName = getTextContent(el, 'CommunicationChannelName') || undefined
       const channelId = getTextContent(el, 'CommunicationChannelId') || undefined
       
-      if (channelCode || channelId) {
-        // Определяем тип контакта по коду
-        const channelNameMap: Record<string, string> = {
-          'TE': 'телефон',
-          'EM': 'электронная почта',
-          'FX': 'факс',
-        }
-        const contactKind = channelCode ? (channelNameMap[channelCode] || channelCode) : undefined
-        
+      const contactKind = getTextContent(el, 'ContactKind') || undefined
+      const contactValue = getTextContent(el, 'ContactValue') || undefined
+      
+      if (channelCode || channelName || channelId || contactKind || contactValue) {
         contacts.push({
           contactKind,
-          contactValue: channelId,
+          contactValue,
+          communicationChannelCode: channelCode,
+          communicationChannelName: channelName,
+          communicationChannelId: channelId,
         })
       }
     }
@@ -901,21 +967,18 @@ function parseContacts(parent: Element): ContactDetails[] {
           localName?.includes('contact') || 
           localName === 'contactdetails') {
         const channelCode = getTextContent(el, 'CommunicationChannelCode') || undefined
+        const channelName = getTextContent(el, 'CommunicationChannelName') || undefined
         const channelId = getTextContent(el, 'CommunicationChannelId') || undefined
-        const contactKind = getTextContent(el, 'ContactKindCode') || getTextContent(el, 'ContactKindName') || undefined
-        const contactValue = getTextContent(el, 'ContactValue') || getTextContent(el, 'ContactText') || channelId || undefined
+        const contactKind = getTextContent(el, 'ContactKind') || undefined
+        const contactValue = getTextContent(el, 'ContactValue') || undefined
         
-        if (contactKind || contactValue) {
-          const channelNameMap: Record<string, string> = {
-            'TE': 'телефон',
-            'EM': 'электронная почта',
-            'FX': 'факс',
-          }
-          const finalContactKind = contactKind || (channelCode ? (channelNameMap[channelCode] || channelCode) : undefined)
-          
+        if (channelCode || channelName || channelId || contactKind || contactValue) {
           contacts.push({
-            contactKind: finalContactKind,
+            contactKind,
             contactValue,
+            communicationChannelCode: channelCode,
+            communicationChannelName: channelName,
+            communicationChannelId: channelId,
           })
         }
       }
@@ -1176,18 +1239,20 @@ function parseBatchDetails(batchElement: Element): ProductBatchDetails | null {
   const batchId = batchDetailsEl ? getTextContent(batchDetailsEl, 'BatchId') : undefined
   const manufactureDate = batchDetailsEl ? getTextContent(batchDetailsEl, 'ManufactureDate') : undefined
   const productShelfLifeEndDate = batchDetailsEl ? getTextContent(batchDetailsEl, 'ProductShelfLifeEndDate') : undefined
-  const note = getTextContent(batchElement, 'NoteText') || undefined
+  const note = batchDetailsEl ? getTextContent(batchDetailsEl, 'NoteText') : (getTextContent(batchElement, 'NoteText') || undefined)
   const consignmentId = getTextContent(batchElement, 'ConsignmentId') || undefined
   
   console.log('Извлеченные данные партии:', { batchId, manufactureDate, productShelfLifeEndDate, consignmentId })
+  console.log('[parseBatchDetails] batchDetailsEl:', batchDetailsEl ? 'найден' : 'не найден')
+  console.log('[parseBatchDetails] batchElement:', batchElement.tagName)
   
   // UnifiedCommodityMeasure
   const commodityMeasure = parseMeasure(batchDetailsEl, 'UnifiedCommodityMeasure')
-  console.log('CommodityMeasure:', commodityMeasure)
+  console.log('[parseBatchDetails] commodityMeasure:', commodityMeasure)
   
   // CommodityMeasure
   const batchCommodityMeasure = parseMeasure(batchElement, 'CommodityMeasure')
-  console.log('BatchCommodityMeasure:', batchCommodityMeasure)
+  console.log('[parseBatchDetails] batchCommodityMeasure:', batchCommodityMeasure)
   
   // ShippingDocumentDetails
   const shippingDocuments: ShippingDocument[] = []
@@ -1421,28 +1486,56 @@ function parseSupplyChainPartiesFromElement(parent: Element): SupplyChainPartyDe
  * Парсит меру с единицей измерения
  */
 function parseMeasure(parent: Element | null, tagName: string): MeasureWithUnit | undefined {
-  if (!parent) return undefined
+  if (!parent) {
+    console.log(`[parseMeasure] parent is null for tagName: ${tagName}`)
+    return undefined
+  }
   
-  // Ищем элемент по локальному имени
+  // Сначала пробуем найти через namespace (csdo: для CommodityMeasure и UnifiedCommodityMeasure)
   let measureEl: Element | null = null
-  const allElements = parent.getElementsByTagName('*')
+  try {
+    const namespaceTagName = `csdo:${tagName}`
+    const elements = parent.getElementsByTagName(namespaceTagName)
+    if (elements.length > 0) {
+      measureEl = elements[0]
+      console.log(`[parseMeasure] Найден ${tagName} через namespace: ${namespaceTagName}`)
+    }
+  } catch (e) {
+    console.log(`[parseMeasure] Ошибка при поиске через namespace для ${tagName}:`, e)
+  }
   
-  for (let i = 0; i < allElements.length; i++) {
-    const el = allElements[i]
-    const localName = el.localName || el.tagName.split(':').pop()?.toLowerCase()
-    if (localName === tagName.toLowerCase()) {
-      measureEl = el
-      break
+  // Если не нашли через namespace, ищем по локальному имени
+  if (!measureEl) {
+    const allElements = parent.getElementsByTagName('*')
+    for (let i = 0; i < allElements.length; i++) {
+      const el = allElements[i]
+      const localName = el.localName || el.tagName.split(':').pop()?.toLowerCase()
+      if (localName === tagName.toLowerCase()) {
+        // Проверяем, что это прямой потомок или вложенный элемент
+        if (el.parentElement === parent || parent.contains(el)) {
+          measureEl = el
+          console.log(`[parseMeasure] Найден ${tagName} по локальному имени: ${el.tagName}`)
+          break
+        }
+      }
     }
   }
   
-  if (!measureEl) return undefined
+  if (!measureEl) {
+    console.log(`[parseMeasure] ${tagName} не найден в parent: ${parent.tagName}`)
+    return undefined
+  }
   
   const value = measureEl.textContent?.trim() || ''
-  if (!value) return undefined
+  if (!value) {
+    console.log(`[parseMeasure] ${tagName} найден, но значение пустое`)
+    return undefined
+  }
   
   const unitCode = measureEl.getAttribute('measurementUnitCode') || undefined
   const unitCodeListId = measureEl.getAttribute('measurementUnitCodeListId') || undefined
+  
+  console.log(`[parseMeasure] ${tagName}: value=${value}, unitCode=${unitCode}, unitCodeListId=${unitCodeListId}`)
   
   // В реальном приложении здесь обращение к справочнику единиц измерения
   const unitNameMap: Record<string, string> = {
@@ -1467,38 +1560,54 @@ function parseComplianceDocuments(alertDetails: Element, rootElement?: Element):
   
   const documents: ComplianceDocument[] = []
   
-  // Ищем все ConformityDocDetails внутри NonCompliantSanitaryProductBatchDetails
-  const searchElements = rootElement ? [alertDetails, rootElement] : [alertDetails]
+  // Используем Set для отслеживания уже обработанных элементов, чтобы избежать дублирования
+  const processedElements = new Set<Element>()
   
-  for (const searchElement of searchElements) {
-    // Пробуем найти через getElementsByTagName
-    try {
-      const docElements = searchElement.getElementsByTagName('smcdo:ConformityDocDetails')
-      console.log('Найдено документов соответствия через getElementsByTagName:', docElements.length)
+  // Ищем только в alertDetails, так как rootElement может содержать весь документ и дублировать элементы
+  const searchElement = alertDetails
+  
+  // Пробуем найти через getElementsByTagName
+  try {
+    const docElements = searchElement.getElementsByTagName('smcdo:ConformityDocDetails')
+    console.log('Найдено документов соответствия через getElementsByTagName:', docElements.length)
+    
+    for (let i = 0; i < docElements.length; i++) {
+      const el = docElements[i]
       
-      for (let i = 0; i < docElements.length; i++) {
-        const el = docElements[i]
+      // Пропускаем уже обработанные элементы
+      if (processedElements.has(el)) {
+        console.log('[parseComplianceDocuments] Пропускаем уже обработанный элемент')
+        continue
+      }
+      processedElements.add(el)
+      
+      const doc = parseComplianceDocument(el)
+      if (doc) {
+        documents.push(doc)
+      }
+    }
+  } catch (e) {
+    console.log('Ошибка при поиске документов соответствия:', e)
+  }
+  
+  // Если не нашли, ищем по локальному имени
+  if (documents.length === 0) {
+    const allElements = searchElement.getElementsByTagName('*')
+    for (let i = 0; i < allElements.length; i++) {
+      const el = allElements[i]
+      
+      // Пропускаем уже обработанные элементы
+      if (processedElements.has(el)) {
+        continue
+      }
+      
+      const localName = el.localName || el.tagName.split(':').pop()?.toLowerCase()
+      
+      if (localName === 'conformitydocdetails') {
+        processedElements.add(el)
         const doc = parseComplianceDocument(el)
         if (doc) {
           documents.push(doc)
-        }
-      }
-    } catch (e) {
-      console.log('Ошибка при поиске документов соответствия:', e)
-    }
-    
-    // Если не нашли, ищем по локальному имени
-    if (documents.length === 0) {
-      const allElements = searchElement.getElementsByTagName('*')
-      for (let i = 0; i < allElements.length; i++) {
-        const el = allElements[i]
-        const localName = el.localName || el.tagName.split(':').pop()?.toLowerCase()
-        
-        if (localName === 'conformitydocdetails') {
-          const doc = parseComplianceDocument(el)
-          if (doc) {
-            documents.push(doc)
-          }
         }
       }
     }
@@ -1590,16 +1699,26 @@ function parseViolations(alertDetails: Element, rootElement?: Element): Violatio
   const violatedIndicators: ViolatedIndicator[] = []
   let generalDescription: string | undefined = undefined
   
-  const searchElements = rootElement ? [alertDetails, rootElement] : [alertDetails]
+  // Используем Set для отслеживания уже обработанных элементов, чтобы избежать дублирования
+  const processedElements = new Set<Element>()
   
-  for (const searchElement of searchElements) {
-    // Пробуем найти через getElementsByTagName
-    try {
-      const violationElements = searchElement.getElementsByTagName('smcdo:RequirementViolationDetails')
-      console.log('Найдено нарушений через getElementsByTagName:', violationElements.length)
+  // Ищем только в alertDetails, так как rootElement может содержать весь документ и дублировать элементы
+  const searchElement = alertDetails
+  
+  // Пробуем найти через getElementsByTagName
+  try {
+    const violationElements = searchElement.getElementsByTagName('smcdo:RequirementViolationDetails')
+    console.log('Найдено нарушений через getElementsByTagName:', violationElements.length)
+    
+    for (let i = 0; i < violationElements.length; i++) {
+      const el = violationElements[i]
       
-      for (let i = 0; i < violationElements.length; i++) {
-        const el = violationElements[i]
+      // Пропускаем уже обработанные элементы
+      if (processedElements.has(el)) {
+        console.log('[parseViolations] Пропускаем уже обработанный элемент')
+        continue
+      }
+      processedElements.add(el)
         
         // Описание на уровне RequirementViolationDetails (может быть несколько)
         // Собираем все DescriptionText на этом уровне
@@ -1633,6 +1752,40 @@ function parseViolations(alertDetails: Element, rootElement?: Element): Violatio
         
         // RequirementsDocDetails
         const requirementsDocs = parseRequirementsDocDetails(el)
+        
+        // DescriptionText на уровне RequirementViolationDetails (после RequirementsDocDetails)
+        // Ищем DescriptionText, который является прямым потомком RequirementViolationDetails
+        // и идет ПОСЛЕ RequirementsDocDetails (не внутри него)
+        let requirementLevelDesc: string | undefined = undefined
+        const allChildren = Array.from(el.children)
+        let foundRequirementsDocDetails = false
+        for (const child of allChildren) {
+          const localName = child.localName || child.tagName.split(':').pop()?.toLowerCase()
+          
+          // Отслеживаем, когда мы прошли RequirementsDocDetails
+          if (localName === 'requirementsdocdetails') {
+            foundRequirementsDocDetails = true
+            continue
+          }
+          
+          // Если мы уже прошли RequirementsDocDetails, ищем DescriptionText
+          if (foundRequirementsDocDetails && localName === 'descriptiontext') {
+            // Проверяем, что это прямой потомок RequirementViolationDetails
+            const parentLocalName = child.parentElement?.localName || child.parentElement?.tagName.split(':').pop()?.toLowerCase()
+            if (parentLocalName === 'requirementviolationdetails') {
+              requirementLevelDesc = child.textContent?.trim() || undefined
+              console.log('[parseViolations] Найден DescriptionText на уровне RequirementViolationDetails:', requirementLevelDesc)
+              break
+            }
+          }
+        }
+        
+        if (requirementLevelDesc && requirementsDocs.length > 0) {
+          // Сохраняем в последнем требовании из этого RequirementViolationDetails
+          requirementsDocs[requirementsDocs.length - 1].requirementLevelDescription = requirementLevelDesc
+          console.log('[parseViolations] Сохранен requirementLevelDescription в последнем требовании')
+        }
+        
         violatedRequirements.push(...requirementsDocs)
         
         // DiscrepancyOfQualityIndexDetails (нарушенные показатели)
@@ -1648,9 +1801,16 @@ function parseViolations(alertDetails: Element, rootElement?: Element): Violatio
       const allElements = searchElement.getElementsByTagName('*')
       for (let i = 0; i < allElements.length; i++) {
         const el = allElements[i]
+        
+        // Пропускаем уже обработанные элементы
+        if (processedElements.has(el)) {
+          continue
+        }
+        
         const localName = el.localName || el.tagName.split(':').pop()?.toLowerCase()
         
         if (localName === 'requirementviolationdetails') {
+          processedElements.add(el)
           // Описание на уровне RequirementViolationDetails
           const descs: string[] = []
           const allDescElements = el.getElementsByTagName('*')
@@ -1678,6 +1838,40 @@ function parseViolations(alertDetails: Element, rootElement?: Element): Violatio
           }
           
           const requirementsDocs = parseRequirementsDocDetails(el)
+          
+          // DescriptionText на уровне RequirementViolationDetails (после RequirementsDocDetails)
+          // Ищем DescriptionText, который является прямым потомком RequirementViolationDetails
+          // и идет ПОСЛЕ RequirementsDocDetails (не внутри него)
+          let requirementLevelDesc: string | undefined = undefined
+          const allChildren = Array.from(el.children)
+          let foundRequirementsDocDetails = false
+          for (const child of allChildren) {
+            const localName = child.localName || child.tagName.split(':').pop()?.toLowerCase()
+            
+            // Отслеживаем, когда мы прошли RequirementsDocDetails
+            if (localName === 'requirementsdocdetails') {
+              foundRequirementsDocDetails = true
+              continue
+            }
+            
+            // Если мы уже прошли RequirementsDocDetails, ищем DescriptionText
+            if (foundRequirementsDocDetails && localName === 'descriptiontext') {
+              // Проверяем, что это прямой потомок RequirementViolationDetails
+              const parentLocalName = child.parentElement?.localName || child.parentElement?.tagName.split(':').pop()?.toLowerCase()
+              if (parentLocalName === 'requirementviolationdetails') {
+                requirementLevelDesc = child.textContent?.trim() || undefined
+                console.log('[parseViolations] Найден DescriptionText на уровне RequirementViolationDetails:', requirementLevelDesc)
+                break
+              }
+            }
+          }
+          
+          if (requirementLevelDesc && requirementsDocs.length > 0) {
+            // Сохраняем в последнем требовании из этого RequirementViolationDetails
+            requirementsDocs[requirementsDocs.length - 1].requirementLevelDescription = requirementLevelDesc
+            console.log('[parseViolations] Сохранен requirementLevelDescription в последнем требовании')
+          }
+          
           violatedRequirements.push(...requirementsDocs)
           
           const indicators = parseViolatedIndicators(el)
@@ -1685,7 +1879,6 @@ function parseViolations(alertDetails: Element, rootElement?: Element): Violatio
         }
       }
     }
-  }
   
   if (violatedRequirements.length === 0 && violatedIndicators.length === 0 && !generalDescription) {
     console.log('Нарушения не найдены')
@@ -2039,21 +2232,42 @@ function parseOrganizationDetails(placeElement: Element): BusinessEntityDetails 
   let businessEntityId: string | undefined = undefined
   let identificationMethod: string | undefined = undefined
   
-  const businessEntityIdEl = orgElement.querySelector('BusinessEntityId') ||
-    Array.from(orgElement.getElementsByTagName('*')).find(el => {
+  // Ищем BusinessEntityId с учетом пространств имен
+  const namespaces = ['ccdo', 'csdo', 'smsdo', 'smcdo', 'doc']
+  let businessEntityIdEl: Element | null = null
+  
+  for (const ns of namespaces) {
+    try {
+      const elements = orgElement.getElementsByTagName(`${ns}:BusinessEntityId`)
+      if (elements.length > 0) {
+        businessEntityIdEl = elements[0]
+        break
+      }
+    } catch (e) {
+      // Игнорируем ошибки
+    }
+  }
+  
+  // Если не нашли через namespace, ищем по локальному имени
+  if (!businessEntityIdEl) {
+    const allElements = orgElement.getElementsByTagName('*')
+    for (let i = 0; i < allElements.length; i++) {
+      const el = allElements[i]
       const localName = el.localName || el.tagName.split(':').pop()?.toLowerCase()
-      return localName === 'businessentityid'
-    })
+      if (localName === 'businessentityid') {
+        businessEntityIdEl = el
+        break
+      }
+    }
+  }
   
   if (businessEntityIdEl) {
     businessEntityId = businessEntityIdEl.textContent?.trim() || undefined
     const kindId = businessEntityIdEl.getAttribute('kindId')
     if (kindId) {
-      const kindIdMap: Record<string, string> = {
-        'BY01': 'УНП - учетный номер плательщика',
-        'RU01': 'ОГРН - основной государственный регистрационный номер юридического лица',
-      }
-      identificationMethod = kindIdMap[kindId] || `Метод идентификации (код: ${kindId})`
+      // Сохраняем код kindId, а не описание, чтобы можно было экспортировать обратно
+      identificationMethod = kindId
+      console.log('[parseOrganizationDetails] Найден identificationMethod (kindId):', kindId)
     }
   }
   
@@ -2269,37 +2483,55 @@ function parseMeasures(alertDetails: Element, rootElement?: Element): MeasuresDa
   console.log('Начинаем парсинг принятых мер')
   
   const measures: SanitaryMeasure[] = []
-  const searchElements = rootElement ? [alertDetails, rootElement] : [alertDetails]
   
-  for (const searchElement of searchElements) {
-    // Пробуем найти через getElementsByTagName
-    try {
-      const measureElements = searchElement.getElementsByTagName('smcdo:SanitaryMeasureBaseDetails')
-      console.log('Найдено мер через getElementsByTagName:', measureElements.length)
+  // Используем Set для отслеживания уже обработанных элементов, чтобы избежать дублирования
+  const processedElements = new Set<Element>()
+  
+  // Ищем только в alertDetails, так как rootElement может содержать весь документ и дублировать элементы
+  const searchElement = alertDetails
+  
+  // Пробуем найти через getElementsByTagName
+  try {
+    const measureElements = searchElement.getElementsByTagName('smcdo:SanitaryMeasureBaseDetails')
+    console.log('Найдено мер через getElementsByTagName:', measureElements.length)
+    
+    for (let i = 0; i < measureElements.length; i++) {
+      const el = measureElements[i]
       
-      for (let i = 0; i < measureElements.length; i++) {
-        const el = measureElements[i]
+      // Пропускаем уже обработанные элементы
+      if (processedElements.has(el)) {
+        console.log('[parseMeasures] Пропускаем уже обработанный элемент')
+        continue
+      }
+      processedElements.add(el)
+      
+      const measure = parseSanitaryMeasure(el)
+      if (measure) {
+        measures.push(measure)
+      }
+    }
+  } catch (e) {
+    console.log('Ошибка при поиске мер:', e)
+  }
+  
+  // Если не нашли, ищем по локальному имени
+  if (measures.length === 0) {
+    const allElements = searchElement.getElementsByTagName('*')
+    for (let i = 0; i < allElements.length; i++) {
+      const el = allElements[i]
+      
+      // Пропускаем уже обработанные элементы
+      if (processedElements.has(el)) {
+        continue
+      }
+      
+      const localName = el.localName || el.tagName.split(':').pop()?.toLowerCase()
+      
+      if (localName === 'sanitarymeasurebasedetails') {
+        processedElements.add(el)
         const measure = parseSanitaryMeasure(el)
         if (measure) {
           measures.push(measure)
-        }
-      }
-    } catch (e) {
-      console.log('Ошибка при поиске мер:', e)
-    }
-    
-    // Если не нашли, ищем по локальному имени
-    if (measures.length === 0) {
-      const allElements = searchElement.getElementsByTagName('*')
-      for (let i = 0; i < allElements.length; i++) {
-        const el = allElements[i]
-        const localName = el.localName || el.tagName.split(':').pop()?.toLowerCase()
-        
-        if (localName === 'sanitarymeasurebasedetails') {
-          const measure = parseSanitaryMeasure(el)
-          if (measure) {
-            measures.push(measure)
-          }
         }
       }
     }
@@ -2947,6 +3179,59 @@ export async function validateAndEnrichCardData(cardData: CardData, incidentKind
     } catch (error) {
       console.error('Ошибка при валидации типа санитарной продукции:', error)
       // Не добавляем предупреждение - визуальная индикация будет в форме
+    }
+  }
+
+  // Валидация видов товаросопроводительных документов в ТСД
+  if (cardData.tsd?.batches) {
+    for (const batch of cardData.tsd.batches) {
+      if (batch.shippingDocuments) {
+        for (const doc of batch.shippingDocuments) {
+          if (doc.docKindCode) {
+            try {
+              const exists = await checkShipDocKindExists(doc.docKindCode)
+              if (exists === false) {
+                console.warn(`Код вида товаросопроводительного документа "${doc.docKindCode}" не найден в справочнике SHIPDOCKIND`)
+                // Не добавляем предупреждение - визуальная индикация будет в форме
+              } else {
+                console.log(`Код вида товаросопроводительного документа "${doc.docKindCode}" успешно найден в справочнике`)
+              }
+            } catch (error) {
+              console.error('Ошибка при валидации вида товаросопроводительного документа:', error)
+              // Не добавляем предупреждение - визуальная индикация будет в форме
+            }
+          }
+        }
+      }
+    }
+  }
+
+  // Валидация видов участников цепи поставки
+  // Проверяем в товаросопроводительных документах ТСД
+  if (cardData.tsd?.batches) {
+    for (const batch of cardData.tsd.batches) {
+      if (batch.shippingDocuments) {
+        for (const doc of batch.shippingDocuments) {
+          if (doc.supplyChainParties) {
+            for (const party of doc.supplyChainParties) {
+              if (party.supplyChainPartyKindCode) {
+                try {
+                  const exists = await checkSupplyChainPartyKindExists(party.supplyChainPartyKindCode)
+                  if (exists === false) {
+                    console.warn(`Код вида участника цепи поставки "${party.supplyChainPartyKindCode}" не найден в справочнике SUPPLYCHAINPARTYKIND`)
+                    // Не добавляем предупреждение - визуальная индикация будет в форме
+                  } else {
+                    console.log(`Код вида участника цепи поставки "${party.supplyChainPartyKindCode}" успешно найден в справочнике`)
+                  }
+                } catch (error) {
+                  console.error('Ошибка при валидации вида участника цепи поставки:', error)
+                  // Не добавляем предупреждение - визуальная индикация будет в форме
+                }
+              }
+            }
+          }
+        }
+      }
     }
   }
 

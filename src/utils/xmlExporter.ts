@@ -33,6 +33,12 @@ import type {
  * Экспортирует CardData в XML формат с полной структурой
  */
 export function exportCardDataToXML(data: CardData): string {
+  console.log('[exportCardDataToXML] Начинаем экспорт, data.notification:', data.notification)
+  console.log('[exportCardDataToXML] data.notification?.authorizedBody:', data.notification?.authorizedBody)
+  console.log('[exportCardDataToXML] data.product:', data.product)
+  console.log('[exportCardDataToXML] data.tsd:', data.tsd)
+  console.log('[exportCardDataToXML] data.violations:', data.violations)
+  
   const xmlParts: string[] = []
   
   // XML заголовок и корневой элемент с правильными namespace (как в исходном XML)
@@ -76,16 +82,29 @@ export function exportCardDataToXML(data: CardData): string {
   
   // UnifiedAuthorityDetails (из Notification)
   if (data.notification && data.notification.authorizedBody) {
+    console.log('[exportCardDataToXML] Экспортируем UnifiedAuthorityDetails:', data.notification.authorizedBody)
     xmlParts.push('        <ccdo:UnifiedAuthorityDetails>')
-    xmlParts.push(`            <csdo:UnifiedCountryCode codeListId="2021">${escapeXML(data.notification.authorizedBody.country)}</csdo:UnifiedCountryCode>`)
-    xmlParts.push(`            <csdo:AuthorityName>${escapeXML(data.notification.authorizedBody.name)}</csdo:AuthorityName>`)
+    if (data.notification.authorizedBody.country) {
+      xmlParts.push(`            <csdo:UnifiedCountryCode codeListId="2021">${escapeXML(data.notification.authorizedBody.country)}</csdo:UnifiedCountryCode>`)
+    }
+    if (data.notification.authorizedBody.name) {
+      xmlParts.push(`            <csdo:AuthorityName>${escapeXML(data.notification.authorizedBody.name)}</csdo:AuthorityName>`)
+    }
+    if (data.notification.authorizedBody.shortName) {
+      xmlParts.push(`            <csdo:AuthorityBriefName>${escapeXML(data.notification.authorizedBody.shortName)}</csdo:AuthorityBriefName>`)
+    }
     xmlParts.push('        </ccdo:UnifiedAuthorityDetails>')
+  } else {
+    console.warn('[exportCardDataToXML] UnifiedAuthorityDetails не экспортируется: notification или authorizedBody отсутствует')
   }
   
   // Product
   if (data.product) {
     xmlParts.push('        <smcdo:NonCompliantSanitaryProductDetails>')
     xmlParts.push(`            <smsdo:SanitaryProductTypeCode codeListId="1025">${escapeXML(data.product.typeCode)}</smsdo:SanitaryProductTypeCode>`)
+    if (data.product.typeName) {
+      xmlParts.push(`            <smsdo:SanitaryProductTypeName>${escapeXML(data.product.typeName)}</smsdo:SanitaryProductTypeName>`)
+    }
     
     // ProductDetails
     xmlParts.push('            <smcdo:ProductDetails>')
@@ -99,7 +118,7 @@ export function exportCardDataToXML(data: CardData): string {
   
     // TSD (внутри NonCompliantSanitaryProductDetails)
     if (data.tsd && data.tsd.batches.length > 0) {
-      data.tsd.batches.forEach(batch => {
+      data.tsd.batches.forEach((batch, batchIndex) => {
         xmlParts.push('            <smcdo:NonCompliantSanitaryProductBatchDetails>')
         // BatchDetails
         xmlParts.push('                <smcdo:BatchDetails>')
@@ -116,6 +135,9 @@ export function exportCardDataToXML(data: CardData): string {
           const unitAttrs = batch.commodityMeasure.unitCode ? ` measurementUnitCode="${escapeXML(batch.commodityMeasure.unitCode)}"` : ''
           const unitListId = batch.commodityMeasure.unitCodeListId ? ` measurementUnitCodeListId="${escapeXML(batch.commodityMeasure.unitCodeListId)}"` : ''
           xmlParts.push(`                    <csdo:UnifiedCommodityMeasure${unitAttrs}${unitListId}>${escapeXML(batch.commodityMeasure.value)}</csdo:UnifiedCommodityMeasure>`)
+        }
+        if (batch.note) {
+          xmlParts.push(`                    <csdo:NoteText>${escapeXML(batch.note)}</csdo:NoteText>`)
         }
         xmlParts.push('                </smcdo:BatchDetails>')
         
@@ -134,14 +156,19 @@ export function exportCardDataToXML(data: CardData): string {
           })
         }
         
-        // ComplianceDocuments (внутри BatchDetails)
-        if (data.complianceDocuments) {
-          exportComplianceDocuments(xmlParts, data.complianceDocuments, '                ')
-        }
-        
-        // Violations (внутри BatchDetails)
-        if (data.violations) {
-          exportViolations(xmlParts, data.violations, '                ')
+        // ComplianceDocuments и Violations экспортируем только внутри последней партии
+        // В исходном XML они находятся внутри одной из партий, но в структуре данных они на верхнем уровне
+        const isLastBatch = batchIndex === data.tsd.batches.length - 1
+        if (isLastBatch) {
+          // ComplianceDocuments (внутри NonCompliantSanitaryProductBatchDetails)
+          if (data.complianceDocuments && data.complianceDocuments.documents && data.complianceDocuments.documents.length > 0) {
+            exportComplianceDocuments(xmlParts, data.complianceDocuments, '                ')
+          }
+          
+          // Violations (внутри NonCompliantSanitaryProductBatchDetails)
+          if (data.violations) {
+            exportViolations(xmlParts, data.violations, '                ')
+          }
         }
         
         xmlParts.push('            </smcdo:NonCompliantSanitaryProductBatchDetails>')
@@ -157,21 +184,33 @@ export function exportCardDataToXML(data: CardData): string {
   }
   
   // Measures (на уровне DangerousProductAlertDetails)
-  if (data.measures && data.measures.measures.length > 0) {
-    data.measures.measures.forEach(measure => {
+  console.log('[exportCardDataToXML] measures:', data.measures)
+  if (data.measures && data.measures.measures && data.measures.measures.length > 0) {
+    console.log('[exportCardDataToXML] Экспортируем SanitaryMeasureBaseDetails, количество:', data.measures.measures.length)
+    data.measures.measures.forEach((measure, index) => {
+      console.log(`[exportCardDataToXML] Мера ${index}:`, measure)
       exportSanitaryMeasure(xmlParts, measure, '        ')
     })
+  } else {
+    console.warn('[exportCardDataToXML] SanitaryMeasureBaseDetails не экспортируются: measures отсутствует или пуст')
   }
   
   // ResourceItemStatusDetails (если есть данные о validityPeriod)
+  console.log('[exportCardDataToXML] electronicDocument:', data.electronicDocument)
+  console.log('[exportCardDataToXML] validityPeriod:', data.electronicDocument?.validityPeriod)
   if (data.electronicDocument && data.electronicDocument.validityPeriod) {
+    console.log('[exportCardDataToXML] Экспортируем ResourceItemStatusDetails, start:', data.electronicDocument.validityPeriod.start)
     xmlParts.push('        <ccdo:ResourceItemStatusDetails>')
     xmlParts.push('            <ccdo:ValidityPeriodDetails>')
     if (data.electronicDocument.validityPeriod.start) {
       xmlParts.push(`                <csdo:StartDateTime>${escapeXML(data.electronicDocument.validityPeriod.start)}</csdo:StartDateTime>`)
+    } else {
+      console.warn('[exportCardDataToXML] StartDateTime отсутствует в validityPeriod')
     }
     xmlParts.push('            </ccdo:ValidityPeriodDetails>')
     xmlParts.push('        </ccdo:ResourceItemStatusDetails>')
+  } else {
+    console.warn('[exportCardDataToXML] ResourceItemStatusDetails не экспортируется: electronicDocument или validityPeriod отсутствует')
   }
   
   xmlParts.push('    </smcdo:DangerousProductAlertDetails>')
@@ -181,6 +220,9 @@ export function exportCardDataToXML(data: CardData): string {
 }
 
 function exportProductDetails(xmlParts: string[], details: ProductDetails, indent: string) {
+  console.log('[exportProductDetails] Экспортируем ProductDetails:', details)
+  console.log('[exportProductDetails] technicalDocs:', details.technicalDocs)
+  
   if (details.productId) xmlParts.push(`${indent}<csdo:ProductId>${escapeXML(details.productId)}</csdo:ProductId>`)
   if (details.productName) xmlParts.push(`${indent}<csdo:ProductName>${escapeXML(details.productName)}</csdo:ProductName>`)
   if (details.tradeName) xmlParts.push(`${indent}<smsdo:ProductTradeName>${escapeXML(details.tradeName)}</smsdo:ProductTradeName>`)
@@ -193,16 +235,18 @@ function exportProductDetails(xmlParts: string[], details: ProductDetails, inden
   if (details.labelText) xmlParts.push(`${indent}<smsdo:ProductLabelText>${escapeXML(details.labelText)}</smsdo:ProductLabelText>`)
   
   if (details.technicalDocs && details.technicalDocs.length > 0) {
-    details.technicalDocs.forEach(doc => {
-      xmlParts.push(`${indent}<smcdo:TechnicalDocument>`)
-      if (doc.docKindCode) xmlParts.push(`${indent}  <csdo:DocKindCode>${escapeXML(doc.docKindCode)}</csdo:DocKindCode>`)
-      if (doc.docKindName) xmlParts.push(`${indent}  <csdo:DocKindName>${escapeXML(doc.docKindName)}</csdo:DocKindName>`)
+    console.log('[exportProductDetails] Экспортируем technicalDocs, количество:', details.technicalDocs.length)
+    details.technicalDocs.forEach((doc, index) => {
+      console.log(`[exportProductDetails] Doc ${index}:`, doc)
+      xmlParts.push(`${indent}<ccdo:DocReferenceDetails>`)
       if (doc.docName) xmlParts.push(`${indent}  <csdo:DocName>${escapeXML(doc.docName)}</csdo:DocName>`)
       if (doc.docId) xmlParts.push(`${indent}  <csdo:DocId>${escapeXML(doc.docId)}</csdo:DocId>`)
       if (doc.docCreationDate) xmlParts.push(`${indent}  <csdo:DocCreationDate>${escapeXML(doc.docCreationDate)}</csdo:DocCreationDate>`)
       if (doc.docStartDate) xmlParts.push(`${indent}  <csdo:DocStartDate>${escapeXML(doc.docStartDate)}</csdo:DocStartDate>`)
-      xmlParts.push(`${indent}</smcdo:TechnicalDocument>`)
+      xmlParts.push(`${indent}</ccdo:DocReferenceDetails>`)
     })
+  } else {
+    console.warn('[exportProductDetails] technicalDocs отсутствуют или пусты')
   }
 }
 
@@ -213,8 +257,17 @@ function exportSupplyChainParty(xmlParts: string[], party: SupplyChainPartyDetai
   if (party.businessEntityName) xmlParts.push(`${indent}  <csdo:BusinessEntityName>${escapeXML(party.businessEntityName)}</csdo:BusinessEntityName>`)
   if (party.shortName) xmlParts.push(`${indent}  <csdo:BusinessEntityBriefName>${escapeXML(party.shortName)}</csdo:BusinessEntityBriefName>`)
   if (party.organizationalForm) xmlParts.push(`${indent}  <csdo:BusinessEntityTypeName>${escapeXML(party.organizationalForm)}</csdo:BusinessEntityTypeName>`)
-  if (party.subjectIdentifier) xmlParts.push(`${indent}  <csdo:BusinessEntityId>${escapeXML(party.subjectIdentifier)}</csdo:BusinessEntityId>`)
+  if (party.businessEntityTypeCode) xmlParts.push(`${indent}  <csdo:BusinessEntityTypeCode>${escapeXML(party.businessEntityTypeCode)}</csdo:BusinessEntityTypeCode>`)
+  if (party.subjectIdentifier) {
+    // Добавляем kindId как атрибут, если есть identificationMethod
+    if (party.identificationMethod) {
+      xmlParts.push(`${indent}  <csdo:BusinessEntityId kindId="${escapeXML(party.identificationMethod)}">${escapeXML(party.subjectIdentifier)}</csdo:BusinessEntityId>`)
+    } else {
+      xmlParts.push(`${indent}  <csdo:BusinessEntityId>${escapeXML(party.subjectIdentifier)}</csdo:BusinessEntityId>`)
+    }
+  }
   if (party.taxpayerId) xmlParts.push(`${indent}  <csdo:TaxpayerId>${escapeXML(party.taxpayerId)}</csdo:TaxpayerId>`)
+  if (party.taxRegistrationReasonCode) xmlParts.push(`${indent}  <csdo:TaxRegistrationReasonCode>${escapeXML(party.taxRegistrationReasonCode)}</csdo:TaxRegistrationReasonCode>`)
   
   if (party.registrationAddress) exportAddress(xmlParts, party.registrationAddress, '1', `${indent}  `)
   if (party.actualAddress) exportAddress(xmlParts, party.actualAddress, '2', `${indent}  `)
@@ -223,6 +276,9 @@ function exportSupplyChainParty(xmlParts: string[], party: SupplyChainPartyDetai
   if (party.contacts && party.contacts.length > 0) {
     party.contacts.forEach(contact => {
       xmlParts.push(`${indent}  <ccdo:CommunicationDetails>`)
+      if (contact.communicationChannelCode) xmlParts.push(`${indent}    <csdo:CommunicationChannelCode>${escapeXML(contact.communicationChannelCode)}</csdo:CommunicationChannelCode>`)
+      if (contact.communicationChannelName) xmlParts.push(`${indent}    <csdo:CommunicationChannelName>${escapeXML(contact.communicationChannelName)}</csdo:CommunicationChannelName>`)
+      if (contact.communicationChannelId) xmlParts.push(`${indent}    <csdo:CommunicationChannelId>${escapeXML(contact.communicationChannelId)}</csdo:CommunicationChannelId>`)
       if (contact.contactKind) xmlParts.push(`${indent}    <csdo:ContactKind>${escapeXML(contact.contactKind)}</csdo:ContactKind>`)
       if (contact.contactValue) xmlParts.push(`${indent}    <csdo:ContactValue>${escapeXML(contact.contactValue)}</csdo:ContactValue>`)
       xmlParts.push(`${indent}  </ccdo:CommunicationDetails>`)
@@ -238,9 +294,13 @@ function exportAddress(xmlParts: string[], address: AddressDetails, kindCode: st
   if (address.country) {
     xmlParts.push(`${indent}    <csdo:UnifiedCountryCode codeListId="2021">${escapeXML(address.country)}</csdo:UnifiedCountryCode>`)
   }
+  if (address.regionName) xmlParts.push(`${indent}    <csdo:RegionName>${escapeXML(address.regionName)}</csdo:RegionName>`)
+  if (address.districtName) xmlParts.push(`${indent}    <csdo:DistrictName>${escapeXML(address.districtName)}</csdo:DistrictName>`)
   if (address.cityName) xmlParts.push(`${indent}    <csdo:CityName>${escapeXML(address.cityName)}</csdo:CityName>`)
   if (address.streetName) xmlParts.push(`${indent}    <csdo:StreetName>${escapeXML(address.streetName)}</csdo:StreetName>`)
   if (address.buildingNumberId) xmlParts.push(`${indent}    <csdo:BuildingNumberId>${escapeXML(address.buildingNumberId)}</csdo:BuildingNumberId>`)
+  if (address.roomNumberId) xmlParts.push(`${indent}    <csdo:RoomNumberId>${escapeXML(address.roomNumberId)}</csdo:RoomNumberId>`)
+  if (address.postCode) xmlParts.push(`${indent}    <csdo:PostCode>${escapeXML(address.postCode)}</csdo:PostCode>`)
   if (address.fullAddress) xmlParts.push(`${indent}    <csdo:FullAddress>${escapeXML(address.fullAddress)}</csdo:FullAddress>`)
   xmlParts.push(`${indent}</ccdo:SubjectAddressDetails>`)
 }
@@ -265,7 +325,8 @@ function exportShippingDocument(xmlParts: string[], doc: ShippingDocument, inden
   
   if (doc.supplyChainParties && doc.supplyChainParties.length > 0) {
     doc.supplyChainParties.forEach((party, index) => {
-      exportSupplyChainParty(xmlParts, party, party.subjectIdentifier || String(index), `${indent}    `)
+      const kindCode = party.supplyChainPartyKindCode || party.subjectIdentifier || String(index)
+      exportSupplyChainParty(xmlParts, party, kindCode, `${indent}    `)
     })
   }
   
@@ -273,21 +334,42 @@ function exportShippingDocument(xmlParts: string[], doc: ShippingDocument, inden
 }
 
 function exportViolations(xmlParts: string[], violations: ViolationsData, indent: string) {
-  if (violations.generalDescription) {
-    xmlParts.push(`${indent}<smcdo:RequirementViolationDetails>`)
-    xmlParts.push(`${indent}  <csdo:DescriptionText>${escapeXML(violations.generalDescription)}</csdo:DescriptionText>`)
-    xmlParts.push(`${indent}</smcdo:RequirementViolationDetails>`)
-  }
+  // generalDescription не экспортируем на уровне RequirementViolationDetails,
+  // так как в исходном XML его там нет - DescriptionText только внутри RequirementsDocDetails
   
   if (violations.violatedRequirements && violations.violatedRequirements.length > 0) {
-    violations.violatedRequirements.forEach(req => {
+    console.log('[exportViolations] Экспортируем violatedRequirements:', violations.violatedRequirements)
+    violations.violatedRequirements.forEach((req, index) => {
+      console.log(`[exportViolations] Требование ${index}:`, {
+        technicalRegulationId: req.technicalRegulationId,
+        technicalRegulationName: req.technicalRegulationName,
+        registrationNumber: req.registrationNumber,
+        description: req.description
+      })
       xmlParts.push(`${indent}<smcdo:RequirementViolationDetails>`)
       xmlParts.push(`${indent}  <smcdo:RequirementsDocDetails>`)
       if (req.technicalRegulationId) xmlParts.push(`${indent}    <smsdo:TechnicalRegulationId>${escapeXML(req.technicalRegulationId)}</smsdo:TechnicalRegulationId>`)
       if (req.technicalRegulationName) xmlParts.push(`${indent}    <csdo:DocName>${escapeXML(req.technicalRegulationName)}</csdo:DocName>`)
       if (req.registrationNumber) xmlParts.push(`${indent}    <csdo:DocId>${escapeXML(req.registrationNumber)}</csdo:DocId>`)
-      if (req.description) xmlParts.push(`${indent}    <csdo:DescriptionText>${escapeXML(req.description)}</csdo:DescriptionText>`)
+      if (req.structuralElements && req.structuralElements.length > 0) {
+        req.structuralElements.forEach(structEl => {
+          xmlParts.push(`${indent}    <smcdo:DocStructuralElementDetails>`)
+          if (structEl.elementName) xmlParts.push(`${indent}      <smsdo:DocStructuralElementName>${escapeXML(structEl.elementName)}</smsdo:DocStructuralElementName>`)
+          if (structEl.elementId) xmlParts.push(`${indent}      <smsdo:DocStructuralElementId>${escapeXML(structEl.elementId)}</smsdo:DocStructuralElementId>`)
+          xmlParts.push(`${indent}    </smcdo:DocStructuralElementDetails>`)
+        })
+      }
+      // DescriptionText внутри RequirementsDocDetails
+      if (req.description) {
+        xmlParts.push(`${indent}    <csdo:DescriptionText>${escapeXML(req.description)}</csdo:DescriptionText>`)
+      }
       xmlParts.push(`${indent}  </smcdo:RequirementsDocDetails>`)
+      
+      // DescriptionText на уровне RequirementViolationDetails (после RequirementsDocDetails)
+      if (req.requirementLevelDescription) {
+        xmlParts.push(`${indent}  <csdo:DescriptionText>${escapeXML(req.requirementLevelDescription)}</csdo:DescriptionText>`)
+      }
+      
       xmlParts.push(`${indent}</smcdo:RequirementViolationDetails>`)
     })
   }
@@ -326,9 +408,28 @@ function exportDetectionPlace(xmlParts: string[], place: DetectionPlaceData, ind
     }
     if (place.organization.businessEntityName) xmlParts.push(`${indent}        <csdo:BusinessEntityName>${escapeXML(place.organization.businessEntityName)}</csdo:BusinessEntityName>`)
     if (place.organization.businessEntityBriefName) xmlParts.push(`${indent}        <csdo:BusinessEntityBriefName>${escapeXML(place.organization.businessEntityBriefName)}</csdo:BusinessEntityBriefName>`)
+    if (place.organization.businessEntityTypeName) xmlParts.push(`${indent}        <csdo:BusinessEntityTypeName>${escapeXML(place.organization.businessEntityTypeName)}</csdo:BusinessEntityTypeName>`)
+    if (place.organization.businessEntityId) {
+      // Добавляем kindId как атрибут, если есть identificationMethod
+      if (place.organization.identificationMethod) {
+        xmlParts.push(`${indent}        <csdo:BusinessEntityId kindId="${escapeXML(place.organization.identificationMethod)}">${escapeXML(place.organization.businessEntityId)}</csdo:BusinessEntityId>`)
+      } else {
+        xmlParts.push(`${indent}        <csdo:BusinessEntityId>${escapeXML(place.organization.businessEntityId)}</csdo:BusinessEntityId>`)
+      }
+    }
+    if (place.organization.taxpayerId) xmlParts.push(`${indent}        <csdo:TaxpayerId>${escapeXML(place.organization.taxpayerId)}</csdo:TaxpayerId>`)
     if (place.organization.addresses && place.organization.addresses.length > 0) {
       place.organization.addresses.forEach(addr => {
         exportAddress(xmlParts, addr, addr.addressKindCode || '1', `${indent}        `)
+      })
+    }
+    if (place.organization.contacts && place.organization.contacts.length > 0) {
+      place.organization.contacts.forEach(contact => {
+        xmlParts.push(`${indent}        <ccdo:CommunicationDetails>`)
+        if (contact.communicationChannelCode) xmlParts.push(`${indent}          <csdo:CommunicationChannelCode>${escapeXML(contact.communicationChannelCode)}</csdo:CommunicationChannelCode>`)
+        if (contact.communicationChannelName) xmlParts.push(`${indent}          <csdo:CommunicationChannelName>${escapeXML(contact.communicationChannelName)}</csdo:CommunicationChannelName>`)
+        if (contact.communicationChannelId) xmlParts.push(`${indent}          <csdo:CommunicationChannelId>${escapeXML(contact.communicationChannelId)}</csdo:CommunicationChannelId>`)
+        xmlParts.push(`${indent}        </ccdo:CommunicationDetails>`)
       })
     }
     xmlParts.push(`${indent}    </smcdo:OrganizationDetails>`)
@@ -364,7 +465,7 @@ function exportSanitaryMeasure(xmlParts: string[], measure: SanitaryMeasure, ind
   if (measure.startDate) xmlParts.push(`${indent}  <csdo:StartDate>${escapeXML(measure.startDate)}</csdo:StartDate>`)
   if (measure.endDate) xmlParts.push(`${indent}  <csdo:EndDate>${escapeXML(measure.endDate)}</csdo:EndDate>`)
   if (measure.measureJustificationText) xmlParts.push(`${indent}  <smsdo:MeasureJustificationText>${escapeXML(measure.measureJustificationText)}</smsdo:MeasureJustificationText>`)
-  if (measure.description) xmlParts.push(`${indent}  <csdo:DescriptionText>${escapeXML(measure.description)}</csdo:DescriptionText>`)
+  // description не экспортируем, так как его нет в исходном XML для SanitaryMeasureBaseDetails
   
   if (measure.measureDocDetails) {
     exportMeasureDocDetails(xmlParts, measure.measureDocDetails, 'MeasureDocDetails', `${indent}  `)
@@ -399,9 +500,13 @@ function exportMeasureDocDetails(xmlParts: string[], doc: MeasureDocDetails, tag
   if (doc.country) {
     xmlParts.push(`${indent}        <csdo:UnifiedCountryCode codeListId="2021">${escapeXML(doc.country)}</csdo:UnifiedCountryCode>`)
   }
+  if (doc.languageCode) xmlParts.push(`${indent}        <csdo:LanguageCode>${escapeXML(doc.languageCode)}</csdo:LanguageCode>`)
+  if (doc.docKindName) xmlParts.push(`${indent}        <csdo:DocKindName>${escapeXML(doc.docKindName)}</csdo:DocKindName>`)
   if (doc.docName) xmlParts.push(`${indent}        <csdo:DocName>${escapeXML(doc.docName)}</csdo:DocName>`)
   if (doc.docId) xmlParts.push(`${indent}        <csdo:DocId>${escapeXML(doc.docId)}</csdo:DocId>`)
   if (doc.docCreationDate) xmlParts.push(`${indent}        <csdo:DocCreationDate>${escapeXML(doc.docCreationDate)}</csdo:DocCreationDate>`)
+  if (doc.docStartDate) xmlParts.push(`${indent}        <csdo:DocStartDate>${escapeXML(doc.docStartDate)}</csdo:DocStartDate>`)
+  if (doc.authorityName) xmlParts.push(`${indent}        <csdo:AuthorityName>${escapeXML(doc.authorityName)}</csdo:AuthorityName>`)
   if (doc.description) xmlParts.push(`${indent}        <csdo:DescriptionText>${escapeXML(doc.description)}</csdo:DescriptionText>`)
   xmlParts.push(`${indent}    </smcdo:${tagName}>`)
 }
@@ -490,12 +595,14 @@ function exportComplianceDocuments(xmlParts: string[], compliance: ComplianceDoc
       if (doc.docName) xmlParts.push(`${indent}    <csdo:DocName>${escapeXML(doc.docName)}</csdo:DocName>`)
       if (doc.docId) xmlParts.push(`${indent}    <csdo:DocId>${escapeXML(doc.docId)}</csdo:DocId>`)
       if (doc.docCreationDate) xmlParts.push(`${indent}    <csdo:DocCreationDate>${escapeXML(doc.docCreationDate)}</csdo:DocCreationDate>`)
+      if (doc.docStartDate) xmlParts.push(`${indent}    <csdo:DocStartDate>${escapeXML(doc.docStartDate)}</csdo:DocStartDate>`)
       if (doc.authority) {
         xmlParts.push(`${indent}    <ccdo:UnifiedAuthorityDetails>`)
         if (doc.authority.country) {
           xmlParts.push(`${indent}        <csdo:UnifiedCountryCode codeListId="2021">${escapeXML(doc.authority.country)}</csdo:UnifiedCountryCode>`)
         }
         if (doc.authority.authorityName) xmlParts.push(`${indent}        <csdo:AuthorityName>${escapeXML(doc.authority.authorityName)}</csdo:AuthorityName>`)
+        if (doc.authority.authorityBriefName) xmlParts.push(`${indent}        <csdo:AuthorityBriefName>${escapeXML(doc.authority.authorityBriefName)}</csdo:AuthorityBriefName>`)
         xmlParts.push(`${indent}    </ccdo:UnifiedAuthorityDetails>`)
       }
       xmlParts.push(`${indent}</smcdo:ConformityDocDetails>`)
@@ -555,38 +662,89 @@ export function compareXML(originalXML: string, exportedXML: string): {
       return { isIdentical: false, differences, warnings }
     }
     
+    console.log('[compareXML] Корневой элемент originalRoot:', originalRoot.tagName, 'localName:', originalRoot.localName)
+    console.log('[compareXML] Корневой элемент exportedRoot:', exportedRoot.tagName, 'localName:', exportedRoot.localName)
+    
     // Сравниваем дочерние элементы корневого элемента (EDocHeader и DangerousProductAlertDetails)
     const originalChildren = Array.from(originalRoot.children)
     const exportedChildren = Array.from(exportedRoot.children)
     
-    // Группируем по именам
+    console.log('[compareXML] originalRoot.tagName:', originalRoot.tagName)
+    console.log('[compareXML] originalRoot.localName:', originalRoot.localName)
+    console.log('[compareXML] originalChildren.length:', originalChildren.length)
+    console.log('[compareXML] originalChildren:', originalChildren.map(c => `${c.localName || c.tagName} (${c.tagName})`).join(', '))
+    
+    // Группируем по именам (проверяем и localName, и tagName)
     const originalMap = new Map<string, Element[]>()
     const exportedMap = new Map<string, Element[]>()
     
     originalChildren.forEach(child => {
-      const name = child.localName || child.tagName.split(':').pop()?.toLowerCase() || ''
+      const localName = child.localName || ''
+      const tagName = child.tagName || ''
+      const nameFromTag = tagName.split(':').pop()?.toLowerCase() || ''
+      const name = localName.toLowerCase() || nameFromTag
+      console.log(`[compareXML] original child: localName="${localName}", tagName="${tagName}", name="${name}"`)
       if (!originalMap.has(name)) originalMap.set(name, [])
       originalMap.get(name)!.push(child)
     })
     
     exportedChildren.forEach(child => {
-      const name = child.localName || child.tagName.split(':').pop()?.toLowerCase() || ''
+      const localName = child.localName || ''
+      const tagName = child.tagName || ''
+      const nameFromTag = tagName.split(':').pop()?.toLowerCase() || ''
+      const name = localName.toLowerCase() || nameFromTag
+      console.log(`[compareXML] exported child: localName="${localName}", tagName="${tagName}", name="${name}"`)
       if (!exportedMap.has(name)) exportedMap.set(name, [])
       exportedMap.get(name)!.push(child)
     })
     
+    console.log('[compareXML] originalMap keys:', Array.from(originalMap.keys()))
+    console.log('[compareXML] exportedMap keys:', Array.from(exportedMap.keys()))
+    
     // Сравниваем EDocHeader
     const originalEDocHeader = originalMap.get('edocheader')?.[0] || null
     const exportedEDocHeader = exportedMap.get('edocheader')?.[0] || null
-    compareElements(originalEDocHeader, exportedEDocHeader, differences, warnings, 'DangerousProductAlertDetails')
+    compareElementsSimple(originalEDocHeader, exportedEDocHeader, differences, warnings, 'EDocHeader')
     
-    // Сравниваем DangerousProductAlertDetails
-    const originalDetails = originalMap.get('dangerousproductalertdetails')?.[0] || null
-    const exportedDetails = exportedMap.get('dangerousproductalertdetails')?.[0] || null
-    compareElements(originalDetails, exportedDetails, differences, warnings, 'DangerousProductAlertDetails')
+    // Сравниваем DangerousProductAlertDetails (внутренний элемент, не корневой!)
+    // Ищем элемент с localName "DangerousProductAlertDetails" или tagName содержащий "DangerousProductAlertDetails"
+    let originalDetails = originalMap.get('dangerousproductalertdetails')?.[0] || null
+    let exportedDetails = exportedMap.get('dangerousproductalertdetails')?.[0] || null
+    
+    // Если не нашли по localName, ищем по tagName (исключая корневой элемент с префиксом doc:)
+    if (!originalDetails) {
+      originalDetails = originalChildren.find(child => {
+        const tagName = child.tagName || ''
+        const localName = child.localName || ''
+        return (localName.toLowerCase() === 'dangerousproductalertdetails' || 
+                tagName.toLowerCase().includes('dangerousproductalertdetails')) && 
+               !tagName.toLowerCase().startsWith('doc:')
+      }) || null
+    }
+    
+    if (!exportedDetails) {
+      exportedDetails = exportedChildren.find(child => {
+        const tagName = child.tagName || ''
+        const localName = child.localName || ''
+        return (localName.toLowerCase() === 'dangerousproductalertdetails' || 
+                tagName.toLowerCase().includes('dangerousproductalertdetails')) && 
+               !tagName.toLowerCase().startsWith('doc:')
+      }) || null
+    }
+    console.log('[compareXML] Начинаем сравнение DangerousProductAlertDetails')
+    console.log('[compareXML] originalDetails:', originalDetails ? `${originalDetails.localName || originalDetails.tagName}, дочерних: ${originalDetails.children.length}` : 'null')
+    console.log('[compareXML] exportedDetails:', exportedDetails ? `${exportedDetails.localName || exportedDetails.tagName}, дочерних: ${exportedDetails.children.length}` : 'null')
+    if (originalDetails) {
+      console.log('[compareXML] Дочерние элементы originalDetails:', Array.from(originalDetails.children).map(c => c.localName || c.tagName).join(', '))
+    }
+    if (exportedDetails) {
+      console.log('[compareXML] Дочерние элементы exportedDetails:', Array.from(exportedDetails.children).map(c => c.localName || c.tagName).join(', '))
+    }
+    compareElementsSimple(originalDetails, exportedDetails, differences, warnings, 'DangerousProductAlertDetails')
+    console.log('[compareXML] Завершили сравнение DangerousProductAlertDetails, различий:', differences.length, 'предупреждений:', warnings.length)
     
     return {
-      isIdentical: differences.length === 0,
+      isIdentical: differences.length === 0 && warnings.length === 0,
       differences: [...new Set(differences)], // Убираем дубликаты
       warnings: [...new Set(warnings)], // Убираем дубликаты
     }
@@ -605,7 +763,198 @@ function normalizeXML(doc: Document): string {
 }
 
 /**
- * Сравнивает два XML элемента
+ * Упрощенная функция сравнения XML элементов - рекурсивно проходит по всем элементам
+ */
+function compareElementsSimple(
+  original: Element | null,
+  exported: Element | null,
+  differences: string[],
+  warnings: string[],
+  path: string
+) {
+  // Логируем все вызовы для отладки
+  if (path.includes('DangerousProductAlertDetails') || path.includes('NonCompliant') || path.includes('Requirement')) {
+    console.log(`[compareElementsSimple] ВХОД: path="${path}", original=${original ? (original.localName || original.tagName) : 'null'}, exported=${exported ? (exported.localName || exported.tagName) : 'null'}`)
+  }
+  
+  if (!original && !exported) return
+  if (!original) {
+    warnings.push(`Отсутствует элемент в исходном XML: ${path}`)
+    return
+  }
+  if (!exported) {
+    warnings.push(`Отсутствует элемент в экспортированном XML: ${path}`)
+    return
+  }
+  
+  const originalLocalName = original.localName || original.tagName.split(':').pop()?.toLowerCase() || ''
+  const exportedLocalName = exported.localName || exported.tagName.split(':').pop()?.toLowerCase() || ''
+  
+  if (originalLocalName !== exportedLocalName) {
+    warnings.push(`Разные имена элементов на пути ${path}: ${originalLocalName} vs ${exportedLocalName}`)
+    return
+  }
+  
+  const currentPath = path ? `${path}/${originalLocalName}` : originalLocalName
+  
+  // Логируем все элементы на пути к нарушениям
+  const importantPaths = ['dangerousproductalertdetails', 'noncompliantsanitaryproductdetails', 
+                         'noncompliantsanitaryproductbatchdetails', 'requirementviolationdetails',
+                         'requirementsdocdetails', 'technicalregulationid', 'docname']
+  if (importantPaths.some(p => currentPath.toLowerCase().includes(p))) {
+    console.log(`[compareElementsSimple] Путь: ${currentPath}, дочерних: ${original.children.length} vs ${exported.children.length}`)
+  }
+  
+  // Сравниваем текстовое содержимое (если нет дочерних элементов)
+  if (original.children.length === 0 && exported.children.length === 0) {
+    const originalText = original.textContent?.trim() || ''
+    const exportedText = exported.textContent?.trim() || ''
+    
+    if (originalText !== exportedText) {
+      if (!isDateDifference(originalText, exportedText)) {
+        const warning = `Разное содержимое на пути ${currentPath}: "${originalText}" vs "${exportedText}"`
+        warnings.push(warning)
+        if (originalLocalName === 'technicalregulationid' || originalLocalName === 'docname') {
+          console.log(`[compareElementsSimple] ${warning}`)
+        }
+      }
+    }
+    return
+  }
+  
+  // Сравниваем дочерние элементы
+  const originalChildren = Array.from(original.children)
+  const exportedChildren = Array.from(exported.children)
+  
+  // Для RequirementViolationDetails сравниваем по содержимому, а не по порядку
+  if (originalLocalName === 'requirementviolationdetails') {
+    console.log(`[compareElementsSimple] RequirementViolationDetails: оригинал ${originalChildren.length} элементов, экспорт ${exportedChildren.length} элементов`)
+    // Создаем "отпечатки" для каждого элемента
+    const originalFps = originalChildren.map(el => getElementFingerprint(el))
+    const exportedFps = exportedChildren.map(el => getElementFingerprint(el))
+    
+    // Для каждого экспортированного элемента ищем соответствующий в исходном
+    exportedChildren.forEach((exportedEl, exportedIndex) => {
+      const exportedFp = exportedFps[exportedIndex]
+      const matchingIndex = originalFps.findIndex(fp => fp === exportedFp)
+      
+      console.log(`[compareElementsSimple] Экспортированный элемент ${exportedIndex}, отпечаток: ${exportedFp.substring(0, 150)}`)
+      
+      if (matchingIndex === -1) {
+        console.log(`[compareElementsSimple] Точное совпадение не найдено, ищем лучший матч`)
+        // Ищем лучший матч
+        const bestMatch = findBestMatch(exportedEl, originalChildren)
+        if (bestMatch) {
+          console.log(`[compareElementsSimple] Найден лучший матч, сравниваем детально`)
+          // Сравниваем детально
+          compareElementsSimple(bestMatch, exportedEl, differences, warnings, currentPath)
+        } else {
+          const warning = `Новый элемент RequirementViolationDetails на пути ${currentPath}: ${exportedFp.substring(0, 100)}`
+          warnings.push(warning)
+          console.log(`[compareElementsSimple] ${warning}`)
+        }
+      } else {
+        console.log(`[compareElementsSimple] Найдено точное совпадение на индексе ${matchingIndex}, сравниваем детально`)
+        // Точное совпадение - сравниваем детально
+        compareElementsSimple(originalChildren[matchingIndex], exportedEl, differences, warnings, currentPath)
+      }
+    })
+    
+    // Проверяем удаленные элементы
+    originalChildren.forEach((originalEl, originalIndex) => {
+      const originalFp = originalFps[originalIndex]
+      const matchingIndex = exportedFps.findIndex(fp => fp === originalFp)
+      
+      if (matchingIndex === -1) {
+        const bestMatch = findBestMatch(originalEl, exportedChildren)
+        if (!bestMatch) {
+          const warning = `Удален элемент RequirementViolationDetails на пути ${currentPath}: ${originalFp.substring(0, 100)}`
+          warnings.push(warning)
+          console.log(`[compareElementsSimple] ${warning}`)
+        }
+      }
+    })
+  } else {
+    // Для остальных элементов группируем по именам и сравниваем группы
+    const originalGroups = new Map<string, Element[]>()
+    const exportedGroups = new Map<string, Element[]>()
+    
+    originalChildren.forEach(child => {
+      const name = (child.localName || child.tagName.split(':').pop() || '').toLowerCase()
+      if (!originalGroups.has(name)) originalGroups.set(name, [])
+      originalGroups.get(name)!.push(child)
+    })
+    
+    exportedChildren.forEach(child => {
+      const name = (child.localName || child.tagName.split(':').pop() || '').toLowerCase()
+      if (!exportedGroups.has(name)) exportedGroups.set(name, [])
+      exportedGroups.get(name)!.push(child)
+    })
+    
+    // Сравниваем группы с одинаковыми именами
+    const allNames = new Set([...originalGroups.keys(), ...exportedGroups.keys()])
+    allNames.forEach(name => {
+      const originalGroup = originalGroups.get(name) || []
+      const exportedGroup = exportedGroups.get(name) || []
+      
+      // Сравниваем элементы по порядку, но только если они есть в обеих группах
+      const maxLength = Math.max(originalGroup.length, exportedGroup.length)
+      for (let i = 0; i < maxLength; i++) {
+        const originalEl = originalGroup[i]
+        const exportedEl = exportedGroup[i]
+        
+        // Сравниваем только если оба элемента существуют
+        if (originalEl && exportedEl) {
+          compareElementsSimple(originalEl, exportedEl, differences, warnings, currentPath)
+        } else if (originalEl && !exportedEl) {
+          // Элемент есть в оригинале, но отсутствует в экспорте
+          warnings.push(`Отсутствует элемент в экспортированном XML: ${currentPath}/${name}`)
+        } else if (!originalEl && exportedEl) {
+          // Элемент есть в экспорте, но отсутствует в оригинале
+          warnings.push(`Отсутствует элемент в исходном XML: ${currentPath}/${name}`)
+        }
+      }
+    })
+  }
+  
+  // Дополнительно: для RequirementsDocDetails сравниваем значения полей напрямую
+  if (originalLocalName === 'requirementsdocdetails') {
+    const origTechRegId = Array.from(original.getElementsByTagName('*')).find(el => {
+      const ln = el.localName || el.tagName.split(':').pop()?.toLowerCase()
+      return ln === 'technicalregulationid'
+    })?.textContent?.trim()
+    const expTechRegId = Array.from(exported.getElementsByTagName('*')).find(el => {
+      const ln = el.localName || el.tagName.split(':').pop()?.toLowerCase()
+      return ln === 'technicalregulationid'
+    })?.textContent?.trim()
+    
+    const origDocName = Array.from(original.getElementsByTagName('*')).find(el => {
+      const ln = el.localName || el.tagName.split(':').pop()?.toLowerCase()
+      return ln === 'docname'
+    })?.textContent?.trim()
+    const expDocName = Array.from(exported.getElementsByTagName('*')).find(el => {
+      const ln = el.localName || el.tagName.split(':').pop()?.toLowerCase()
+      return ln === 'docname'
+    })?.textContent?.trim()
+    
+    // Сравниваем ключевые поля
+    if (origTechRegId !== expTechRegId) {
+      const warning = `Разное значение TechnicalRegulationId на пути ${currentPath}: "${origTechRegId}" vs "${expTechRegId}"`
+      warnings.push(warning)
+      console.log(`[compareElementsSimple] ${warning}`)
+    }
+    
+    if (origDocName !== expDocName) {
+      const warning = `Разное значение DocName на пути ${currentPath}: "${origDocName}" vs "${expDocName}"`
+      warnings.push(warning)
+      console.log(`[compareElementsSimple] ${warning}`)
+    }
+    // Продолжаем сравнение всех остальных полей (не делаем return)
+  }
+}
+
+/**
+ * Старая функция сравнения (оставляем для совместимости, но не используем)
  */
 function compareElements(
   original: Element | null,
@@ -634,18 +983,171 @@ function compareElements(
   
   const currentPath = path ? `${path}/${originalLocalName}` : originalLocalName
   
-  // Сравнение текстового содержимого
-  const originalText = original.textContent?.trim() || ''
-  const exportedText = exported.textContent?.trim() || ''
+  // Логируем все вызовы для важных элементов
+  const importantPaths = ['dangerousproductalertdetails', 'noncompliantsanitaryproductdetails', 
+                         'noncompliantsanitaryproductbatchdetails', 'requirementviolationdetails']
+  if (importantPaths.some(p => currentPath.toLowerCase().includes(p))) {
+    console.log(`[compareElements] ВХОД: ${originalLocalName} на пути ${currentPath}, дочерних: ${original.children.length}`)
+  }
   
-  if (originalText && exportedText && originalText !== exportedText) {
-    // Проверяем, не является ли это просто разницей в форматировании дат
-    if (!isDateDifference(originalText, exportedText)) {
-      warnings.push(`Разное содержимое на пути ${currentPath}: "${originalText}" vs "${exportedText}"`)
+  // Логируем сравнение важных элементов и их дочерних элементов
+  const importantElements = ['noncompliantsanitaryproductbatchdetails', 'noncompliantsanitaryproductdetails',
+                            'requirementviolationdetails', 'requirementsdocdetails', 
+                            'technicalregulationid', 'docname', 'productdetails', 'batchdetails']
+  
+  if (importantElements.includes(originalLocalName)) {
+    console.log(`[compareElements] Сравниваем ${originalLocalName} на пути ${currentPath}, дочерних элементов: ${original.children.length} vs ${exported.children.length}`)
+    
+    // Для RequirementsDocDetails логируем значения полей
+    if (originalLocalName === 'requirementsdocdetails') {
+      const origTechRegId = Array.from(original.getElementsByTagName('*')).find(el => {
+        const ln = el.localName || el.tagName.split(':').pop()?.toLowerCase()
+        return ln === 'technicalregulationid'
+      })?.textContent?.trim()
+      const expTechRegId = Array.from(exported.getElementsByTagName('*')).find(el => {
+        const ln = el.localName || el.tagName.split(':').pop()?.toLowerCase()
+        return ln === 'technicalregulationid'
+      })?.textContent?.trim()
+      console.log(`[compareElements] RequirementsDocDetails TechnicalRegulationId: "${origTechRegId}" vs "${expTechRegId}"`)
+      
+      const origDocName = Array.from(original.getElementsByTagName('*')).find(el => {
+        const ln = el.localName || el.tagName.split(':').pop()?.toLowerCase()
+        return ln === 'docname'
+      })?.textContent?.trim()
+      const expDocName = Array.from(exported.getElementsByTagName('*')).find(el => {
+        const ln = el.localName || el.tagName.split(':').pop()?.toLowerCase()
+        return ln === 'docname'
+      })?.textContent?.trim()
+      console.log(`[compareElements] RequirementsDocDetails DocName: "${origDocName}" vs "${expDocName}"`)
+      
+      if (origTechRegId !== expTechRegId || origDocName !== expDocName) {
+        console.log(`[compareElements] НАЙДЕНЫ РАЗЛИЧИЯ в RequirementsDocDetails!`)
+        warnings.push(`Разное значение в RequirementsDocDetails на пути ${currentPath}: TechnicalRegulationId "${origTechRegId}" vs "${expTechRegId}", DocName "${origDocName}" vs "${expDocName}"`)
+      }
     }
   }
   
-  // Сравнение дочерних элементов
+  // Логируем сравнение RequirementsDocDetails для отладки
+  if (originalLocalName === 'requirementsdocdetails') {
+    console.log(`[compareElements] Сравниваем RequirementsDocDetails на пути ${currentPath}`)
+    const origTechRegId = Array.from(original.getElementsByTagName('*')).find(el => {
+      const ln = el.localName || el.tagName.split(':').pop()?.toLowerCase()
+      return ln === 'technicalregulationid'
+    })?.textContent?.trim()
+    const expTechRegId = Array.from(exported.getElementsByTagName('*')).find(el => {
+      const ln = el.localName || el.tagName.split(':').pop()?.toLowerCase()
+      return ln === 'technicalregulationid'
+    })?.textContent?.trim()
+    console.log(`[compareElements] TechnicalRegulationId: "${origTechRegId}" vs "${expTechRegId}"`)
+    
+    const origDocName = Array.from(original.getElementsByTagName('*')).find(el => {
+      const ln = el.localName || el.tagName.split(':').pop()?.toLowerCase()
+      return ln === 'docname'
+    })?.textContent?.trim()
+    const expDocName = Array.from(exported.getElementsByTagName('*')).find(el => {
+      const ln = el.localName || el.tagName.split(':').pop()?.toLowerCase()
+      return ln === 'docname'
+    })?.textContent?.trim()
+    console.log(`[compareElements] DocName: "${origDocName}" vs "${expDocName}"`)
+  }
+  
+  // Сравнение текстового содержимого (только если нет дочерних элементов)
+  if (original.children.length === 0 && exported.children.length === 0) {
+    const originalText = original.textContent?.trim() || ''
+    const exportedText = exported.textContent?.trim() || ''
+    
+    if (originalText !== exportedText) {
+      // Проверяем, не является ли это просто разницей в форматировании дат
+      if (!isDateDifference(originalText, exportedText)) {
+        console.log(`[compareElements] Разное содержимое на пути ${currentPath}: "${originalText}" vs "${exportedText}"`)
+        warnings.push(`Разное содержимое на пути ${currentPath}: "${originalText}" vs "${exportedText}"`)
+      }
+    }
+  } else {
+    // Если есть дочерние элементы, сравниваем их по именам и значениям
+    // Но только для простых случаев - для сложных структур используем рекурсивное сравнение
+    const originalChildMap = new Map<string, string>()
+    const exportedChildMap = new Map<string, string>()
+    
+    // Собираем только простые текстовые значения (без вложенных элементов)
+    Array.from(original.children).forEach(child => {
+      if (child.children.length === 0) {
+        const localName = child.localName || child.tagName.split(':').pop()?.toLowerCase() || ''
+        const text = child.textContent?.trim() || ''
+        if (text) {
+          originalChildMap.set(localName, text)
+        }
+      }
+    })
+    
+    Array.from(exported.children).forEach(child => {
+      if (child.children.length === 0) {
+        const localName = child.localName || child.tagName.split(':').pop()?.toLowerCase() || ''
+        const text = child.textContent?.trim() || ''
+        if (text) {
+          exportedChildMap.set(localName, text)
+        }
+      }
+    })
+    
+    // Сравниваем значения по ключам (только для простых полей)
+    if (originalChildMap.size > 0 || exportedChildMap.size > 0) {
+      const allKeys = new Set([...originalChildMap.keys(), ...exportedChildMap.keys()])
+      allKeys.forEach(key => {
+        const originalValue = originalChildMap.get(key) || ''
+        const exportedValue = exportedChildMap.get(key) || ''
+        
+        if (originalValue !== exportedValue) {
+          if (!isDateDifference(originalValue, exportedValue)) {
+            console.log(`[compareElements] Разное значение поля ${key} на пути ${currentPath}: "${originalValue}" vs "${exportedValue}"`)
+            warnings.push(`Разное значение поля ${key} на пути ${currentPath}: "${originalValue}" vs "${exportedValue}"`)
+          }
+        }
+      })
+    }
+    
+    // Также сравниваем дочерние элементы рекурсивно (для сложных структур)
+    // Это важно для RequirementsDocDetails, где могут быть вложенные элементы
+    const originalChildren = Array.from(original.children)
+    const exportedChildren = Array.from(exported.children)
+    
+    // Логируем для важных элементов
+    if (importantElements.includes(originalLocalName)) {
+      console.log(`[compareElements] Рекурсивное сравнение дочерних элементов ${originalLocalName} на пути ${currentPath}: ${originalChildren.length} vs ${exportedChildren.length}`)
+    }
+    
+    // Группируем по именам для сравнения
+    const originalMap = new Map<string, Element[]>()
+    const exportedMap = new Map<string, Element[]>()
+    
+    originalChildren.forEach(child => {
+      const name = child.localName || child.tagName.split(':').pop()?.toLowerCase() || ''
+      if (!originalMap.has(name)) originalMap.set(name, [])
+      originalMap.get(name)!.push(child)
+    })
+    
+    exportedChildren.forEach(child => {
+      const name = child.localName || child.tagName.split(':').pop()?.toLowerCase() || ''
+      if (!exportedMap.has(name)) exportedMap.set(name, [])
+      exportedMap.get(name)!.push(child)
+    })
+    
+    // Сравниваем группы элементов рекурсивно
+    const allNames = new Set([...originalMap.keys(), ...exportedMap.keys()])
+    allNames.forEach(name => {
+      const originalGroup = originalMap.get(name) || []
+      const exportedGroup = exportedMap.get(name) || []
+      
+      // Для простых элементов сравниваем по порядку
+      const maxLength = Math.max(originalGroup.length, exportedGroup.length)
+      for (let i = 0; i < maxLength; i++) {
+        compareElements(originalGroup[i], exportedGroup[i], differences, warnings, currentPath)
+      }
+    })
+    return // Выходим, так как уже сравнили все дочерние элементы
+  }
+  
+  // Сравнение дочерних элементов (для случаев, когда нет простых текстовых значений)
   const originalChildren = Array.from(original.children)
   const exportedChildren = Array.from(exported.children)
   
@@ -672,14 +1174,124 @@ function compareElements(
     const exportedGroup = exportedMap.get(name) || []
     
     if (originalGroup.length !== exportedGroup.length) {
+      console.log(`[compareElements] Разное количество элементов ${name} на пути ${currentPath}: ${originalGroup.length} vs ${exportedGroup.length}`)
       warnings.push(`Разное количество элементов ${name} на пути ${currentPath}: ${originalGroup.length} vs ${exportedGroup.length}`)
     }
     
-    const maxLength = Math.max(originalGroup.length, exportedGroup.length)
-    for (let i = 0; i < maxLength; i++) {
-      compareElements(originalGroup[i], exportedGroup[i], differences, warnings, currentPath)
+    // Для NonCompliantSanitaryProductBatchDetails и RequirementViolationDetails сравниваем по содержимому, а не по порядку
+    if (name === 'noncompliantsanitaryproductbatchdetails') {
+      console.log(`[compareElements] Сравниваем ${originalGroup.length} исходных и ${exportedGroup.length} экспортированных NonCompliantSanitaryProductBatchDetails на пути ${currentPath}`)
+      
+      // Для батчей сравниваем по порядку (так как они должны соответствовать)
+      const maxLength = Math.max(originalGroup.length, exportedGroup.length)
+      for (let i = 0; i < maxLength; i++) {
+        compareElements(originalGroup[i], exportedGroup[i], differences, warnings, currentPath)
+      }
+    } else if (name === 'requirementviolationdetails') {
+      console.log(`[compareElements] Сравниваем ${originalGroup.length} исходных и ${exportedGroup.length} экспортированных RequirementViolationDetails на пути ${currentPath}`)
+      
+      // Для каждого экспортированного элемента ищем соответствующий в исходном
+      exportedGroup.forEach((exportedEl, exportedIndex) => {
+        const exportedFp = getElementFingerprint(exportedEl)
+        console.log(`[compareElements] Экспортированный элемент ${exportedIndex}:`, exportedFp.substring(0, 100))
+        
+        // Ищем лучший матч в исходном
+        const bestMatch = findBestMatch(exportedEl, originalGroup)
+        
+        if (bestMatch) {
+          const originalFp = getElementFingerprint(bestMatch)
+          console.log(`[compareElements] Найден матч:`, originalFp.substring(0, 100))
+          
+          // Сравниваем детально
+          compareElements(bestMatch, exportedEl, differences, warnings, currentPath)
+        } else {
+          // Не найден похожий элемент - это новое требование
+          console.log(`[compareElements] Новый элемент ${name} на пути ${currentPath}:`, exportedFp.substring(0, 100))
+          warnings.push(`Новый элемент ${name} на пути ${currentPath}: ${exportedFp.substring(0, 100)}`)
+        }
+      })
+      
+      // Проверяем, не удалены ли элементы из исходного
+      originalGroup.forEach((originalEl, originalIndex) => {
+        const originalFp = getElementFingerprint(originalEl)
+        const bestMatch = findBestMatch(originalEl, exportedGroup)
+        
+        if (!bestMatch) {
+          console.log(`[compareElements] Удален элемент ${name} на пути ${currentPath}:`, originalFp.substring(0, 100))
+          warnings.push(`Удален элемент ${name} на пути ${currentPath}: ${originalFp.substring(0, 100)}`)
+        }
+      })
+    } else {
+      // Для других элементов сравниваем по порядку
+      const maxLength = Math.max(originalGroup.length, exportedGroup.length)
+      for (let i = 0; i < maxLength; i++) {
+        compareElements(originalGroup[i], exportedGroup[i], differences, warnings, currentPath)
+      }
     }
   })
+}
+
+/**
+ * Создает "отпечаток" элемента для сравнения (ключевые поля)
+ */
+function getElementFingerprint(element: Element): string {
+  const parts: string[] = []
+  
+  // Добавляем ключевые дочерние элементы
+  const keyFields = ['technicalregulationid', 'docname', 'docid', 'descriptiontext', 
+                     'discrepancyofqualityindexcode', 'discrepancyofqualityindexname', 
+                     'discrepancyofqualityindexvalue', 'notetext']
+  
+  keyFields.forEach(fieldName => {
+    const field = Array.from(element.getElementsByTagName('*')).find(el => {
+      const localName = el.localName || el.tagName.split(':').pop()?.toLowerCase() || ''
+      return localName === fieldName
+    })
+    if (field) {
+      const value = field.textContent?.trim() || ''
+      if (value) {
+        parts.push(`${fieldName}:${value.substring(0, 50)}`) // Ограничиваем длину для читаемости
+      }
+    }
+  })
+  
+  return parts.join('|') || element.outerHTML.substring(0, 100)
+}
+
+/**
+ * Находит наиболее похожий элемент из группы для сравнения
+ */
+function findBestMatch(target: Element, candidates: Element[]): Element | null {
+  let bestMatch: Element | null = null
+  let bestScore = 0
+  
+  // Получаем ключевые поля целевого элемента
+  const targetFields = new Map<string, string>()
+  Array.from(target.getElementsByTagName('*')).forEach(el => {
+    const localName = el.localName || el.tagName.split(':').pop()?.toLowerCase() || ''
+    const value = el.textContent?.trim() || ''
+    if (value && (localName === 'technicalregulationid' || localName === 'docid')) {
+      targetFields.set(localName, value)
+    }
+  })
+  
+  candidates.forEach(candidate => {
+    let score = 0
+    Array.from(candidate.getElementsByTagName('*')).forEach(el => {
+      const localName = el.localName || el.tagName.split(':').pop()?.toLowerCase() || ''
+      const value = el.textContent?.trim() || ''
+      if (value && targetFields.has(localName) && targetFields.get(localName) === value) {
+        score++
+      }
+    })
+    
+    if (score > bestScore) {
+      bestScore = score
+      bestMatch = candidate
+    }
+  })
+  
+  return bestScore > 0 ? bestMatch : null
 }
 
 /**

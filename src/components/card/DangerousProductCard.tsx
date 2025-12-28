@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Card, Tabs, Button, Space, Switch } from 'antd'
 import { EditOutlined, EyeOutlined, DownloadOutlined, PlusOutlined } from '@ant-design/icons'
 import ProductTabEdit from '../tabs/ProductTabEdit'
@@ -20,7 +20,9 @@ import ComplianceDocumentsTab from '../tabs/ComplianceDocumentsTab'
 import ViolationsTab from '../tabs/ViolationsTab'
 import DetectionPlaceTab from '../tabs/DetectionPlaceTab'
 import MeasuresTab from '../tabs/MeasuresTab'
-import { exportCardDataToXML, compareXML } from '@/utils/xmlExporter'
+import { exportCardDataToXML } from '@/utils/xmlExporter'
+import { parseXMLToCardData } from '@/utils/xmlParser'
+import { compareCardData } from '@/utils/cardDataComparator'
 import XMLComparisonModal from '../modals/XMLComparisonModal'
 import type { CardData } from '@/types/card'
 
@@ -51,9 +53,18 @@ const DangerousProductCard: React.FC<DangerousProductCardProps> = ({
   const [comparisonModalVisible, setComparisonModalVisible] = useState(false)
   
   // Обновляем originalXML при изменении prop
-  if (propOriginalXML && propOriginalXML !== originalXML) {
-    setOriginalXML(propOriginalXML)
-  }
+  useEffect(() => {
+    if (propOriginalXML && propOriginalXML !== originalXML) {
+      setOriginalXML(propOriginalXML)
+    }
+  }, [propOriginalXML, originalXML])
+  
+  // Обновляем editedData при изменении data (только если не в режиме редактирования)
+  useEffect(() => {
+    if (!isEditMode && editedData !== data) {
+      setEditedData(data)
+    }
+  }, [data, isEditMode])
   
   // Проверка наличия данных
   if (!data) {
@@ -144,10 +155,37 @@ const DangerousProductCard: React.FC<DangerousProductCardProps> = ({
       return
     }
     
-    const exportedXML = exportCardDataToXML(editedData)
-    const result = compareXML(xmlToCompare, exportedXML)
-    setComparisonResult(result)
-    setComparisonModalVisible(true)
+    try {
+      // Парсим исходный XML в объект
+      const originalData = parseXMLToCardData(xmlToCompare)
+      console.log('[handleCompareXML] Исходные данные после парсинга:', originalData)
+      
+      // Экспортируем editedData в XML
+      const exportedXML = exportCardDataToXML(editedData)
+      console.log('[handleCompareXML] Экспортированный XML создан')
+      
+      // Парсим экспортированный XML обратно в объект
+      const exportedData = parseXMLToCardData(exportedXML)
+      console.log('[handleCompareXML] Экспортированные данные после парсинга:', exportedData)
+      
+      // Сравниваем объекты
+      const result = compareCardData(originalData, exportedData)
+      console.log('[handleCompareXML] Результат сравнения:', result)
+      console.log('[handleCompareXML] Количество различий:', result.differences.length)
+      console.log('[handleCompareXML] Количество предупреждений:', result.warnings.length)
+      if (result.warnings.length > 0) {
+        console.log('[handleCompareXML] Предупреждения:', result.warnings)
+      }
+      if (result.differences.length > 0) {
+        console.log('[handleCompareXML] Различия:', result.differences)
+      }
+      
+      setComparisonResult(result)
+      setComparisonModalVisible(true)
+    } catch (error) {
+      console.error('[handleCompareXML] Ошибка при сравнении:', error)
+      alert(`Ошибка при сравнении XML: ${error instanceof Error ? error.message : String(error)}`)
+    }
   }
 
   const handleSave = () => {
@@ -158,11 +196,6 @@ const DangerousProductCard: React.FC<DangerousProductCardProps> = ({
   const handleCancel = () => {
     setEditedData(data)
     setIsEditMode(false)
-  }
-
-  // Обновляем editedData при изменении data
-  if (editedData !== data && !isEditMode) {
-    setEditedData(data)
   }
 
   const currentData = isEditMode ? editedData : data
@@ -178,7 +211,7 @@ const DangerousProductCard: React.FC<DangerousProductCardProps> = ({
             editChildren = (
               <ProductTabEdit
                 data={currentData.product}
-                onChange={(product) => setEditedData({ ...editedData, product })}
+                onChange={(product) => setEditedData((prev) => ({ ...prev, product }))}
               />
             )
           } else {
@@ -212,7 +245,16 @@ const DangerousProductCard: React.FC<DangerousProductCardProps> = ({
             editChildren = (
               <ViolationsTabEdit
                 data={currentData.violations}
-                onChange={(violations) => setEditedData({ ...editedData, violations })}
+                onChange={(violations) => {
+                  console.log('[DangerousProductCard] Получены изменения violations:', violations)
+                  console.log('[DangerousProductCard] violatedRequirements:', violations.violatedRequirements)
+                  setEditedData((prev) => {
+                    const updated = { ...prev, violations }
+                    console.log('[DangerousProductCard] Обновленный editedData:', updated)
+                    console.log('[DangerousProductCard] editedData.violations:', updated.violations)
+                    return updated
+                  })
+                }}
               />
             )
           } else {
@@ -242,7 +284,7 @@ const DangerousProductCard: React.FC<DangerousProductCardProps> = ({
           editChildren = (
             <NotificationTabEdit
               data={currentData.notification}
-              onChange={(notification) => setEditedData({ ...editedData, notification })}
+              onChange={(notification) => setEditedData((prev) => ({ ...prev, notification }))}
             />
           )
           break
@@ -251,7 +293,7 @@ const DangerousProductCard: React.FC<DangerousProductCardProps> = ({
             editChildren = (
               <TSDTabEdit
                 data={currentData.tsd}
-                onChange={(tsd) => setEditedData({ ...editedData, tsd })}
+                onChange={(tsd) => setEditedData((prev) => ({ ...prev, tsd }))}
               />
             )
           } else {
@@ -282,7 +324,7 @@ const DangerousProductCard: React.FC<DangerousProductCardProps> = ({
             editChildren = (
               <ComplianceDocumentsTabEdit
                 data={currentData.complianceDocuments}
-                onChange={(compliance) => setEditedData({ ...editedData, complianceDocuments: compliance })}
+                onChange={(compliance) => setEditedData((prev) => ({ ...prev, complianceDocuments: compliance }))}
               />
             )
           } else {
@@ -311,7 +353,7 @@ const DangerousProductCard: React.FC<DangerousProductCardProps> = ({
             editChildren = (
               <DetectionPlaceTabEdit
                 data={currentData.detectionPlace}
-                onChange={(place) => setEditedData({ ...editedData, detectionPlace: place })}
+                onChange={(place) => setEditedData((prev) => ({ ...prev, detectionPlace: place }))}
               />
             )
           } else {
@@ -340,7 +382,7 @@ const DangerousProductCard: React.FC<DangerousProductCardProps> = ({
             editChildren = (
               <MeasuresTabEdit
                 data={currentData.measures}
-                onChange={(measures) => setEditedData({ ...editedData, measures })}
+                onChange={(measures) => setEditedData((prev) => ({ ...prev, measures }))}
               />
             )
           } else {
@@ -431,7 +473,7 @@ const DangerousProductCard: React.FC<DangerousProductCardProps> = ({
           data={currentData.statusHistory}
           onClose={() => setStatusHistoryVisible(false)}
           isEditMode={isEditMode}
-          onUpdate={isEditMode ? (statusHistory) => setEditedData({ ...editedData, statusHistory }) : undefined}
+          onUpdate={isEditMode ? (statusHistory) => setEditedData((prev) => ({ ...prev, statusHistory })) : undefined}
         />
 
         <ElectronicDocumentModal
@@ -439,7 +481,7 @@ const DangerousProductCard: React.FC<DangerousProductCardProps> = ({
           data={currentData.electronicDocument}
           onClose={() => setElectronicDocumentVisible(false)}
           isEditMode={isEditMode}
-          onUpdate={isEditMode ? (electronicDocument) => setEditedData({ ...editedData, electronicDocument }) : undefined}
+          onUpdate={isEditMode ? (electronicDocument) => setEditedData((prev) => ({ ...prev, electronicDocument })) : undefined}
         />
 
         <AccessModal
@@ -448,7 +490,7 @@ const DangerousProductCard: React.FC<DangerousProductCardProps> = ({
           onClose={() => setAccessModalVisible(false)}
           onUpdate={(accessList) => {
             if (isEditMode) {
-              setEditedData({ ...editedData, accessList })
+              setEditedData((prev) => ({ ...prev, accessList }))
             } else {
               onUpdate({ ...currentData, accessList })
             }

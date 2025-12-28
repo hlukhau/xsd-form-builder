@@ -1,10 +1,12 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Form, Input, Button, Table, Space, DatePicker, Collapse, Select, Row, Col } from 'antd'
 import { PlusOutlined, DeleteOutlined } from '@ant-design/icons'
 import dayjs from 'dayjs'
 import ManufacturerDetailsEdit from '../common/ManufacturerDetailsEdit'
 import type { TSDData, ProductBatchDetails, ShippingDocument, ProductDetails, SupplyChainPartyDetails, MeasureWithUnit } from '@/types/card'
 import { useMeasurementUnitOptions } from '@/hooks/useMeasurementUnitOptions'
+import { useShipDocKindOptions } from '@/hooks/useShipDocKindOptions'
+import { checkShipDocKindExists } from '@/utils/referenceDataApi'
 
 interface TSDTabEditProps {
   data: TSDData
@@ -14,6 +16,43 @@ interface TSDTabEditProps {
 const TSDTabEdit: React.FC<TSDTabEditProps> = ({ data, onChange }) => {
   const [selectedDocumentIndex, setSelectedDocumentIndex] = useState<number | null>(null)
   const { options: measurementUnitOptions, loading: loadingMeasurementUnits, getSelectOptions: getMeasurementUnitSelectOptions, getUnitByCode } = useMeasurementUnitOptions()
+  const { options: shipDocKindOptions, loading: loadingShipDocKinds, getSelectOptions: getShipDocKindSelectOptions, getNameByCode: getShipDocKindNameByCode } = useShipDocKindOptions()
+  const [docKindErrors, setDocKindErrors] = useState<Map<number, boolean>>(new Map())
+
+  // Проверяем валидность кодов видов документов при загрузке
+  useEffect(() => {
+    const batch = data.batches[0]
+    if (batch?.shippingDocuments) {
+      const errors = new Map<number, boolean>()
+      batch.shippingDocuments.forEach((doc, index) => {
+        if (doc.docKindCode) {
+          checkShipDocKindExists(doc.docKindCode)
+            .then((exists) => {
+              errors.set(index, !exists)
+              setDocKindErrors(new Map(errors))
+            })
+            .catch(() => {
+              errors.set(index, false)
+              setDocKindErrors(new Map(errors))
+            })
+        } else {
+          errors.set(index, false)
+          setDocKindErrors(new Map(errors))
+        }
+      })
+    }
+  }, [data])
+
+  // Проверяем валидность selectedDocumentIndex при изменении данных
+  useEffect(() => {
+    const batch = data.batches[0]
+    if (selectedDocumentIndex !== null && batch?.shippingDocuments) {
+      if (selectedDocumentIndex >= batch.shippingDocuments.length) {
+        // Индекс стал невалидным, сбрасываем выбор
+        setSelectedDocumentIndex(null)
+      }
+    }
+  }, [data, selectedDocumentIndex])
 
   const handleBatchChange = (field: string, value: any) => {
     const batch = data.batches[0] || { shippingDocuments: [] }
@@ -68,6 +107,8 @@ const TSDTabEdit: React.FC<TSDTabEditProps> = ({ data, onChange }) => {
   const handleAddDocument = () => {
     const batch = data.batches[0] || { shippingDocuments: [] }
     const newDoc: ShippingDocument = {
+      docKindCode: undefined,
+      docKindName: undefined,
       docName: '',
       docId: '',
       docCreationDate: '',
@@ -87,6 +128,15 @@ const TSDTabEdit: React.FC<TSDTabEditProps> = ({ data, onChange }) => {
     const batch = data.batches[0] || { shippingDocuments: [] }
     const updated = [...(batch.shippingDocuments || [])]
     updated.splice(index, 1)
+    
+    // Если удаляем выбранный документ, сбрасываем выбор
+    if (selectedDocumentIndex === index) {
+      setSelectedDocumentIndex(null)
+    } else if (selectedDocumentIndex !== null && selectedDocumentIndex > index) {
+      // Если удаляем документ перед выбранным, уменьшаем индекс
+      setSelectedDocumentIndex(selectedDocumentIndex - 1)
+    }
+    
     onChange({
       ...data,
       batches: [{
@@ -102,6 +152,14 @@ const TSDTabEdit: React.FC<TSDTabEditProps> = ({ data, onChange }) => {
     updated[index] = {
       ...updated[index],
       [field]: value,
+    }
+    // Если изменяется docKindCode, обновляем docKindName из справочника
+    if (field === 'docKindCode' && value) {
+      const docKindName = getShipDocKindNameByCode(value) || ''
+      updated[index].docKindName = docKindName
+      const errors = new Map(docKindErrors)
+      errors.set(index, false)
+      setDocKindErrors(errors)
     }
     onChange({
       ...data,
@@ -155,58 +213,111 @@ const TSDTabEdit: React.FC<TSDTabEditProps> = ({ data, onChange }) => {
 
   const batch = data.batches[0] || { shippingDocuments: [] }
 
+  // Обработчик выбора вида документа
+  const handleDocKindSelect = (index: number, code: string) => {
+    const errors = new Map(docKindErrors)
+    errors.set(index, false) // Сбрасываем ошибку при выборе из справочника
+    setDocKindErrors(errors)
+    // handleDocumentChange автоматически обновит docKindName
+    handleDocumentChange(index, 'docKindCode', code)
+  }
+
   const documentColumns = [
     {
       title: 'Вид',
-      key: 'docKindName',
-      width: 150,
+      key: 'docKindCode',
+      width: 120,
+      render: (_: any, record: ShippingDocument, index: number) => (
+        <Select
+          showSearch
+          placeholder="Вид"
+          loading={loadingShipDocKinds}
+          value={record.docKindCode}
+          onChange={(code) => handleDocKindSelect(index, code)}
+          filterOption={(input, option) =>
+            (option?.label ?? '').toLowerCase().includes(input.toLowerCase())
+          }
+          options={getShipDocKindSelectOptions()}
+          allowClear
+          status={docKindErrors.get(index) ? 'error' : undefined}
+          style={{ width: '100%', minWidth: 100 }}
+          size="small"
+        />
+      ),
+    },
+    {
+      title: 'Наименование',
+      key: 'docName',
+      width: 200,
       render: (_: any, record: ShippingDocument, index: number) => (
         <Input
-          value={record.docKindName}
-          onChange={(e) => handleDocumentChange(index, 'docKindName', e.target.value)}
+          value={record.docName || ''}
+          onChange={(e) => handleDocumentChange(index, 'docName', e.target.value)}
+          placeholder="Наименование"
+          size="small"
         />
       ),
     },
     {
       title: 'Номер',
       key: 'docId',
-      width: 150,
+      width: 120,
       render: (_: any, record: ShippingDocument, index: number) => (
         <Input
-          value={record.docId}
+          value={record.docId || ''}
           onChange={(e) => handleDocumentChange(index, 'docId', e.target.value)}
+          placeholder="Номер"
+          size="small"
         />
       ),
     },
     {
       title: 'Дата',
       key: 'docCreationDate',
-      width: 150,
+      width: 120,
       render: (_: any, record: ShippingDocument, index: number) => (
         <DatePicker
           value={record.docCreationDate ? dayjs(record.docCreationDate) : null}
           onChange={(date) => handleDocumentChange(index, 'docCreationDate', date ? date.format('YYYY-MM-DD') : '')}
           style={{ width: '100%' }}
+          size="small"
         />
       ),
     },
     {
       title: 'Действия',
       key: 'actions',
-      width: 200,
+      width: 150,
+      fixed: 'right' as const,
       render: (_: any, record: ShippingDocument, index: number) => (
         <Space>
           <Button
             type="link"
-            onClick={() => setSelectedDocumentIndex(selectedDocumentIndex === index ? null : index)}
+            size="small"
+            onClick={(e) => {
+              e.stopPropagation()
+              console.log('Детализация кликнута, индекс:', index, 'текущий выбранный:', selectedDocumentIndex)
+              if (selectedDocumentIndex === index) {
+                setSelectedDocumentIndex(null)
+              } else {
+                setSelectedDocumentIndex(index)
+              }
+            }}
           >
             {selectedDocumentIndex === index ? 'Скрыть детали' : 'Детализация'}
           </Button>
           <Button
             type="link"
             danger
+            size="small"
             icon={<DeleteOutlined />}
-            onClick={() => handleRemoveDocument(index)}
+            onClick={(e) => {
+              e.stopPropagation()
+              if (selectedDocumentIndex === index) {
+                setSelectedDocumentIndex(null)
+              }
+              handleRemoveDocument(index)
+            }}
           >
             Удалить
           </Button>
@@ -322,12 +433,34 @@ const TSDTabEdit: React.FC<TSDTabEditProps> = ({ data, onChange }) => {
           columns={documentColumns}
           rowKey={(record, index) => `doc-${index}`}
           pagination={false}
+          scroll={{ x: 'max-content' }}
+          onRow={(record, index) => ({
+            onClick: () => {
+              // При клике на строку открываем/закрываем детализацию
+              if (selectedDocumentIndex === index) {
+                setSelectedDocumentIndex(null)
+              } else {
+                setSelectedDocumentIndex(index ?? null)
+              }
+            },
+            style: { cursor: 'pointer' },
+          })}
         />
 
         {/* Детализация документа */}
         {selectedDocumentIndex !== null && batch.shippingDocuments && batch.shippingDocuments[selectedDocumentIndex] && (
           <div style={{ marginTop: '16px', padding: '16px', border: '1px solid #d9d9d9', borderRadius: '4px' }}>
-            <h4>Детализация документа: {batch.shippingDocuments[selectedDocumentIndex].docName || batch.shippingDocuments[selectedDocumentIndex].docId}</h4>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+              <h4 style={{ margin: 0 }}>
+                Детализация документа: {batch.shippingDocuments[selectedDocumentIndex].docName || batch.shippingDocuments[selectedDocumentIndex].docId || `Документ ${selectedDocumentIndex + 1}`}
+              </h4>
+              <Button
+                type="link"
+                onClick={() => setSelectedDocumentIndex(null)}
+              >
+                Закрыть
+              </Button>
+            </div>
             <Collapse
               defaultActiveKey={['products', 'parties']}
               items={[

@@ -1,9 +1,11 @@
 import { useState, useEffect } from 'react'
-import { Collapse, Form, Input, Button, Space } from 'antd'
+import { Collapse, Form, Input, Button, Space, Select } from 'antd'
 import { PlusOutlined, DeleteOutlined } from '@ant-design/icons'
 import type { SupplyChainPartyDetails, AddressDetails, ContactDetails } from '@/types/card'
 import { useCountryOptions } from '@/hooks/useCountryOptions'
 import CountrySelect from '@/components/common/CountrySelect'
+import { useSupplyChainPartyKindOptions } from '@/hooks/useSupplyChainPartyKindOptions'
+import { checkSupplyChainPartyKindExists } from '@/utils/referenceDataApi'
 
 interface ManufacturerDetailsEditProps {
   data: SupplyChainPartyDetails
@@ -19,10 +21,28 @@ const ManufacturerDetailsEdit: React.FC<ManufacturerDetailsEditProps> = ({
   const [isOpen, setIsOpen] = useState(false)
   const [form] = Form.useForm()
   const { countryOptions, loading, normalizeCountryCode } = useCountryOptions()
+  const { options: supplyChainPartyKindOptions, loading: loadingSupplyChainPartyKinds, getSelectOptions: getSupplyChainPartyKindSelectOptions, getNameByCode: getSupplyChainPartyKindNameByCode } = useSupplyChainPartyKindOptions()
+  const [kindCodeError, setKindCodeError] = useState<boolean>(false)
+
+  // Проверяем валидность кода вида участника при загрузке данных
+  useEffect(() => {
+    if (data.supplyChainPartyKindCode) {
+      checkSupplyChainPartyKindExists(data.supplyChainPartyKindCode)
+        .then((exists) => {
+          setKindCodeError(!exists)
+        })
+        .catch(() => {
+          setKindCodeError(false)
+        })
+    } else {
+      setKindCodeError(false)
+    }
+  }, [data.supplyChainPartyKindCode])
 
   useEffect(() => {
     form.setFieldsValue({
       country: normalizeCountryCode(data.country),
+      supplyChainPartyKindCode: data.supplyChainPartyKindCode,
       businessEntityName: data.businessEntityName,
       shortName: data.shortName,
       organizationalForm: data.organizationalForm,
@@ -31,9 +51,23 @@ const ManufacturerDetailsEdit: React.FC<ManufacturerDetailsEditProps> = ({
       customsNumber: data.customsNumber,
       taxpayerId: data.taxpayerId,
     })
-  }, [data, form])
+  }, [data, form, normalizeCountryCode])
+
+  // Обработчик выбора вида участника цепи поставки
+  const handleSupplyChainPartyKindSelect = (code: string) => {
+    const kindName = getSupplyChainPartyKindNameByCode(code) || ''
+    setKindCodeError(false) // Сбрасываем ошибку при выборе из справочника
+    onChange({
+      ...data,
+      supplyChainPartyKindCode: code,
+    })
+  }
 
   const handleValuesChange = (_: any, allValues: any) => {
+    // Игнорируем изменения в supplyChainPartyKindCode (обрабатывается отдельно)
+    if (allValues.supplyChainPartyKindCode !== undefined) {
+      return
+    }
     onChange({
       ...data,
       ...allValues,
@@ -105,6 +139,26 @@ const ManufacturerDetailsEdit: React.FC<ManufacturerDetailsEditProps> = ({
                     loading={loading}
                     countryOptions={countryOptions}
                     normalizeCountryCode={normalizeCountryCode}
+                  />
+                </Form.Item>
+                <Form.Item 
+                  label="Вид участника цепи поставки" 
+                  name="supplyChainPartyKindCode"
+                  validateStatus={kindCodeError ? 'error' : ''}
+                  help={kindCodeError ? 'Код не найден в справочнике' : ''}
+                >
+                  <Select
+                    showSearch
+                    placeholder="Выберите вид участника"
+                    loading={loadingSupplyChainPartyKinds}
+                    value={data.supplyChainPartyKindCode}
+                    onChange={handleSupplyChainPartyKindSelect}
+                    filterOption={(input, option) =>
+                      (option?.label ?? '').toLowerCase().includes(input.toLowerCase())
+                    }
+                    options={getSupplyChainPartyKindSelectOptions()}
+                    allowClear
+                    status={kindCodeError ? 'error' : undefined}
                   />
                 </Form.Item>
                 <Form.Item label="Наименование субъекта" name="businessEntityName">

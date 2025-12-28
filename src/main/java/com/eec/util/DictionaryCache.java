@@ -33,11 +33,26 @@ public class DictionaryCache {
     private static final Map<String, MeasurementUnitOption> measurementUnitsCache = new ConcurrentHashMap<>();
     private static final List<MeasurementUnitOption> measurementUnitsListCache = new ArrayList<>();
     
+    // Кеш видов товаросопроводительных документов: код -> название
+    private static final Map<String, String> shipDocKindsCache = new ConcurrentHashMap<>();
+    private static final List<ShipDocKindOption> shipDocKindsListCache = new ArrayList<>();
+    
+    // Кеш видов участников цепи поставки: код -> название
+    private static final Map<String, String> supplyChainPartyKindsCache = new ConcurrentHashMap<>();
+    private static final List<SupplyChainPartyKindOption> supplyChainPartyKindsListCache = new ArrayList<>();
+    
+    // Кеш технических регламентов: код -> название
+    private static final Map<String, String> techRegulsCache = new ConcurrentHashMap<>();
+    private static final List<TechRegulOption> techRegulsListCache = new ArrayList<>();
+    
     // Флаги загрузки
     private static volatile boolean countriesLoaded = false;
     private static volatile boolean incidentAlertKindsLoaded = false;
     private static volatile boolean sanitaryProdTypesLoaded = false;
     private static volatile boolean measurementUnitsLoaded = false;
+    private static volatile boolean shipDocKindsLoaded = false;
+    private static volatile boolean supplyChainPartyKindsLoaded = false;
+    private static volatile boolean techRegulsLoaded = false;
     
     /**
      * Класс для опции страны
@@ -107,6 +122,47 @@ public class DictionaryCache {
             this.code = code;
             this.name = name;
             this.briefName = briefName;
+        }
+    }
+    
+    /**
+     * Класс для опции вида товаросопроводительного документа
+     */
+    public static class ShipDocKindOption {
+        public String code;
+        public String name;
+        
+        public ShipDocKindOption(String code, String name) {
+            this.code = code;
+            this.name = name;
+        }
+    }
+    
+    /**
+     * Класс для опции вида участника цепи поставки
+     */
+    public static class SupplyChainPartyKindOption {
+        public String code;
+        public String name;
+        
+        public SupplyChainPartyKindOption(String code, String name) {
+            this.code = code;
+            this.name = name;
+        }
+    }
+    
+    /**
+     * Класс для опции технического регламента
+     */
+    public static class TechRegulOption {
+        public String code;
+        public String name;
+        public String regNum;
+        
+        public TechRegulOption(String code, String name, String regNum) {
+            this.code = code;
+            this.name = name;
+            this.regNum = regNum;
         }
     }
     
@@ -346,6 +402,138 @@ public class DictionaryCache {
     
     public static boolean isMeasurementUnitsLoaded() {
         return measurementUnitsLoaded;
+    }
+    
+    // ========== Методы для видов товаросопроводительных документов ==========
+    
+    public static void clearShipDocKindsCache() {
+        synchronized (shipDocKindsCache) {
+            shipDocKindsCache.clear();
+            shipDocKindsListCache.clear();
+            shipDocKindsLoaded = false;
+        }
+    }
+    
+    public static void setShipDocKindsCache(List<ShipDocKindOption> kinds) {
+        synchronized (shipDocKindsCache) {
+            shipDocKindsCache.clear();
+            shipDocKindsListCache.clear();
+            for (ShipDocKindOption kind : kinds) {
+                shipDocKindsCache.put(kind.code, kind.name);
+                shipDocKindsListCache.add(kind);
+            }
+            shipDocKindsLoaded = true;
+        }
+    }
+    
+    public static List<ShipDocKindOption> getShipDocKindsList() {
+        synchronized (shipDocKindsCache) {
+            return new ArrayList<>(shipDocKindsListCache);
+        }
+    }
+    
+    public static String getShipDocKindName(String code) {
+        synchronized (shipDocKindsCache) {
+            return shipDocKindsCache.get(code);
+        }
+    }
+    
+    public static boolean isShipDocKindExists(String code) {
+        synchronized (shipDocKindsCache) {
+            return shipDocKindsCache.containsKey(code);
+        }
+    }
+    
+    public static boolean isShipDocKindsLoaded() {
+        return shipDocKindsLoaded;
+    }
+    
+    // ========== Методы для видов участников цепи поставки ==========
+    
+    public static void clearSupplyChainPartyKindsCache() {
+        synchronized (supplyChainPartyKindsCache) {
+            supplyChainPartyKindsCache.clear();
+            supplyChainPartyKindsListCache.clear();
+            supplyChainPartyKindsLoaded = false;
+        }
+    }
+    
+    public static void setSupplyChainPartyKindsCache(List<SupplyChainPartyKindOption> kinds) {
+        synchronized (supplyChainPartyKindsCache) {
+            supplyChainPartyKindsCache.clear();
+            supplyChainPartyKindsListCache.clear();
+            for (SupplyChainPartyKindOption kind : kinds) {
+                supplyChainPartyKindsCache.put(kind.code, kind.name);
+                supplyChainPartyKindsListCache.add(kind);
+            }
+            supplyChainPartyKindsLoaded = true;
+        }
+    }
+    
+    public static List<SupplyChainPartyKindOption> getSupplyChainPartyKindsList() {
+        synchronized (supplyChainPartyKindsCache) {
+            return new ArrayList<>(supplyChainPartyKindsListCache);
+        }
+    }
+    
+    public static String getSupplyChainPartyKindName(String code) {
+        synchronized (supplyChainPartyKindsCache) {
+            return supplyChainPartyKindsCache.get(code);
+        }
+    }
+    
+    public static boolean isSupplyChainPartyKindExists(String code) {
+        synchronized (supplyChainPartyKindsCache) {
+            return supplyChainPartyKindsCache.containsKey(code);
+        }
+    }
+    
+    public static boolean isSupplyChainPartyKindsLoaded() {
+        return supplyChainPartyKindsLoaded;
+    }
+    
+    // ========== Методы для технических регламентов ==========
+    
+    public static void clearTechRegulsCache() {
+        synchronized (techRegulsCache) {
+            techRegulsCache.clear();
+            techRegulsListCache.clear();
+            techRegulsLoaded = false;
+        }
+    }
+    
+    public static void setTechRegulsCache(List<TechRegulOption> reguls) {
+        synchronized (techRegulsCache) {
+            techRegulsCache.clear();
+            techRegulsListCache.clear();
+            for (TechRegulOption regul : reguls) {
+                techRegulsCache.put(regul.code, regul.name);
+                techRegulsListCache.add(regul);
+            }
+            techRegulsLoaded = true;
+        }
+    }
+    
+    public static List<TechRegulOption> getTechRegulsList() {
+        synchronized (techRegulsCache) {
+            return new ArrayList<>(techRegulsListCache);
+        }
+    }
+    
+    public static String getTechRegulName(String code) {
+        synchronized (techRegulsCache) {
+            return techRegulsCache.get(code);
+        }
+    }
+    
+    public static boolean isTechRegulExists(String code) {
+        synchronized (techRegulsCache) {
+            return techRegulsCache.containsKey(code);
+        }
+    }
+    
+    public static boolean isTechRegulsLoaded() {
+        return techRegulsLoaded;
     }
 }
 

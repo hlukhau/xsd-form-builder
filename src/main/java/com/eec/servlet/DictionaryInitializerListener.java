@@ -7,6 +7,9 @@ import com.eec.util.DictionaryCache.IncidentAlertKindOption;
 import com.eec.util.DictionaryCache.AuthorityOption;
 import com.eec.util.DictionaryCache.SanitaryProdTypeOption;
 import com.eec.util.DictionaryCache.MeasurementUnitOption;
+import com.eec.util.DictionaryCache.ShipDocKindOption;
+import com.eec.util.DictionaryCache.SupplyChainPartyKindOption;
+import com.eec.util.DictionaryCache.TechRegulOption;
 
 import javax.servlet.ServletContextEvent;
 import javax.servlet.ServletContextListener;
@@ -35,6 +38,9 @@ public class DictionaryInitializerListener implements ServletContextListener {
         loadAuthoritiesDictionary();
         loadSanitaryProdTypesDictionary();
         loadMeasurementUnitsDictionary();
+        loadShipDocKindsDictionary();
+        loadSupplyChainPartyKindsDictionary();
+        loadTechRegulsDictionary();
         
         System.out.println("========================================");
         System.out.println("[DictionaryInitializer] Dictionary loading completed");
@@ -50,6 +56,9 @@ public class DictionaryInitializerListener implements ServletContextListener {
         DictionaryCache.clearAuthoritiesCache();
         DictionaryCache.clearSanitaryProdTypesCache();
         DictionaryCache.clearMeasurementUnitsCache();
+        DictionaryCache.clearShipDocKindsCache();
+        DictionaryCache.clearSupplyChainPartyKindsCache();
+        DictionaryCache.clearTechRegulsCache();
     }
     
     /**
@@ -274,6 +283,147 @@ public class DictionaryInitializerListener implements ServletContextListener {
             
         } catch (SQLException e) {
             System.err.println("[DictionaryInitializer] ERROR loading measurement units dictionary: " + e.getMessage());
+            e.printStackTrace();
+        } finally {
+            DatabaseUtil.closeConnection(conn);
+        }
+    }
+    
+    /**
+     * Загружает справочник видов товаросопроводительных документов из базы данных в кеш
+     */
+    private void loadShipDocKindsDictionary() {
+        Connection conn = null;
+        try {
+            System.out.println("[DictionaryInitializer] Loading ship document kinds dictionary...");
+            conn = DatabaseUtil.getConnection();
+            
+            // Загружаем только активные записи (где SHIPDOCKINDEDATE >= SYSDATE)
+            String sql = "SELECT SHIPDOCKINDCODE, SHIPDOCKINDNAME " +
+                        "FROM SESINT.SHIPDOCKIND " +
+                        "WHERE SHIPDOCKINDEDATE >= SYSDATE " +
+                        "ORDER BY NVL(SEQNUM, 999999), SHIPDOCKINDCODE";
+            
+            PreparedStatement stmt = conn.prepareStatement(sql);
+            ResultSet rs = stmt.executeQuery();
+            
+            List<ShipDocKindOption> kinds = new ArrayList<>();
+            int count = 0;
+            
+            while (rs.next()) {
+                String code = rs.getString("SHIPDOCKINDCODE");
+                String name = rs.getString("SHIPDOCKINDNAME");
+                
+                kinds.add(new ShipDocKindOption(
+                    code != null ? code : "",
+                    name != null ? name : ""
+                ));
+                count++;
+            }
+            
+            DictionaryCache.setShipDocKindsCache(kinds);
+            System.out.println("[DictionaryInitializer] Loaded " + count + " ship document kinds into cache");
+            
+            rs.close();
+            stmt.close();
+            
+        } catch (SQLException e) {
+            System.err.println("[DictionaryInitializer] ERROR loading ship document kinds dictionary: " + e.getMessage());
+            e.printStackTrace();
+        } finally {
+            DatabaseUtil.closeConnection(conn);
+        }
+    }
+    
+    /**
+     * Загружает справочник видов участников цепи поставки из базы данных в кеш
+     */
+    private void loadSupplyChainPartyKindsDictionary() {
+        Connection conn = null;
+        try {
+            System.out.println("[DictionaryInitializer] Loading supply chain party kinds dictionary...");
+            conn = DatabaseUtil.getConnection();
+            
+            // Загружаем только активные записи (где SUPPLYCHAINPARTYKINDACTFL = 1)
+            String sql = "SELECT SUPPLYCHAINPARTYKINDCODE, SUPPLYCHAINPARTYKINDNAME " +
+                        "FROM SESINT.SUPPLYCHAINPARTYKIND " +
+                        "WHERE SUPPLYCHAINPARTYKINDACTFL = 1 " +
+                        "ORDER BY NVL(SUPPLYCHAINPARTYKINDSEQNUM, 999999), SUPPLYCHAINPARTYKINDCODE";
+            
+            PreparedStatement stmt = conn.prepareStatement(sql);
+            ResultSet rs = stmt.executeQuery();
+            
+            List<SupplyChainPartyKindOption> kinds = new ArrayList<>();
+            int count = 0;
+            
+            while (rs.next()) {
+                String code = rs.getString("SUPPLYCHAINPARTYKINDCODE");
+                String name = rs.getString("SUPPLYCHAINPARTYKINDNAME");
+                
+                kinds.add(new SupplyChainPartyKindOption(
+                    code != null ? code : "",
+                    name != null ? name : ""
+                ));
+                count++;
+            }
+            
+            DictionaryCache.setSupplyChainPartyKindsCache(kinds);
+            System.out.println("[DictionaryInitializer] Loaded " + count + " supply chain party kinds into cache");
+            
+            rs.close();
+            stmt.close();
+            
+        } catch (SQLException e) {
+            System.err.println("[DictionaryInitializer] ERROR loading supply chain party kinds dictionary: " + e.getMessage());
+            e.printStackTrace();
+        } finally {
+            DatabaseUtil.closeConnection(conn);
+        }
+    }
+    
+    /**
+     * Загружает справочник технических регламентов из базы данных в кеш
+     */
+    private void loadTechRegulsDictionary() {
+        Connection conn = null;
+        try {
+            System.out.println("[DictionaryInitializer] Loading technical regulations dictionary...");
+            conn = DatabaseUtil.getConnection();
+            
+            // Загружаем только активные записи (где TECHREGULEDATE либо NULL, либо больше текущей даты)
+            String sql = "SELECT TECHREGULCODE, TECHREGULNAME, TECHREGULREGNUM " +
+                        "FROM SESINT.TECHREGUL " +
+                        "WHERE TECHREGULSDATE <= SYSDATE " +
+                        "AND (TECHREGULEDATE IS NULL OR TECHREGULEDATE >= SYSDATE) " +
+                        "ORDER BY TECHREGULCODE";
+            
+            PreparedStatement stmt = conn.prepareStatement(sql);
+            ResultSet rs = stmt.executeQuery();
+            
+            List<TechRegulOption> reguls = new ArrayList<>();
+            int count = 0;
+            
+            while (rs.next()) {
+                String code = rs.getString("TECHREGULCODE");
+                String name = rs.getString("TECHREGULNAME");
+                String regNum = rs.getString("TECHREGULREGNUM");
+                
+                reguls.add(new TechRegulOption(
+                    code != null ? code : "",
+                    name != null ? name : "",
+                    regNum != null ? regNum : ""
+                ));
+                count++;
+            }
+            
+            DictionaryCache.setTechRegulsCache(reguls);
+            System.out.println("[DictionaryInitializer] Loaded " + count + " technical regulations into cache");
+            
+            rs.close();
+            stmt.close();
+            
+        } catch (SQLException e) {
+            System.err.println("[DictionaryInitializer] ERROR loading technical regulations dictionary: " + e.getMessage());
             e.printStackTrace();
         } finally {
             DatabaseUtil.closeConnection(conn);

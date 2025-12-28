@@ -98,10 +98,12 @@ export interface SupplyChainPartyDetails {
   businessEntityName?: string
   shortName?: string
   organizationalForm?: string
+  businessEntityTypeCode?: string
   subjectIdentifier?: string
   identificationMethod?: string
   customsNumber?: string
   taxpayerId?: string
+  taxRegistrationReasonCode?: string
   registrationAddress?: AddressDetails
   actualAddress?: AddressDetails
   mailingAddress?: AddressDetails
@@ -112,15 +114,22 @@ export interface SupplyChainPartyDetails {
 export interface AddressDetails {
   addressKindCode?: string
   country?: string
+  regionName?: string
+  districtName?: string
   cityName?: string
   streetName?: string
   buildingNumberId?: string
+  roomNumberId?: string
+  postCode?: string
   fullAddress?: string
 }
 
 export interface ContactDetails {
   contactKind?: string
   contactValue?: string
+  communicationChannelCode?: string
+  communicationChannelName?: string
+  communicationChannelId?: string
 }
 
 export interface ElectronicDocument {
@@ -242,7 +251,8 @@ export interface ViolatedRequirement {
     docCreationDate?: string // DocReferenceDetails → DocCreationDate
     docStartDate?: string // DocReferenceDetails → DocStartDate
   }
-  description?: string // DescriptionText
+  description?: string // DescriptionText внутри RequirementsDocDetails
+  requirementLevelDescription?: string // DescriptionText на уровне RequirementViolationDetails (после RequirementsDocDetails)
 }
 
 export interface DocStructuralElement {

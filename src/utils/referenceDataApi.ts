@@ -43,6 +43,22 @@ export interface MeasurementUnitOption {
   briefName?: string
 }
 
+export interface ShipDocKindOption {
+  code: string
+  name: string
+}
+
+export interface SupplyChainPartyKindOption {
+  code: string
+  name: string
+}
+
+export interface TechRegulOption {
+  code: string
+  name: string
+  regNum: string
+}
+
 /**
  * Получить все активные страны
  */
@@ -260,6 +276,153 @@ export async function getMeasurementUnitByCode(code: string): Promise<Measuremen
     return options.find(opt => opt.code === code) || null
   } catch (error) {
     console.error('Ошибка получения единицы измерения:', error)
+    return null
+  }
+}
+
+/**
+ * Получить опции для выпадающего списка видов товаросопроводительных документов
+ */
+export async function getShipDocKindOptions(): Promise<ShipDocKindOption[]> {
+  try {
+    const response = await fetch(`${BASE_URL}api/ship-doc-kinds/options`)
+    if (!response.ok) {
+      throw new Error(`Ошибка загрузки опций видов товаросопроводительных документов: ${response.statusText}`)
+    }
+    return await response.json()
+  } catch (error) {
+    console.error('Ошибка загрузки опций видов товаросопроводительных документов:', error)
+    throw error
+  }
+}
+
+/**
+ * Проверить существование вида товаросопроводительного документа по коду
+ */
+export async function checkShipDocKindExists(code: string): Promise<boolean> {
+  if (!code || code.trim().length === 0) {
+    return false
+  }
+  try {
+    const options = await getShipDocKindOptions()
+    return options.some(opt => opt.code === code)
+  } catch (error) {
+    console.error('Ошибка проверки вида товаросопроводительного документа:', error)
+    return false
+  }
+}
+
+/**
+ * Получить название вида товаросопроводительного документа по коду
+ */
+export async function getShipDocKindNameByCode(code: string): Promise<string | null> {
+  if (!code || code.trim().length === 0) {
+    return null
+  }
+  try {
+    const options = await getShipDocKindOptions()
+    const option = options.find(opt => opt.code === code)
+    return option ? option.name : null
+  } catch (error) {
+    console.error('Ошибка получения названия вида товаросопроводительного документа:', error)
+    return null
+  }
+}
+
+/**
+ * Получить опции для выпадающего списка видов участников цепи поставки
+ */
+export async function getSupplyChainPartyKindOptions(): Promise<SupplyChainPartyKindOption[]> {
+  try {
+    const response = await fetch(`${BASE_URL}api/supply-chain-party-kinds/options`)
+    if (!response.ok) {
+      throw new Error(`Ошибка загрузки опций видов участников цепи поставки: ${response.statusText}`)
+    }
+    return await response.json()
+  } catch (error) {
+    console.error('Ошибка загрузки опций видов участников цепи поставки:', error)
+    throw error
+  }
+}
+
+/**
+ * Проверить существование вида участника цепи поставки по коду
+ */
+export async function checkSupplyChainPartyKindExists(code: string): Promise<boolean> {
+  if (!code || code.trim().length === 0) {
+    return false
+  }
+  try {
+    const options = await getSupplyChainPartyKindOptions()
+    return options.some(opt => opt.code === code)
+  } catch (error) {
+    console.error('Ошибка проверки вида участника цепи поставки:', error)
+    return false
+  }
+}
+
+/**
+ * Получить название вида участника цепи поставки по коду
+ */
+export async function getSupplyChainPartyKindNameByCode(code: string): Promise<string | null> {
+  if (!code || code.trim().length === 0) {
+    return null
+  }
+  try {
+    const options = await getSupplyChainPartyKindOptions()
+    const option = options.find(opt => opt.code === code)
+    return option ? option.name : null
+  } catch (error) {
+    console.error('Ошибка получения названия вида участника цепи поставки:', error)
+    return null
+  }
+}
+
+/**
+ * Получить опции для выпадающего списка технических регламентов
+ */
+export async function getTechRegulOptions(): Promise<TechRegulOption[]> {
+  try {
+    const response = await fetch(`${BASE_URL}api/tech-reguls/options`)
+    if (!response.ok) {
+      throw new Error(`Ошибка загрузки опций технических регламентов: ${response.statusText}`)
+    }
+    return await response.json()
+  } catch (error) {
+    console.error('Ошибка загрузки опций технических регламентов:', error)
+    throw error
+  }
+}
+
+/**
+ * Проверить существование технического регламента по коду
+ */
+export async function checkTechRegulExists(code: string): Promise<boolean> {
+  if (!code || code.trim().length === 0) {
+    return false
+  }
+  try {
+    const options = await getTechRegulOptions()
+    return options.some(opt => opt.code === code)
+  } catch (error) {
+    console.error('Ошибка проверки технического регламента:', error)
+    return false
+  }
+}
+
+/**
+ * Получить название технического регламента по коду
+ */
+export async function getTechRegulNameByCode(code: string): Promise<string | null> {
+  if (!code || code.trim().length === 0) {
+    return null
+  }
+  try {
+    const options = await getTechRegulOptions()
+    const option = options.find(opt => opt.code === code)
+    return option ? option.name : null
+  } catch (error) {
+    console.error('Ошибка получения названия технического регламента:', error)
     return null
   }
 }
