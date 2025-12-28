@@ -12,6 +12,7 @@ import com.eec.util.DictionaryCache.SupplyChainPartyKindOption;
 import com.eec.util.DictionaryCache.TechRegulOption;
 import com.eec.util.DictionaryCache.SanitaryMeasureObjKindOption;
 import com.eec.util.DictionaryCache.SanitaryMeasureOption;
+import com.eec.util.DictionaryCache.MediaTypeOption;
 
 import javax.servlet.ServletContextEvent;
 import javax.servlet.ServletContextListener;
@@ -45,6 +46,7 @@ public class DictionaryInitializerListener implements ServletContextListener {
         loadTechRegulsDictionary();
         loadSanitaryMeasureObjKindsDictionary();
         loadSanitaryMeasuresDictionary();
+        loadMediaTypesDictionary();
         
         System.out.println("========================================");
         System.out.println("[DictionaryInitializer] Dictionary loading completed");
@@ -65,6 +67,7 @@ public class DictionaryInitializerListener implements ServletContextListener {
         DictionaryCache.clearTechRegulsCache();
         DictionaryCache.clearSanitaryMeasureObjKindsCache();
         DictionaryCache.clearSanitaryMeasuresCache();
+        DictionaryCache.clearMediaTypesCache();
     }
     
     /**
@@ -523,6 +526,52 @@ public class DictionaryInitializerListener implements ServletContextListener {
             
         } catch (SQLException e) {
             System.err.println("[DictionaryInitializer] ERROR loading sanitary measures dictionary: " + e.getMessage());
+            e.printStackTrace();
+        } finally {
+            DatabaseUtil.closeConnection(conn);
+        }
+    }
+    
+    /**
+     * Загружает справочник форматов данных (MEDIATYPE) из базы данных в кеш
+     */
+    private void loadMediaTypesDictionary() {
+        Connection conn = null;
+        try {
+            System.out.println("[DictionaryInitializer] Loading media types dictionary...");
+            conn = DatabaseUtil.getConnection();
+            
+            // Загружаем только активные записи (где MEDIATYPEACTFL = 1)
+            String sql = "SELECT MEDIATYPECODE, MEDIATYPENAME " +
+                        "FROM SESINT.MEDIATYPE " +
+                        "WHERE MEDIATYPEACTFL = 1 " +
+                        "ORDER BY NVL(MEDIATYPESEQNUM, 999999), MEDIATYPENAME";
+            
+            PreparedStatement stmt = conn.prepareStatement(sql);
+            ResultSet rs = stmt.executeQuery();
+            
+            List<MediaTypeOption> mediaTypes = new ArrayList<>();
+            int count = 0;
+            
+            while (rs.next()) {
+                String code = rs.getString("MEDIATYPECODE");
+                String name = rs.getString("MEDIATYPENAME");
+                
+                mediaTypes.add(new MediaTypeOption(
+                    code != null ? code : "",
+                    name != null ? name : ""
+                ));
+                count++;
+            }
+            
+            DictionaryCache.setMediaTypesCache(mediaTypes);
+            System.out.println("[DictionaryInitializer] Loaded " + count + " media types into cache");
+            
+            rs.close();
+            stmt.close();
+            
+        } catch (SQLException e) {
+            System.err.println("[DictionaryInitializer] ERROR loading media types dictionary: " + e.getMessage());
             e.printStackTrace();
         } finally {
             DatabaseUtil.closeConnection(conn);

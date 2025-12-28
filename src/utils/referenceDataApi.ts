@@ -535,3 +535,38 @@ export async function getSanitaryMeasureNameByCode(code: string): Promise<string
   }
 }
 
+export interface MediaTypeOption {
+  code: string
+  name: string
+}
+
+/**
+ * Получить все форматы данных (MEDIATYPE)
+ */
+export async function getMediaTypeOptions(): Promise<MediaTypeOption[]> {
+  try {
+    const response = await fetch(`${BASE_URL}api/media-types/options`)
+    if (!response.ok) {
+      throw new Error(`Ошибка загрузки опций форматов данных: ${response.statusText}`)
+    }
+    return await response.json()
+  } catch (error) {
+    console.error('Ошибка загрузки опций форматов данных:', error)
+    throw error
+  }
+}
+
+/**
+ * Получить название формата данных по коду
+ */
+export async function getMediaTypeNameByCode(code: string): Promise<string | null> {
+  try {
+    const options = await getMediaTypeOptions()
+    const option = options.find(opt => opt.code === code)
+    return option ? option.name : null
+  } catch (error) {
+    console.error('Ошибка получения названия формата данных:', error)
+    return null
+  }
+}
+

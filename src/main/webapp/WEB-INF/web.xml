@@ -169,6 +169,15 @@
         <url-pattern>/api/sanitary-measures/options</url-pattern>
     </servlet-mapping>
 
+    <servlet>
+        <servlet-name>MediaTypeOptionsServlet</servlet-name>
+        <servlet-class>com.eec.servlet.MediaTypeOptionsServlet</servlet-class>
+    </servlet>
+    <servlet-mapping>
+        <servlet-name>MediaTypeOptionsServlet</servlet-name>
+        <url-pattern>/api/media-types/options</url-pattern>
+    </servlet-mapping>
+
     <!-- SPA Servlet для обработки маршрутизации (должен быть последним) -->
     <!-- НЕ используем паттерн / или /*, чтобы не перехватывать API запросы -->
     <!-- Используем error-page для 404, чтобы возвращать index.html для SPA routes -->

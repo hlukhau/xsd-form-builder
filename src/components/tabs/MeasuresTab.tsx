@@ -257,16 +257,65 @@ const MeasureDocDetailsView: React.FC<{ doc: MeasureDocDetails }> = ({ doc }) =>
       <Descriptions.Item label="Уполномоченный орган. Наименование">{doc.authorityName || '-'}</Descriptions.Item>
       <Descriptions.Item label="Описание">{doc.description || '-'}</Descriptions.Item>
       <Descriptions.Item label="Количество листов">{doc.pageQuantity || '-'}</Descriptions.Item>
-      {doc.docBinaryText && (
+      {doc.docBinaryText && doc.docBinaryText.content && (
         <Descriptions.Item label="Документ в бинарном виде">
-          <Button type="link" icon={<DownloadOutlined />}>
+          <Button 
+            type="link" 
+            icon={<DownloadOutlined />}
+            onClick={() => {
+              try {
+                // Конвертируем base64 в blob
+                const base64Content = doc.docBinaryText!.content!
+                const binaryString = atob(base64Content)
+                const bytes = new Uint8Array(binaryString.length)
+                for (let i = 0; i < binaryString.length; i++) {
+                  bytes[i] = binaryString.charCodeAt(i)
+                }
+                const blob = new Blob([bytes], { 
+                  type: doc.docBinaryText!.mediaTypeCode || 'application/octet-stream' 
+                })
+                
+                // Создаем ссылку для скачивания
+                const url = URL.createObjectURL(blob)
+                const link = document.createElement('a')
+                link.href = url
+                link.download = `document.${doc.docBinaryText!.mediaTypeCode?.split('/').pop() || 'bin'}`
+                document.body.appendChild(link)
+                link.click()
+                document.body.removeChild(link)
+                URL.revokeObjectURL(url)
+              } catch (error) {
+                console.error('Ошибка при скачивании файла:', error)
+                alert('Ошибка при скачивании файла')
+              }
+            }}
+          >
             Скачать ({doc.docBinaryText.mediaTypeCode || 'файл'})
           </Button>
         </Descriptions.Item>
       )}
       {doc.xmlDocument && (
         <Descriptions.Item label="XML">
-          <Button type="link" icon={<DownloadOutlined />}>
+          <Button 
+            type="link" 
+            icon={<DownloadOutlined />}
+            onClick={() => {
+              try {
+                const blob = new Blob([doc.xmlDocument!], { type: 'application/xml' })
+                const url = URL.createObjectURL(blob)
+                const link = document.createElement('a')
+                link.href = url
+                link.download = 'document.xml'
+                document.body.appendChild(link)
+                link.click()
+                document.body.removeChild(link)
+                URL.revokeObjectURL(url)
+              } catch (error) {
+                console.error('Ошибка при скачивании XML:', error)
+                alert('Ошибка при скачивании XML')
+              }
+            }}
+          >
             Скачать XML
           </Button>
         </Descriptions.Item>

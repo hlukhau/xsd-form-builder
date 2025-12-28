@@ -1,11 +1,13 @@
 import { useState } from 'react'
-import { Form, Input, Button, Table, Space, DatePicker, Collapse, Select } from 'antd'
-import { PlusOutlined, DeleteOutlined } from '@ant-design/icons'
+import { Form, Input, Button, Table, Space, DatePicker, Collapse, Select, Upload, message } from 'antd'
+import { PlusOutlined, DeleteOutlined, UploadOutlined } from '@ant-design/icons'
 import dayjs from 'dayjs'
 import ManufacturerDetailsEdit from '../common/ManufacturerDetailsEdit'
 import { useCountryOptions } from '@/hooks/useCountryOptions'
 import { useSanitaryMeasureObjKindOptions } from '@/hooks/useSanitaryMeasureObjKindOptions'
 import { useSanitaryMeasureOptions } from '@/hooks/useSanitaryMeasureOptions'
+import { useLanguageOptions } from '@/hooks/useLanguageOptions'
+import { useMediaTypeOptions } from '@/hooks/useMediaTypeOptions'
 import CountrySelect from '@/components/common/CountrySelect'
 import type { CountryOption } from '@/utils/referenceDataApi'
 import type {
@@ -35,6 +37,8 @@ const MeasuresTabEdit: React.FC<MeasuresTabEditProps> = ({ data, onChange }) => 
   const { countryOptions, loading: loadingCountries, normalizeCountryCode } = useCountryOptions()
   const { getSelectOptions: getSanitaryMeasureObjKindSelectOptions, getNameByCode: getSanitaryMeasureObjKindNameByCode } = useSanitaryMeasureObjKindOptions()
   const { getSelectOptions: getSanitaryMeasureSelectOptions, loading: loadingSanitaryMeasures } = useSanitaryMeasureOptions()
+  const { getLanguageName } = useLanguageOptions()
+  const { getSelectOptions: getMediaTypeSelectOptions, loading: loadingMediaTypes } = useMediaTypeOptions()
 
   const handleAddMeasure = () => {
     const newMeasure: SanitaryMeasure = {
@@ -180,10 +184,27 @@ const MeasuresTabEdit: React.FC<MeasuresTabEditProps> = ({ data, onChange }) => 
           />
         </Form.Item>
         <Form.Item label="Язык">
-          <Input
+          <Select
+            showSearch
+            placeholder="Выберите язык"
             value={doc.languageCode}
-            onChange={(e) => onChange({ ...doc, languageCode: e.target.value })}
-          />
+            onChange={(value) => onChange({ ...doc, languageCode: value })}
+            filterOption={(input, option) =>
+              (option?.label ?? '').toLowerCase().includes(input.toLowerCase())
+            }
+            style={{ width: '100%' }}
+            allowClear
+          >
+            <Select.Option value="ru">RU - Русский</Select.Option>
+            <Select.Option value="en">EN - Английский</Select.Option>
+            <Select.Option value="by">BY - Белорусский</Select.Option>
+            <Select.Option value="kk">KK - Казахский</Select.Option>
+            <Select.Option value="ky">KY - Киргизский</Select.Option>
+            <Select.Option value="hy">HY - Армянский</Select.Option>
+            <Select.Option value="az">AZ - Азербайджанский</Select.Option>
+            <Select.Option value="ka">KA - Грузинский</Select.Option>
+            <Select.Option value="uk">UK - Украинский</Select.Option>
+          </Select>
         </Form.Item>
         <Form.Item label="Вид">
           <Input
@@ -247,6 +268,104 @@ const MeasuresTabEdit: React.FC<MeasuresTabEditProps> = ({ data, onChange }) => 
             rows={3}
             value={doc.description}
             onChange={(e) => onChange({ ...doc, description: e.target.value })}
+          />
+        </Form.Item>
+        <Form.Item label="Документ в бинарном виде">
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+            <Select
+              showSearch
+              placeholder="Выберите формат данных"
+              loading={loadingMediaTypes}
+              value={doc.docBinaryText?.mediaTypeCode}
+              onChange={(value) => onChange({
+                ...doc,
+                docBinaryText: {
+                  ...doc.docBinaryText,
+                  mediaTypeCode: value,
+                },
+              })}
+              filterOption={(input, option) =>
+                (option?.label ?? '').toLowerCase().includes(input.toLowerCase())
+              }
+              options={getMediaTypeSelectOptions()}
+              style={{ width: '100%' }}
+              allowClear
+            />
+            <Upload
+              beforeUpload={(file) => {
+                const reader = new FileReader()
+                reader.onload = (e) => {
+                  const result = e.target?.result as string
+                  // Если результат начинается с "data:", извлекаем base64 часть
+                  const base64Content = result.includes(',') 
+                    ? result.split(',')[1] 
+                    : result
+                  
+                  // Определяем MIME тип из файла
+                  const fileExtension = file.name.split('.').pop()?.toLowerCase()
+                  let detectedMediaType = doc.docBinaryText?.mediaTypeCode
+                  
+                  // Если формат не выбран, пытаемся определить по расширению
+                  if (!detectedMediaType) {
+                    const mimeTypeMap: Record<string, string> = {
+                      'pdf': 'application/pdf',
+                      'doc': 'application/msword',
+                      'docx': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+                      'xls': 'application/vnd.ms-excel',
+                      'xlsx': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+                      'jpg': 'image/jpeg',
+                      'jpeg': 'image/jpeg',
+                      'png': 'image/png',
+                      'gif': 'image/gif',
+                    }
+                    detectedMediaType = mimeTypeMap[fileExtension || ''] || file.type || 'application/octet-stream'
+                  }
+                  
+                  onChange({
+                    ...doc,
+                    docBinaryText: {
+                      content: base64Content,
+                      mediaTypeCode: detectedMediaType,
+                    },
+                  })
+                  message.success(`Файл "${file.name}" загружен`)
+                }
+                reader.onerror = () => {
+                  message.error('Ошибка при чтении файла')
+                }
+                reader.readAsDataURL(file)
+                return false // Предотвращаем автоматическую загрузку
+              }}
+              showUploadList={false}
+            >
+              <Button icon={<UploadOutlined />}>Загрузить файл</Button>
+            </Upload>
+            {doc.docBinaryText?.content && (
+              <div style={{ fontSize: '12px', color: '#999' }}>
+                Документ загружен ({doc.docBinaryText.content.length} символов base64)
+              </div>
+            )}
+            <Input.TextArea
+              rows={4}
+              placeholder="Или введите содержимое документа в бинарном формате (base64) вручную"
+              value={doc.docBinaryText?.content || ''}
+              onChange={(e) => onChange({
+                ...doc,
+                docBinaryText: {
+                  ...doc.docBinaryText,
+                  content: e.target.value,
+                  mediaTypeCode: doc.docBinaryText?.mediaTypeCode,
+                },
+              })}
+            />
+          </div>
+        </Form.Item>
+        <Form.Item label="XML-документ">
+          <Input.TextArea
+            rows={6}
+            placeholder="Введите XML-документ"
+            value={doc.xmlDocument || ''}
+            onChange={(e) => onChange({ ...doc, xmlDocument: e.target.value })}
           />
         </Form.Item>
         <Button
@@ -720,6 +839,8 @@ const MeasuresTabEdit: React.FC<MeasuresTabEditProps> = ({ data, onChange }) => 
                         countryOptions={countryOptions}
                         loadingCountries={loadingCountries}
                         normalizeCountryCode={normalizeCountryCode}
+                        getSanitaryMeasureObjKindSelectOptions={getSanitaryMeasureObjKindSelectOptions}
+                        getSanitaryMeasureObjKindNameByCode={getSanitaryMeasureObjKindNameByCode}
                       />
                     )}
                   </div>
@@ -742,10 +863,59 @@ const MeasureImplementationDetailsEdit: React.FC<{
   countryOptions: CountryOption[]
   loadingCountries: boolean
   normalizeCountryCode: (country: string | undefined) => string | undefined
-}> = ({ item, onChange, countryOptions, loadingCountries, normalizeCountryCode }) => {
+  getSanitaryMeasureObjKindSelectOptions: () => Array<{ value: string; label: string }>
+  getSanitaryMeasureObjKindNameByCode: (code: string | undefined) => string | null
+}> = ({ item, onChange, countryOptions, loadingCountries, normalizeCountryCode, getSanitaryMeasureObjKindSelectOptions, getSanitaryMeasureObjKindNameByCode }) => {
   return (
     <div style={{ marginTop: '16px', padding: '12px', border: '1px solid #d9d9d9', borderRadius: '4px' }}>
       <h5>Детализация мероприятия</h5>
+      <Form layout="vertical" style={{ marginBottom: '16px' }}>
+        <Form.Item label="Страна">
+          <CountrySelect
+            value={item.country}
+            onChange={(value) => onChange('country', value || '')}
+            loading={loadingCountries}
+            countryOptions={countryOptions}
+            normalizeCountryCode={normalizeCountryCode}
+          />
+        </Form.Item>
+        <Form.Item label="Начальная дата">
+          <DatePicker
+            value={item.startDate ? dayjs(item.startDate) : null}
+            onChange={(date) => onChange('startDate', date ? date.format('YYYY-MM-DD') : undefined)}
+            style={{ width: '100%' }}
+          />
+        </Form.Item>
+        <Form.Item label="Конечная дата">
+          <DatePicker
+            value={item.endDate ? dayjs(item.endDate) : null}
+            onChange={(date) => onChange('endDate', date ? date.format('YYYY-MM-DD') : undefined)}
+            style={{ width: '100%' }}
+          />
+        </Form.Item>
+        <Form.Item label="Вид объекта действия">
+          <Select
+            showSearch
+            placeholder="Выберите вид объекта действия"
+            value={item.measureAffectedObjectKindCode}
+            onChange={(value) => onChange('measureAffectedObjectKindCode', value)}
+            filterOption={(input, option) =>
+              (option?.label ?? '').toLowerCase().includes(input.toLowerCase())
+            }
+            options={getSanitaryMeasureObjKindSelectOptions()}
+            style={{ width: '100%' }}
+            allowClear
+          />
+        </Form.Item>
+        <Form.Item label="Описание">
+          <Input.TextArea
+            rows={3}
+            value={item.description || ''}
+            onChange={(e) => onChange('description', e.target.value)}
+            placeholder="Описание мероприятия"
+          />
+        </Form.Item>
+      </Form>
       <Collapse
         defaultActiveKey={['authority', 'subject', 'document', 'place']}
         items={[

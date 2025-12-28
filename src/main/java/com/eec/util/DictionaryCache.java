@@ -53,6 +53,10 @@ public class DictionaryCache {
     private static final Map<String, String> sanitaryMeasuresCache = new ConcurrentHashMap<>();
     private static final List<SanitaryMeasureOption> sanitaryMeasuresListCache = new ArrayList<>();
     
+    // Кеш форматов данных: код -> название
+    private static final Map<String, String> mediaTypesCache = new ConcurrentHashMap<>();
+    private static final List<MediaTypeOption> mediaTypesListCache = new ArrayList<>();
+    
     // Флаги загрузки
     private static volatile boolean countriesLoaded = false;
     private static volatile boolean incidentAlertKindsLoaded = false;
@@ -63,6 +67,7 @@ public class DictionaryCache {
     private static volatile boolean techRegulsLoaded = false;
     private static volatile boolean sanitaryMeasureObjKindsLoaded = false;
     private static volatile boolean sanitaryMeasuresLoaded = false;
+    private static volatile boolean mediaTypesLoaded = false;
     
     /**
      * Класс для опции страны
@@ -197,6 +202,19 @@ public class DictionaryCache {
         public String name;
         
         public SanitaryMeasureOption(String code, String name) {
+            this.code = code;
+            this.name = name;
+        }
+    }
+    
+    /**
+     * Класс для опции формата данных
+     */
+    public static class MediaTypeOption {
+        public String code;
+        public String name;
+        
+        public MediaTypeOption(String code, String name) {
             this.code = code;
             this.name = name;
         }
@@ -658,6 +676,44 @@ public class DictionaryCache {
     
     public static boolean isSanitaryMeasuresLoaded() {
         return sanitaryMeasuresLoaded;
+    }
+    
+    // ========== Методы для форматов данных (MEDIATYPE) ==========
+    
+    public static void setMediaTypesCache(List<MediaTypeOption> mediaTypes) {
+        synchronized (mediaTypesCache) {
+            mediaTypesCache.clear();
+            mediaTypesListCache.clear();
+            for (MediaTypeOption mediaType : mediaTypes) {
+                mediaTypesCache.put(mediaType.code, mediaType.name);
+                mediaTypesListCache.add(mediaType);
+            }
+            mediaTypesLoaded = true;
+        }
+    }
+    
+    public static String getMediaTypeName(String code) {
+        synchronized (mediaTypesCache) {
+            return mediaTypesCache.get(code);
+        }
+    }
+    
+    public static List<MediaTypeOption> getMediaTypesList() {
+        synchronized (mediaTypesCache) {
+            return new ArrayList<>(mediaTypesListCache);
+        }
+    }
+    
+    public static void clearMediaTypesCache() {
+        synchronized (mediaTypesCache) {
+            mediaTypesCache.clear();
+            mediaTypesListCache.clear();
+            mediaTypesLoaded = false;
+        }
+    }
+    
+    public static boolean isMediaTypesLoaded() {
+        return mediaTypesLoaded;
     }
 }
 
