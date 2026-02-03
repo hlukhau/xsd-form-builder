@@ -178,6 +178,16 @@
         <url-pattern>/api/media-types/options</url-pattern>
     </servlet-mapping>
 
+    <!-- XML по DPAID из таблицы DPAXML -->
+    <servlet>
+        <servlet-name>DpaXmlServlet</servlet-name>
+        <servlet-class>com.eec.servlet.DpaXmlServlet</servlet-class>
+    </servlet>
+    <servlet-mapping>
+        <servlet-name>DpaXmlServlet</servlet-name>
+        <url-pattern>/api/dpa/xml/*</url-pattern>
+    </servlet-mapping>
+
     <!-- SPA Servlet для обработки маршрутизации (должен быть последним) -->
     <!-- НЕ используем паттерн / или /*, чтобы не перехватывать API запросы -->
     <!-- Используем error-page для 404, чтобы возвращать index.html для SPA routes -->
@@ -189,6 +199,10 @@
     <servlet-mapping>
         <servlet-name>SpaServlet</servlet-name>
         <url-pattern>/index.html</url-pattern>
+    </servlet-mapping>
+    <servlet-mapping>
+        <servlet-name>SpaServlet</servlet-name>
+        <url-pattern>/*</url-pattern>
     </servlet-mapping>
 
 </web-app>

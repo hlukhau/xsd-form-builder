@@ -1,7 +1,11 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
+import { Routes, Route, useParams } from 'react-router-dom'
+import { message, Spin } from 'antd'
 import DangerousProductCard from './components/card/DangerousProductCard'
 import FileSelector from './components/FileSelector'
 import type { CardData } from './types/card'
+import { fetchDpaXml } from './utils/referenceDataApi'
+import { parseXMLToCardData, validateAndEnrichCardData, getTextContent } from './utils/xmlParser'
 
 // Моковые данные для демонстрации
 const mockCardData: CardData = {
@@ -66,36 +70,110 @@ const mockCardData: CardData = {
   ],
 }
 
-function App() {
+function AppContent() {
   const [cardData, setCardData] = useState<CardData | null>(null)
   const [originalXML, setOriginalXML] = useState<string | null>(null)
+  const [loadByDpaidState, setLoadByDpaidState] = useState<{
+    loading: boolean
+    error: string | null
+  }>({ loading: false, error: null })
+  const { dpaid } = useParams<{ dpaid: string }>()
 
   const handleFileLoaded = (data: CardData, xmlText?: string) => {
-    console.log('App: получены данные из FileSelector:', data)
     setCardData(data)
-    if (xmlText) {
-      setOriginalXML(xmlText)
-    }
-    console.log('App: cardData установлен')
+    if (xmlText) setOriginalXML(xmlText)
+    setLoadByDpaidState({ loading: false, error: null })
   }
+
+  // Загрузка XML по DPAID из БД при открытии /xsd_form_builder/{DPAID}
+  useEffect(() => {
+    if (!dpaid) {
+      setLoadByDpaidState({ loading: false, error: null })
+      return
+    }
+    let cancelled = false
+    setLoadByDpaidState({ loading: true, error: null })
+    setCardData(null)
+    setOriginalXML(null)
+
+    ;(async () => {
+      try {
+        const xmlText = await fetchDpaXml(dpaid)
+        if (cancelled) return
+        const cardData = parseXMLToCardData(xmlText)
+        const parser = new DOMParser()
+        const xmlDoc = parser.parseFromString(xmlText, 'text/xml')
+        let alertDetails: Element | null = null
+        const allElements = xmlDoc.getElementsByTagName('*')
+        for (let i = 0; i < allElements.length; i++) {
+          const el = allElements[i]
+          const localName = el.localName || el.tagName.split(':').pop()?.toLowerCase()
+          if (localName === 'dangerousproductalertdetails') {
+            alertDetails = el
+            break
+          }
+        }
+        const incidentKindCode = getTextContent(alertDetails, 'IncidentKindCode') || ''
+        const validationResult = await validateAndEnrichCardData(cardData, incidentKindCode || undefined)
+        if (cancelled) return
+        validationResult.validationWarnings.forEach((w) => message.warning(w))
+        validationResult.validationErrors.forEach((e) => message.error(e))
+        setCardData(validationResult.cardData)
+        setOriginalXML(xmlText)
+        setLoadByDpaidState({ loading: false, error: null })
+        message.success('XML загружен из БД по DPAID')
+      } catch (err) {
+        if (!cancelled) {
+          const msg = err instanceof Error ? err.message : 'Ошибка загрузки'
+          setLoadByDpaidState({ loading: false, error: msg })
+          message.error(msg)
+        }
+      }
+    })()
+
+    return () => {
+      cancelled = true
+    }
+  }, [dpaid])
 
   return (
     <div className="app">
       <FileSelector onFileLoaded={handleFileLoaded} />
-      {cardData ? (
+      {loadByDpaidState.loading && (
+        <div style={{ textAlign: 'center', padding: 24 }}>
+          <Spin size="large" tip="Загрузка XML по DPAID из БД..." />
+        </div>
+      )}
+      {!loadByDpaidState.loading && loadByDpaidState.error && (
+        <div className="empty-state">
+          <div style={{ color: '#ff4d4f', marginBottom: 8 }}>Ошибка загрузки по DPAID: {loadByDpaidState.error}</div>
+          <div style={{ fontSize: '14px', color: '#8c8c8c' }}>Используйте селектор выше для загрузки файла с диска (тест).</div>
+        </div>
+      )}
+      {!loadByDpaidState.loading && !loadByDpaidState.error && cardData && (
         <DangerousProductCard data={cardData} onUpdate={setCardData} originalXML={originalXML} />
-      ) : (
+      )}
+      {!loadByDpaidState.loading && !loadByDpaidState.error && !cardData && (
         <div className="empty-state">
           <div style={{ fontSize: '48px', marginBottom: '16px', opacity: 0.3 }}>📄</div>
           <div style={{ fontSize: '18px', fontWeight: 500, color: '#595959', marginBottom: '8px' }}>
             Выберите XML файл для загрузки
           </div>
           <div style={{ fontSize: '14px', color: '#8c8c8c' }}>
-            Используйте селектор выше для выбора файла из папки или загрузите свой файл
+            Используйте селектор выше для выбора файла из папки или загрузите свой файл. Либо откройте страницу по адресу /xsd_form_builder/{'{DPAID}'} для загрузки из БД.
           </div>
         </div>
       )}
     </div>
+  )
+}
+
+function App() {
+  return (
+    <Routes>
+      <Route path="/" element={<AppContent />} />
+      <Route path="/:dpaid" element={<AppContent />} />
+    </Routes>
   )
 }
 

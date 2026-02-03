@@ -70,6 +70,25 @@ export interface SanitaryMeasureOption {
 }
 
 /**
+ * Загрузить XML по DPAID из таблицы DPAXML (GET /api/dpa/xml/{DPAID})
+ */
+export async function fetchDpaXml(dpaid: string): Promise<string> {
+  const response = await fetch(`${BASE_URL}api/dpa/xml/${encodeURIComponent(dpaid)}`)
+  if (!response.ok) {
+    const text = await response.text()
+    let errMsg = response.statusText
+    try {
+      const json = JSON.parse(text)
+      if (json.error) errMsg = json.error
+    } catch {
+      if (text) errMsg = text.slice(0, 200)
+    }
+    throw new Error(errMsg)
+  }
+  return response.text()
+}
+
+/**
  * Получить все активные страны
  */
 export async function getCountries(): Promise<Country[]> {

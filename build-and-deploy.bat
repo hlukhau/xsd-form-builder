@@ -127,4 +127,9 @@ echo   - CountriesOptionsServlet
 echo   - CountryExistsServlet
 echo   - SpaServlet
 echo.
+echo Waiting 15 sec for Tomcat to finish loading...
+timeout /t 15 /nobreak >nul
+echo Opening browser: http://localhost:8080/%APP_NAME%/
+start "" "http://localhost:8080/%APP_NAME%/"
+echo.
 pause

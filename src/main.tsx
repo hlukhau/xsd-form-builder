@@ -1,5 +1,6 @@
 import React from 'react'
 import ReactDOM from 'react-dom/client'
+import { BrowserRouter } from 'react-router-dom'
 import { ConfigProvider, theme } from 'antd'
 import ruRU from 'antd/locale/ru_RU'
 import App from './App'
@@ -70,11 +71,15 @@ const customTheme = {
   algorithm: defaultAlgorithm,
 }
 
+const basename = import.meta.env.BASE_URL?.replace(/\/$/, '') || ''
+
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
-    <ConfigProvider locale={ruRU} theme={customTheme}>
-      <App />
-    </ConfigProvider>
+    <BrowserRouter basename={basename}>
+      <ConfigProvider locale={ruRU} theme={customTheme}>
+        <App />
+      </ConfigProvider>
+    </BrowserRouter>
   </React.StrictMode>,
 )
 
