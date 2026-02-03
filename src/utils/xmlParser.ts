@@ -3123,6 +3123,23 @@ export async function loadXMLFile(filePath: string): Promise<string> {
   }
 }
 
+const BASE_URL = typeof import.meta !== 'undefined' && import.meta.env?.BASE_URL != null
+  ? (import.meta.env.BASE_URL as string)
+  : '/xsd_form_builder/'
+
+/**
+ * Загружает XML по DPAID через API (таблица DPAXML)
+ */
+export async function loadXMLByDpaid(dpaid: string): Promise<string> {
+  const url = `${BASE_URL.replace(/\/$/, '')}/api/dpa-xml/${encodeURIComponent(dpaid)}`
+  const response = await fetch(url)
+  if (!response.ok) {
+    const text = await response.text().catch(() => '')
+    throw new Error(response.status === 404 ? `Запись с DPAID ${dpaid} не найдена` : (text || response.statusText))
+  }
+  return response.text()
+}
+
 /**
  * Валидирует и обновляет данные карточки, используя справочники
  * Проверяет код вида уведомления (INCIDENTALERTKINDCODE) на присутствие в справочнике
