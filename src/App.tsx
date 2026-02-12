@@ -4,7 +4,7 @@ import { message, Spin } from 'antd'
 import DangerousProductCard from './components/card/DangerousProductCard'
 import FileSelector from './components/FileSelector'
 import type { CardData } from './types/card'
-import { fetchDpaXml } from './utils/referenceDataApi'
+import { fetchDpaXml, fetchDpaMetadata } from './utils/referenceDataApi'
 import { parseXMLToCardData, validateAndEnrichCardData, getTextContent } from './utils/xmlParser'
 
 // Моковые данные для демонстрации
@@ -118,10 +118,28 @@ function AppContent() {
         if (cancelled) return
         validationResult.validationWarnings.forEach((w) => message.warning(w))
         validationResult.validationErrors.forEach((e) => message.error(e))
-        setCardData(validationResult.cardData)
-        setOriginalXML(xmlText)
-        setLoadByDpaidState({ loading: false, error: null })
-        message.success('XML загружен из БД по DPAID')
+        let card = validationResult.cardData
+        try {
+          const meta = await fetchDpaMetadata(dpaid)
+          card = {
+            ...card,
+            registrationNumber: meta.incidentId ?? card.registrationNumber,
+            country: meta.alertCountryName ?? card.country,
+            version: meta.dpaVersion ?? card.version,
+            source: meta.datasourceKindName ?? card.source,
+            createdAt: meta.creationDateTime ?? card.createdAt,
+            modifiedAt: meta.modificationDateTime ?? card.modifiedAt,
+            status: meta.dpaStatusName ?? card.status,
+          }
+        } catch (e) {
+          console.warn('Метаданные VW_DPA не загружены:', e)
+        }
+        if (!cancelled) {
+          setCardData(card)
+          setOriginalXML(xmlText)
+          setLoadByDpaidState({ loading: false, error: null })
+          message.success('XML загружен из БД по DPAID')
+        }
       } catch (err) {
         if (!cancelled) {
           const msg = err instanceof Error ? err.message : 'Ошибка загрузки'
