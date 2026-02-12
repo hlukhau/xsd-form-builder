@@ -22,7 +22,7 @@ import java.sql.SQLException;
  */
 public class DPAXmlServlet extends HttpServlet {
 
-    private static final String SQL_SELECT = "SELECT XML FROM DPAXML WHERE DPAID = ?";
+    private static final String SQL_SELECT = "SELECT DPAXMLBODY FROM DPAXML WHERE DPAID = ?";
 
     @Override
     public void init() throws ServletException {
@@ -75,7 +75,7 @@ public class DPAXmlServlet extends HttpServlet {
                 return;
             }
             String xml = null;
-            Clob clob = rs.getClob("XML");
+            Clob clob = rs.getClob("DPAXMLBODY");
             if (clob != null) {
                 Reader reader = clob.getCharacterStream();
                 StringBuilder sb = new StringBuilder();

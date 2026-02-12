@@ -163,21 +163,58 @@ export CATALINA_HOME="$TOMCAT_HOME"
 export JAVA_HOME
 
 echo "[6/6] Stopping Tomcat..."
-if [ -x "$TOMCAT_HOME/bin/shutdown.sh" ]; then
-    (cd "$TOMCAT_HOME/bin" && ./shutdown.sh) 2>/dev/null || true
-    sleep 4
-    # Force kill if still running
-    if pgrep -f "catalina" >/dev/null 2>&1; then
+# Проверяем, запущен ли Tomcat
+if pgrep -f "catalina" >/dev/null 2>&1; then
+    echo "  Tomcat is running, stopping..."
+    if [ -x "$TOMCAT_HOME/bin/shutdown.sh" ]; then
+        cd "$TOMCAT_HOME/bin"
+        ./shutdown.sh
+        SHUTDOWN_EXIT_CODE=$?
+        cd "$PROJECT_DIR"
+        
+        if [ $SHUTDOWN_EXIT_CODE -ne 0 ]; then
+            echo "  [WARN] shutdown.sh exited with code $SHUTDOWN_EXIT_CODE"
+        fi
+        
+        # Ждем остановки процесса
+        echo "  Waiting for Tomcat to stop..."
+        MAX_WAIT=15
+        WAITED=0
+        while pgrep -f "catalina" >/dev/null 2>&1 && [ $WAITED -lt $MAX_WAIT ]; do
+            sleep 1
+            WAITED=$((WAITED + 1))
+            echo -n "."
+        done
+        echo ""
+        
+        # Принудительная остановка, если процесс все еще работает
+        if pgrep -f "catalina" >/dev/null 2>&1; then
+            echo "  [WARN] Tomcat still running, forcing shutdown..."
+            pkill -f "catalina" 2>/dev/null || true
+            sleep 2
+            if pgrep -f "catalina" >/dev/null 2>&1; then
+                echo "  [WARN] Force kill may have failed, but continuing..."
+            else
+                echo "  [OK] Tomcat forcefully stopped"
+            fi
+        else
+            echo "  [OK] Tomcat stopped gracefully"
+        fi
+    else
+        echo "  [WARN] shutdown.sh not found, trying to kill processes..."
         pkill -f "catalina" 2>/dev/null || true
         sleep 2
     fi
+else
+    echo "  [INFO] Tomcat is not running"
 fi
-echo "[OK] Tomcat stopped"
 echo ""
 
 echo "Removing old deployment..."
 rm -rf "$APP_PATH"
 rm -f "$WEBAPPS_PATH/$APP_NAME.war"
+echo "[OK] Old deployment removed"
+echo ""
 
 echo "Deploying WAR..."
 cp "$WAR_FILE" "$WEBAPPS_PATH/$APP_NAME.war"
@@ -189,15 +226,54 @@ echo "[OK] Application deployed"
 echo ""
 
 echo "Starting Tomcat..."
-if [ -x "$TOMCAT_HOME/bin/startup.sh" ]; then
-    (cd "$TOMCAT_HOME/bin" && ./startup.sh)
-    echo "[OK] Tomcat startup script executed"
-    echo "    Waiting 10–15 s for deployment. Check: $TOMCAT_HOME/logs/catalina.out"
-else
-    echo "[WARN] startup.sh not found at $TOMCAT_HOME/bin/startup.sh — start Tomcat manually:"
-    echo "    export CATALINA_HOME=$TOMCAT_HOME JAVA_HOME=$JAVA_HOME"
+if [ ! -x "$TOMCAT_HOME/bin/startup.sh" ]; then
+    echo "[ERROR] startup.sh not found at $TOMCAT_HOME/bin/startup.sh"
+    echo "  Start Tomcat manually:"
+    echo "    export CATALINA_HOME=$TOMCAT_HOME"
+    echo "    export JAVA_HOME=$JAVA_HOME"
     echo "    \$CATALINA_HOME/bin/startup.sh"
+    exit 1
 fi
+
+# Проверяем переменные окружения перед запуском
+if [ -z "$CATALINA_HOME" ]; then
+    echo "[ERROR] CATALINA_HOME is not set"
+    exit 1
+fi
+
+if [ -z "$JAVA_HOME" ]; then
+    echo "[ERROR] JAVA_HOME is not set"
+    exit 1
+fi
+
+echo "  CATALINA_HOME: $CATALINA_HOME"
+echo "  JAVA_HOME: $JAVA_HOME"
+
+# Запускаем Tomcat
+cd "$TOMCAT_HOME/bin"
+./startup.sh
+STARTUP_EXIT_CODE=$?
+cd "$PROJECT_DIR"
+
+if [ $STARTUP_EXIT_CODE -ne 0 ]; then
+    echo "[ERROR] startup.sh exited with code $STARTUP_EXIT_CODE"
+    echo "  Check logs: $TOMCAT_HOME/logs/catalina.out"
+    exit 1
+fi
+
+echo "[OK] Tomcat startup script executed"
+echo "  Waiting 10–15 s for deployment..."
+sleep 5
+
+# Проверяем, запустился ли Tomcat
+if pgrep -f "catalina" >/dev/null 2>&1; then
+    echo "[OK] Tomcat process is running"
+else
+    echo "[WARN] Tomcat process not found after startup"
+    echo "  Check logs: $TOMCAT_HOME/logs/catalina.out"
+fi
+
+echo "  Check logs: $TOMCAT_HOME/logs/catalina.out"
 echo ""
 
 exit 0

@@ -180,27 +180,29 @@
 
     <!-- XML по DPAID из таблицы DPAXML -->
     <servlet>
-<<<<<<< HEAD
         <servlet-name>DpaXmlServlet</servlet-name>
         <servlet-class>com.eec.servlet.DpaXmlServlet</servlet-class>
     </servlet>
     <servlet-mapping>
         <servlet-name>DpaXmlServlet</servlet-name>
         <url-pattern>/api/dpa/xml/*</url-pattern>
-=======
-        <servlet-name>DPAXmlServlet</servlet-name>
-        <servlet-class>com.eec.servlet.DPAXmlServlet</servlet-class>
-    </servlet>
-    <servlet-mapping>
-        <servlet-name>DPAXmlServlet</servlet-name>
-        <url-pattern>/api/dpa-xml/*</url-pattern>
->>>>>>> 3a8ab20 (linux)
     </servlet-mapping>
 
-    <!-- SPA Servlet для обработки маршрутизации (должен быть последним) -->
-    <!-- НЕ используем паттерн / или /*, чтобы не перехватывать API запросы -->
-    <!-- Используем error-page для 404, чтобы возвращать index.html для SPA routes -->
-    <!-- SpaServlet будет обрабатывать только явные запросы к index.html -->
+    <!-- XSD Form Builder Servlet для работы с GUID и DPAID -->
+    <!-- Обрабатывает только запросы формата /{DPAID}/{GUID} внутри контекста приложения -->
+    <!-- Должен быть ПЕРЕД SpaServlet, чтобы обрабатывать API запросы первым -->
+    <servlet>
+        <servlet-name>XsdFormBuilderServlet</servlet-name>
+        <servlet-class>com.eec.servlet.XsdFormBuilderServlet</servlet-class>
+    </servlet>
+    <servlet-mapping>
+        <servlet-name>XsdFormBuilderServlet</servlet-name>
+        <url-pattern>/*</url-pattern>
+    </servlet-mapping>
+
+    <!-- SPA Servlet для обработки маршрутизации -->
+    <!-- Обрабатывает только явные запросы к index.html -->
+    <!-- Остальные запросы обрабатываются XsdFormBuilderServlet, который передает их в SPA при необходимости -->
     <servlet>
         <servlet-name>SpaServlet</servlet-name>
         <servlet-class>com.eec.servlet.SpaServlet</servlet-class>
@@ -208,10 +210,6 @@
     <servlet-mapping>
         <servlet-name>SpaServlet</servlet-name>
         <url-pattern>/index.html</url-pattern>
-    </servlet-mapping>
-    <servlet-mapping>
-        <servlet-name>SpaServlet</servlet-name>
-        <url-pattern>/*</url-pattern>
     </servlet-mapping>
 
 </web-app>

@@ -73,23 +73,15 @@ const customTheme = {
   algorithm: defaultAlgorithm,
 }
 
-const basename = import.meta.env.BASE_URL?.replace(/\/$/, '') || ''
+const basename = (import.meta.env?.BASE_URL || base).replace(/\/$/, '') || '/'
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
-<<<<<<< HEAD
     <BrowserRouter basename={basename}>
       <ConfigProvider locale={ruRU} theme={customTheme}>
         <App />
       </ConfigProvider>
     </BrowserRouter>
-=======
-    <ConfigProvider locale={ruRU} theme={customTheme}>
-      <BrowserRouter basename={base.replace(/\/$/, '') || '/'}>
-        <App />
-      </BrowserRouter>
-    </ConfigProvider>
->>>>>>> 3a8ab20 (linux)
   </React.StrictMode>,
 )
 

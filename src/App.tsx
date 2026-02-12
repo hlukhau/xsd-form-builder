@@ -173,6 +173,7 @@ function App() {
     <Routes>
       <Route path="/" element={<AppContent />} />
       <Route path="/:dpaid" element={<AppContent />} />
+      <Route path="/:dpaid/:guid" element={<AppContent />} />
     </Routes>
   )
 }
