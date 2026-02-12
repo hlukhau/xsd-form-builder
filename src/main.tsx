@@ -6,6 +6,8 @@ import ruRU from 'antd/locale/ru_RU'
 import App from './App'
 import './index.css'
 
+const base = (typeof import.meta !== 'undefined' && import.meta.env?.BASE_URL) ? import.meta.env.BASE_URL : '/xsd_form_builder/'
+
 const { defaultAlgorithm, darkAlgorithm } = theme
 
 // Промышленная тема Ant Design
@@ -75,11 +77,19 @@ const basename = import.meta.env.BASE_URL?.replace(/\/$/, '') || ''
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
+<<<<<<< HEAD
     <BrowserRouter basename={basename}>
       <ConfigProvider locale={ruRU} theme={customTheme}>
         <App />
       </ConfigProvider>
     </BrowserRouter>
+=======
+    <ConfigProvider locale={ruRU} theme={customTheme}>
+      <BrowserRouter basename={base.replace(/\/$/, '') || '/'}>
+        <App />
+      </BrowserRouter>
+    </ConfigProvider>
+>>>>>>> 3a8ab20 (linux)
   </React.StrictMode>,
 )
 

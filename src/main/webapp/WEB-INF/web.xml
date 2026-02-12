@@ -180,12 +180,21 @@
 
     <!-- XML по DPAID из таблицы DPAXML -->
     <servlet>
+<<<<<<< HEAD
         <servlet-name>DpaXmlServlet</servlet-name>
         <servlet-class>com.eec.servlet.DpaXmlServlet</servlet-class>
     </servlet>
     <servlet-mapping>
         <servlet-name>DpaXmlServlet</servlet-name>
         <url-pattern>/api/dpa/xml/*</url-pattern>
+=======
+        <servlet-name>DPAXmlServlet</servlet-name>
+        <servlet-class>com.eec.servlet.DPAXmlServlet</servlet-class>
+    </servlet>
+    <servlet-mapping>
+        <servlet-name>DPAXmlServlet</servlet-name>
+        <url-pattern>/api/dpa-xml/*</url-pattern>
+>>>>>>> 3a8ab20 (linux)
     </servlet-mapping>
 
     <!-- Метаданные карты из VW_DPA (шапка) -->
