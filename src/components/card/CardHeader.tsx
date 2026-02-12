@@ -35,11 +35,13 @@ const CardHeader: React.FC<CardHeaderProps> = ({ data, onStatusClick }) => {
       <Descriptions.Item label="Изменена">
         {formatDateTime(data.modifiedAt)}
       </Descriptions.Item>
-      <Descriptions.Item label="Статус">
-        <a onClick={onStatusClick} style={{ cursor: 'pointer' }}>
-          {data.status}
-        </a>
-      </Descriptions.Item>
+      {!data.source?.includes('ЕЭК') && (
+        <Descriptions.Item label="Статус">
+          <a onClick={onStatusClick} style={{ cursor: 'pointer' }}>
+            {data.status}
+          </a>
+        </Descriptions.Item>
+      )}
     </Descriptions>
   )
 }

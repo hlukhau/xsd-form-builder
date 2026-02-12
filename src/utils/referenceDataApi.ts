@@ -88,6 +88,33 @@ export async function fetchDpaXml(dpaid: string): Promise<string> {
   return response.text()
 }
 
+/** Метаданные шапки карты из VW_DPA (GET /api/dpa/metadata/{DPAID}) */
+export interface DpaMetadata {
+  incidentId: string | null
+  alertCountryName: string | null
+  dpaVersion: number | null
+  datasourceKindName: string | null
+  creationDateTime: string | null
+  modificationDateTime: string | null
+  dpaStatusName: string | null
+}
+
+export async function fetchDpaMetadata(dpaid: string): Promise<DpaMetadata> {
+  const response = await fetch(`${BASE_URL}api/dpa/metadata/${encodeURIComponent(dpaid)}`)
+  if (!response.ok) {
+    const text = await response.text()
+    let errMsg = response.statusText
+    try {
+      const json = JSON.parse(text)
+      if (json.error) errMsg = json.error
+    } catch {
+      if (text) errMsg = text.slice(0, 200)
+    }
+    throw new Error(errMsg)
+  }
+  return response.json()
+}
+
 /**
  * Получить все активные страны
  */

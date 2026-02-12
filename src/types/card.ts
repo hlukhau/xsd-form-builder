@@ -1,11 +1,11 @@
 // Типы для карты сведений об обнаружении опасной продукции
 
 export interface CardData {
-  // Метаинформация
+  // Метаинформация (при загрузке по DPAID берутся из VW_DPA)
   country: string
   registrationNumber: string
   version: number
-  source: 'входящие' | 'исходящие'
+  source: string // напр. "Входящие сведения", "Исходящие сведения", "Данные ЕЭК"
   createdAt: string // ISO 8601
   modifiedAt: string // ISO 8601
   status: string

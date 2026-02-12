@@ -194,7 +194,7 @@ const FileSelector: React.FC<FileSelectorProps> = ({ onFileLoaded }) => {
               disabled={!selectedFile}
               size="large"
             >
-              Загрузить из папки
+              Загрузить для тестирования
             </Button>
             <span style={{ color: '#8c8c8c', fontWeight: 500 }}>или</span>
             <Upload
