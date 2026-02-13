@@ -33,11 +33,16 @@ public class SpaServlet extends HttpServlet {
     @Override
     protected void doGet(HttpServletRequest request, HttpServletResponse response)
             throws ServletException, IOException {
-        // Проверяем, не является ли запрос диспетчеризованным (forward/include)
+        // Проверяем, не является ли запрос диспетчеризованным (forward/include/error)
         // Это предотвращает рекурсию
         String dispatcherType = request.getDispatcherType().name();
         if (!"REQUEST".equals(dispatcherType)) {
-            System.out.println("[SpaServlet] Skipping non-REQUEST dispatcher type: " + dispatcherType);
+            // Логируем для диагностики - ERROR может указывать на реальную проблему
+            String requestURI = request.getRequestURI();
+            String errorStatus = request.getAttribute("javax.servlet.error.status_code") != null 
+                ? request.getAttribute("javax.servlet.error.status_code").toString() 
+                : "unknown";
+            System.out.println("[SpaServlet] Skipping " + dispatcherType + " dispatcher type. URI: " + requestURI + ", Error status: " + errorStatus);
             return;
         }
         
