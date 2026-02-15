@@ -17,41 +17,43 @@ import java.sql.SQLException;
 
 /**
  * Сервлет для получения XML по DPAID из таблицы DPAXML.
- * GET /api/dpa-xml/{DPAID} — возвращает CLOB из колонки XML.
- * Таблица: DPAXML(DPAID, XML) — DPAID число или строка, XML — CLOB.
+ * GET /api/dpa/xml/{DPAID}
+ * Возвращает application/xml с содержимым CLOB-поля для указанного DPAID.
+ * Если колонка с XML называется иначе (BODY, XMLDATA и т.д.) — измените SQL_SELECT.
  */
-public class DPAXmlServlet extends HttpServlet {
+public class DpaXmlServlet extends HttpServlet {
 
+    /** Таблица DPAXML: DPAID, DPAXMLBODY (CLOB) */
     private static final String SQL_SELECT = "SELECT DPAXMLBODY FROM DPAXML WHERE DPAID = ?";
 
     @Override
     public void init() throws ServletException {
         super.init();
-        System.out.println("[DPAXmlServlet] Initialized");
+        System.out.println("[DpaXmlServlet] Initialized");
     }
 
     @Override
     protected void doGet(HttpServletRequest request, HttpServletResponse response)
             throws ServletException, IOException {
 
-        response.setCharacterEncoding("UTF-8");
-        response.setHeader("Access-Control-Allow-Origin", "*");
-
-        // DPAID из path: /api/dpa-xml/123 -> pathInfo = /123
         String pathInfo = request.getPathInfo();
         if (pathInfo == null || pathInfo.isEmpty() || "/".equals(pathInfo)) {
+            response.setContentType("application/json;charset=UTF-8");
             response.setStatus(HttpServletResponse.SC_BAD_REQUEST);
-            response.setContentType("text/plain;charset=UTF-8");
-            response.getWriter().print("DPAID required: /api/dpa-xml/{DPAID}");
+            response.getWriter().print("{\"error\":\"Укажите DPAID в пути: /api/dpa/xml/{DPAID}\"}");
             return;
         }
-        String dpaidRaw = pathInfo.startsWith("/") ? pathInfo.substring(1) : pathInfo;
-        if (dpaidRaw.isEmpty()) {
+
+        String dpaidStr = pathInfo.startsWith("/") ? pathInfo.substring(1) : pathInfo;
+        if (dpaidStr.isEmpty()) {
+            response.setContentType("application/json;charset=UTF-8");
             response.setStatus(HttpServletResponse.SC_BAD_REQUEST);
-            response.setContentType("text/plain;charset=UTF-8");
-            response.getWriter().print("DPAID required");
+            response.getWriter().print("{\"error\":\"DPAID не задан\"}");
             return;
         }
+
+        response.setCharacterEncoding("UTF-8");
+        response.setHeader("Access-Control-Allow-Origin", "*");
 
         Connection conn = null;
         PreparedStatement ps = null;
@@ -60,50 +62,62 @@ public class DPAXmlServlet extends HttpServlet {
         try {
             conn = DatabaseUtil.getConnection();
             ps = conn.prepareStatement(SQL_SELECT);
-            // Поддержка и числа, и строки в БД
             try {
-                long id = Long.parseLong(dpaidRaw);
-                ps.setLong(1, id);
+                ps.setLong(1, Long.parseLong(dpaidStr));
             } catch (NumberFormatException e) {
-                ps.setString(1, dpaidRaw);
+                ps.setString(1, dpaidStr);
             }
+
             rs = ps.executeQuery();
             if (!rs.next()) {
+                response.setContentType("application/json;charset=UTF-8");
                 response.setStatus(HttpServletResponse.SC_NOT_FOUND);
-                response.setContentType("text/plain;charset=UTF-8");
-                response.getWriter().print("DPAID not found: " + dpaidRaw);
+                response.getWriter().print("{\"error\":\"Запись с DPAID " + dpaidStr + " не найдена\"}");
                 return;
             }
+
             String xml = null;
-            Clob clob = rs.getClob("DPAXMLBODY");
-            if (clob != null) {
-                Reader reader = clob.getCharacterStream();
-                StringBuilder sb = new StringBuilder();
-                char[] buf = new char[8192];
-                int n;
-                while ((n = reader.read(buf)) >= 0) {
-                    sb.append(buf, 0, n);
+            try {
+                Clob clob = rs.getClob(1);
+                if (clob != null) {
+                    Reader r = clob.getCharacterStream();
+                    StringBuilder sb = new StringBuilder();
+                    char[] buf = new char[8192];
+                    int n;
+                    while ((n = r.read(buf)) >= 0) {
+                        sb.append(buf, 0, n);
+                    }
+                    r.close();
+                    xml = sb.toString();
                 }
-                reader.close();
-                xml = sb.toString();
+            } catch (SQLException e) {
+                try {
+                    xml = rs.getString(1);
+                } catch (SQLException e2) {
+                    throw e;
+                }
             }
-            if (xml == null || xml.isEmpty()) {
+            if (xml == null || xml.trim().isEmpty()) {
+                response.setContentType("application/json;charset=UTF-8");
                 response.setStatus(HttpServletResponse.SC_NOT_FOUND);
-                response.setContentType("text/plain;charset=UTF-8");
-                response.getWriter().print("XML is empty for DPAID: " + dpaidRaw);
+                response.getWriter().print("{\"error\":\"XML для DPAID " + dpaidStr + " пуст\"}");
                 return;
             }
+
             response.setContentType("application/xml;charset=UTF-8");
+            response.setStatus(HttpServletResponse.SC_OK);
             PrintWriter out = response.getWriter();
-            out.print(xml);
+            out.write(xml);
+            out.flush();
+            System.out.println("[DpaXmlServlet] Served XML for DPAID: " + dpaidStr);
+
         } catch (SQLException e) {
-            System.err.println("[DPAXmlServlet] DB error for DPAID=" + dpaidRaw + ": " + e.getMessage());
+            System.err.println("[DpaXmlServlet] DB error for DPAID " + dpaidStr + ": " + e.getMessage());
+            e.printStackTrace();
+            response.setContentType("application/json;charset=UTF-8");
             response.setStatus(HttpServletResponse.SC_INTERNAL_SERVER_ERROR);
-            response.setContentType("text/plain;charset=UTF-8");
-            try {
-                response.getWriter().print("Database error");
-            } catch (IOException ignored) {
-            }
+            String msg = e.getMessage() != null ? e.getMessage().replace("\"", "'") : "Ошибка БД";
+            response.getWriter().print("{\"error\":\"" + msg + "\"}");
         } finally {
             if (rs != null) {
                 try {
