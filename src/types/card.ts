@@ -169,6 +169,8 @@ export interface StatusHistoryItem {
 export interface AccessItem {
   id: string
   name: string
+  /** Код вида подразделения из TB_DEPKIND (dep0601, dep0602 — для добавления/удаления в перечне ЦГЭ) */
+  depKindCode?: string
 }
 
 // Документы соответствия

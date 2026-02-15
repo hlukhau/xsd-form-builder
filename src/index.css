@@ -676,3 +676,9 @@ body {
   }
 }
 
+/* Окно «Определить доступ»: перенос длинных названий по словам в выпадающем списке */
+.access-modal-dep-select-dropdown.ant-select-dropdown .ant-select-item-option-content {
+  white-space: normal;
+  word-break: break-word;
+}
+

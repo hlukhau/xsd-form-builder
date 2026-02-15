@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from 'react'
-import { Card, Tabs, Button, Space, Switch } from 'antd'
+import { Card, Tabs, Button, Space, Switch, message } from 'antd'
 import { EditOutlined, EyeOutlined, DownloadOutlined, PlusOutlined } from '@ant-design/icons'
 import ProductTabEdit from '../tabs/ProductTabEdit'
 import ViolationsTabEdit from '../tabs/ViolationsTabEdit'
@@ -25,6 +25,7 @@ import { parseXMLToCardData } from '@/utils/xmlParser'
 import { compareCardData } from '@/utils/cardDataComparator'
 import { fetchDpaStatusHistory, fetchDpaElectronicDocs } from '@/utils/referenceDataApi'
 import { parseElectronicDocContentBody } from '@/utils/xmlParser'
+import { openLegacyRegisterAllVersions, isLegacyRegisterConfigured } from '@/utils/legacyRegisterUrl'
 import XMLComparisonModal from '../modals/XMLComparisonModal'
 import type { CardData, StatusHistoryItem, ElectronicDocument } from '@/types/card'
 
@@ -501,7 +502,13 @@ const DangerousProductCard: React.FC<DangerousProductCardProps> = ({
         <CardActions
           data={currentData}
           onDefineAccess={() => setAccessModalVisible(true)}
-          onOpenAllVersions={() => console.log('Открыть все версии')}
+          onOpenAllVersions={() => {
+            if (isLegacyRegisterConfigured()) {
+              openLegacyRegisterAllVersions(currentData.country ?? '', currentData.registrationNumber ?? '')
+            } else {
+              message.warning('URL легаси-реестра не задан. Задайте VITE_LEGACY_REGISTER_URL в .env')
+            }
+          }}
           onCompleteProcessing={() => console.log('Завершить обработку')}
           onElectronicDocumentClick={() => {
             if (dpaid) {
@@ -561,6 +568,9 @@ const DangerousProductCard: React.FC<DangerousProductCardProps> = ({
               onUpdate({ ...currentData, accessList })
             }
           }}
+          dpaid={dpaid}
+          source={currentData.source}
+          countryCode={currentData.country}
         />
 
         {comparisonResult && (

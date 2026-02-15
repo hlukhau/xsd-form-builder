@@ -285,6 +285,122 @@ export async function getIncidentAlertKindNameByCode(code: string): Promise<stri
   }
 }
 
+/** Список доступа по DPAID (SESINT.DPADEPPERMIS + TB_DEP + TB_DEPKIND) — GET /api/dpa/access?dpaid=...&source=incoming|outgoing|eec */
+export interface AccessItemDto {
+  id: string
+  name: string
+  depKindCode?: string
+}
+
+/** Маппинг источника карты в параметр API (для списка по умолчанию). */
+export function cardSourceToApiSource(source: string): 'incoming' | 'outgoing' | 'eec' | undefined {
+  if (!source || !source.trim()) return undefined
+  const s = source.trim().toLowerCase()
+  if (s.includes('входящ')) return 'incoming'
+  if (s.includes('исходящ')) return 'outgoing'
+  if (s.includes('еэк')) return 'eec'
+  return undefined
+}
+
+/** Право для проверки управления доступом по источнику карты. */
+export function cardSourceToAccessRight(source: string): 'dangerousProductIn:access' | 'dangerousProductOut:access' | 'dangerousProductDB:access' | undefined {
+  const api = cardSourceToApiSource(source)
+  if (api === 'incoming') return 'dangerousProductIn:access'
+  if (api === 'outgoing') return 'dangerousProductOut:access'
+  if (api === 'eec') return 'dangerousProductDB:access'
+  return undefined
+}
+
+export async function fetchDpaAccess(dpaid: string, source?: string): Promise<AccessItemDto[]> {
+  const params = new URLSearchParams({ dpaid })
+  const apiSource = source != null ? cardSourceToApiSource(source) : undefined
+  if (apiSource) params.set('source', apiSource)
+  const response = await fetch(`${BASE_URL}api/dpa/access?${params.toString()}`)
+  if (!response.ok) {
+    const text = await response.text()
+    let errMsg = response.statusText
+    try {
+      const json = JSON.parse(text)
+      if (json.error) errMsg = json.error
+    } catch {
+      if (text) errMsg = text.slice(0, 200)
+    }
+    throw new Error(errMsg)
+  }
+  return response.json()
+}
+
+export async function addDpaAccess(dpaid: string, depId: string): Promise<void> {
+  const response = await fetch(`${BASE_URL}api/dpa/access`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ dpaid, depId }),
+  })
+  if (!response.ok) {
+    const text = await response.text()
+    let errMsg = response.statusText
+    try {
+      const json = JSON.parse(text)
+      if (json.error) errMsg = json.error
+    } catch {
+      if (text) errMsg = text.slice(0, 200)
+    }
+    throw new Error(errMsg)
+  }
+}
+
+export async function removeDpaAccess(dpaid: string, depId: string): Promise<void> {
+  const response = await fetch(
+    `${BASE_URL}api/dpa/access?dpaid=${encodeURIComponent(dpaid)}&depId=${encodeURIComponent(depId)}`,
+    { method: 'DELETE' }
+  )
+  if (!response.ok) {
+    const text = await response.text()
+    let errMsg = response.statusText
+    try {
+      const json = JSON.parse(text)
+      if (json.error) errMsg = json.error
+    } catch {
+      if (text) errMsg = text.slice(0, 200)
+    }
+    throw new Error(errMsg)
+  }
+}
+
+/** Проверка права доступа — GET /api/access/check?id=...&right=... */
+export async function checkAccessRight(id: string | null, right: string): Promise<boolean> {
+  const params = new URLSearchParams()
+  if (id != null && id !== '') params.set('id', id)
+  params.set('right', right)
+  const response = await fetch(`${BASE_URL}api/access/check?${params.toString()}`)
+  if (!response.ok) return false
+  const data = await response.json()
+  return data.allowed === true
+}
+
+/** Подразделение из SESDEV.TB_DEP + TB_DEPKIND (DEPKINDCODE) — GET /api/dep/options */
+export interface DepOption {
+  id: string
+  name: string
+  depKindCode?: string
+}
+
+export async function fetchDepOptions(): Promise<DepOption[]> {
+  const response = await fetch(`${BASE_URL}api/dep/options`)
+  if (!response.ok) {
+    const text = await response.text()
+    let errMsg = response.statusText
+    try {
+      const json = JSON.parse(text)
+      if (json.error) errMsg = json.error
+    } catch {
+      if (text) errMsg = text.slice(0, 200)
+    }
+    throw new Error(errMsg)
+  }
+  return response.json()
+}
+
 /**
  * Получить опции для выпадающего списка уполномоченных органов
  * @param countryCode - код страны для фильтрации (опционально)

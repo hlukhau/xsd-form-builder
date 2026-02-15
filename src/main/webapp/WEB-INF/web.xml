@@ -178,6 +178,16 @@
         <url-pattern>/api/media-types/options</url-pattern>
     </servlet-mapping>
 
+    <!-- Проверка прав доступа (id — опциональный параметр запроса) -->
+    <servlet>
+        <servlet-name>AccessCheckServlet</servlet-name>
+        <servlet-class>com.eec.servlet.AccessCheckServlet</servlet-class>
+    </servlet>
+    <servlet-mapping>
+        <servlet-name>AccessCheckServlet</servlet-name>
+        <url-pattern>/api/access/check</url-pattern>
+    </servlet-mapping>
+
     <!-- XML по DPAID из таблицы DPAXML -->
     <servlet>
         <servlet-name>DpaXmlServlet</servlet-name>
@@ -206,6 +216,26 @@
     <servlet-mapping>
         <servlet-name>DpaElectronicDocsServlet</servlet-name>
         <url-pattern>/api/dpa/electronic-docs/*</url-pattern>
+    </servlet-mapping>
+
+    <!-- Подразделения (SESDEV.TB_DEP) для выбора в «Определить доступ» -->
+    <servlet>
+        <servlet-name>DepOptionsServlet</servlet-name>
+        <servlet-class>com.eec.servlet.DepOptionsServlet</servlet-class>
+    </servlet>
+    <servlet-mapping>
+        <servlet-name>DepOptionsServlet</servlet-name>
+        <url-pattern>/api/dep/options</url-pattern>
+    </servlet-mapping>
+
+    <!-- Доступ по DPAID: подразделения, связь SESINT.DPADEPPERMIS(DPAID, DEPID) -->
+    <servlet>
+        <servlet-name>DpaAccessServlet</servlet-name>
+        <servlet-class>com.eec.servlet.DpaAccessServlet</servlet-class>
+    </servlet>
+    <servlet-mapping>
+        <servlet-name>DpaAccessServlet</servlet-name>
+        <url-pattern>/api/dpa/access</url-pattern>
     </servlet-mapping>
 
     <!-- XSD Form Builder Servlet для работы с GUID и DPAID -->
