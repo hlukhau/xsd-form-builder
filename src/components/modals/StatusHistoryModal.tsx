@@ -1,4 +1,4 @@
-import { Modal, Table, Button } from 'antd'
+import { Modal, Table, Button, Spin } from 'antd'
 import { format } from 'date-fns'
 import { ru } from 'date-fns/locale'
 import type { StatusHistoryItem } from '@/types/card'
@@ -7,12 +7,14 @@ interface StatusHistoryModalProps {
   visible: boolean
   data: StatusHistoryItem[]
   onClose: () => void
+  loading?: boolean
 }
 
 const StatusHistoryModal: React.FC<StatusHistoryModalProps> = ({
   visible,
   data,
   onClose,
+  loading = false,
 }) => {
   const columns = [
     {
@@ -51,12 +53,18 @@ const StatusHistoryModal: React.FC<StatusHistoryModalProps> = ({
       ]}
       width={800}
     >
-      <Table
-        dataSource={data}
-        columns={columns}
-        rowKey={(record, index) => index?.toString() || ''}
-        pagination={false}
-      />
+      {loading ? (
+        <div style={{ textAlign: 'center', padding: 24 }}>
+          <Spin tip="Загрузка истории статусов..." />
+        </div>
+      ) : (
+        <Table
+          dataSource={data}
+          columns={columns}
+          rowKey={(record, index) => index?.toString() || ''}
+          pagination={false}
+        />
+      )}
     </Modal>
   )
 }

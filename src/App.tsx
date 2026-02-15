@@ -169,7 +169,7 @@ function AppContent() {
         </div>
       )}
       {!loadByDpaidState.loading && !loadByDpaidState.error && cardData && (
-        <DangerousProductCard data={cardData} onUpdate={setCardData} originalXML={originalXML} />
+        <DangerousProductCard data={cardData} onUpdate={setCardData} originalXML={originalXML} dpaid={dpaid ?? undefined} />
       )}
       {!loadByDpaidState.loading && !loadByDpaidState.error && !cardData && (
         <div className="empty-state">

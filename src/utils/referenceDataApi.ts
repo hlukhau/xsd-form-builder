@@ -115,6 +115,56 @@ export async function fetchDpaMetadata(dpaid: string): Promise<DpaMetadata> {
   return response.json()
 }
 
+/** Элемент истории статусов (ответ /api/dpa/status-history/{DPAID}) */
+export interface DpaStatusHistoryItem {
+  status: string
+  dateTime: string | null
+  employee: string | null
+}
+
+export async function fetchDpaStatusHistory(dpaid: string): Promise<DpaStatusHistoryItem[]> {
+  const response = await fetch(`${BASE_URL}api/dpa/status-history/${encodeURIComponent(dpaid)}`)
+  if (!response.ok) {
+    const text = await response.text()
+    let errMsg = response.statusText
+    try {
+      const json = JSON.parse(text)
+      if (json.error) errMsg = json.error
+    } catch {
+      if (text) errMsg = text.slice(0, 200)
+    }
+    throw new Error(errMsg)
+  }
+  return response.json()
+}
+
+/** Элемент из API электронных документов (EDOC + contentBody) */
+export interface DpaElectronicDocRaw {
+  messageCode: string | null
+  documentCode: string | null
+  documentId: string | null
+  documentDate: string | null
+  language: string | null
+  sourceDocumentId: string | null
+  contentBody: string | null
+}
+
+export async function fetchDpaElectronicDocs(dpaid: string): Promise<DpaElectronicDocRaw[]> {
+  const response = await fetch(`${BASE_URL}api/dpa/electronic-docs/${encodeURIComponent(dpaid)}`)
+  if (!response.ok) {
+    const text = await response.text()
+    let errMsg = response.statusText
+    try {
+      const json = JSON.parse(text)
+      if (json.error) errMsg = json.error
+    } catch {
+      if (text) errMsg = text.slice(0, 200)
+    }
+    throw new Error(errMsg)
+  }
+  return response.json()
+}
+
 /**
  * Получить все активные страны
  */

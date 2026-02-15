@@ -3109,6 +3109,49 @@ function parseMeasurePlaceDetails(parent: Element): MeasurePlaceDetails | undefi
 }
 
 /**
+ * Парсит CONTENTBODY XML (VW_PACKAGEMESSAGE): извлекает запись общего ресурса
+ * (ResourceItemStatusDetails: ValidityPeriodDetails StartDateTime/EndDateTime, UpdateDateTime).
+ */
+export function parseElectronicDocContentBody(xmlText: string): {
+  validityPeriod: { start: string; end: string }
+  updateDateTime: string
+} {
+  const result = { validityPeriod: { start: '', end: '' }, updateDateTime: '' }
+  if (!xmlText || !xmlText.trim()) return result
+  const parser = new DOMParser()
+  const xmlDoc = parser.parseFromString(xmlText, 'text/xml')
+  const root = xmlDoc.documentElement
+  if (!root) return result
+
+  let resourceStatus: Element | null = null
+  const all = root.getElementsByTagName('*')
+  for (let i = 0; i < all.length; i++) {
+    const el = all[i]
+    const local = el.localName || el.tagName.split(':').pop()?.toLowerCase()
+    if (local === 'resourceitemstatusdetails') {
+      resourceStatus = el
+      break
+    }
+  }
+  if (!resourceStatus) return result
+
+  let validityPeriod: Element | null = null
+  const resourceChildren = resourceStatus.getElementsByTagName('*')
+  for (let i = 0; i < resourceChildren.length; i++) {
+    const el = resourceChildren[i]
+    const local = el.localName || el.tagName.split(':').pop()?.toLowerCase()
+    if (local === 'validityperioddetails') {
+      validityPeriod = el
+      break
+    }
+  }
+  result.validityPeriod.start = getTextContent(validityPeriod, 'StartDateTime') || ''
+  result.validityPeriod.end = getTextContent(validityPeriod, 'EndDateTime') || ''
+  result.updateDateTime = getTextContent(resourceStatus, 'UpdateDateTime') || ''
+  return result
+}
+
+/**
  * Загружает XML файл по пути
  */
 export async function loadXMLFile(filePath: string): Promise<string> {

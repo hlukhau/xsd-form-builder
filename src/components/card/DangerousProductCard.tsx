@@ -23,24 +23,33 @@ import MeasuresTab from '../tabs/MeasuresTab'
 import { exportCardDataToXML } from '@/utils/xmlExporter'
 import { parseXMLToCardData } from '@/utils/xmlParser'
 import { compareCardData } from '@/utils/cardDataComparator'
+import { fetchDpaStatusHistory, fetchDpaElectronicDocs } from '@/utils/referenceDataApi'
+import { parseElectronicDocContentBody } from '@/utils/xmlParser'
 import XMLComparisonModal from '../modals/XMLComparisonModal'
-import type { CardData } from '@/types/card'
+import type { CardData, StatusHistoryItem, ElectronicDocument } from '@/types/card'
 
 interface DangerousProductCardProps {
   data: CardData
   onUpdate: (data: CardData) => void
+  originalXML?: string | null
+  dpaid?: string
 }
 
 const DangerousProductCard: React.FC<DangerousProductCardProps> = ({
   data,
   onUpdate,
   originalXML: propOriginalXML,
+  dpaid,
 }) => {
   // Отладочный вывод
   console.log('DangerousProductCard получил данные:', data)
   
   const [statusHistoryVisible, setStatusHistoryVisible] = useState(false)
+  const [statusHistoryModalData, setStatusHistoryModalData] = useState<StatusHistoryItem[]>([])
+  const [statusHistoryLoading, setStatusHistoryLoading] = useState(false)
   const [electronicDocumentVisible, setElectronicDocumentVisible] = useState(false)
+  const [electronicDocList, setElectronicDocList] = useState<ElectronicDocument[]>([])
+  const [electronicDocLoading, setElectronicDocLoading] = useState(false)
   const [accessModalVisible, setAccessModalVisible] = useState(false)
   const [isEditMode, setIsEditMode] = useState(false)
   const [editedData, setEditedData] = useState<CardData>(data)
@@ -463,32 +472,82 @@ const DangerousProductCard: React.FC<DangerousProductCardProps> = ({
           </Space>
         }
       >
-        <CardHeader data={currentData} onStatusClick={() => setStatusHistoryVisible(true)} />
+        <CardHeader
+          data={currentData}
+          onStatusClick={() => {
+            if (dpaid) {
+              setStatusHistoryLoading(true)
+              setStatusHistoryVisible(true)
+              setStatusHistoryModalData([])
+              fetchDpaStatusHistory(dpaid)
+                .then((items) => {
+                  setStatusHistoryModalData(
+                    items.map((i) => ({
+                      status: i.status,
+                      dateTime: i.dateTime ?? '',
+                      employee: i.employee ?? null,
+                    }))
+                  )
+                })
+                .catch(() => setStatusHistoryModalData([]))
+                .finally(() => setStatusHistoryLoading(false))
+            } else {
+              setStatusHistoryModalData(currentData.statusHistory ?? [])
+              setStatusHistoryVisible(true)
+            }
+          }}
+        />
         
         <CardActions
           data={currentData}
           onDefineAccess={() => setAccessModalVisible(true)}
           onOpenAllVersions={() => console.log('Открыть все версии')}
           onCompleteProcessing={() => console.log('Завершить обработку')}
-          onElectronicDocumentClick={() => setElectronicDocumentVisible(true)}
+          onElectronicDocumentClick={() => {
+            if (dpaid) {
+              setElectronicDocLoading(true)
+              setElectronicDocumentVisible(true)
+              setElectronicDocList([])
+              fetchDpaElectronicDocs(dpaid)
+                .then((rawList) => {
+                  const docs: ElectronicDocument[] = rawList.map((raw) => {
+                    const resource = raw.contentBody ? parseElectronicDocContentBody(raw.contentBody) : { validityPeriod: { start: '', end: '' }, updateDateTime: '' }
+                    return {
+                      messageCode: raw.messageCode ?? '',
+                      documentCode: raw.documentCode ?? '',
+                      documentId: raw.documentId ?? '',
+                      documentDate: raw.documentDate ?? '',
+                      language: raw.language ?? 'ru',
+                      sourceDocumentId: raw.sourceDocumentId ?? '',
+                      validityPeriod: resource.validityPeriod,
+                      updateDateTime: resource.updateDateTime,
+                    }
+                  })
+                  setElectronicDocList(docs)
+                })
+                .catch(() => setElectronicDocList([]))
+                .finally(() => setElectronicDocLoading(false))
+            } else {
+              setElectronicDocList(currentData.electronicDocument ? [currentData.electronicDocument] : [])
+              setElectronicDocumentVisible(true)
+            }
+          }}
         />
 
         <Tabs defaultActiveKey="notification" items={tabItemsWithEdit} />
 
         <StatusHistoryModal
           visible={statusHistoryVisible}
-          data={currentData.statusHistory}
+          data={statusHistoryModalData}
           onClose={() => setStatusHistoryVisible(false)}
-          isEditMode={isEditMode}
-          onUpdate={isEditMode ? (statusHistory) => setEditedData((prev) => ({ ...prev, statusHistory })) : undefined}
+          loading={statusHistoryLoading}
         />
 
         <ElectronicDocumentModal
           visible={electronicDocumentVisible}
-          data={currentData.electronicDocument}
+          data={electronicDocList.length > 0 ? electronicDocList : (currentData.electronicDocument ? [currentData.electronicDocument] : [])}
           onClose={() => setElectronicDocumentVisible(false)}
-          isEditMode={isEditMode}
-          onUpdate={isEditMode ? (electronicDocument) => setEditedData((prev) => ({ ...prev, electronicDocument })) : undefined}
+          loading={electronicDocLoading}
         />
 
         <AccessModal

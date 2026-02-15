@@ -188,6 +188,26 @@
         <url-pattern>/api/dpa/xml/*</url-pattern>
     </servlet-mapping>
 
+    <!-- История смены статусов из DPASTATUSHIST -->
+    <servlet>
+        <servlet-name>DpaStatusHistoryServlet</servlet-name>
+        <servlet-class>com.eec.servlet.DpaStatusHistoryServlet</servlet-class>
+    </servlet>
+    <servlet-mapping>
+        <servlet-name>DpaStatusHistoryServlet</servlet-name>
+        <url-pattern>/api/dpa/status-history/*</url-pattern>
+    </servlet-mapping>
+
+    <!-- Электронные документы и запись общего ресурса по DPAID (EDOC + VW_PACKAGEMESSAGE) -->
+    <servlet>
+        <servlet-name>DpaElectronicDocsServlet</servlet-name>
+        <servlet-class>com.eec.servlet.DpaElectronicDocsServlet</servlet-class>
+    </servlet>
+    <servlet-mapping>
+        <servlet-name>DpaElectronicDocsServlet</servlet-name>
+        <url-pattern>/api/dpa/electronic-docs/*</url-pattern>
+    </servlet-mapping>
+
     <!-- XSD Form Builder Servlet для работы с GUID и DPAID -->
     <!-- Обрабатывает только запросы формата /{DPAID}/{GUID} внутри контекста приложения -->
     <!-- Должен быть ПЕРЕД SpaServlet, чтобы обрабатывать API запросы первым -->
