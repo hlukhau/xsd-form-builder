@@ -231,7 +231,7 @@ const AccessModal: React.FC<AccessModalProps> = ({
           </Button>
         ),
       ].filter(Boolean)}
-      width={920}
+      width={1100}
     >
       <Space direction="vertical" style={{ width: '100%' }} size="middle">
         <Input.Search

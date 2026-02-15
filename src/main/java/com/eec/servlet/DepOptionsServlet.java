@@ -1,6 +1,7 @@
 package com.eec.servlet;
 
-import com.eec.util.DatabaseUtil;
+import com.eec.util.DictionaryCache;
+import com.eec.util.DictionaryCache.DepOption;
 
 import javax.servlet.ServletException;
 import javax.servlet.http.HttpServlet;
@@ -8,23 +9,19 @@ import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
 import java.io.IOException;
 import java.io.PrintWriter;
-import java.sql.Connection;
-import java.sql.PreparedStatement;
-import java.sql.ResultSet;
-import java.sql.SQLException;
+import java.util.List;
 
 /**
- * Список подразделений из SESDEV.TB_DEP с видом из SESDEV.TB_DEPKIND (DEPKINDCODE).
+ * Список подразделений из кеша (SESDEV.TB_DEP + TB_DEPKIND, загружаются при старте).
  * GET /api/dep/options — все подразделения { id, name, depKindCode }.
- * dep0601 — районный ЦГЭ, dep0602 — областной ЦГЭ (для фильтра добавления/удаления).
  */
 public class DepOptionsServlet extends HttpServlet {
 
-    private static final String SQL = ""
-            + "SELECT d.DEPID, d.DEPNAME, dk.DEPKINDCODE "
-            + "FROM SESDEV.TB_DEP d "
-            + "LEFT JOIN SESDEV.TB_DEPKIND dk ON d.DEPKINDID = dk.DEPKINDID "
-            + "ORDER BY d.DEPNAME";
+    @Override
+    public void init() throws ServletException {
+        super.init();
+        System.out.println("[DepOptionsServlet] Initialized, serving from cache");
+    }
 
     @Override
     protected void doGet(HttpServletRequest request, HttpServletResponse response)
@@ -33,37 +30,22 @@ public class DepOptionsServlet extends HttpServlet {
         response.setCharacterEncoding("UTF-8");
         response.setHeader("Access-Control-Allow-Origin", "*");
 
-        Connection conn = null;
-        PreparedStatement ps = null;
-        ResultSet rs = null;
-        try {
-            conn = DatabaseUtil.getConnection();
-            ps = conn.prepareStatement(SQL);
-            rs = ps.executeQuery();
-            StringBuilder json = new StringBuilder("[");
-            boolean first = true;
-            while (rs.next()) {
-                if (!first) json.append(",");
-                first = false;
-                String id = rs.getString(1);
-                String name = rs.getString(2);
-                String depKindCode = rs.getString(3);
-                if (id == null) id = "";
-                if (name == null) name = "";
-                if (depKindCode == null) depKindCode = "";
-                json.append("{\"id\":").append(quote(id)).append(",\"name\":").append(quote(name)).append(",\"depKindCode\":").append(quote(depKindCode)).append("}");
-            }
-            json.append("]");
-            response.getWriter().print(json.toString());
-        } catch (SQLException e) {
-            log("DepOptions: " + e.getMessage());
-            response.setStatus(HttpServletResponse.SC_INTERNAL_SERVER_ERROR);
-            response.getWriter().print("{\"error\":\"" + e.getMessage().replace("\"", "'") + "\"}");
-        } finally {
-            if (rs != null) try { rs.close(); } catch (SQLException ignored) { }
-            if (ps != null) try { ps.close(); } catch (SQLException ignored) { }
-            DatabaseUtil.closeConnection(conn);
+        if (!DictionaryCache.isDepOptionsLoaded()) {
+            response.setStatus(HttpServletResponse.SC_SERVICE_UNAVAILABLE);
+            response.getWriter().print("{\"error\":\"Справочник подразделений не загружен. Дождитесь инициализации приложения.\"}");
+            return;
         }
+
+        List<DepOption> list = DictionaryCache.getDepOptionsList();
+        StringBuilder json = new StringBuilder("[");
+        boolean first = true;
+        for (DepOption o : list) {
+            if (!first) json.append(",");
+            first = false;
+            json.append("{\"id\":").append(quote(o.id)).append(",\"name\":").append(quote(o.name)).append(",\"depKindCode\":").append(quote(o.depKindCode)).append("}");
+        }
+        json.append("]");
+        response.getWriter().print(json.toString());
     }
 
     private static String quote(String s) {

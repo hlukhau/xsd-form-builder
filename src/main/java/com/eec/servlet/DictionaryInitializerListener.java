@@ -13,6 +13,7 @@ import com.eec.util.DictionaryCache.TechRegulOption;
 import com.eec.util.DictionaryCache.SanitaryMeasureObjKindOption;
 import com.eec.util.DictionaryCache.SanitaryMeasureOption;
 import com.eec.util.DictionaryCache.MediaTypeOption;
+import com.eec.util.DictionaryCache.DepOption;
 
 import javax.servlet.ServletContextEvent;
 import javax.servlet.ServletContextListener;
@@ -47,6 +48,7 @@ public class DictionaryInitializerListener implements ServletContextListener {
         loadSanitaryMeasureObjKindsDictionary();
         loadSanitaryMeasuresDictionary();
         loadMediaTypesDictionary();
+        loadDepOptionsDictionary();
         
         System.out.println("========================================");
         System.out.println("[DictionaryInitializer] Dictionary loading completed");
@@ -68,6 +70,7 @@ public class DictionaryInitializerListener implements ServletContextListener {
         DictionaryCache.clearSanitaryMeasureObjKindsCache();
         DictionaryCache.clearSanitaryMeasuresCache();
         DictionaryCache.clearMediaTypesCache();
+        DictionaryCache.clearDepOptionsCache();
     }
     
     /**
@@ -572,6 +575,48 @@ public class DictionaryInitializerListener implements ServletContextListener {
             
         } catch (SQLException e) {
             System.err.println("[DictionaryInitializer] ERROR loading media types dictionary: " + e.getMessage());
+            e.printStackTrace();
+        } finally {
+            DatabaseUtil.closeConnection(conn);
+        }
+    }
+    
+    /**
+     * Загружает справочник подразделений (TB_DEP + TB_DEPKIND) для «Определить доступ»
+     */
+    private void loadDepOptionsDictionary() {
+        Connection conn = null;
+        try {
+            System.out.println("[DictionaryInitializer] Loading dep options dictionary...");
+            conn = DatabaseUtil.getConnection();
+            
+            String sql = "SELECT d.DEPID, d.DEPNAME, dk.DEPKINDCODE "
+                    + "FROM SESDEV.TB_DEP d "
+                    + "LEFT JOIN SESDEV.TB_DEPKIND dk ON d.DEPKINDID = dk.DEPKINDID "
+                    + "ORDER BY d.DEPNAME";
+            
+            PreparedStatement stmt = conn.prepareStatement(sql);
+            ResultSet rs = stmt.executeQuery();
+            
+            List<DepOption> options = new ArrayList<>();
+            int count = 0;
+            
+            while (rs.next()) {
+                String id = rs.getString(1);
+                String name = rs.getString(2);
+                String depKindCode = rs.getString(3);
+                options.add(new DepOption(id, name, depKindCode));
+                count++;
+            }
+            
+            DictionaryCache.setDepOptionsCache(options);
+            System.out.println("[DictionaryInitializer] Loaded " + count + " dep options into cache");
+            
+            rs.close();
+            stmt.close();
+            
+        } catch (SQLException e) {
+            System.err.println("[DictionaryInitializer] ERROR loading dep options dictionary: " + e.getMessage());
             e.printStackTrace();
         } finally {
             DatabaseUtil.closeConnection(conn);

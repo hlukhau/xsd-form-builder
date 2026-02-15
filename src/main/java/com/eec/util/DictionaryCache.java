@@ -57,6 +57,9 @@ public class DictionaryCache {
     private static final Map<String, String> mediaTypesCache = new ConcurrentHashMap<>();
     private static final List<MediaTypeOption> mediaTypesListCache = new ArrayList<>();
     
+    // Кеш подразделений (TB_DEP + TB_DEPKIND): список для «Определить доступ»
+    private static final List<DepOption> depOptionsListCache = new ArrayList<>();
+    
     // Флаги загрузки
     private static volatile boolean countriesLoaded = false;
     private static volatile boolean incidentAlertKindsLoaded = false;
@@ -68,6 +71,7 @@ public class DictionaryCache {
     private static volatile boolean sanitaryMeasureObjKindsLoaded = false;
     private static volatile boolean sanitaryMeasuresLoaded = false;
     private static volatile boolean mediaTypesLoaded = false;
+    private static volatile boolean depOptionsLoaded = false;
     
     /**
      * Класс для опции страны
@@ -217,6 +221,21 @@ public class DictionaryCache {
         public MediaTypeOption(String code, String name) {
             this.code = code;
             this.name = name;
+        }
+    }
+    
+    /**
+     * Класс для опции подразделения (TB_DEP + DEPKINDCODE)
+     */
+    public static class DepOption {
+        public String id;
+        public String name;
+        public String depKindCode;
+        
+        public DepOption(String id, String name, String depKindCode) {
+            this.id = id != null ? id : "";
+            this.name = name != null ? name : "";
+            this.depKindCode = depKindCode != null ? depKindCode : "";
         }
     }
     
@@ -714,6 +733,33 @@ public class DictionaryCache {
     
     public static boolean isMediaTypesLoaded() {
         return mediaTypesLoaded;
+    }
+    
+    // ========== Методы для подразделений ==========
+    
+    public static void clearDepOptionsCache() {
+        synchronized (depOptionsListCache) {
+            depOptionsListCache.clear();
+            depOptionsLoaded = false;
+        }
+    }
+    
+    public static void setDepOptionsCache(List<DepOption> options) {
+        synchronized (depOptionsListCache) {
+            depOptionsListCache.clear();
+            depOptionsListCache.addAll(options);
+            depOptionsLoaded = true;
+        }
+    }
+    
+    public static List<DepOption> getDepOptionsList() {
+        synchronized (depOptionsListCache) {
+            return new ArrayList<>(depOptionsListCache);
+        }
+    }
+    
+    public static boolean isDepOptionsLoaded() {
+        return depOptionsLoaded;
     }
 }
 
