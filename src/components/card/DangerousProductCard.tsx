@@ -23,7 +23,8 @@ import MeasuresTab from '../tabs/MeasuresTab'
 import { exportCardDataToXML } from '@/utils/xmlExporter'
 import { parseXMLToCardData } from '@/utils/xmlParser'
 import { compareCardData } from '@/utils/cardDataComparator'
-import { fetchDpaStatusHistory, fetchDpaElectronicDocs } from '@/utils/referenceDataApi'
+import { fetchDpaStatusHistory, fetchDpaElectronicDocs, fetchDpaMetadata, changeDpaStatus, checkAccessRight } from '@/utils/referenceDataApi'
+import { getStatusButtonConfig } from '@/utils/statusButtonConfig'
 import { parseElectronicDocContentBody } from '@/utils/xmlParser'
 import { openLegacyRegisterAllVersions, isLegacyRegisterConfigured } from '@/utils/legacyRegisterUrl'
 import XMLComparisonModal from '../modals/XMLComparisonModal'
@@ -61,6 +62,38 @@ const DangerousProductCard: React.FC<DangerousProductCardProps> = ({
     warnings: string[]
   } | null>(null)
   const [comparisonModalVisible, setComparisonModalVisible] = useState(false)
+  const [hasStatusRight, setHasStatusRight] = useState(true)
+  const [hasSendRight, setHasSendRight] = useState(false)
+  const [hasResolution, setHasResolution] = useState(false)
+
+  // Права: входящие — dangerousProductIn:status; исходящие — dangerousProductOut:status, dangerousProductOut:send
+  useEffect(() => {
+    if (!dpaid || !editedData.source) return
+    const src = (editedData.source ?? '').toLowerCase()
+    if (src.includes('входящ')) {
+      checkAccessRight(dpaid, 'dangerousProductIn:status').then(setHasStatusRight)
+      return
+    }
+    if (src.includes('исходящ')) {
+      Promise.all([
+        checkAccessRight(dpaid, 'dangerousProductOut:status'),
+        checkAccessRight(dpaid, 'dangerousProductOut:send'),
+      ]).then(([status, send]) => {
+        setHasStatusRight(status)
+        setHasSendRight(send)
+      })
+      // TODO: запрос наличия резолюции по DPAID (DPARESOLUTION) для текущего пользователя/ЦГЭ
+      setHasResolution(false)
+    }
+  }, [dpaid, editedData.source])
+
+  const statusButton = getStatusButtonConfig(
+    editedData.source,
+    editedData.status,
+    hasStatusRight,
+    hasSendRight,
+    hasResolution
+  )
   
   // Обновляем originalXML при изменении prop
   useEffect(() => {
@@ -509,7 +542,18 @@ const DangerousProductCard: React.FC<DangerousProductCardProps> = ({
               message.warning('URL легаси-реестра не задан. Задайте VITE_LEGACY_REGISTER_URL в .env')
             }
           }}
-          onCompleteProcessing={() => console.log('Завершить обработку')}
+          statusButton={statusButton}
+          onStatusAction={(action) => {
+            if (!dpaid) return
+            changeDpaStatus(dpaid, action)
+              .then((res) => {
+                const newStatus = res.newStatus ?? currentData.status
+                onUpdate({ ...currentData, status: newStatus })
+                setEditedData((prev) => ({ ...prev, status: newStatus }))
+                message.success('Статус обновлён')
+              })
+              .catch((e) => message.error(e instanceof Error ? e.message : 'Ошибка смены статуса'))
+          }}
           onElectronicDocumentClick={() => {
             if (dpaid) {
               setElectronicDocLoading(true)

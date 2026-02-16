@@ -378,6 +378,27 @@ export async function checkAccessRight(id: string | null, right: string): Promis
   return data.allowed === true
 }
 
+/** Смена статуса карты (входящие: complete_processing, close). POST /api/dpa/status */
+export async function changeDpaStatus(dpaid: string, action: string): Promise<{ newStatus: string }> {
+  const response = await fetch(`${BASE_URL}api/dpa/status`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ dpaid, action }),
+  })
+  if (!response.ok) {
+    const text = await response.text()
+    let errMsg = response.statusText
+    try {
+      const json = JSON.parse(text)
+      if (json.error) errMsg = json.error
+    } catch {
+      if (text) errMsg = text.slice(0, 200)
+    }
+    throw new Error(errMsg)
+  }
+  return response.json()
+}
+
 /** Подразделение из SESDEV.TB_DEP + TB_DEPKIND (DEPKINDCODE) — GET /api/dep/options */
 export interface DepOption {
   id: string

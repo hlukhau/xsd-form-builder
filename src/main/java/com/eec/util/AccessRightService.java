@@ -66,4 +66,28 @@ public final class AccessRightService {
         // TODO: проверка по внутренней карте прав
         return true;
     }
+
+    /**
+     * Управление статусом входящих сведений — dangerousProductIn:status.
+     */
+    public static boolean hasDangerousProductInStatus(String id) {
+        // TODO: проверка по внутренней карте прав
+        return true;
+    }
+
+    /**
+     * Управление статусом исходящих сведений — dangerousProductOut:status.
+     */
+    public static boolean hasDangerousProductOutStatus(String id) {
+        // TODO: проверка по внутренней карте прав
+        return true;
+    }
+
+    /**
+     * Направление исходящих сведений другим участникам — dangerousProductOut:send.
+     */
+    public static boolean hasDangerousProductOutSend(String id) {
+        // TODO: проверка по внутренней карте прав
+        return true;
+    }
 }
