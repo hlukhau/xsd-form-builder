@@ -34,25 +34,33 @@ public class DictionaryInitializerListener implements ServletContextListener {
     @Override
     public void contextInitialized(ServletContextEvent sce) {
         System.out.println("========================================");
-        System.out.println("[DictionaryInitializer] Starting dictionary loading...");
+        System.out.println("[DictionaryInitializer] Starting dictionary loading in background (Tomcat will respond immediately)");
         System.out.println("========================================");
-        
-        loadCountriesDictionary();
-        loadIncidentAlertKindsDictionary();
-        loadAuthoritiesDictionary();
-        loadSanitaryProdTypesDictionary();
-        loadMeasurementUnitsDictionary();
-        loadShipDocKindsDictionary();
-        loadSupplyChainPartyKindsDictionary();
-        loadTechRegulsDictionary();
-        loadSanitaryMeasureObjKindsDictionary();
-        loadSanitaryMeasuresDictionary();
-        loadMediaTypesDictionary();
-        loadDepOptionsDictionary();
-        
-        System.out.println("========================================");
-        System.out.println("[DictionaryInitializer] Dictionary loading completed");
-        System.out.println("========================================");
+        // Загрузка в фоне, чтобы не блокировать развёртывание контекста и не «подвешивать» Tomcat при недоступности БД
+        Thread loader = new Thread(() -> {
+            try {
+                loadCountriesDictionary();
+                loadIncidentAlertKindsDictionary();
+                loadAuthoritiesDictionary();
+                loadSanitaryProdTypesDictionary();
+                loadMeasurementUnitsDictionary();
+                loadShipDocKindsDictionary();
+                loadSupplyChainPartyKindsDictionary();
+                loadTechRegulsDictionary();
+                loadSanitaryMeasureObjKindsDictionary();
+                loadSanitaryMeasuresDictionary();
+                loadMediaTypesDictionary();
+                loadDepOptionsDictionary();
+                System.out.println("========================================");
+                System.out.println("[DictionaryInitializer] Dictionary loading completed");
+                System.out.println("========================================");
+            } catch (Throwable t) {
+                System.err.println("[DictionaryInitializer] Background loading failed: " + t.getMessage());
+                t.printStackTrace();
+            }
+        }, "DictionaryInitializer");
+        loader.setDaemon(true);
+        loader.start();
     }
     
     @Override
