@@ -536,6 +536,14 @@ const DangerousProductCard: React.FC<DangerousProductCardProps> = ({
           data={currentData}
           onDefineAccess={() => setAccessModalVisible(true)}
           onOpenAllVersions={() => {
+            const payload = {
+              code: 'all_version' as const,
+              INCIDENTID: currentData.registrationNumber ?? '', // регистрационный номер из DPA.INCIDENTID
+              COUNTRY: currentData.country ?? '',
+            }
+            if (typeof window !== 'undefined' && window.parent !== window) {
+              window.parent.postMessage(payload, '*')
+            }
             if (isLegacyRegisterConfigured()) {
               openLegacyRegisterAllVersions(currentData.country ?? '', currentData.registrationNumber ?? '')
             } else {
