@@ -12,14 +12,23 @@ import {
   type DepOption,
 } from '@/utils/referenceDataApi'
 
-const ALLOWED_DEP_KINDS = ['dep0601', 'dep0602']
+const ALLOWED_DEP_KINDS = ['dep0601', 'dep0602', 'dep0603']
 
-/** Подпись уровня по коду вида подразделения */
+/** Подпись уровня по коду вида подразделения (TB_DEPKIND.DEPKINDCODE) */
 function getDepLevelLabel(depKindCode: string | undefined): string | null {
   if (!depKindCode) return null
   if (depKindCode === 'dep0601') return 'Районный'
   if (depKindCode === 'dep0602') return 'Областной'
+  if (depKindCode === 'dep0603') return 'Республиканский'
   return null
+}
+
+/** Цвет тега/рамки по коду вида подразделения */
+function getDepLevelColor(depKindCode: string | undefined): string {
+  if (depKindCode === 'dep0601') return 'blue'
+  if (depKindCode === 'dep0602') return 'green'
+  if (depKindCode === 'dep0603') return 'purple'
+  return 'default'
 }
 
 interface AccessModalProps {
@@ -163,7 +172,7 @@ const AccessModal: React.FC<AccessModalProps> = ({
   const addContent = fromApi ? (
     <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 8, width: '100%' }}>
       <Select
-        placeholder="Выберите подразделение (районный/областной ЦГЭ)"
+        placeholder="Выберите подразделение (районный / областной / республиканский ЦГЭ)"
         value={selectedDepId}
         onChange={setSelectedDepId}
         options={addableDeps.map((o) => ({
@@ -173,10 +182,11 @@ const AccessModal: React.FC<AccessModalProps> = ({
         }))}
         optionRender={(option) => {
           const label = getDepLevelLabel(option.data?.depKindCode)
+          const color = getDepLevelColor(option.data?.depKindCode)
           return (
             <Space size="small" wrap>
               {label && (
-                <Tag color={option.data?.depKindCode === 'dep0601' ? 'blue' : 'green'} style={{ margin: 0 }}>
+                <Tag color={color} style={{ margin: 0 }}>
                   {label}
                 </Tag>
               )}
@@ -256,13 +266,19 @@ const AccessModal: React.FC<AccessModalProps> = ({
               renderItem={(item) => {
                 const showDelete = fromApi && canManageAccess
                 const levelLabel = getDepLevelLabel(item.depKindCode)
-                const isOblast = item.depKindCode === 'dep0602'
+                const depColor = getDepLevelColor(item.depKindCode)
+                const borderColor =
+                  depColor === 'green'
+                    ? 'var(--ant-color-success)'
+                    : depColor === 'purple'
+                      ? 'var(--ant-color-purple, #722ed1)'
+                      : depColor === 'blue'
+                        ? 'var(--ant-color-primary)'
+                        : undefined
                 return (
                   <List.Item
                     style={{
-                      borderLeft: levelLabel
-                        ? `3px solid ${isOblast ? 'var(--ant-color-success)' : 'var(--ant-color-primary)'}`
-                        : undefined,
+                      borderLeft: levelLabel ? `3px solid ${borderColor}` : undefined,
                       paddingLeft: levelLabel ? 12 : undefined,
                     }}
                     actions={
@@ -295,7 +311,7 @@ const AccessModal: React.FC<AccessModalProps> = ({
                   >
                     <Space size="small" align="start" wrap style={{ width: '100%', minWidth: 0 }}>
                       {levelLabel && (
-                        <Tag color={isOblast ? 'green' : 'blue'} style={{ margin: 0, flexShrink: 0 }}>
+                        <Tag color={getDepLevelColor(item.depKindCode)} style={{ margin: 0, flexShrink: 0 }}>
                           {levelLabel}
                         </Tag>
                       )}

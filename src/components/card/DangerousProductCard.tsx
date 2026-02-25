@@ -543,6 +543,7 @@ const DangerousProductCard: React.FC<DangerousProductCardProps> = ({
             }
             if (typeof window !== 'undefined') {
               window.parent.postMessage(payload, '*')
+              console.log('[Открыть все версии] Сообщение отправлено родительскому окну:', payload)
             }
             if (isLegacyRegisterConfigured()) {
               openLegacyRegisterAllVersions(currentData.country ?? '', currentData.registrationNumber ?? '')
