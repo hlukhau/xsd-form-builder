@@ -198,6 +198,16 @@
         <url-pattern>/api/dpa/xml/*</url-pattern>
     </servlet-mapping>
 
+    <!-- Метаданные карты из VW_DPA (GET /api/dpa/metadata/{DPAID}) -->
+    <servlet>
+        <servlet-name>DpaMetadataServlet</servlet-name>
+        <servlet-class>com.eec.servlet.DpaMetadataServlet</servlet-class>
+    </servlet>
+    <servlet-mapping>
+        <servlet-name>DpaMetadataServlet</servlet-name>
+        <url-pattern>/api/dpa/metadata/*</url-pattern>
+    </servlet-mapping>
+
     <!-- История смены статусов из DPASTATUSHIST -->
     <servlet>
         <servlet-name>DpaStatusHistoryServlet</servlet-name>

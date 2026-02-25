@@ -7,7 +7,6 @@ import javax.servlet.http.HttpServlet;
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
 import java.io.IOException;
-import java.io.PrintWriter;
 import java.io.Reader;
 import java.sql.Clob;
 import java.sql.Connection;
@@ -16,15 +15,13 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 
 /**
- * Сервлет для получения XML по DPAID из таблицы DPAXML.
+ * Сервлет для получения XML карты по DPAID из таблицы DPAXML (колонка DPAXMLBODY, CLOB).
  * GET /api/dpa/xml/{DPAID}
- * Возвращает application/xml с содержимым CLOB-поля для указанного DPAID.
- * Если колонка с XML называется иначе (BODY, XMLDATA и т.д.) — измените SQL_SELECT.
+ * Возвращает содержимое CLOB как application/xml; charset=UTF-8.
  */
 public class DpaXmlServlet extends HttpServlet {
 
-    /** Таблица DPAXML: DPAID, DPAXMLBODY (CLOB) */
-    private static final String SQL_SELECT = "SELECT DPAXMLBODY FROM DPAXML WHERE DPAID = ?";
+    private static final String SQL_SELECT = "SELECT DPAXMLBODY FROM SESINT.DPAXML WHERE DPAID = ?";
 
     @Override
     public void init() throws ServletException {
@@ -38,26 +35,24 @@ public class DpaXmlServlet extends HttpServlet {
 
         String pathInfo = request.getPathInfo();
         if (pathInfo == null || pathInfo.isEmpty() || "/".equals(pathInfo)) {
-            response.setContentType("application/json;charset=UTF-8");
-            response.setStatus(HttpServletResponse.SC_BAD_REQUEST);
-            response.getWriter().print("{\"error\":\"Укажите DPAID в пути: /api/dpa/xml/{DPAID}\"}");
+            sendError(response, HttpServletResponse.SC_BAD_REQUEST, "Укажите DPAID в пути: /api/dpa/xml/{DPAID}");
             return;
         }
 
-        String dpaidStr = pathInfo.startsWith("/") ? pathInfo.substring(1) : pathInfo;
+        String dpaidStr = pathInfo.startsWith("/") ? pathInfo.substring(1).trim() : pathInfo.trim();
         if (dpaidStr.isEmpty()) {
-            response.setContentType("application/json;charset=UTF-8");
-            response.setStatus(HttpServletResponse.SC_BAD_REQUEST);
-            response.getWriter().print("{\"error\":\"DPAID не задан\"}");
+            sendError(response, HttpServletResponse.SC_BAD_REQUEST, "DPAID не задан");
             return;
         }
 
         response.setCharacterEncoding("UTF-8");
+        response.setContentType("application/xml;charset=UTF-8");
         response.setHeader("Access-Control-Allow-Origin", "*");
 
         Connection conn = null;
         PreparedStatement ps = null;
         ResultSet rs = null;
+        Reader reader = null;
 
         try {
             conn = DatabaseUtil.getConnection();
@@ -70,68 +65,50 @@ public class DpaXmlServlet extends HttpServlet {
 
             rs = ps.executeQuery();
             if (!rs.next()) {
-                response.setContentType("application/json;charset=UTF-8");
-                response.setStatus(HttpServletResponse.SC_NOT_FOUND);
-                response.getWriter().print("{\"error\":\"Запись с DPAID " + dpaidStr + " не найдена\"}");
+                sendError(response, HttpServletResponse.SC_NOT_FOUND, "Запись с DPAID " + dpaidStr + " не найдена в DPAXML");
                 return;
             }
 
-            String xml = null;
-            try {
-                Clob clob = rs.getClob(1);
-                if (clob != null) {
-                    Reader r = clob.getCharacterStream();
-                    StringBuilder sb = new StringBuilder();
-                    char[] buf = new char[8192];
-                    int n;
-                    while ((n = r.read(buf)) >= 0) {
-                        sb.append(buf, 0, n);
-                    }
-                    r.close();
-                    xml = sb.toString();
-                }
-            } catch (SQLException e) {
-                try {
-                    xml = rs.getString(1);
-                } catch (SQLException e2) {
-                    throw e;
-                }
-            }
-            if (xml == null || xml.trim().isEmpty()) {
-                response.setContentType("application/json;charset=UTF-8");
-                response.setStatus(HttpServletResponse.SC_NOT_FOUND);
-                response.getWriter().print("{\"error\":\"XML для DPAID " + dpaidStr + " пуст\"}");
+            Clob clob = rs.getClob("DPAXMLBODY");
+            if (clob == null) {
+                response.getWriter().write("<?xml version=\"1.0\" encoding=\"UTF-8\"?><empty/>");
+                response.getWriter().flush();
+                System.out.println("[DpaXmlServlet] Served empty XML for DPAID: " + dpaidStr);
                 return;
             }
 
-            response.setContentType("application/xml;charset=UTF-8");
-            response.setStatus(HttpServletResponse.SC_OK);
-            PrintWriter out = response.getWriter();
-            out.write(xml);
+            reader = clob.getCharacterStream();
+            char[] buf = new char[4096];
+            int n;
+            java.io.Writer out = response.getWriter();
+            while ((n = reader.read(buf)) >= 0) {
+                out.write(buf, 0, n);
+            }
             out.flush();
             System.out.println("[DpaXmlServlet] Served XML for DPAID: " + dpaidStr);
 
         } catch (SQLException e) {
             System.err.println("[DpaXmlServlet] DB error for DPAID " + dpaidStr + ": " + e.getMessage());
             e.printStackTrace();
-            response.setContentType("application/json;charset=UTF-8");
-            response.setStatus(HttpServletResponse.SC_INTERNAL_SERVER_ERROR);
-            String msg = e.getMessage() != null ? e.getMessage().replace("\"", "'") : "Ошибка БД";
-            response.getWriter().print("{\"error\":\"" + msg + "\"}");
+            sendError(response, HttpServletResponse.SC_INTERNAL_SERVER_ERROR, "Ошибка БД: " + e.getMessage());
         } finally {
-            if (rs != null) {
+            if (reader != null) {
                 try {
-                    rs.close();
-                } catch (SQLException ignored) {
+                    reader.close();
+                } catch (IOException e) {
+                    System.err.println("[DpaXmlServlet] Error closing CLOB reader: " + e.getMessage());
                 }
             }
-            if (ps != null) {
-                try {
-                    ps.close();
-                } catch (SQLException ignored) {
-                }
-            }
+            if (rs != null) try { rs.close(); } catch (SQLException ignored) { }
+            if (ps != null) try { ps.close(); } catch (SQLException ignored) { }
             DatabaseUtil.closeConnection(conn);
         }
+    }
+
+    private static void sendError(HttpServletResponse response, int status, String message) throws IOException {
+        response.setStatus(status);
+        response.setContentType("application/json;charset=UTF-8");
+        String escaped = message != null ? message.replace("\\", "\\\\").replace("\"", "\\\"") : "Unknown error";
+        response.getWriter().print("{\"error\":\"" + escaped + "\"}");
     }
 }

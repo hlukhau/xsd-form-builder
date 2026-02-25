@@ -538,16 +538,14 @@ const DangerousProductCard: React.FC<DangerousProductCardProps> = ({
           onOpenAllVersions={() => {
             const payload = {
               code: 'all_version' as const,
-              INCIDENTID: currentData.registrationNumber ?? '', // регистрационный номер из DPA.INCIDENTID
+              INCIDENTID: currentData.registrationNumber ?? '',
               COUNTRY: currentData.country ?? '',
             }
-            if (typeof window !== 'undefined' && window.parent !== window) {
+            if (typeof window !== 'undefined') {
               window.parent.postMessage(payload, '*')
             }
             if (isLegacyRegisterConfigured()) {
               openLegacyRegisterAllVersions(currentData.country ?? '', currentData.registrationNumber ?? '')
-            } else {
-              message.warning('URL легаси-реестра не задан. Задайте VITE_LEGACY_REGISTER_URL в .env')
             }
           }}
           statusButton={statusButton}

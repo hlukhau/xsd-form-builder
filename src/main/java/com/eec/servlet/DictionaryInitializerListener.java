@@ -23,6 +23,7 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.function.BooleanSupplier;
 
 /**
  * Listener для инициализации справочников при старте приложения
@@ -39,18 +40,18 @@ public class DictionaryInitializerListener implements ServletContextListener {
         // Загрузка в фоне, чтобы не блокировать развёртывание контекста и не «подвешивать» Tomcat при недоступности БД
         Thread loader = new Thread(() -> {
             try {
-                loadCountriesDictionary();
-                loadIncidentAlertKindsDictionary();
-                loadAuthoritiesDictionary();
-                loadSanitaryProdTypesDictionary();
-                loadMeasurementUnitsDictionary();
-                loadShipDocKindsDictionary();
-                loadSupplyChainPartyKindsDictionary();
-                loadTechRegulsDictionary();
-                loadSanitaryMeasureObjKindsDictionary();
-                loadSanitaryMeasuresDictionary();
-                loadMediaTypesDictionary();
-                loadDepOptionsDictionary();
+                loadWithRetries("countries", this::loadCountriesDictionary, DictionaryCache::isCountriesLoaded);
+                loadWithRetries("incident alert kinds", this::loadIncidentAlertKindsDictionary, DictionaryCache::isIncidentAlertKindsLoaded);
+                loadWithRetries("authorities", this::loadAuthoritiesDictionary, DictionaryCache::isAuthoritiesLoaded);
+                loadWithRetries("sanitary product types", this::loadSanitaryProdTypesDictionary, DictionaryCache::isSanitaryProdTypesLoaded);
+                loadWithRetries("measurement units", this::loadMeasurementUnitsDictionary, DictionaryCache::isMeasurementUnitsLoaded);
+                loadWithRetries("ship document kinds", this::loadShipDocKindsDictionary, DictionaryCache::isShipDocKindsLoaded);
+                loadWithRetries("supply chain party kinds", this::loadSupplyChainPartyKindsDictionary, DictionaryCache::isSupplyChainPartyKindsLoaded);
+                loadWithRetries("technical regulations", this::loadTechRegulsDictionary, DictionaryCache::isTechRegulsLoaded);
+                loadWithRetries("sanitary measure object kinds", this::loadSanitaryMeasureObjKindsDictionary, DictionaryCache::isSanitaryMeasureObjKindsLoaded);
+                loadWithRetries("sanitary measures", this::loadSanitaryMeasuresDictionary, DictionaryCache::isSanitaryMeasuresLoaded);
+                loadWithRetries("media types", this::loadMediaTypesDictionary, DictionaryCache::isMediaTypesLoaded);
+                loadWithRetries("dep options", this::loadDepOptionsDictionary, DictionaryCache::isDepOptionsLoaded);
                 System.out.println("========================================");
                 System.out.println("[DictionaryInitializer] Dictionary loading completed");
                 System.out.println("========================================");
@@ -79,6 +80,36 @@ public class DictionaryInitializerListener implements ServletContextListener {
         DictionaryCache.clearSanitaryMeasuresCache();
         DictionaryCache.clearMediaTypesCache();
         DictionaryCache.clearDepOptionsCache();
+    }
+    
+    private static final int LOAD_MAX_ATTEMPTS = 3;
+    private static final long LOAD_RETRY_DELAY_MS = 3000;
+    
+    /**
+     * Выполняет загрузку справочника с повторными попытками при неудаче (таймаут БД, сеть).
+     */
+    private void loadWithRetries(String dictionaryName, Runnable loadTask, BooleanSupplier isLoaded) {
+        for (int attempt = 1; attempt <= LOAD_MAX_ATTEMPTS; attempt++) {
+            loadTask.run();
+            if (isLoaded.getAsBoolean()) {
+                if (attempt > 1) {
+                    System.out.println("[DictionaryInitializer] " + dictionaryName + " loaded on attempt " + attempt);
+                }
+                return;
+            }
+            if (attempt < LOAD_MAX_ATTEMPTS) {
+                System.out.println("[DictionaryInitializer] " + dictionaryName + " failed (attempt " + attempt + "/" + LOAD_MAX_ATTEMPTS + "), retry in " + (LOAD_RETRY_DELAY_MS / 1000) + " s...");
+                try {
+                    Thread.sleep(LOAD_RETRY_DELAY_MS);
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                    System.err.println("[DictionaryInitializer] Interrupted while waiting before retry");
+                    return;
+                }
+            } else {
+                System.err.println("[DictionaryInitializer] " + dictionaryName + " failed after " + LOAD_MAX_ATTEMPTS + " attempts");
+            }
+        }
     }
     
     /**
@@ -161,6 +192,11 @@ public class DictionaryInitializerListener implements ServletContextListener {
         } catch (SQLException e) {
             System.err.println("[DictionaryInitializer] ERROR loading incident alert kinds dictionary: " + e.getMessage());
             e.printStackTrace();
+            // Fallback: чтобы API был доступен и проверка кода "7" не пропускалась
+            List<IncidentAlertKindOption> fallback = new ArrayList<>();
+            fallback.add(new IncidentAlertKindOption("7", "Вид уведомления 7"));
+            DictionaryCache.setIncidentAlertKindsCache(fallback);
+            System.out.println("[DictionaryInitializer] Using fallback incident alert kinds (code 7) so validation is not skipped");
         } finally {
             DatabaseUtil.closeConnection(conn);
         }

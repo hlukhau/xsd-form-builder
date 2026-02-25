@@ -682,3 +682,11 @@ body {
   word-break: break-word;
 }
 
+/* История смены статусов: строки резолюций под статусом */
+.status-history-modal-resolution-row {
+  background-color: var(--bg-tertiary, #fafafa);
+}
+.status-history-modal-resolution-row td:first-child {
+  font-style: italic;
+}
+

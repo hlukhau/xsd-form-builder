@@ -16,11 +16,20 @@ const StatusHistoryModal: React.FC<StatusHistoryModalProps> = ({
   onClose,
   loading = false,
 }) => {
+  const isResolution = (status: string | undefined) =>
+    status != null && status.trim().toLowerCase().startsWith('резолюция')
+
   const columns = [
     {
       title: 'Статус',
       dataIndex: 'status',
       key: 'status',
+      render: (status: string) =>
+        isResolution(status) ? (
+          <span style={{ paddingLeft: 16, color: '#595959' }}>{status}</span>
+        ) : (
+          status
+        ),
     },
     {
       title: 'Дата и время',
@@ -63,6 +72,9 @@ const StatusHistoryModal: React.FC<StatusHistoryModalProps> = ({
           columns={columns}
           rowKey={(record, index) => index?.toString() || ''}
           pagination={false}
+          rowClassName={(record) =>
+            isResolution(record.status) ? 'status-history-modal-resolution-row' : ''
+          }
         />
       )}
     </Modal>

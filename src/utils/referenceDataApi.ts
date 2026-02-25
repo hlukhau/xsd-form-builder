@@ -261,7 +261,8 @@ export async function checkIncidentAlertKindExists(code: string): Promise<boolea
   }
   try {
     const options = await getIncidentAlertKindOptions()
-    return options.some(opt => opt.code === code)
+    const codeStr = String(code).trim()
+    return options.some(opt => String(opt.code ?? '').trim() === codeStr)
   } catch (error) {
     console.error('Ошибка проверки вида уведомления:', error)
     return false

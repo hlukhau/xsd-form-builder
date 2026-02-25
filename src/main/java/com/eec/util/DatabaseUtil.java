@@ -10,8 +10,8 @@ import java.util.Properties;
  */
 public class DatabaseUtil {
     
-    /** Таймаут подключения к БД (мс), чтобы при недоступности Oracle приложение не зависало при старте */
-    private static final int CONNECT_TIMEOUT_MS = 15_000;
+    /** Таймаут подключения к БД (мс). Увеличен для медленной сети; при недоступности Oracle приложение не зависает бесконечно */
+    private static final int CONNECT_TIMEOUT_MS = 45_000;
     private static final String DB_URL = "jdbc:oracle:thin:@192.168.203.212:1521/ses?oracle.net.CONNECT_TIMEOUT=" + CONNECT_TIMEOUT_MS;
     private static final String DB_USER = "sesdev";
     private static final String DB_PASSWORD = "sesdev";

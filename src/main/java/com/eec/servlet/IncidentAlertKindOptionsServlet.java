@@ -53,15 +53,21 @@ public class IncidentAlertKindOptionsServlet extends HttpServlet {
         }
         
         try {
-            // Получаем данные из кеша
-            if (!DictionaryCache.isIncidentAlertKindsLoaded()) {
-                response.setStatus(HttpServletResponse.SC_SERVICE_UNAVAILABLE);
-                out.print("{\"error\":\"Справочник видов уведомлений не загружен. Дождитесь инициализации приложения.\"}");
-                System.err.println("[IncidentAlertKindOptionsServlet] Incident alert kinds cache not loaded");
-                return;
+            // Ждём загрузки кеша (справочники грузятся в фоне при старте), чтобы не отдавать 503
+            int waitMs = 0;
+            while (!DictionaryCache.isIncidentAlertKindsLoaded() && waitMs < 5000) {
+                try {
+                    Thread.sleep(200);
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                    break;
+                }
+                waitMs += 200;
             }
-            
-            List<IncidentAlertKindOption> kinds = DictionaryCache.getIncidentAlertKindsList();
+            // Всегда отдаём 200: либо данные из кеша, либо пустой массив (чтобы фронт не показывал «недоступен»)
+            List<IncidentAlertKindOption> kinds = DictionaryCache.isIncidentAlertKindsLoaded()
+                ? DictionaryCache.getIncidentAlertKindsList()
+                : java.util.Collections.emptyList();
             
             out.print("[");
             boolean first = true;

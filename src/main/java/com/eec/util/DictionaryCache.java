@@ -365,6 +365,13 @@ public class DictionaryCache {
         }
     }
     
+    /** Признак того, что справочник уполномоченных органов загружен (для повторных попыток при старте) */
+    public static boolean isAuthoritiesLoaded() {
+        synchronized (authoritiesCache) {
+            return !authoritiesCache.isEmpty();
+        }
+    }
+    
     public static List<AuthorityOption> getAuthoritiesByCountry(String countryCode) {
         synchronized (authoritiesCache) {
             // Приводим код страны к верхнему регистру для поиска

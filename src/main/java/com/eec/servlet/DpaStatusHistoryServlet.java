@@ -17,14 +17,14 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * История смены статусов карты из DPASTATUSHIST.
+ * История смены статусов карты и резолюций: DPASTATUSHIST + DPARESOLUTION.
  * GET /api/dpa/status-history/{DPAID}
  * Возвращает JSON: [{ "status", "dateTime", "employee" }].
- * Сотрудник пустой, если смена была автоматической (нет привязки к пользователю).
+ * Строки резолюций имеют status вида «Резолюция: &lt;уровень&gt;» (DEPKINDNAME).
+ * Сотрудник пустой, если смена была автоматической.
  */
 public class DpaStatusHistoryServlet extends HttpServlet {
 
-    /** LEFT JOIN для USER/EMP — при автоматической смене (нет USERID) строка всё равно попадает в выборку */
     private static final String SQL = ""
             + "SELECT st.DPASTATUSNAME, hs.DPASTATUSDATETIME, ep.EMPCODE "
             + "FROM SESINT.DPASTATUSHIST hs "
@@ -32,7 +32,14 @@ public class DpaStatusHistoryServlet extends HttpServlet {
             + "LEFT JOIN SESDEV.TB_USER us ON hs.USERID = us.USERID "
             + "LEFT JOIN SESDEV.TB_EMP ep ON ep.EMPID = us.EMPID "
             + "WHERE hs.DPAID = ? "
-            + "ORDER BY hs.DPASTATUSDATETIME";
+            + "UNION ALL "
+            + "SELECT 'Резолюция: ' || kn.DEPKINDNAME AS DPASTATUSNAME, rs.RESOLUTIONDATETIME AS DPASTATUSDATETIME, ep.EMPCODE "
+            + "FROM SESINT.DPARESOLUTION rs "
+            + "JOIN SESDEV.TB_DEPKIND kn ON kn.DEPKINDID = rs.DEPKINDID "
+            + "LEFT JOIN SESDEV.TB_USER us ON rs.USERID = us.USERID "
+            + "LEFT JOIN SESDEV.TB_EMP ep ON ep.EMPID = us.EMPID "
+            + "WHERE rs.DPAID = ? "
+            + "ORDER BY 2";
 
     @Override
     public void init() throws ServletException {
@@ -67,11 +74,8 @@ public class DpaStatusHistoryServlet extends HttpServlet {
         try {
             conn = DatabaseUtil.getConnection();
             ps = conn.prepareStatement(SQL);
-            try {
-                ps.setLong(1, Long.parseLong(dpaidStr));
-            } catch (NumberFormatException e) {
-                ps.setString(1, dpaidStr);
-            }
+            bindDpaid(ps, 1, dpaidStr);
+            bindDpaid(ps, 2, dpaidStr);
 
             rs = ps.executeQuery();
             List<String> items = new ArrayList<>();
@@ -117,6 +121,14 @@ public class DpaStatusHistoryServlet extends HttpServlet {
         sb.append(",\"employee\":").append(employee == null ? "null" : quote(employee));
         sb.append("}");
         return sb.toString();
+    }
+
+    private static void bindDpaid(PreparedStatement ps, int index, String dpaid) throws SQLException {
+        try {
+            ps.setLong(index, Long.parseLong(dpaid.trim()));
+        } catch (NumberFormatException e) {
+            ps.setString(index, dpaid.trim());
+        }
     }
 
     private static String quote(String s) {
