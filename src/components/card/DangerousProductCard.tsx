@@ -23,7 +23,7 @@ import MeasuresTab from '../tabs/MeasuresTab'
 import { exportCardDataToXML } from '@/utils/xmlExporter'
 import { parseXMLToCardData } from '@/utils/xmlParser'
 import { compareCardData } from '@/utils/cardDataComparator'
-import { fetchDpaStatusHistory, fetchDpaElectronicDocs, fetchDpaMetadata, changeDpaStatus, checkAccessRight } from '@/utils/referenceDataApi'
+import { fetchDpaStatusHistory, fetchDpaElectronicDocs, fetchDpaMetadata, changeDpaStatus, checkAccessRight, fetchCurrentUser, fetchDpaResolutions } from '@/utils/referenceDataApi'
 import { getStatusButtonConfig } from '@/utils/statusButtonConfig'
 import { parseElectronicDocContentBody } from '@/utils/xmlParser'
 import { openLegacyRegisterAllVersions, isLegacyRegisterConfigured } from '@/utils/legacyRegisterUrl'
@@ -65,8 +65,10 @@ const DangerousProductCard: React.FC<DangerousProductCardProps> = ({
   const [hasStatusRight, setHasStatusRight] = useState(true)
   const [hasSendRight, setHasSendRight] = useState(false)
   const [hasResolution, setHasResolution] = useState(false)
+  const [currentUserDepKindCode, setCurrentUserDepKindCode] = useState<string | null>(null)
+  const [dpaResolutionDepKindCodes, setDpaResolutionDepKindCodes] = useState<string[]>([])
 
-  // Права: входящие — dangerousProductIn:status; исходящие — dangerousProductOut:status, dangerousProductOut:send
+  // Права и уровень пользователя / резолюции по карте (исходящие)
   useEffect(() => {
     if (!dpaid || !editedData.source) return
     const src = (editedData.source ?? '').toLowerCase()
@@ -82,8 +84,11 @@ const DangerousProductCard: React.FC<DangerousProductCardProps> = ({
         setHasStatusRight(status)
         setHasSendRight(send)
       })
-      // TODO: запрос наличия резолюции по DPAID (DPARESOLUTION) для текущего пользователя/ЦГЭ
-      setHasResolution(false)
+      fetchCurrentUser().then((u) => setCurrentUserDepKindCode(u.depKindCode ?? null))
+      fetchDpaResolutions(dpaid).then((list) => {
+        setDpaResolutionDepKindCodes(list.map((r) => r.depKindCode))
+        setHasResolution(list.length > 0)
+      })
     }
   }, [dpaid, editedData.source])
 
@@ -92,7 +97,10 @@ const DangerousProductCard: React.FC<DangerousProductCardProps> = ({
     editedData.status,
     hasStatusRight,
     hasSendRight,
-    hasResolution
+    hasResolution,
+    currentUserDepKindCode,
+    dpaResolutionDepKindCodes,
+    editedData.statusId ?? undefined
   )
   
   // Обновляем originalXML при изменении prop

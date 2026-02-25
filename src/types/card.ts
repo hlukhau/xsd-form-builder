@@ -8,7 +8,9 @@ export interface CardData {
   source: string // напр. "Входящие сведения", "Исходящие сведения", "Данные ЕЭК"
   createdAt: string // ISO 8601
   modifiedAt: string // ISO 8601
-  status: string
+  status: string // DPASTATUSNAME для отображения
+  /** DPASTATUSID из таблицы DPASTATUS — для логики кнопок по коду */
+  statusId?: number | null
 
   // Электронный документ
   electronicDocument: ElectronicDocument

@@ -258,6 +258,26 @@
         <url-pattern>/api/dpa/status</url-pattern>
     </servlet-mapping>
 
+    <!-- Текущий пользователь: уровень ЦГЭ (DEPKINDCODE, DEPKINDNAME) -->
+    <servlet>
+        <servlet-name>CurrentUserServlet</servlet-name>
+        <servlet-class>com.eec.servlet.CurrentUserServlet</servlet-class>
+    </servlet>
+    <servlet-mapping>
+        <servlet-name>CurrentUserServlet</servlet-name>
+        <url-pattern>/api/current-user</url-pattern>
+    </servlet-mapping>
+
+    <!-- Список резолюций по карте (какие уровни уже наложили резолюцию) -->
+    <servlet>
+        <servlet-name>DpaResolutionsServlet</servlet-name>
+        <servlet-class>com.eec.servlet.DpaResolutionsServlet</servlet-class>
+    </servlet>
+    <servlet-mapping>
+        <servlet-name>DpaResolutionsServlet</servlet-name>
+        <url-pattern>/api/dpa/resolutions</url-pattern>
+    </servlet-mapping>
+
     <!-- XSD Form Builder Servlet для работы с GUID и DPAID -->
     <!-- Обрабатывает только запросы формата /{DPAID}/{GUID} внутри контекста приложения -->
     <!-- Должен быть ПЕРЕД SpaServlet, чтобы обрабатывать API запросы первым -->

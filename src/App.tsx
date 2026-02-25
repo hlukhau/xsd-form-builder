@@ -130,6 +130,7 @@ function AppContent() {
             createdAt: meta.creationDateTime ?? card.createdAt,
             modifiedAt: meta.modificationDateTime ?? card.modifiedAt,
             status: meta.dpaStatusName ?? card.status,
+            statusId: meta.dpaStatusId ?? card.statusId,
           }
         } catch (e) {
           console.warn('Метаданные VW_DPA не загружены:', e)

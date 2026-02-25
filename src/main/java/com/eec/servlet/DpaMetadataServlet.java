@@ -18,13 +18,13 @@ import java.sql.Timestamp;
  * Сервлет для получения метаданных карты из вью VW_DPA (шапка карты).
  * GET /api/dpa/metadata/{DPAID}
  * Возвращает JSON: incidentId, alertCountryName, dpaVersion, datasourceKindName,
- * creationDateTime, modificationDateTime, dpaStatusName.
+ * creationDateTime, modificationDateTime, dpaStatusId, dpaStatusName.
  */
 public class DpaMetadataServlet extends HttpServlet {
 
     private static final String SQL = ""
             + "SELECT vw.INCIDENTID, vw.ALERTCOUNTRYNAME, vw.DPAVERSION, t1.DATASOURCEKINDNAME, "
-            + "       vw.CREATIONDATETIME, vw.MODIFICATIONDATETIME, vw.DPASTATUSNAME "
+            + "       vw.CREATIONDATETIME, vw.MODIFICATIONDATETIME, vw.DPASTATUSID, vw.DPASTATUSNAME "
             + "FROM VW_DPA vw "
             + "LEFT JOIN DATASOURCEKIND t1 ON vw.DATASOURCEKINDCODE = t1.DATASOURCEKINDCODE "
             + "WHERE vw.DPAID = ?";
@@ -80,6 +80,7 @@ public class DpaMetadataServlet extends HttpServlet {
             String datasourceKindName = getString(rs, "DATASOURCEKINDNAME");
             String creationDateTime = formatTimestamp(rs, "CREATIONDATETIME");
             String modificationDateTime = formatTimestamp(rs, "MODIFICATIONDATETIME");
+            Integer dpaStatusId = getInt(rs, "DPASTATUSID");
             String dpaStatusName = getString(rs, "DPASTATUSNAME");
 
             StringBuilder json = new StringBuilder();
@@ -90,6 +91,7 @@ public class DpaMetadataServlet extends HttpServlet {
             json.append(",\"datasourceKindName\":").append(quote(datasourceKindName));
             json.append(",\"creationDateTime\":").append(quote(creationDateTime));
             json.append(",\"modificationDateTime\":").append(quote(modificationDateTime));
+            json.append(",\"dpaStatusId\":").append(dpaStatusId != null ? dpaStatusId : "null");
             json.append(",\"dpaStatusName\":").append(quote(dpaStatusName));
             json.append("}");
 

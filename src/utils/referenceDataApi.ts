@@ -96,6 +96,7 @@ export interface DpaMetadata {
   datasourceKindName: string | null
   creationDateTime: string | null
   modificationDateTime: string | null
+  dpaStatusId: number | null
   dpaStatusName: string | null
 }
 
@@ -366,6 +367,32 @@ export async function removeDpaAccess(dpaid: string, depId: string): Promise<voi
     }
     throw new Error(errMsg)
   }
+}
+
+/** Текущий пользователь: уровень ЦГЭ (TB_USER → TB_EMP → TB_DEP → TB_DEPKIND). GET /api/current-user */
+export interface CurrentUserLevel {
+  depKindCode: string | null
+  depKindName: string | null
+}
+
+export async function fetchCurrentUser(): Promise<CurrentUserLevel> {
+  const response = await fetch(`${BASE_URL}api/current-user`)
+  if (!response.ok) return { depKindCode: null, depKindName: null }
+  const data = await response.json()
+  return { depKindCode: data.depKindCode ?? null, depKindName: data.depKindName ?? null }
+}
+
+/** Список резолюций по карте (какие уровни уже наложили резолюцию). GET /api/dpa/resolutions?dpaid=... */
+export interface DpaResolutionLevel {
+  depKindCode: string
+  depKindName: string
+}
+
+export async function fetchDpaResolutions(dpaid: string): Promise<DpaResolutionLevel[]> {
+  const response = await fetch(`${BASE_URL}api/dpa/resolutions?dpaid=${encodeURIComponent(dpaid)}`)
+  if (!response.ok) return []
+  const data = await response.json()
+  return Array.isArray(data.resolutions) ? data.resolutions : []
 }
 
 /** Проверка права доступа — GET /api/access/check?id=...&right=... */
