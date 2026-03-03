@@ -1,5 +1,12 @@
 import { Descriptions, Collapse } from 'antd'
-import type { DetectionPlaceData, BusinessEntityDetails, AddressDetails } from '@/types/card'
+import type { DetectionPlaceData, BusinessEntityDetails } from '@/types/card'
+import {
+  getAddressListFromOrganization,
+  formatAddressList,
+  formatAddressLine,
+  getDefaultAddressKindName,
+  getDefaultCountryName,
+} from '@/utils/addressFormatUtils'
 
 interface DetectionPlaceTabProps {
   data: DetectionPlaceData
@@ -15,26 +22,7 @@ const DetectionPlaceTab: React.FC<DetectionPlaceTabProps> = ({ data }) => {
     return code ? (countryMap[code] || code) : '-'
   }
 
-  const formatAddress = (address?: AddressDetails): string => {
-    if (!address) return '-'
-    if (address.fullAddress) return address.fullAddress
-
-    const parts = []
-    if (address.country) parts.push(getCountryName(address.country))
-    if (address.cityName) parts.push(address.cityName)
-    if (address.streetName) parts.push(address.streetName)
-    if (address.buildingNumberId) parts.push(address.buildingNumberId)
-    return parts.length > 0 ? parts.join(', ') : '-'
-  }
-
-  const getAddressKindName = (code?: string): string => {
-    const kindMap: Record<string, string> = {
-      '1': 'Регистрационный',
-      '2': 'Фактический',
-      '3': 'Почтовый',
-    }
-    return code ? (kindMap[code] || `Вид адреса (код: ${code})`) : ''
-  }
+  const getCountryNameForAddress = (code?: string) => getCountryName(code) || getDefaultCountryName(code) || '-'
 
   const formatCheckpoint = (checkpoint?: { checkpointCode?: string; checkpointName?: string }): string => {
     if (!checkpoint) return '-'
@@ -64,7 +52,7 @@ const DetectionPlaceTab: React.FC<DetectionPlaceTabProps> = ({ data }) => {
       <Descriptions column={1} bordered style={{ marginBottom: '16px' }}>
         {data.address && (
           <Descriptions.Item label="Адрес">
-            {formatAddress(data.address)}
+            {formatAddressLine(data.address, getDefaultAddressKindName, getCountryNameForAddress)}
           </Descriptions.Item>
         )}
         {data.description && data.description !== 'csdo:DescriptionText' && (
@@ -149,25 +137,19 @@ const DetectionPlaceTab: React.FC<DetectionPlaceTabProps> = ({ data }) => {
             <Descriptions.Item label="Идентификатор налогоплательщика">
               {data.organization.taxpayerId || '-'}
             </Descriptions.Item>
-            {data.organization.addresses && data.organization.addresses.length > 0 && (
-              <>
-                {data.organization.addresses.find(addr => addr.addressKindCode === '1') && (
-                  <Descriptions.Item label="Адрес регистрации">
-                    {formatAddress(data.organization.addresses.find(addr => addr.addressKindCode === '1'))}
-                  </Descriptions.Item>
-                )}
-                {data.organization.addresses.find(addr => addr.addressKindCode === '2') && (
-                  <Descriptions.Item label="Фактический адрес">
-                    {formatAddress(data.organization.addresses.find(addr => addr.addressKindCode === '2'))}
-                  </Descriptions.Item>
-                )}
-                {data.organization.addresses.find(addr => addr.addressKindCode === '3') && (
-                  <Descriptions.Item label="Почтовый адрес">
-                    {formatAddress(data.organization.addresses.find(addr => addr.addressKindCode === '3'))}
-                  </Descriptions.Item>
-                )}
-              </>
-            )}
+            {(() => {
+              const list = getAddressListFromOrganization(data.organization)
+              const lines = formatAddressList(list, getDefaultAddressKindName, getCountryNameForAddress)
+              return lines.length > 0 ? (
+                <Descriptions.Item label="Адреса">
+                  <ul style={{ margin: 0, paddingLeft: '20px' }}>
+                    {lines.map((line, idx) => (
+                      <li key={idx} style={{ marginBottom: '4px' }}>{line}</li>
+                    ))}
+                  </ul>
+                </Descriptions.Item>
+              ) : null
+            })()}
             {data.organization.contacts && data.organization.contacts.length > 0 && (
               <Descriptions.Item label="Контактный реквизит">
                 <div>

@@ -1,6 +1,12 @@
 import { useState } from 'react'
 import { Collapse, Descriptions } from 'antd'
-import type { SupplyChainPartyDetails, AddressDetails, ContactDetails } from '@/types/card'
+import type { SupplyChainPartyDetails, ContactDetails } from '@/types/card'
+import {
+  getAddressListFromParty,
+  formatAddressList,
+  getDefaultAddressKindName,
+  getDefaultCountryName,
+} from '@/utils/addressFormatUtils'
 
 interface ManufacturerDetailsProps {
   data: SupplyChainPartyDetails
@@ -34,17 +40,12 @@ const ManufacturerDetails: React.FC<ManufacturerDetailsProps> = ({
     )
   }
 
-  const formatAddress = (address?: AddressDetails): string => {
-    if (!address) return '-'
-    if (address.fullAddress) return address.fullAddress
-    
-    const parts = []
-    if (address.country) parts.push(address.country)
-    if (address.cityName) parts.push(address.cityName)
-    if (address.streetName) parts.push(address.streetName)
-    if (address.buildingNumberId) parts.push(address.buildingNumberId)
-    return parts.length > 0 ? parts.join(', ') : '-'
-  }
+  const addressList = getAddressListFromParty(data)
+  const addressLines = formatAddressList(
+    addressList,
+    getDefaultAddressKindName,
+    (code) => getDefaultCountryName(code) || code || '-'
+  )
 
   const formatContact = (contact: ContactDetails): string => {
     if (!contact) return '-'
@@ -95,15 +96,15 @@ const ManufacturerDetails: React.FC<ManufacturerDetailsProps> = ({
                 <Descriptions.Item label="Идентификатор налогоплательщика">
                   {data.taxpayerId || '-'}
                 </Descriptions.Item>
-                <Descriptions.Item label="Адрес регистрации">
-                  {formatAddress(data.registrationAddress)}
-                </Descriptions.Item>
-                <Descriptions.Item label="Фактический адрес">
-                  {formatAddress(data.actualAddress)}
-                </Descriptions.Item>
-                <Descriptions.Item label="Почтовый адрес">
-                  {formatAddress(data.mailingAddress)}
-                </Descriptions.Item>
+                {addressLines.length > 0 && (
+                  <Descriptions.Item label="Адреса">
+                    <ul style={{ margin: 0, paddingLeft: '20px' }}>
+                      {addressLines.map((line, idx) => (
+                        <li key={idx} style={{ marginBottom: '4px' }}>{line}</li>
+                      ))}
+                    </ul>
+                  </Descriptions.Item>
+                )}
                 {data.contacts && data.contacts.length > 0 && (
                   <Descriptions.Item label="Контактный реквизит">
                     <div>

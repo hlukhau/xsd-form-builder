@@ -898,25 +898,31 @@ function parseAddress(parent: Element, addressKindCode: string): AddressDetails 
  * Парсит детали адреса из элемента
  */
 function parseAddressDetails(addressEl: Element): AddressDetails {
-  const country = getTextContent(addressEl, 'UnifiedCountryCode') || ''
+  const country = getTextContent(addressEl, 'UnifiedCountryCode') || getTextContent(addressEl, 'CountryCode') || ''
+  const territoryCode = getTextContent(addressEl, 'TerritoryCode') || ''
   const regionName = getTextContent(addressEl, 'RegionName') || ''
   const districtName = getTextContent(addressEl, 'DistrictName') || ''
   const cityName = getTextContent(addressEl, 'CityName') || ''
+  const settlementName = getTextContent(addressEl, 'SettlementName') || ''
   const streetName = getTextContent(addressEl, 'StreetName') || ''
   const buildingNumberId = getTextContent(addressEl, 'BuildingNumberId') || ''
   const roomNumberId = getTextContent(addressEl, 'RoomNumberId') || ''
+  const postOfficeBoxId = getTextContent(addressEl, 'PostOfficeBoxId') || ''
   const postCode = getTextContent(addressEl, 'PostCode') || ''
   const fullAddress = getTextContent(addressEl, 'FullAddress') || undefined
-  
+
   return {
     addressKindCode: getTextContent(addressEl, 'AddressKindCode') || undefined,
     country: country || undefined,
+    territoryCode: territoryCode || undefined,
     regionName: regionName || undefined,
     districtName: districtName || undefined,
     cityName: cityName || undefined,
+    settlementName: settlementName || undefined,
     streetName: streetName || undefined,
     buildingNumberId: buildingNumberId || undefined,
     roomNumberId: roomNumberId || undefined,
+    postOfficeBoxId: postOfficeBoxId || undefined,
     postCode: postCode || undefined,
     fullAddress: fullAddress,
   }

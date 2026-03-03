@@ -12,13 +12,25 @@ PROJECT_DIR="$(cd "$(dirname "$0")" && pwd)"
 cd "$PROJECT_DIR"
 
 TOMCAT_HOME="${TOMCAT_HOME:-/opt/tomcat8}"
-JAVA_HOME="${JAVA_HOME:-$TOMCAT_HOME/java}"
+if [ -z "$JAVA_HOME" ]; then
+    if [ -x "$TOMCAT_HOME/java/bin/java" ]; then
+        JAVA_HOME="$TOMCAT_HOME/java"
+    elif [ -x "/usr/lib/jvm/java-11-openjdk-amd64/bin/java" ]; then
+        JAVA_HOME="/usr/lib/jvm/java-11-openjdk-amd64"
+    elif [ -x "/usr/lib/jvm/java-11-openjdk/bin/java" ]; then
+        JAVA_HOME="/usr/lib/jvm/java-11-openjdk"
+    else
+        JAVA_HOME="$TOMCAT_HOME/java"
+    fi
+fi
 APP_NAME="xsd_form_builder"
 WAR_FILE="$PROJECT_DIR/target/$APP_NAME.war"
 
 echo "========================================"
 echo " Build and Deploy $APP_NAME"
 echo "========================================"
+echo "TOMCAT_HOME=$TOMCAT_HOME"
+echo "JAVA_HOME=$JAVA_HOME"
 echo ""
 
 # Ensure Node.js 20+ for Vite (optional: load nvm)
@@ -103,8 +115,10 @@ echo ""
 echo "WAR file: $WAR_FILE"
 echo "Size: ${WAR_SIZE_MB} MB"
 echo ""
-echo "Wait 10-20 seconds for full deployment."
-echo "Check logs: $TOMCAT_HOME/logs/catalina.*.log"
+echo "Wait 15-25 seconds for full deployment."
+echo "If Tomcat did not start, run: TOMCAT_HOME=$TOMCAT_HOME $PROJECT_DIR/start-tomcat-foreground.sh"
+echo "  (or set TOMCAT_HOME to your Tomcat dir, e.g. export TOMCAT_HOME=/home/hlukhau/tomcat8)"
+echo "Check logs: $TOMCAT_HOME/logs/catalina.out"
 echo ""
 echo "Check servlets in logs: CountriesOptionsServlet, CountryExistsServlet, SpaServlet"
 echo ""

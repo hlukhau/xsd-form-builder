@@ -5,6 +5,11 @@ import { format } from 'date-fns'
 import { ru } from 'date-fns/locale'
 import ManufacturerDetails from '../common/ManufacturerDetails'
 import { getLanguageName } from '@/hooks/useLanguageOptions'
+import {
+  getAddressListFromSubject,
+  formatAddressList,
+  getDefaultAddressKindName,
+} from '@/utils/addressFormatUtils'
 import { useSanitaryMeasureOptions } from '@/hooks/useSanitaryMeasureOptions'
 import { useSanitaryMeasureObjKindOptions } from '@/hooks/useSanitaryMeasureObjKindOptions'
 import type {
@@ -60,18 +65,6 @@ const MeasuresTab: React.FC<MeasuresTabProps> = ({ data }) => {
       'KZ': 'Казахстан',
     }
     return code ? (countryMap[code] || code) : '-'
-  }
-
-  const formatAddress = (address?: any): string => {
-    if (!address) return '-'
-    if (address.fullAddress) return address.fullAddress
-
-    const parts = []
-    if (address.country) parts.push(getCountryName(address.country))
-    if (address.cityName) parts.push(address.cityName)
-    if (address.streetName) parts.push(address.streetName)
-    if (address.buildingNumberId) parts.push(address.buildingNumberId)
-    return parts.length > 0 ? parts.join(', ') : '-'
   }
 
   const columns = [
@@ -444,17 +437,6 @@ const MeasureImplementationDetailView: React.FC<{ item: MeasureImplementationIte
     return code ? (countryMap[code] || code) : '-'
   }
 
-  const formatAddress = (address?: any): string => {
-    if (!address) return '-'
-    if (address.fullAddress) return address.fullAddress
-    const parts = []
-    if (address.country) parts.push(getCountryName(address.country))
-    if (address.cityName) parts.push(address.cityName)
-    if (address.streetName) parts.push(address.streetName)
-    if (address.buildingNumberId) parts.push(address.buildingNumberId)
-    return parts.length > 0 ? parts.join(', ') : '-'
-  }
-
   return (
     <Collapse
       defaultActiveKey={['authority', 'subject', 'document', 'place']}
@@ -519,16 +501,8 @@ const SubjectPhysicalPersonView: React.FC<{ subject: SubjectDetails }> = ({ subj
     return code ? (countryMap[code] || code) : '-'
   }
 
-  const formatAddress = (address?: any): string => {
-    if (!address) return '-'
-    if (address.fullAddress) return address.fullAddress
-    const parts = []
-    if (address.country) parts.push(getCountryName(address.country))
-    if (address.cityName) parts.push(address.cityName)
-    if (address.streetName) parts.push(address.streetName)
-    if (address.buildingNumberId) parts.push(address.buildingNumberId)
-    return parts.length > 0 ? parts.join(', ') : '-'
-  }
+  const addressList = getAddressListFromSubject(subject)
+  const addressLines = formatAddressList(addressList, getDefaultAddressKindName, getCountryName)
 
   return (
     <Descriptions column={1} bordered>
@@ -546,9 +520,15 @@ const SubjectPhysicalPersonView: React.FC<{ subject: SubjectDetails }> = ({ subj
           <Descriptions.Item label="Удостоверение личности. Уполномоченный орган. Наименование">{subject.identityDoc.authorityName || '-'}</Descriptions.Item>
         </>
       )}
-      <Descriptions.Item label="Удостоверение личности. Адрес регистрации">{formatAddress(subject.registrationAddress)}</Descriptions.Item>
-      <Descriptions.Item label="Удостоверение личности. Фактический адрес">{formatAddress(subject.actualAddress)}</Descriptions.Item>
-      <Descriptions.Item label="Удостоверение личности. Почтовый адрес">{formatAddress(subject.mailingAddress)}</Descriptions.Item>
+      {addressLines.length > 0 && (
+        <Descriptions.Item label="Удостоверение личности. Адреса">
+          <ul style={{ margin: 0, paddingLeft: '20px' }}>
+            {addressLines.map((line, idx) => (
+              <li key={idx} style={{ marginBottom: '4px' }}>{line}</li>
+            ))}
+          </ul>
+        </Descriptions.Item>
+      )}
       {subject.contacts && subject.contacts.length > 0 && (
         <Descriptions.Item label="Удостоверение личности. Контактный реквизит">
           <div>

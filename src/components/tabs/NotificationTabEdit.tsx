@@ -1,21 +1,27 @@
 import { useEffect, useState } from 'react'
-import { Form, Input, DatePicker, Select } from 'antd'
+import { Form, Input, DatePicker, Select, Descriptions } from 'antd'
 import dayjs from 'dayjs'
+import { format } from 'date-fns'
+import { ru } from 'date-fns/locale'
 import type { Notification } from '@/types/card'
 import { useCountryOptions } from '@/hooks/useCountryOptions'
 import { useIncidentAlertKindOptions } from '@/hooks/useIncidentAlertKindOptions'
 import { useAuthorityOptions } from '@/hooks/useAuthorityOptions'
 import CountrySelect from '@/components/common/CountrySelect'
 
-interface NotificationTabEditProps {
+export interface NotificationTabEditProps {
   data: Notification
   onChange: (data: Notification) => void
+  /** Режим новой карты: первые поля (код страны, рег. номер, вид, дата формирования) только для просмотра */
+  isNewCard?: boolean
+  /** Код страны карты (для отображения в режиме новой карты) */
+  cardCountry?: string
 }
 
-const NotificationTabEdit: React.FC<NotificationTabEditProps> = ({ data, onChange }) => {
+const NotificationTabEdit: React.FC<NotificationTabEditProps> = ({ data, onChange, isNewCard, cardCountry }) => {
   const [form] = Form.useForm()
   const { countryOptions, loading, normalizeCountryCode, getSelectOptions } = useCountryOptions()
-  const { options: incidentAlertKindOptions, loading: loadingIncidentAlertKinds, getSelectOptions: getIncidentAlertKindSelectOptions } = useIncidentAlertKindOptions()
+  const { options: incidentAlertKindOptions, loading: loadingIncidentAlertKinds, getSelectOptions: getIncidentAlertKindSelectOptions, getNameByCode: getIncidentAlertKindNameByCode } = useIncidentAlertKindOptions()
   
   // Получаем код страны уполномоченного органа для фильтрации справочника
   const authorizedBodyCountryCode = normalizeCountryCode(data.authorizedBody?.country)
@@ -107,30 +113,54 @@ const NotificationTabEdit: React.FC<NotificationTabEditProps> = ({ data, onChang
     })
   }
 
+  const formationDateFormatted = data.formationDate
+    ? format(new Date(data.formationDate), 'dd.MM.yyyy', { locale: ru })
+    : '-'
+  const incidentKindName = getIncidentAlertKindNameByCode(data.type) || ''
+
   return (
     <Form
       form={form}
       layout="vertical"
       onValuesChange={handleValuesChange}
     >
-      <Form.Item label="Регистрационный номер" name="registrationNumber">
-        <Input />
-      </Form.Item>
-      <Form.Item label="Вид" name="type">
-        <Select
-          showSearch
-          placeholder="Выберите вид уведомления"
-          loading={loadingIncidentAlertKinds}
-          filterOption={(input, option) =>
-            (option?.label ?? '').toLowerCase().includes(input.toLowerCase())
-          }
-          options={getIncidentAlertKindSelectOptions()}
-          // value - код, label - "код - название"
-        />
-      </Form.Item>
-      <Form.Item label="Дата формирования" name="formationDate">
-        <DatePicker style={{ width: '100%' }} />
-      </Form.Item>
+      {isNewCard && (
+        <Descriptions column={1} bordered size="small" style={{ marginBottom: 16 }}>
+          <Descriptions.Item label="Код страны">
+            {cardCountry ?? data.country ?? '-'}
+          </Descriptions.Item>
+          <Descriptions.Item label="Регистрационный номер">
+            {data.registrationNumber}
+          </Descriptions.Item>
+          <Descriptions.Item label="Вид">
+            {data.type ? `${data.type}${incidentKindName ? ` — ${incidentKindName}` : ''}` : '-'}
+          </Descriptions.Item>
+          <Descriptions.Item label="Дата формирования">
+            {formationDateFormatted}
+          </Descriptions.Item>
+        </Descriptions>
+      )}
+      {!isNewCard && (
+        <>
+          <Form.Item label="Регистрационный номер" name="registrationNumber">
+            <Input />
+          </Form.Item>
+          <Form.Item label="Вид" name="type">
+            <Select
+              showSearch
+              placeholder="Выберите вид уведомления"
+              loading={loadingIncidentAlertKinds}
+              filterOption={(input, option) =>
+                (option?.label ?? '').toLowerCase().includes(input.toLowerCase())
+              }
+              options={getIncidentAlertKindSelectOptions()}
+            />
+          </Form.Item>
+          <Form.Item label="Дата формирования" name="formationDate">
+            <DatePicker style={{ width: '100%' }} />
+          </Form.Item>
+        </>
+      )}
       <Form.Item label="Дата закрытия" name="endDate">
         <DatePicker style={{ width: '100%' }} allowClear />
       </Form.Item>

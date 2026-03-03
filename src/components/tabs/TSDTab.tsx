@@ -4,6 +4,11 @@ import { format } from 'date-fns'
 import { ru } from 'date-fns/locale'
 import ProductTab from './ProductTab'
 import type { TSDData, ProductBatchDetails, ShippingDocument, ProductDetails, SupplyChainPartyDetails } from '@/types/card'
+import {
+  getAddressListFromParty,
+  formatAddressList,
+  getDefaultAddressKindName,
+} from '@/utils/addressFormatUtils'
 
 interface TSDTabProps {
   data: TSDData
@@ -256,43 +261,14 @@ const TSDTab: React.FC<TSDTabProps> = ({ data }) => {
                             title: 'Адреса',
                             key: 'addresses',
                             render: (_: any, record: SupplyChainPartyDetails) => {
-                              const addresses: string[] = []
-                              
-                              if (record.registrationAddress) {
-                                const addr = record.registrationAddress.fullAddress || 
-                                  [record.registrationAddress.country, 
-                                   record.registrationAddress.cityName, 
-                                   record.registrationAddress.streetName, 
-                                   record.registrationAddress.buildingNumberId].filter(Boolean).join(', ')
-                                if (addr) addresses.push(`Адрес регистрации (код 1): ${addr}`)
-                              }
-                              
-                              if (record.actualAddress) {
-                                const addr = record.actualAddress.fullAddress || 
-                                  [record.actualAddress.country, 
-                                   record.actualAddress.cityName, 
-                                   record.actualAddress.streetName, 
-                                   record.actualAddress.buildingNumberId].filter(Boolean).join(', ')
-                                if (addr) addresses.push(`Фактический адрес (код 2): ${addr}`)
-                              }
-                              
-                              if (record.mailingAddress) {
-                                const addr = record.mailingAddress.fullAddress || 
-                                  [record.mailingAddress.country, 
-                                   record.mailingAddress.cityName, 
-                                   record.mailingAddress.streetName, 
-                                   record.mailingAddress.buildingNumberId].filter(Boolean).join(', ')
-                                if (addr) addresses.push(`Почтовый адрес (код 3): ${addr}`)
-                              }
-                              
-                              return addresses.length > 0 ? (
-                                <div>
-                                  {addresses.map((addr, idx) => (
-                                    <div key={idx} style={{ marginBottom: '4px', fontSize: '12px' }}>
-                                      {addr}
-                                    </div>
+                              const list = getAddressListFromParty(record)
+                              const lines = formatAddressList(list, getDefaultAddressKindName, getCountryName)
+                              return lines.length > 0 ? (
+                                <ul style={{ margin: 0, paddingLeft: '20px', fontSize: '12px' }}>
+                                  {lines.map((line, idx) => (
+                                    <li key={idx} style={{ marginBottom: '4px' }}>{line}</li>
                                   ))}
-                                </div>
+                                </ul>
                               ) : '-'
                             },
                           },
@@ -439,33 +415,19 @@ const TSDTab: React.FC<TSDTabProps> = ({ data }) => {
             <Descriptions.Item label="Идентификатор налогоплательщика">
               {selectedParty.taxpayerId || '-'}
             </Descriptions.Item>
-            <Descriptions.Item label="Адрес регистрации">
-              {selectedParty.registrationAddress?.fullAddress || 
-               (selectedParty.registrationAddress ? 
-                 [selectedParty.registrationAddress.country, 
-                  selectedParty.registrationAddress.cityName, 
-                  selectedParty.registrationAddress.streetName, 
-                  selectedParty.registrationAddress.buildingNumberId].filter(Boolean).join(', ') 
-                : '-')}
-            </Descriptions.Item>
-            <Descriptions.Item label="Фактический адрес">
-              {selectedParty.actualAddress?.fullAddress || 
-               (selectedParty.actualAddress ? 
-                 [selectedParty.actualAddress.country, 
-                  selectedParty.actualAddress.cityName, 
-                  selectedParty.actualAddress.streetName, 
-                  selectedParty.actualAddress.buildingNumberId].filter(Boolean).join(', ') 
-                : '-')}
-            </Descriptions.Item>
-            <Descriptions.Item label="Почтовый адрес">
-              {selectedParty.mailingAddress?.fullAddress || 
-               (selectedParty.mailingAddress ? 
-                 [selectedParty.mailingAddress.country, 
-                  selectedParty.mailingAddress.cityName, 
-                  selectedParty.mailingAddress.streetName, 
-                  selectedParty.mailingAddress.buildingNumberId].filter(Boolean).join(', ') 
-                : '-')}
-            </Descriptions.Item>
+            {(() => {
+              const list = getAddressListFromParty(selectedParty)
+              const lines = formatAddressList(list, getDefaultAddressKindName, getCountryName)
+              return lines.length > 0 ? (
+                <Descriptions.Item label="Адреса">
+                  <ul style={{ margin: 0, paddingLeft: '20px' }}>
+                    {lines.map((line, idx) => (
+                      <li key={idx} style={{ marginBottom: '4px' }}>{line}</li>
+                    ))}
+                  </ul>
+                </Descriptions.Item>
+              ) : null
+            })()}
             {selectedParty.contacts && selectedParty.contacts.length > 0 && (
               <Descriptions.Item label="Контактный реквизит">
                 <div>

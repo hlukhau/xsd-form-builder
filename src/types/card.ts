@@ -116,12 +116,15 @@ export interface SupplyChainPartyDetails {
 export interface AddressDetails {
   addressKindCode?: string
   country?: string
+  territoryCode?: string
   regionName?: string
   districtName?: string
   cityName?: string
+  settlementName?: string
   streetName?: string
   buildingNumberId?: string
   roomNumberId?: string
+  postOfficeBoxId?: string
   postCode?: string
   fullAddress?: string
 }

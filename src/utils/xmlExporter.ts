@@ -294,12 +294,15 @@ function exportAddress(xmlParts: string[], address: AddressDetails, kindCode: st
   if (address.country) {
     xmlParts.push(`${indent}    <csdo:UnifiedCountryCode codeListId="2021">${escapeXML(address.country)}</csdo:UnifiedCountryCode>`)
   }
+  if (address.territoryCode) xmlParts.push(`${indent}    <csdo:TerritoryCode>${escapeXML(address.territoryCode)}</csdo:TerritoryCode>`)
   if (address.regionName) xmlParts.push(`${indent}    <csdo:RegionName>${escapeXML(address.regionName)}</csdo:RegionName>`)
   if (address.districtName) xmlParts.push(`${indent}    <csdo:DistrictName>${escapeXML(address.districtName)}</csdo:DistrictName>`)
   if (address.cityName) xmlParts.push(`${indent}    <csdo:CityName>${escapeXML(address.cityName)}</csdo:CityName>`)
+  if (address.settlementName) xmlParts.push(`${indent}    <csdo:SettlementName>${escapeXML(address.settlementName)}</csdo:SettlementName>`)
   if (address.streetName) xmlParts.push(`${indent}    <csdo:StreetName>${escapeXML(address.streetName)}</csdo:StreetName>`)
   if (address.buildingNumberId) xmlParts.push(`${indent}    <csdo:BuildingNumberId>${escapeXML(address.buildingNumberId)}</csdo:BuildingNumberId>`)
   if (address.roomNumberId) xmlParts.push(`${indent}    <csdo:RoomNumberId>${escapeXML(address.roomNumberId)}</csdo:RoomNumberId>`)
+  if (address.postOfficeBoxId) xmlParts.push(`${indent}    <csdo:PostOfficeBoxId>${escapeXML(address.postOfficeBoxId)}</csdo:PostOfficeBoxId>`)
   if (address.postCode) xmlParts.push(`${indent}    <csdo:PostCode>${escapeXML(address.postCode)}</csdo:PostCode>`)
   if (address.fullAddress) xmlParts.push(`${indent}    <csdo:FullAddress>${escapeXML(address.fullAddress)}</csdo:FullAddress>`)
   xmlParts.push(`${indent}</ccdo:SubjectAddressDetails>`)

@@ -8,7 +8,17 @@ PROJECT_DIR="$(cd "$(dirname "$0")" && pwd)"
 cd "$PROJECT_DIR"
 
 TOMCAT_HOME="${TOMCAT_HOME:-/opt/tomcat8}"
-JAVA_HOME="${JAVA_HOME:-$TOMCAT_HOME/java}"
+if [ -z "$JAVA_HOME" ]; then
+    if [ -x "$TOMCAT_HOME/java/bin/java" ]; then
+        JAVA_HOME="$TOMCAT_HOME/java"
+    elif [ -x "/usr/lib/jvm/java-11-openjdk-amd64/bin/java" ]; then
+        JAVA_HOME="/usr/lib/jvm/java-11-openjdk-amd64"
+    elif [ -x "/usr/lib/jvm/java-11-openjdk/bin/java" ]; then
+        JAVA_HOME="/usr/lib/jvm/java-11-openjdk"
+    else
+        JAVA_HOME="$TOMCAT_HOME/java"
+    fi
+fi
 APP_NAME="xsd_form_builder"
 WAR_FILE="$PROJECT_DIR/target/$APP_NAME.war"
 WEBAPPS_PATH="$TOMCAT_HOME/webapps"
@@ -158,8 +168,9 @@ echo "[OK] WAR file created: $WAR_FILE ($(($WAR_SIZE / 1048576)) MB)"
 echo ""
 
 # [6/6] Stop Tomcat, deploy, start Tomcat
-# Tomcat scripts expect CATALINA_HOME and JAVA_HOME
+# Tomcat scripts expect CATALINA_HOME, CATALINA_BASE and JAVA_HOME
 export CATALINA_HOME="$TOMCAT_HOME"
+export CATALINA_BASE="${CATALINA_BASE:-$TOMCAT_HOME}"
 export JAVA_HOME
 
 echo "[6/6] Stopping Tomcat..."
@@ -249,31 +260,33 @@ fi
 echo "  CATALINA_HOME: $CATALINA_HOME"
 echo "  JAVA_HOME: $JAVA_HOME"
 
-# Запускаем Tomcat
+# Запускаем Tomcat через nohup и disown, чтобы Java-процесс не завершался по SIGHUP при выходе скрипта
 cd "$TOMCAT_HOME/bin"
-./startup.sh
-STARTUP_EXIT_CODE=$?
+nohup ./startup.sh >> "$TOMCAT_HOME/logs/startup.log" 2>&1 &
+disown -h 2>/dev/null || true
 cd "$PROJECT_DIR"
 
-if [ $STARTUP_EXIT_CODE -ne 0 ]; then
-    echo "[ERROR] startup.sh exited with code $STARTUP_EXIT_CODE"
-    echo "  Check logs: $TOMCAT_HOME/logs/catalina.out"
-    exit 1
-fi
-
 echo "[OK] Tomcat startup script executed"
-echo "  Waiting 10–15 s for deployment..."
-sleep 5
+echo "  Waiting 15 s for Tomcat to start..."
+sleep 15
 
 # Проверяем, запустился ли Tomcat
 if pgrep -f "catalina" >/dev/null 2>&1; then
     echo "[OK] Tomcat process is running"
 else
-    echo "[WARN] Tomcat process not found after startup"
-    echo "  Check logs: $TOMCAT_HOME/logs/catalina.out"
+    echo "[WARN] Tomcat process not found after startup (процесс завершился)"
+    if [ -f "$TOMCAT_HOME/logs/catalina.out" ]; then
+        echo "  Last 30 lines of $TOMCAT_HOME/logs/catalina.out:"
+        tail -30 "$TOMCAT_HOME/logs/catalina.out" | sed 's/^/    /'
+    fi
+    echo ""
+    echo "  Чтобы увидеть причину падения, запустите в переднем плане:"
+    echo "    TOMCAT_HOME=$TOMCAT_HOME $PROJECT_DIR/run-tomcat-foreground.sh"
+    echo "  Частые причины: OutOfMemoryError (увеличьте -Xmx в bin/setenv.sh),"
+    echo "  ошибка при загрузке приложения (смотрите Exception в логе выше)."
 fi
 
-echo "  Check logs: $TOMCAT_HOME/logs/catalina.out"
+echo "  Logs: $TOMCAT_HOME/logs/catalina.out"
 echo ""
 
 exit 0

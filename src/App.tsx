@@ -1,11 +1,12 @@
 import { useState, useEffect } from 'react'
-import { Routes, Route, useParams } from 'react-router-dom'
+import { Routes, Route, useParams, useSearchParams } from 'react-router-dom'
 import { message, Spin } from 'antd'
 import DangerousProductCard from './components/card/DangerousProductCard'
 import FileSelector from './components/FileSelector'
 import type { CardData } from './types/card'
 import { fetchDpaXml, fetchDpaMetadata } from './utils/referenceDataApi'
 import { parseXMLToCardData, validateAndEnrichCardData, getTextContent } from './utils/xmlParser'
+import { createNewCardData } from './utils/newCardData'
 
 // Моковые данные для демонстрации
 const mockCardData: CardData = {
@@ -78,6 +79,7 @@ function AppContent() {
     error: string | null
   }>({ loading: false, error: null })
   const { dpaid } = useParams<{ dpaid: string }>()
+  const [searchParams] = useSearchParams()
 
   const handleFileLoaded = (data: CardData, xmlText?: string) => {
     setCardData(data)
@@ -85,10 +87,20 @@ function AppContent() {
     setLoadByDpaidState({ loading: false, error: null })
   }
 
+  // Режим новой карты: /xsd_form_builder/-/1 — предзаполнить карту и включить редактирование
+  useEffect(() => {
+    if (dpaid !== '-') return
+    const country = searchParams.get('country')?.trim()?.toUpperCase().slice(0, 2) || 'BY'
+    const newData = createNewCardData(country)
+    setCardData(newData)
+    setOriginalXML(null)
+    setLoadByDpaidState({ loading: false, error: null })
+  }, [dpaid, searchParams])
+
   // Загрузка XML по DPAID из БД при открытии /xsd_form_builder/{DPAID}
   useEffect(() => {
-    if (!dpaid) {
-      setLoadByDpaidState({ loading: false, error: null })
+    if (!dpaid || dpaid === '-') {
+      if (dpaid !== '?') setLoadByDpaidState({ loading: false, error: null })
       return
     }
     let cancelled = false

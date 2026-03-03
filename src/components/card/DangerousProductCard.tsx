@@ -23,7 +23,7 @@ import MeasuresTab from '../tabs/MeasuresTab'
 import { exportCardDataToXML } from '@/utils/xmlExporter'
 import { parseXMLToCardData } from '@/utils/xmlParser'
 import { compareCardData } from '@/utils/cardDataComparator'
-import { fetchDpaStatusHistory, fetchDpaElectronicDocs, fetchDpaMetadata, changeDpaStatus, checkAccessRight, fetchCurrentUser, fetchDpaResolutions } from '@/utils/referenceDataApi'
+import { fetchDpaStatusHistory, fetchDpaElectronicDocs, changeDpaStatus, checkAccessRight, fetchCurrentUser, fetchDpaResolutions } from '@/utils/referenceDataApi'
 import { getStatusButtonConfig } from '@/utils/statusButtonConfig'
 import { parseElectronicDocContentBody } from '@/utils/xmlParser'
 import { openLegacyRegisterAllVersions, isLegacyRegisterConfigured } from '@/utils/legacyRegisterUrl'
@@ -53,7 +53,7 @@ const DangerousProductCard: React.FC<DangerousProductCardProps> = ({
   const [electronicDocList, setElectronicDocList] = useState<ElectronicDocument[]>([])
   const [electronicDocLoading, setElectronicDocLoading] = useState(false)
   const [accessModalVisible, setAccessModalVisible] = useState(false)
-  const [isEditMode, setIsEditMode] = useState(false)
+  const [isEditMode, setIsEditMode] = useState(() => dpaid === '-')
   const [editedData, setEditedData] = useState<CardData>(data)
   const [originalXML, setOriginalXML] = useState<string | null>(propOriginalXML || null)
   const [comparisonResult, setComparisonResult] = useState<{
@@ -343,6 +343,8 @@ const DangerousProductCard: React.FC<DangerousProductCardProps> = ({
             <NotificationTabEdit
               data={currentData.notification}
               onChange={(notification) => setEditedData((prev) => ({ ...prev, notification }))}
+              isNewCard={dpaid === '-'}
+              cardCountry={currentData.country}
             />
           )
           break
