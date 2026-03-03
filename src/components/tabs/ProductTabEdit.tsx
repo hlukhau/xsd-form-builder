@@ -260,6 +260,7 @@ const ProductTabEdit: React.FC<ProductTabEditProps> = ({ data, onChange }) => {
         data={data.manufacturer}
         onChange={handleManufacturerChange}
         title="Изготовитель продукции"
+        fixedSupplyChainPartyKindCode="41"
       />
     </Form>
   )

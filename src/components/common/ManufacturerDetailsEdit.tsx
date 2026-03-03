@@ -11,12 +11,15 @@ interface ManufacturerDetailsEditProps {
   data: SupplyChainPartyDetails
   onChange: (data: SupplyChainPartyDetails) => void
   title?: string
+  /** Код вида участника цепи поставки фиксирован (поле нередактируемое, подставляется автоматически). */
+  fixedSupplyChainPartyKindCode?: string
 }
 
 const ManufacturerDetailsEdit: React.FC<ManufacturerDetailsEditProps> = ({
   data,
   onChange,
   title = 'Изготовитель продукции',
+  fixedSupplyChainPartyKindCode,
 }) => {
   const [isOpen, setIsOpen] = useState(false)
   const [form] = Form.useForm()
@@ -39,10 +42,21 @@ const ManufacturerDetailsEdit: React.FC<ManufacturerDetailsEditProps> = ({
     }
   }, [data.supplyChainPartyKindCode])
 
+  // При фиксированном коде вида (например 41 для изготовителя) всегда подставляем его в данные
+  const effectiveKindCode = fixedSupplyChainPartyKindCode ?? data.supplyChainPartyKindCode
+  useEffect(() => {
+    if (fixedSupplyChainPartyKindCode && data.supplyChainPartyKindCode !== fixedSupplyChainPartyKindCode) {
+      onChange({
+        ...data,
+        supplyChainPartyKindCode: fixedSupplyChainPartyKindCode,
+      })
+    }
+  }, [fixedSupplyChainPartyKindCode, data.supplyChainPartyKindCode])
+
   useEffect(() => {
     form.setFieldsValue({
       country: normalizeCountryCode(data.country),
-      supplyChainPartyKindCode: data.supplyChainPartyKindCode,
+      supplyChainPartyKindCode: effectiveKindCode,
       businessEntityName: data.businessEntityName,
       shortName: data.shortName,
       organizationalForm: data.organizationalForm,
@@ -51,7 +65,7 @@ const ManufacturerDetailsEdit: React.FC<ManufacturerDetailsEditProps> = ({
       customsNumber: data.customsNumber,
       taxpayerId: data.taxpayerId,
     })
-  }, [data, form, normalizeCountryCode])
+  }, [data, form, normalizeCountryCode, effectiveKindCode])
 
   // Обработчик выбора вида участника цепи поставки
   const handleSupplyChainPartyKindSelect = (code: string) => {
@@ -147,19 +161,26 @@ const ManufacturerDetailsEdit: React.FC<ManufacturerDetailsEditProps> = ({
                   validateStatus={kindCodeError ? 'error' : ''}
                   help={kindCodeError ? 'Код не найден в справочнике' : ''}
                 >
-                  <Select
-                    showSearch
-                    placeholder="Выберите вид участника"
-                    loading={loadingSupplyChainPartyKinds}
-                    value={data.supplyChainPartyKindCode}
-                    onChange={handleSupplyChainPartyKindSelect}
-                    filterOption={(input, option) =>
-                      (option?.label ?? '').toLowerCase().includes(input.toLowerCase())
-                    }
-                    options={getSupplyChainPartyKindSelectOptions()}
-                    allowClear
-                    status={kindCodeError ? 'error' : undefined}
-                  />
+                  {fixedSupplyChainPartyKindCode ? (
+                    <Input
+                      readOnly
+                      value={getSupplyChainPartyKindNameByCode(fixedSupplyChainPartyKindCode) || `Код ${fixedSupplyChainPartyKindCode}`}
+                    />
+                  ) : (
+                    <Select
+                      showSearch
+                      placeholder="Выберите вид участника"
+                      loading={loadingSupplyChainPartyKinds}
+                      value={data.supplyChainPartyKindCode}
+                      onChange={handleSupplyChainPartyKindSelect}
+                      filterOption={(input, option) =>
+                        (option?.label ?? '').toLowerCase().includes(input.toLowerCase())
+                      }
+                      options={getSupplyChainPartyKindSelectOptions()}
+                      allowClear
+                      status={kindCodeError ? 'error' : undefined}
+                    />
+                  )}
                 </Form.Item>
                 <Form.Item label="Наименование субъекта" name="businessEntityName">
                   <Input />

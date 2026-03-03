@@ -22,10 +22,16 @@ public class XsdFormBuilderServlet extends HttpServlet {
     /** Мапа для хранения GUID -> JSON (thread-safe) */
     private static final ConcurrentHashMap<String, String> guidMap = new ConcurrentHashMap<>();
 
+    /** Инженерный GUID "1" — всегда в карте, не требует предварительного POST. */
+    private static final String ENGINEERING_GUID = "1";
+    private static final String ENGINEERING_GUID_JSON =
+            "{\"GUID\":\"4c5a50f1-a7b7-494c-93a6-85f8f0b16998\",\"dbConnectString\":\"jdbc:oracle:thin:@192.168.203.212:1521/ses\",\"dbUsername\":\"sesdev\",\"dbPassword\":\"sesdev\",\"department\":{\"depid\":1,\"depkindid\":22},\"up\":{\"dangerousProductOut\":{\"view\":{\"1\":{}},\"access\":{\"1\":{}},\"edit\":{\"1\":{}},\"send\":{\"1\":{}},\"status\":{\"1\":{}}},\"dangerousProductDB\":{\"view\":{\"1\":{}}},\"dangerousProductIn\":{\"view\":{\"1\":{}},\"access\":{\"1\":{}},\"status\":{\"1\":{}}}}}";
+
     @Override
     public void init() throws ServletException {
         super.init();
-        System.out.println("[XsdFormBuilderServlet] Initialized");
+        guidMap.put(ENGINEERING_GUID, ENGINEERING_GUID_JSON);
+        System.out.println("[XsdFormBuilderServlet] Initialized; engineering GUID " + ENGINEERING_GUID + " added to map");
     }
 
     @Override
@@ -124,7 +130,7 @@ public class XsdFormBuilderServlet extends HttpServlet {
                 return;
             }
 
-            // Проверяем наличие GUID в мапе
+            // Проверяем наличие GUID в мапе (инженерный GUID "1" всегда разрешён и уже в карте)
             System.out.println("[XsdFormBuilderServlet] Checking GUID in map for DPAID: " + dpaid + ", GUID: " + guid);
             System.out.println("[XsdFormBuilderServlet] Current map size: " + guidMap.size());
             
