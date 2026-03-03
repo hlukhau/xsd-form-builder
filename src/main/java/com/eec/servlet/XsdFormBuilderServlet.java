@@ -8,8 +8,6 @@ import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
-import java.util.concurrent.ConcurrentHashMap;
-
 /**
  * Сервлет для работы с XSD Form Builder.
  * POST /xsd_form_builder - принимает JSON с GUID и сохраняет в мапу
@@ -19,18 +17,15 @@ import java.util.concurrent.ConcurrentHashMap;
  */
 public class XsdFormBuilderServlet extends HttpServlet {
 
-    /** Мапа для хранения GUID -> JSON (thread-safe) */
-    private static final ConcurrentHashMap<String, String> guidMap = new ConcurrentHashMap<>();
-
     /** Инженерный GUID "1" — всегда в карте, не требует предварительного POST. */
     private static final String ENGINEERING_GUID = "1";
     private static final String ENGINEERING_GUID_JSON =
-            "{\"GUID\":\"4c5a50f1-a7b7-494c-93a6-85f8f0b16998\",\"dbConnectString\":\"jdbc:oracle:thin:@192.168.203.212:1521/ses\",\"dbUsername\":\"sesdev\",\"dbPassword\":\"sesdev\",\"department\":{\"depid\":1,\"depkindid\":22},\"up\":{\"dangerousProductOut\":{\"view\":{\"1\":{}},\"access\":{\"1\":{}},\"edit\":{\"1\":{}},\"send\":{\"1\":{}},\"status\":{\"1\":{}}},\"dangerousProductDB\":{\"view\":{\"1\":{}}},\"dangerousProductIn\":{\"view\":{\"1\":{}},\"access\":{\"1\":{}},\"status\":{\"1\":{}}}}}";
+            "{\"GUID\":\"4c5a50f1-a7b7-494c-93a6-85f8f0b16998\",\"dbConnectString\":\"jdbc:oracle:thin:@192.168.203.212:1521/ses\",\"dbUsername\":\"sesdev\",\"dbPassword\":\"sesdev\",\"department\":{\"depid\":878,\"depkindid\":22},\"up\":{\"dangerousProductOut\":{\"view\":{\"1\":{}},\"access\":{\"1\":{}},\"edit\":{\"1\":{}},\"send\":{\"1\":{}},\"status\":{\"1\":{}}},\"dangerousProductDB\":{\"view\":{\"1\":{}}},\"dangerousProductIn\":{\"view\":{\"1\":{}},\"access\":{\"1\":{}},\"status\":{\"1\":{}}}}}";
 
     @Override
     public void init() throws ServletException {
         super.init();
-        guidMap.put(ENGINEERING_GUID, ENGINEERING_GUID_JSON);
+        RightsJsonStore.guidMap.put(ENGINEERING_GUID, ENGINEERING_GUID_JSON);
         System.out.println("[XsdFormBuilderServlet] Initialized; engineering GUID " + ENGINEERING_GUID + " added to map");
     }
 
@@ -78,8 +73,8 @@ public class XsdFormBuilderServlet extends HttpServlet {
                 return;
             }
 
-            // Сохраняем GUID -> JSON в мапу
-            guidMap.put(guid, jsonBody);
+            // Сохраняем GUID -> JSON в мапу (читается RightsServlet для «Определить доступ»)
+            RightsJsonStore.guidMap.put(guid, jsonBody);
             System.out.println("[XsdFormBuilderServlet] Stored GUID: " + guid);
 
             response.setStatus(HttpServletResponse.SC_OK);
@@ -141,11 +136,11 @@ public class XsdFormBuilderServlet extends HttpServlet {
 
             // Проверяем наличие GUID в мапе (инженерный GUID "1" всегда разрешён и уже в карте)
             System.out.println("[XsdFormBuilderServlet] Checking GUID in map for DPAID: " + dpaid + ", GUID: " + guid);
-            System.out.println("[XsdFormBuilderServlet] Current map size: " + guidMap.size());
+            System.out.println("[XsdFormBuilderServlet] Current map size: " + RightsJsonStore.guidMap.size());
             
-            if (!guidMap.containsKey(guid)) {
+            if (!RightsJsonStore.guidMap.containsKey(guid)) {
                 System.err.println("[XsdFormBuilderServlet] GUID not found in map: " + guid);
-                System.err.println("[XsdFormBuilderServlet] Available GUIDs in map: " + guidMap.keySet());
+                System.err.println("[XsdFormBuilderServlet] Available GUIDs in map: " + RightsJsonStore.guidMap.keySet());
                 // Возвращаем HTML страницу с ошибкой вместо JSON
                 response.setStatus(HttpServletResponse.SC_FORBIDDEN);
                 response.setContentType("text/html;charset=UTF-8");

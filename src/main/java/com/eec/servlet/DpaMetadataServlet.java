@@ -17,16 +17,17 @@ import java.sql.Timestamp;
 /**
  * Сервлет для получения метаданных карты из вью VW_DPA (шапка карты).
  * GET /api/dpa/metadata/{DPAID}
- * Возвращает JSON: incidentId, alertCountryName, dpaVersion, datasourceKindName,
- * creationDateTime, modificationDateTime, dpaStatusId, dpaStatusName.
+ * Возвращает JSON: incidentId, alertCountryCode, alertCountryName, dpaVersion, ...
+ * ALERTCOUNTRYNAME — из VW_DPA (название страны, напр. «БЕЛАРУСЬ»); alertCountryCode — код из справочника COUNTRY (BY).
  */
 public class DpaMetadataServlet extends HttpServlet {
 
     private static final String SQL = ""
-            + "SELECT vw.INCIDENTID, vw.ALERTCOUNTRYNAME, vw.DPAVERSION, t1.DATASOURCEKINDNAME, "
-            + "       vw.CREATIONDATETIME, vw.MODIFICATIONDATETIME, vw.DPASTATUSID, vw.DPASTATUSNAME "
+            + "SELECT vw.INCIDENTID, vw.ALERTCOUNTRYNAME, vw.ALERTCOUNTRYID, vw.DPAVERSION, vw.DATASOURCEKINDCODE, t1.DATASOURCEKINDNAME, "
+            + "       vw.CREATIONDATETIME, vw.MODIFICATIONDATETIME, vw.DPASTATUSID, vw.DPASTATUSNAME, c.COUNTRYCODE AS ALERTCOUNTRYCODE "
             + "FROM VW_DPA vw "
             + "LEFT JOIN DATASOURCEKIND t1 ON vw.DATASOURCEKINDCODE = t1.DATASOURCEKINDCODE "
+            + "LEFT JOIN SESINT.COUNTRY c ON vw.ALERTCOUNTRYID = c.COUNTRYID AND c.COUNTRYSDATE <= SYSDATE AND c.COUNTRYEDATE >= SYSDATE "
             + "WHERE vw.DPAID = ?";
 
     @Override
@@ -76,7 +77,9 @@ public class DpaMetadataServlet extends HttpServlet {
 
             String incidentId = getString(rs, "INCIDENTID");
             String alertCountryName = getString(rs, "ALERTCOUNTRYNAME");
+            String alertCountryCode = getString(rs, "ALERTCOUNTRYCODE");
             Integer dpaVersion = getInt(rs, "DPAVERSION");
+            String datasourceKindCode = getString(rs, "DATASOURCEKINDCODE");
             String datasourceKindName = getString(rs, "DATASOURCEKINDNAME");
             String creationDateTime = formatTimestamp(rs, "CREATIONDATETIME");
             String modificationDateTime = formatTimestamp(rs, "MODIFICATIONDATETIME");
@@ -86,8 +89,10 @@ public class DpaMetadataServlet extends HttpServlet {
             StringBuilder json = new StringBuilder();
             json.append("{");
             json.append("\"incidentId\":").append(quote(incidentId));
+            json.append(",\"alertCountryCode\":").append(quote(alertCountryCode));
             json.append(",\"alertCountryName\":").append(quote(alertCountryName));
             json.append(",\"dpaVersion\":").append(dpaVersion != null ? dpaVersion : "null");
+            json.append(",\"datasourceKindCode\":").append(quote(datasourceKindCode));
             json.append(",\"datasourceKindName\":").append(quote(datasourceKindName));
             json.append(",\"creationDateTime\":").append(quote(creationDateTime));
             json.append(",\"modificationDateTime\":").append(quote(modificationDateTime));

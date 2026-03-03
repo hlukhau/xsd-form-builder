@@ -298,6 +298,16 @@
         <url-pattern>/api/dpa/resolutions</url-pattern>
     </servlet-mapping>
 
+    <!-- JSON прав по GUID (department.depid для «Определить доступ» по умолчанию) -->
+    <servlet>
+        <servlet-name>RightsServlet</servlet-name>
+        <servlet-class>com.eec.servlet.RightsServlet</servlet-class>
+    </servlet>
+    <servlet-mapping>
+        <servlet-name>RightsServlet</servlet-name>
+        <url-pattern>/api/rights</url-pattern>
+    </servlet-mapping>
+
     <!-- XSD Form Builder Servlet для работы с GUID и DPAID -->
     <!-- Обрабатывает только запросы формата /{DPAID}/{GUID} внутри контекста приложения -->
     <!-- Должен быть ПЕРЕД SpaServlet, чтобы обрабатывать API запросы первым -->

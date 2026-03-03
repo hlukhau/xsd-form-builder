@@ -35,6 +35,8 @@ interface DangerousProductCardProps {
   onUpdate: (data: CardData) => void
   originalXML?: string | null
   dpaid?: string
+  /** GUID из URL — для получения JSON прав (department.depid при «Определить доступ») */
+  guid?: string
   /** Открыть карту сразу в режиме редактирования (например после редиректа по сохранению новой карты) */
   initialEditMode?: boolean
   /** После успешного сохранения новой карты (dpaid === '-') вызывается с новым DPAID для редиректа */
@@ -46,6 +48,7 @@ const DangerousProductCard: React.FC<DangerousProductCardProps> = ({
   onUpdate,
   originalXML: propOriginalXML,
   dpaid,
+  guid,
   initialEditMode,
   onSaveNewCard,
 }) => {
@@ -81,15 +84,26 @@ const DangerousProductCard: React.FC<DangerousProductCardProps> = ({
     if (dpaid !== '-') setSavedDpaid(null)
   }, [dpaid])
 
+  // Новая карта (/-/) всегда исходящая; иначе — по DPA DATASOURCEKINDCODE ("3") или по названию источника
+  const datasourceKindCode = data?.datasourceKindCode != null ? String(data.datasourceKindCode) : ''
+  const sourceFromData = data?.source ?? ''
+  const isOutgoingSource =
+    effectiveDpaid === '-' ||
+    datasourceKindCode === '3' ||
+    sourceFromData.toLowerCase().includes('исходящ') ||
+    sourceFromData === '3'
+
   // Права и уровень пользователя / резолюции по карте (исходящие)
   useEffect(() => {
-    if (!effectiveDpaid || !editedData.source) return
-    const src = (editedData.source ?? '').toLowerCase()
-    if (src.includes('входящ')) {
-      checkAccessRight(effectiveDpaid, 'dangerousProductIn:status').then(setHasStatusRight)
+    if (!effectiveDpaid) return
+    if (!isOutgoingSource) {
+      const src = (data?.source ?? '').toLowerCase()
+      if (src.includes('входящ')) {
+        checkAccessRight(effectiveDpaid, 'dangerousProductIn:status').then(setHasStatusRight)
+      }
       return
     }
-    if (src.includes('исходящ')) {
+    if (isOutgoingSource) {
       Promise.all([
         checkAccessRight(effectiveDpaid, 'dangerousProductOut:status'),
         checkAccessRight(effectiveDpaid, 'dangerousProductOut:send'),
@@ -105,7 +119,14 @@ const DangerousProductCard: React.FC<DangerousProductCardProps> = ({
         setHasResolution(list.length > 0)
       })
     }
-  }, [effectiveDpaid, editedData.source])
+  }, [effectiveDpaid, isOutgoingSource, data?.source])
+
+  // Исходящая карта: при наличии права dangerousProductOut:edit включаем режим редактирования автоматически
+  useEffect(() => {
+    if (isOutgoingSource && hasSaveRight) {
+      setIsEditMode(true)
+    }
+  }, [isOutgoingSource, hasSaveRight])
 
   const statusButton = getStatusButtonConfig(
     editedData.source,
@@ -267,7 +288,7 @@ const DangerousProductCard: React.FC<DangerousProductCardProps> = ({
     const xmlBody = exportCardDataToXML(editedData)
     const metadata = buildSaveMetadataFromCardData(editedData)
     const isNewCard = effectiveDpaid === '-'
-    const isOutgoingWithSave = (editedData.source ?? '').toLowerCase().includes('исходящ') && hasSaveRight
+    const isOutgoingWithSave = isOutgoingSource && hasSaveRight
 
     if (isNewCard) {
       const { filled, unfilled } = getCardDataReview(editedData)
@@ -598,7 +619,7 @@ const DangerousProductCard: React.FC<DangerousProductCardProps> = ({
             {isEditMode && (
               <>
                 <Button onClick={handleCancel} size="middle">Отмена</Button>
-                {(effectiveDpaid === '-' || ((editedData.source ?? '').toLowerCase().includes('исходящ') && hasSaveRight)) && (
+                {(effectiveDpaid === '-' || (isOutgoingSource && hasSaveRight)) && (
                   <Button type="primary" onClick={handleSave} loading={saving} size="middle">Сохранить</Button>
                 )}
                 <Button icon={<DownloadOutlined />} onClick={handleExportXML} size="middle">Экспорт XML</Button>
@@ -725,6 +746,7 @@ const DangerousProductCard: React.FC<DangerousProductCardProps> = ({
           dpaid={effectiveDpaid}
           source={currentData.source}
           countryCode={currentData.country}
+          guid={guid}
         />
 
         {comparisonResult && (

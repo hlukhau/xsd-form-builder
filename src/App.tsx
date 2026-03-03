@@ -2,7 +2,6 @@ import { useState, useEffect } from 'react'
 import { Routes, Route, useParams, useSearchParams } from 'react-router-dom'
 import { message, Spin } from 'antd'
 import DangerousProductCard from './components/card/DangerousProductCard'
-import FileSelector from './components/FileSelector'
 import type { CardData } from './types/card'
 import { fetchDpaXml, fetchDpaMetadata, fetchNextRegistrationNumber } from './utils/referenceDataApi'
 import { parseXMLToCardData, validateAndEnrichCardData, getTextContent } from './utils/xmlParser'
@@ -78,14 +77,8 @@ function AppContent() {
     loading: boolean
     error: string | null
   }>({ loading: false, error: null })
-  const { dpaid } = useParams<{ dpaid: string; guid?: string }>()
+  const { dpaid, guid } = useParams<{ dpaid: string; guid?: string }>()
   const [searchParams] = useSearchParams()
-
-  const handleFileLoaded = (data: CardData, xmlText?: string) => {
-    setCardData(data)
-    if (xmlText) setOriginalXML(xmlText)
-    setLoadByDpaidState({ loading: false, error: null })
-  }
 
   // Режим новой карты: /xsd_form_builder/-/1 — запросить уникальный регистрационный номер и предзаполнить карту
   useEffect(() => {
@@ -153,9 +146,10 @@ function AppContent() {
           card = {
             ...card,
             registrationNumber: meta.incidentId ?? card.registrationNumber,
-            country: meta.alertCountryName ?? card.country,
+            country: (meta.alertCountryCode ?? meta.alertCountryName ?? card.country).trim() || card.country,
             version: meta.dpaVersion ?? card.version,
             source: meta.datasourceKindName ?? card.source,
+            datasourceKindCode: meta.datasourceKindCode ?? card.datasourceKindCode,
             createdAt: meta.creationDateTime ?? card.createdAt,
             modifiedAt: meta.modificationDateTime ?? card.modifiedAt,
             status: meta.dpaStatusName ?? card.status,
@@ -186,7 +180,6 @@ function AppContent() {
 
   return (
     <div className="app">
-      <FileSelector onFileLoaded={handleFileLoaded} />
       {loadByDpaidState.loading && (
         <div style={{ textAlign: 'center', padding: 24 }}>
           <Spin size="large" tip="Загрузка XML по DPAID из БД..." />
@@ -195,7 +188,6 @@ function AppContent() {
       {!loadByDpaidState.loading && loadByDpaidState.error && (
         <div className="empty-state">
           <div style={{ color: '#ff4d4f', marginBottom: 8 }}>Ошибка загрузки по DPAID: {loadByDpaidState.error}</div>
-          <div style={{ fontSize: '14px', color: '#8c8c8c' }}>Используйте селектор выше для загрузки файла с диска (тест).</div>
         </div>
       )}
       {!loadByDpaidState.loading && !loadByDpaidState.error && cardData && (
@@ -204,6 +196,7 @@ function AppContent() {
           onUpdate={setCardData}
           originalXML={originalXML}
           dpaid={dpaid ?? undefined}
+          guid={guid ?? undefined}
           onSaveNewCard={(newDpaid) => {
             try {
               sessionStorage.setItem('xsd_form_builder_last_saved_dpaid', String(newDpaid))
@@ -216,10 +209,10 @@ function AppContent() {
         <div className="empty-state">
           <div style={{ fontSize: '48px', marginBottom: '16px', opacity: 0.3 }}>📄</div>
           <div style={{ fontSize: '18px', fontWeight: 500, color: '#595959', marginBottom: '8px' }}>
-            Выберите XML файл для загрузки
+            Нет данных для отображения
           </div>
           <div style={{ fontSize: '14px', color: '#8c8c8c' }}>
-            Используйте селектор выше для выбора файла из папки или загрузите свой файл. Либо откройте страницу по адресу /xsd_form_builder/{'{DPAID}'} для загрузки из БД.
+            Откройте карту по адресу с DPAID (например /-/1 — новая карта, /25 — из БД).
           </div>
         </div>
       )}

@@ -21,7 +21,7 @@ import java.util.List;
 
 /**
  * API доступа к карте по DPAID: подразделения (SESDEV.TB_DEP + TB_DEPKIND DEPKINDCODE), связь SESINT.DPADEPPERMIS(DPAID, DEPID).
- * GET /api/dpa/access?dpaid=...&source=incoming|outgoing|eec — список { id, name, depKindCode }; при пустом списке и source=incoming|eec возвращаются ЦГЭ по умолчанию (006, 101, 201, 301, 401, 501, 601, 700).
+ * GET /api/dpa/access?dpaid=...&source=incoming|outgoing|eec&creatorDepId=... — список { id, name, depKindCode }; при пустом списке и source=outgoing и creatorDepId — по умолчанию ЦГЭ создателя карты (из JSON прав department.depid).
  * POST /api/dpa/access — тело JSON { "dpaid": "...", "depId": "..." } — добавить подразделение (проверка права по источнику карты).
  * DELETE /api/dpa/access?dpaid=...&depId=... — удалить (проверка права по источнику карты).
  */
@@ -42,6 +42,8 @@ public class DpaAccessServlet extends HttpServlet {
             + "LEFT JOIN SESDEV.TB_DEPKIND dk ON d.DEPKINDID = dk.DEPKINDID "
             + "WHERE d.DEPID IN (?,?,?,?,?,?,?,?) ORDER BY d.DEPID";
     private static final String SQL_SOURCE = "SELECT t.DATASOURCEKINDNAME FROM VW_DPA vw LEFT JOIN DATASOURCEKIND t ON vw.DATASOURCEKINDCODE = t.DATASOURCEKINDCODE WHERE vw.DPAID = ?";
+    /** Один ЦГЭ по DEPID — для списка по умолчанию (исходящие: ЦГЭ создателя) */
+    private static final String SQL_ONE_DEP = "SELECT d.DEPID, d.DEPNAME, dk.DEPKINDCODE FROM SESDEV.TB_DEP d LEFT JOIN SESDEV.TB_DEPKIND dk ON d.DEPKINDID = dk.DEPKINDID WHERE d.DEPID = ?";
     private static final String SQL_ADD = "INSERT INTO SESINT.DPADEPPERMIS (DPAID, DEPID, GRANTDATETIME) VALUES (?, ?, SYSDATE)";
     private static final String SQL_DELETE = "DELETE FROM SESINT.DPADEPPERMIS WHERE DPAID = ? AND DEPID = ?";
 
@@ -96,6 +98,23 @@ public class DpaAccessServlet extends HttpServlet {
                     }
                     if (rs != null) { rs.close(); rs = null; }
                     if (ps != null) { ps.close(); ps = null; }
+                } else if ("outgoing".equals(src)) {
+                    String creatorDepId = request.getParameter("creatorDepId");
+                    if (creatorDepId != null && !creatorDepId.trim().isEmpty()) {
+                        creatorDepId = creatorDepId.trim();
+                        ps = conn.prepareStatement(SQL_ONE_DEP);
+                        ps.setString(1, creatorDepId);
+                        rs = ps.executeQuery();
+                        if (rs.next()) {
+                            rows.add(new String[]{
+                                    nullToEmpty(rs.getString(1)),
+                                    nullToEmpty(rs.getString(2)),
+                                    nullToEmpty(rs.getString(3))
+                            });
+                        }
+                        if (rs != null) { rs.close(); rs = null; }
+                        if (ps != null) { ps.close(); ps = null; }
+                    }
                 }
             }
 

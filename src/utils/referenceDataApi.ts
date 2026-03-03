@@ -210,8 +210,12 @@ export async function fetchDpaXml(dpaid: string): Promise<string> {
 /** Метаданные шапки карты из VW_DPA (GET /api/dpa/metadata/{DPAID}) */
 export interface DpaMetadata {
   incidentId: string | null
+  /** Код страны из справочника COUNTRY (BY, RU, ...) */
+  alertCountryCode: string | null
   alertCountryName: string | null
   dpaVersion: number | null
+  /** DATASOURCEKINDCODE из DPA; "3" = исходящие */
+  datasourceKindCode: string | null
   datasourceKindName: string | null
   creationDateTime: string | null
   modificationDateTime: string | null
@@ -406,7 +410,20 @@ export async function getIncidentAlertKindNameByCode(code: string): Promise<stri
   }
 }
 
-/** Список доступа по DPAID (SESINT.DPADEPPERMIS + TB_DEP + TB_DEPKIND) — GET /api/dpa/access?dpaid=...&source=incoming|outgoing|eec */
+/** JSON прав по GUID (для department.depid — ЦГЭ создателя карты при «Определить доступ»). GET /api/rights?guid= */
+export interface RightsJson {
+  department?: { depid?: number }
+}
+export async function fetchRightsByGuid(guid: string): Promise<RightsJson> {
+  const response = await fetch(`${BASE_URL}api/rights?guid=${encodeURIComponent(guid)}`)
+  if (!response.ok) {
+    const text = await response.text()
+    throw new Error(response.status === 404 ? 'GUID не найден' : (text || response.statusText))
+  }
+  return response.json()
+}
+
+/** Список доступа по DPAID (SESINT.DPADEPPERMIS + TB_DEP + TB_DEPKIND) — GET /api/dpa/access?dpaid=...&source=incoming|outgoing|eec&creatorDepId=... */
 export interface AccessItemDto {
   id: string
   name: string
@@ -432,10 +449,11 @@ export function cardSourceToAccessRight(source: string): 'dangerousProductIn:acc
   return undefined
 }
 
-export async function fetchDpaAccess(dpaid: string, source?: string): Promise<AccessItemDto[]> {
+export async function fetchDpaAccess(dpaid: string, source?: string, creatorDepId?: string | number): Promise<AccessItemDto[]> {
   const params = new URLSearchParams({ dpaid })
   const apiSource = source != null ? cardSourceToApiSource(source) : undefined
   if (apiSource) params.set('source', apiSource)
+  if (creatorDepId != null && String(creatorDepId).trim()) params.set('creatorDepId', String(creatorDepId).trim())
   const response = await fetch(`${BASE_URL}api/dpa/access?${params.toString()}`)
   if (!response.ok) {
     const text = await response.text()

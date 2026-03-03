@@ -1,5 +1,23 @@
 import type { CardData } from '@/types/card'
 
+/** Код страны и варианты названия — для нормализации при сравнении (country в XML = код, в метаданных БД = название) */
+const COUNTRY_NORMALIZE: Record<string, string[]> = {
+  BY: ['BY', 'БЕЛАРУСЬ', 'Беларусь', 'Belarus'],
+  RU: ['RU', 'РОССИЯ', 'Россия', 'Russia'],
+  KZ: ['KZ', 'КАЗАХСТАН', 'Казахстан', 'Kazakhstan'],
+  AM: ['AM', 'АРМЕНИЯ', 'Армения', 'Armenia'],
+  KG: ['KG', 'КИРГИЗИЯ', 'Киргизия', 'Kyrgyzstan'],
+}
+
+function normalizeCountry(val: string): string {
+  if (!val || !val.trim()) return val
+  const v = val.trim()
+  for (const [code, variants] of Object.entries(COUNTRY_NORMALIZE)) {
+    if (variants.some((x) => x.toLowerCase() === v.toLowerCase())) return code
+  }
+  return v
+}
+
 /**
  * Сравнивает два объекта CardData и возвращает список различий
  */
@@ -14,6 +32,13 @@ export function compareCardData(original: CardData, exported: CardData): {
   // Функция для глубокого сравнения значений
   const compareValue = (path: string, originalVal: any, exportedVal: any) => {
     if (originalVal === exportedVal) return true
+
+    // Поля country: код (BY) и название (БЕЛАРУСЬ) из БД считаем совпадающими
+    if (path === 'country' || path.endsWith('.country')) {
+      const o = originalVal != null ? String(originalVal).trim() : ''
+      const e = exportedVal != null ? String(exportedVal).trim() : ''
+      if (normalizeCountry(o) === normalizeCountry(e)) return true
+    }
     
     // Обработка null/undefined
     if (originalVal == null && exportedVal == null) return true

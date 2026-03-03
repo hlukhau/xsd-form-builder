@@ -4,11 +4,13 @@ import { PlusOutlined, DeleteOutlined } from '@ant-design/icons'
 import type { AccessItem } from '@/types/card'
 import {
   fetchDpaAccess,
+  fetchRightsByGuid,
   addDpaAccess,
   removeDpaAccess,
   fetchDepOptions,
   checkAccessRight,
   cardSourceToAccessRight,
+  cardSourceToApiSource,
   type DepOption,
 } from '@/utils/referenceDataApi'
 
@@ -31,7 +33,7 @@ function getDepLevelColor(depKindCode: string | undefined): string {
   return 'default'
 }
 
-interface AccessModalProps {
+export interface AccessModalProps {
   visible: boolean
   data: AccessItem[]
   onClose: () => void
@@ -41,6 +43,8 @@ interface AccessModalProps {
   /** Источник сведений карты (Входящие / Исходящие / Данные ЕЭК) — для прав и списка по умолчанию */
   source?: string
   countryCode?: string
+  /** GUID из URL — для получения department.depid из JSON прав (ЦГЭ создателя в списке по умолчанию для исходящих) */
+  guid?: string
 }
 
 const AccessModal: React.FC<AccessModalProps> = ({
@@ -50,6 +54,7 @@ const AccessModal: React.FC<AccessModalProps> = ({
   onUpdate,
   dpaid,
   source,
+  guid,
 }) => {
   const [accessList, setAccessList] = useState<AccessItem[]>(data)
   const [searchText, setSearchText] = useState('')
@@ -68,14 +73,24 @@ const AccessModal: React.FC<AccessModalProps> = ({
     setAccessList(data)
     if (fromApi) {
       setLoadingList(true)
-      fetchDpaAccess(dpaid!, source)
-        .then((list) => setAccessList(list))
+      const apiSource = source != null ? cardSourceToApiSource(source) : undefined
+      const isOutgoing = apiSource === 'outgoing'
+      const loadList = (creatorDepId?: string | number) =>
+        fetchDpaAccess(dpaid!, source, creatorDepId).then((list) => setAccessList(list))
+      const promise =
+        isOutgoing && guid
+          ? fetchRightsByGuid(guid)
+              .then((rights) => rights.department?.depid)
+              .then((depid) => loadList(depid != null ? depid : undefined))
+              .catch(() => loadList())
+          : loadList()
+      promise
         .catch((e) => {
           message.error('Ошибка загрузки списка доступа: ' + (e instanceof Error ? e.message : ''))
         })
         .finally(() => setLoadingList(false))
     }
-  }, [visible, dpaid, source, data, fromApi])
+  }, [visible, dpaid, source, data, fromApi, guid])
 
   useEffect(() => {
     if (!visible || !fromApi || !dpaid) return
