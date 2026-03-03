@@ -28,6 +28,8 @@ import { getStatusButtonConfig } from '@/utils/statusButtonConfig'
 import { parseElectronicDocContentBody } from '@/utils/xmlParser'
 import { openLegacyRegisterAllVersions, isLegacyRegisterConfigured } from '@/utils/legacyRegisterUrl'
 import XMLComparisonModal, { type ComparisonResultShape } from '../modals/XMLComparisonModal'
+import ValidationResultModal from '../modals/ValidationResultModal'
+import { validateOutgoingCard, type ValidationResult } from '@/utils/cardValidation'
 import type { CardData, StatusHistoryItem, ElectronicDocument } from '@/types/card'
 
 interface DangerousProductCardProps {
@@ -67,6 +69,8 @@ const DangerousProductCard: React.FC<DangerousProductCardProps> = ({
   const [originalXML, setOriginalXML] = useState<string | null>(propOriginalXML || null)
   const [comparisonResult, setComparisonResult] = useState<ComparisonResultShape | null>(null)
   const [comparisonModalVisible, setComparisonModalVisible] = useState(false)
+  const [validationModalVisible, setValidationModalVisible] = useState(false)
+  const [validationResult, setValidationResult] = useState<ValidationResult | null>(null)
   const [saving, setSaving] = useState(false)
   const [pendingSavePayload, setPendingSavePayload] = useState<{ xmlBody: string; metadata: DpaSaveMetadata } | null>(null)
   const [hasStatusRight, setHasStatusRight] = useState(true)
@@ -626,6 +630,18 @@ const DangerousProductCard: React.FC<DangerousProductCardProps> = ({
                 <Button onClick={handleCompareXML} size="middle">Сравнить с исходным</Button>
               </>
             )}
+            {isOutgoingSource && (
+              <Button
+                onClick={() => {
+                  const dataToValidate = isEditMode ? editedData : currentData
+                  setValidationResult(validateOutgoingCard(dataToValidate))
+                  setValidationModalVisible(true)
+                }}
+                size="middle"
+              >
+                Валидация карты
+              </Button>
+            )}
             <Button onClick={() => console.log('Закрыть')} size="middle">Закрыть</Button>
           </Space>
         }
@@ -761,6 +777,15 @@ const DangerousProductCard: React.FC<DangerousProductCardProps> = ({
             saving={saving}
           />
         )}
+
+        <ValidationResultModal
+          visible={validationModalVisible}
+          result={validationResult}
+          onClose={() => {
+            setValidationModalVisible(false)
+            setValidationResult(null)
+          }}
+        />
       </Card>
     </div>
   )
