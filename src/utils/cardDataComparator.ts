@@ -169,3 +169,72 @@ export function compareCardData(original: CardData, exported: CardData): {
   }
 }
 
+/** Проверяет, есть ли у значения содержимое (не пустое) */
+function hasValue(val: unknown): boolean {
+  if (val == null) return false
+  if (typeof val === 'string') return val.trim() !== ''
+  if (Array.isArray(val)) return val.length > 0
+  if (typeof val === 'object') return Object.keys(val).length > 0
+  return true
+}
+
+/**
+ * Для нового документа: возвращает списки путей «заполнено» и «не заполнено» (без сравнения с исходным).
+ */
+export function getCardDataReview(data: CardData): { filled: string[]; unfilled: string[] } {
+  const filled: string[] = []
+  const unfilled: string[] = []
+
+  const walk = (path: string, val: unknown) => {
+    if (val == null) {
+      unfilled.push(path)
+      return
+    }
+    if (typeof val === 'string') {
+      if (val.trim() !== '') filled.push(path)
+      else unfilled.push(path)
+      return
+    }
+    if (Array.isArray(val)) {
+      if (val.length === 0) {
+        unfilled.push(path)
+        return
+      }
+      val.forEach((item, i) => {
+        if (typeof item === 'object' && item !== null) {
+          Object.entries(item).forEach(([k, v]) => walk(`${path}[${i}].${k}`, v))
+        } else {
+          walk(`${path}[${i}]`, item)
+        }
+      })
+      return
+    }
+    if (typeof val === 'object') {
+      const entries = Object.entries(val)
+      if (entries.length === 0) {
+        unfilled.push(path)
+        return
+      }
+      for (const [k, v] of entries) {
+        walk(path ? `${path}.${k}` : k, v)
+      }
+      return
+    }
+    filled.push(path)
+  }
+
+  walk('country', data.country)
+  walk('registrationNumber', data.registrationNumber)
+  walk('notification', data.notification)
+  walk('product', data.product)
+  walk('tsd', data.tsd)
+  walk('violations', data.violations)
+  walk('complianceDocuments', data.complianceDocuments)
+  walk('detectionPlace', data.detectionPlace)
+  walk('measures', data.measures)
+  walk('electronicDocument', data.electronicDocument)
+  walk('statusHistory', data.statusHistory)
+
+  return { filled, unfilled }
+}
+

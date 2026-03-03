@@ -4,7 +4,7 @@ import { message, Spin } from 'antd'
 import DangerousProductCard from './components/card/DangerousProductCard'
 import FileSelector from './components/FileSelector'
 import type { CardData } from './types/card'
-import { fetchDpaXml, fetchDpaMetadata } from './utils/referenceDataApi'
+import { fetchDpaXml, fetchDpaMetadata, fetchNextRegistrationNumber } from './utils/referenceDataApi'
 import { parseXMLToCardData, validateAndEnrichCardData, getTextContent } from './utils/xmlParser'
 import { createNewCardData } from './utils/newCardData'
 
@@ -78,7 +78,7 @@ function AppContent() {
     loading: boolean
     error: string | null
   }>({ loading: false, error: null })
-  const { dpaid } = useParams<{ dpaid: string }>()
+  const { dpaid } = useParams<{ dpaid: string; guid?: string }>()
   const [searchParams] = useSearchParams()
 
   const handleFileLoaded = (data: CardData, xmlText?: string) => {
@@ -87,14 +87,31 @@ function AppContent() {
     setLoadByDpaidState({ loading: false, error: null })
   }
 
-  // Режим новой карты: /xsd_form_builder/-/1 — предзаполнить карту и включить редактирование
+  // Режим новой карты: /xsd_form_builder/-/1 — запросить уникальный регистрационный номер и предзаполнить карту
   useEffect(() => {
     if (dpaid !== '-') return
     const country = searchParams.get('country')?.trim()?.toUpperCase().slice(0, 2) || 'BY'
-    const newData = createNewCardData(country)
-    setCardData(newData)
+    let cancelled = false
+    setLoadByDpaidState({ loading: true, error: null })
+    setCardData(null)
     setOriginalXML(null)
-    setLoadByDpaidState({ loading: false, error: null })
+    ;(async () => {
+      try {
+        const { registrationNumber } = await fetchNextRegistrationNumber(country)
+        if (cancelled) return
+        const newData = createNewCardData(country, { registrationNumber })
+        setCardData(newData)
+        setOriginalXML(null)
+        setLoadByDpaidState({ loading: false, error: null })
+      } catch (err) {
+        if (!cancelled) {
+          const msg = err instanceof Error ? err.message : 'Не удалось получить регистрационный номер'
+          setLoadByDpaidState({ loading: false, error: msg })
+          message.error(msg)
+        }
+      }
+    })()
+    return () => { cancelled = true }
   }, [dpaid, searchParams])
 
   // Загрузка XML по DPAID из БД при открытии /xsd_form_builder/{DPAID}
@@ -182,7 +199,18 @@ function AppContent() {
         </div>
       )}
       {!loadByDpaidState.loading && !loadByDpaidState.error && cardData && (
-        <DangerousProductCard data={cardData} onUpdate={setCardData} originalXML={originalXML} dpaid={dpaid ?? undefined} />
+        <DangerousProductCard
+          data={cardData}
+          onUpdate={setCardData}
+          originalXML={originalXML}
+          dpaid={dpaid ?? undefined}
+          onSaveNewCard={(newDpaid) => {
+            try {
+              sessionStorage.setItem('xsd_form_builder_last_saved_dpaid', String(newDpaid))
+              sessionStorage.setItem('xsd_form_builder_save_happened', '1')
+            } catch (_) {}
+          }}
+        />
       )}
       {!loadByDpaidState.loading && !loadByDpaidState.error && !cardData && (
         <div className="empty-state">

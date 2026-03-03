@@ -258,6 +258,26 @@
         <url-pattern>/api/dpa/status</url-pattern>
     </servlet-mapping>
 
+    <!-- Следующий уникальный регистрационный номер для страны (при создании карты) -->
+    <servlet>
+        <servlet-name>DpaNextRegNumberServlet</servlet-name>
+        <servlet-class>com.eec.servlet.DpaNextRegNumberServlet</servlet-class>
+    </servlet>
+    <servlet-mapping>
+        <servlet-name>DpaNextRegNumberServlet</servlet-name>
+        <url-pattern>/api/dpa/next-registration-number</url-pattern>
+    </servlet-mapping>
+
+    <!-- Сохранение новой карты в DPA и DPAXML (исходящий, статус Черновик) -->
+    <servlet>
+        <servlet-name>DpaSaveServlet</servlet-name>
+        <servlet-class>com.eec.servlet.DpaSaveServlet</servlet-class>
+    </servlet>
+    <servlet-mapping>
+        <servlet-name>DpaSaveServlet</servlet-name>
+        <url-pattern>/api/dpa/save</url-pattern>
+    </servlet-mapping>
+
     <!-- Текущий пользователь: уровень ЦГЭ (DEPKINDCODE, DEPKINDNAME) -->
     <servlet>
         <servlet-name>CurrentUserServlet</servlet-name>

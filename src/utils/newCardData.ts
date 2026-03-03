@@ -20,26 +20,32 @@ export function buildNewRegistrationNumber(
 
 /**
  * Создаёт предзаполненные данные для новой карты (режим создания по ссылке с ? вместо DPAID).
- * - Регистрационный номер: по правилу [Страна]-DP[5 цифр]-[Год]
- * - Код страны: из параметра (нередактируемое)
+ * - Регистрационный номер: из options.registrationNumber (уникальный с бэкенда) или по правилу [Страна]-DP[5 цифр]-[Год]
+ * - Код страны: из параметра
  * - Вид уведомления: IncidentKindCode = 7
- * - Дата формирования: текущая дата (нередактируемое)
+ * - Дата формирования: текущая дата
  */
 export function createNewCardData(
   countryCode: string = 'BY',
-  serialInYear: string = DEFAULT_SERIAL_IN_YEAR
+  serialOrOptions?: string | { serialInYear?: string; registrationNumber?: string }
 ): CardData {
   const now = new Date()
   const formationDate = now.toISOString().slice(0, 10) // YYYY-MM-DD
   const documentDateTime = now.toISOString() // ISO 8601
-  const registrationNumber = buildNewRegistrationNumber(countryCode, serialInYear)
   const country = countryCode.toUpperCase().slice(0, 2)
+  const registrationNumber =
+    typeof serialOrOptions === 'object' && serialOrOptions?.registrationNumber
+      ? serialOrOptions.registrationNumber
+      : buildNewRegistrationNumber(
+          countryCode,
+          typeof serialOrOptions === 'object' ? serialOrOptions?.serialInYear : serialOrOptions
+        )
 
   return {
     country,
     registrationNumber,
     version: 1,
-    source: 'входящие',
+    source: 'исходящие',
     createdAt: documentDateTime,
     modifiedAt: documentDateTime,
     status: 'новое',

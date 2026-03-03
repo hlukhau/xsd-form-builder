@@ -22,12 +22,12 @@ import DetectionPlaceTab from '../tabs/DetectionPlaceTab'
 import MeasuresTab from '../tabs/MeasuresTab'
 import { exportCardDataToXML } from '@/utils/xmlExporter'
 import { parseXMLToCardData } from '@/utils/xmlParser'
-import { compareCardData } from '@/utils/cardDataComparator'
-import { fetchDpaStatusHistory, fetchDpaElectronicDocs, changeDpaStatus, checkAccessRight, fetchCurrentUser, fetchDpaResolutions } from '@/utils/referenceDataApi'
+import { compareCardData, getCardDataReview } from '@/utils/cardDataComparator'
+import { fetchDpaStatusHistory, fetchDpaElectronicDocs, changeDpaStatus, checkAccessRight, fetchCurrentUser, fetchDpaResolutions, saveDpaCard, buildSaveMetadataFromCardData, type DpaSaveMetadata } from '@/utils/referenceDataApi'
 import { getStatusButtonConfig } from '@/utils/statusButtonConfig'
 import { parseElectronicDocContentBody } from '@/utils/xmlParser'
 import { openLegacyRegisterAllVersions, isLegacyRegisterConfigured } from '@/utils/legacyRegisterUrl'
-import XMLComparisonModal from '../modals/XMLComparisonModal'
+import XMLComparisonModal, { type ComparisonResultShape } from '../modals/XMLComparisonModal'
 import type { CardData, StatusHistoryItem, ElectronicDocument } from '@/types/card'
 
 interface DangerousProductCardProps {
@@ -35,6 +35,10 @@ interface DangerousProductCardProps {
   onUpdate: (data: CardData) => void
   originalXML?: string | null
   dpaid?: string
+  /** Открыть карту сразу в режиме редактирования (например после редиректа по сохранению новой карты) */
+  initialEditMode?: boolean
+  /** После успешного сохранения новой карты (dpaid === '-') вызывается с новым DPAID для редиректа */
+  onSaveNewCard?: (newDpaid: number) => void
 }
 
 const DangerousProductCard: React.FC<DangerousProductCardProps> = ({
@@ -42,6 +46,8 @@ const DangerousProductCard: React.FC<DangerousProductCardProps> = ({
   onUpdate,
   originalXML: propOriginalXML,
   dpaid,
+  initialEditMode,
+  onSaveNewCard,
 }) => {
   // Отладочный вывод
   console.log('DangerousProductCard получил данные:', data)
@@ -53,44 +59,53 @@ const DangerousProductCard: React.FC<DangerousProductCardProps> = ({
   const [electronicDocList, setElectronicDocList] = useState<ElectronicDocument[]>([])
   const [electronicDocLoading, setElectronicDocLoading] = useState(false)
   const [accessModalVisible, setAccessModalVisible] = useState(false)
-  const [isEditMode, setIsEditMode] = useState(() => dpaid === '-')
+  const [isEditMode, setIsEditMode] = useState(() => dpaid === '-' || initialEditMode === true)
   const [editedData, setEditedData] = useState<CardData>(data)
   const [originalXML, setOriginalXML] = useState<string | null>(propOriginalXML || null)
-  const [comparisonResult, setComparisonResult] = useState<{
-    isIdentical: boolean
-    differences: string[]
-    warnings: string[]
-  } | null>(null)
+  const [comparisonResult, setComparisonResult] = useState<ComparisonResultShape | null>(null)
   const [comparisonModalVisible, setComparisonModalVisible] = useState(false)
+  const [saving, setSaving] = useState(false)
+  const [pendingSavePayload, setPendingSavePayload] = useState<{ xmlBody: string; metadata: DpaSaveMetadata } | null>(null)
   const [hasStatusRight, setHasStatusRight] = useState(true)
   const [hasSendRight, setHasSendRight] = useState(false)
+  const [hasSaveRight, setHasSaveRight] = useState(false)
   const [hasResolution, setHasResolution] = useState(false)
   const [currentUserDepKindCode, setCurrentUserDepKindCode] = useState<string | null>(null)
   const [dpaResolutionDepKindCodes, setDpaResolutionDepKindCodes] = useState<string[]>([])
+  /** После успешного создания — dpaid сохранённой карты; до редиректа все сохранения идут как update по нему */
+  const [savedDpaid, setSavedDpaid] = useState<number | null>(null)
+
+  const effectiveDpaid = (dpaid !== '-' && dpaid) ? dpaid : (savedDpaid != null ? String(savedDpaid) : '-')
+
+  useEffect(() => {
+    if (dpaid !== '-') setSavedDpaid(null)
+  }, [dpaid])
 
   // Права и уровень пользователя / резолюции по карте (исходящие)
   useEffect(() => {
-    if (!dpaid || !editedData.source) return
+    if (!effectiveDpaid || !editedData.source) return
     const src = (editedData.source ?? '').toLowerCase()
     if (src.includes('входящ')) {
-      checkAccessRight(dpaid, 'dangerousProductIn:status').then(setHasStatusRight)
+      checkAccessRight(effectiveDpaid, 'dangerousProductIn:status').then(setHasStatusRight)
       return
     }
     if (src.includes('исходящ')) {
       Promise.all([
-        checkAccessRight(dpaid, 'dangerousProductOut:status'),
-        checkAccessRight(dpaid, 'dangerousProductOut:send'),
-      ]).then(([status, send]) => {
+        checkAccessRight(effectiveDpaid, 'dangerousProductOut:status'),
+        checkAccessRight(effectiveDpaid, 'dangerousProductOut:send'),
+        checkAccessRight(effectiveDpaid, 'dangerousProductOut:edit'),
+      ]).then(([status, send, edit]) => {
         setHasStatusRight(status)
         setHasSendRight(send)
+        setHasSaveRight(edit)
       })
       fetchCurrentUser().then((u) => setCurrentUserDepKindCode(u.depKindCode ?? null))
-      fetchDpaResolutions(dpaid).then((list) => {
+      fetchDpaResolutions(effectiveDpaid).then((list) => {
         setDpaResolutionDepKindCodes(list.map((r) => r.depKindCode))
         setHasResolution(list.length > 0)
       })
     }
-  }, [dpaid, editedData.source])
+  }, [effectiveDpaid, editedData.source])
 
   const statusButton = getStatusButtonConfig(
     editedData.source,
@@ -207,9 +222,9 @@ const DangerousProductCard: React.FC<DangerousProductCardProps> = ({
   }
 
   const handleCompareXML = () => {
-    // Пытаемся получить исходный XML из состояния или localStorage
-    const xmlToCompare = originalXML || localStorage.getItem('originalXML')
-    
+    // Только свой «оригинал» из состояния вкладки, без localStorage — чтобы не подставлять документ из другой вкладки
+    const xmlToCompare = originalXML
+
     if (!xmlToCompare) {
       alert('Исходный XML не найден. Пожалуйста, загрузите XML файл сначала.')
       return
@@ -249,8 +264,84 @@ const DangerousProductCard: React.FC<DangerousProductCardProps> = ({
   }
 
   const handleSave = () => {
+    const xmlBody = exportCardDataToXML(editedData)
+    const metadata = buildSaveMetadataFromCardData(editedData)
+    const isNewCard = effectiveDpaid === '-'
+    const isOutgoingWithSave = (editedData.source ?? '').toLowerCase().includes('исходящ') && hasSaveRight
+
+    if (isNewCard) {
+      const { filled, unfilled } = getCardDataReview(editedData)
+      setComparisonResult({
+        isIdentical: true,
+        differences: [],
+        warnings: [],
+        isNewDocument: true,
+        filled,
+        unfilled,
+      })
+      setPendingSavePayload({ xmlBody, metadata })
+      setComparisonModalVisible(true)
+      return
+    }
+
+    // Существующая карта: сравнение только с оригиналом этой вкладки (без localStorage — разные вкладки = разные документы)
+    if (isOutgoingWithSave) {
+      setPendingSavePayload({ xmlBody, metadata })
+    } else {
+      setPendingSavePayload(null)
+    }
     onUpdate(editedData)
     setIsEditMode(false)
+    const xmlToCompare = originalXML
+    if (xmlToCompare) {
+      try {
+        const originalData = parseXMLToCardData(xmlToCompare)
+        const exportedData = parseXMLToCardData(xmlBody)
+        const result = compareCardData(originalData, exportedData)
+        setComparisonResult(result)
+        setComparisonModalVisible(true)
+      } catch {
+        setComparisonResult({ isIdentical: true, differences: [], warnings: [] })
+        setComparisonModalVisible(true)
+      }
+    }
+  }
+
+  const handleSaveToDbFromModal = async () => {
+    if (!pendingSavePayload) return
+    const xmlJustSaved = pendingSavePayload.xmlBody
+    setSaving(true)
+    const isNewCard = effectiveDpaid === '-'
+    try {
+      const res = await saveDpaCard({
+        isNew: isNewCard,
+        xmlBody: pendingSavePayload.xmlBody,
+        metadata: pendingSavePayload.metadata,
+        ...(isNewCard ? {} : { dpaid: Number(effectiveDpaid) }),
+      })
+      setPendingSavePayload(null)
+      setComparisonModalVisible(false)
+      onUpdate(editedData)
+      setIsEditMode(false)
+      setOriginalXML(xmlJustSaved)
+      if (isNewCard) {
+        setSavedDpaid(res.dpaid)
+        try {
+          sessionStorage.setItem('xsd_form_builder_last_saved_dpaid', String(res.dpaid))
+          sessionStorage.setItem('xsd_form_builder_save_happened', '1')
+        } catch (_) {}
+        message.success(`Карта сохранена в БД с DPAID ${res.dpaid}`)
+        onSaveNewCard?.(res.dpaid)
+      } else {
+        message.success('Карта обновлена в БД')
+      }
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : 'Ошибка сохранения в БД'
+      console.error('[DangerousProductCard] Save failed:', err)
+      message.error(msg)
+    } finally {
+      setSaving(false)
+    }
   }
 
   const handleCancel = () => {
@@ -343,7 +434,7 @@ const DangerousProductCard: React.FC<DangerousProductCardProps> = ({
             <NotificationTabEdit
               data={currentData.notification}
               onChange={(notification) => setEditedData((prev) => ({ ...prev, notification }))}
-              isNewCard={dpaid === '-'}
+              isNewCard={effectiveDpaid === '-'}
               cardCountry={currentData.country}
             />
           )
@@ -507,7 +598,9 @@ const DangerousProductCard: React.FC<DangerousProductCardProps> = ({
             {isEditMode && (
               <>
                 <Button onClick={handleCancel} size="middle">Отмена</Button>
-                <Button type="primary" onClick={handleSave} size="middle">Сохранить</Button>
+                {(effectiveDpaid === '-' || ((editedData.source ?? '').toLowerCase().includes('исходящ') && hasSaveRight)) && (
+                  <Button type="primary" onClick={handleSave} loading={saving} size="middle">Сохранить</Button>
+                )}
                 <Button icon={<DownloadOutlined />} onClick={handleExportXML} size="middle">Экспорт XML</Button>
                 <Button onClick={handleCompareXML} size="middle">Сравнить с исходным</Button>
               </>
@@ -519,11 +612,11 @@ const DangerousProductCard: React.FC<DangerousProductCardProps> = ({
         <CardHeader
           data={currentData}
           onStatusClick={() => {
-            if (dpaid) {
+            if (effectiveDpaid) {
               setStatusHistoryLoading(true)
               setStatusHistoryVisible(true)
               setStatusHistoryModalData([])
-              fetchDpaStatusHistory(dpaid)
+              fetchDpaStatusHistory(effectiveDpaid)
                 .then((items) => {
                   setStatusHistoryModalData(
                     items.map((i) => ({
@@ -561,8 +654,8 @@ const DangerousProductCard: React.FC<DangerousProductCardProps> = ({
           }}
           statusButton={statusButton}
           onStatusAction={(action) => {
-            if (!dpaid) return
-            changeDpaStatus(dpaid, action)
+            if (!effectiveDpaid) return
+            changeDpaStatus(effectiveDpaid, action)
               .then((res) => {
                 const newStatus = res.newStatus ?? currentData.status
                 onUpdate({ ...currentData, status: newStatus })
@@ -572,11 +665,11 @@ const DangerousProductCard: React.FC<DangerousProductCardProps> = ({
               .catch((e) => message.error(e instanceof Error ? e.message : 'Ошибка смены статуса'))
           }}
           onElectronicDocumentClick={() => {
-            if (dpaid) {
+            if (effectiveDpaid) {
               setElectronicDocLoading(true)
               setElectronicDocumentVisible(true)
               setElectronicDocList([])
-              fetchDpaElectronicDocs(dpaid)
+              fetchDpaElectronicDocs(effectiveDpaid)
                 .then((rawList) => {
                   const docs: ElectronicDocument[] = rawList.map((raw) => {
                     const resource = raw.contentBody ? parseElectronicDocContentBody(raw.contentBody) : { validityPeriod: { start: '', end: '' }, updateDateTime: '' }
@@ -629,7 +722,7 @@ const DangerousProductCard: React.FC<DangerousProductCardProps> = ({
               onUpdate({ ...currentData, accessList })
             }
           }}
-          dpaid={dpaid}
+          dpaid={effectiveDpaid}
           source={currentData.source}
           countryCode={currentData.country}
         />
@@ -638,7 +731,12 @@ const DangerousProductCard: React.FC<DangerousProductCardProps> = ({
           <XMLComparisonModal
             visible={comparisonModalVisible}
             comparisonResult={comparisonResult}
-            onClose={() => setComparisonModalVisible(false)}
+            onClose={() => {
+              setComparisonModalVisible(false)
+              setPendingSavePayload(null)
+            }}
+            onSaveToDb={pendingSavePayload ? handleSaveToDbFromModal : undefined}
+            saving={saving}
           />
         )}
       </Card>

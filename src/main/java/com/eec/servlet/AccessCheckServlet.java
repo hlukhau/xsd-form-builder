@@ -48,6 +48,9 @@ public class AccessCheckServlet extends HttpServlet {
                 case "dangerousProductOut:send":
                     allowed = AccessRightService.hasDangerousProductOutSend(id);
                     break;
+                case "dangerousProductOut:edit":
+                    allowed = AccessRightService.hasDangerousProductOutEdit(id);
+                    break;
                 default:
                     allowed = AccessRightService.hasAccess(id);
                     break;

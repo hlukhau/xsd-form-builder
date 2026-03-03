@@ -38,6 +38,15 @@ public class XsdFormBuilderServlet extends HttpServlet {
     protected void doPost(HttpServletRequest request, HttpServletResponse response)
             throws ServletException, IOException {
 
+        String pathInfo = request.getPathInfo();
+        if (pathInfo != null && pathInfo.equals("/api/dpa/save")) {
+            javax.servlet.RequestDispatcher rd = getServletContext().getNamedDispatcher("DpaSaveServlet");
+            if (rd != null) {
+                rd.forward(request, response);
+                return;
+            }
+        }
+
         response.setCharacterEncoding("UTF-8");
         response.setContentType("application/json;charset=UTF-8");
         response.setHeader("Access-Control-Allow-Origin", "*");

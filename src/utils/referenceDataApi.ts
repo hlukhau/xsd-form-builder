@@ -2,6 +2,8 @@
  * API для работы со справочниками
  */
 
+import type { CardData } from '@/types/card'
+
 const BASE_URL = import.meta.env.BASE_URL || '/';
 
 export interface Country {
@@ -67,6 +69,123 @@ export interface SanitaryMeasureObjKindOption {
 export interface SanitaryMeasureOption {
   code: string
   name: string
+}
+
+/** Метаданные для сохранения новой карты (POST /api/dpa/save) */
+export interface DpaSaveMetadata {
+  incidentId?: string | null
+  countryCode?: string | null
+  docCreationDate?: string | null
+  incidentAlertKindCode?: string | null
+  commodityCode?: string | null
+  sanitaryProdTypeName?: string | null
+  sanitaryProdName?: string | null
+  alertCountryId?: number | null
+  manufCountryId?: number | null
+  manufCountryCode?: string | null
+  manufBusEntName?: string | null
+  manufBusEntBriefName?: string | null
+  edocCode?: string | null
+  edocVersion?: string | null
+}
+
+/** Ответ успешного сохранения новой карты */
+export interface DpaSaveResponse {
+  success: boolean
+  dpaid: number
+}
+
+/**
+ * Создать или обновить карту в БД.
+ * Создание: isNew true, xmlBody, metadata (dpaid в URL не передаётся).
+ * Обновление: isNew false, dpaid из URL, xmlBody, metadata.
+ */
+export async function saveDpaCard(payload: {
+  isNew: boolean
+  xmlBody: string
+  metadata: DpaSaveMetadata
+  /** Для обновления — DPAID из URL (если не "-") */
+  dpaid?: number
+}): Promise<DpaSaveResponse> {
+  const body = payload.dpaid != null && !payload.isNew
+    ? { isNew: false, dpaid: payload.dpaid, xmlBody: payload.xmlBody, metadata: payload.metadata }
+    : { isNew: true, xmlBody: payload.xmlBody, metadata: payload.metadata }
+  const url = `${BASE_URL}api/dpa/save`
+  const response = await fetch(url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  })
+  const text = await response.text()
+  if (!response.ok) {
+    let errMsg = response.statusText
+    try {
+      const json = JSON.parse(text)
+      if (json.error) errMsg = json.error
+    } catch {
+      if (text) errMsg = text.slice(0, 300)
+    }
+    console.error('[saveDpaCard]', response.status, url, errMsg, text.slice(0, 200))
+    throw new Error(errMsg)
+  }
+  return JSON.parse(text) as DpaSaveResponse
+}
+
+/**
+ * Собрать метаданные для POST /api/dpa/save из данных карты.
+ */
+export function buildSaveMetadataFromCardData(data: CardData): DpaSaveMetadata {
+  const notification = data.notification
+  const product = data.product
+  const countryCode = data.country || notification?.country || undefined
+  const incidentId = data.registrationNumber || notification?.registrationNumber || undefined
+  const docCreationDate = notification?.formationDate || undefined
+  const typeRaw = notification?.type
+  const incidentAlertKindCode = typeof typeRaw === 'string' && /^\d+$/.test(typeRaw) ? typeRaw : undefined
+  const commodityCode = product?.productDetails?.commodityCode ?? undefined
+  const sanitaryProdTypeName = product?.typeName ?? undefined
+  const sanitaryProdName = product?.productDetails?.productName ?? undefined
+  const manufacturer = product?.manufacturer
+  const manufCountryCode = manufacturer?.country || undefined
+  const manufBusEntName = manufacturer?.businessEntityName ?? undefined
+  const manufBusEntBriefName = manufacturer?.shortName ?? undefined
+  const edocCode = data.electronicDocument?.documentCode ?? undefined
+  const edocVersion = '1.0.0'
+  return {
+    incidentId: incidentId || null,
+    countryCode: countryCode || null,
+    docCreationDate: docCreationDate || null,
+    incidentAlertKindCode: incidentAlertKindCode || null,
+    commodityCode: commodityCode || null,
+    sanitaryProdTypeName: sanitaryProdTypeName || null,
+    sanitaryProdName: sanitaryProdName || null,
+    manufCountryCode: manufCountryCode || null,
+    manufBusEntName: manufBusEntName || null,
+    manufBusEntBriefName: manufBusEntBriefName || null,
+    edocCode: edocCode || null,
+    edocVersion: edocVersion || null,
+  }
+}
+
+/**
+ * Получить следующий уникальный регистрационный номер для страны (при создании карты).
+ * GET /api/dpa/next-registration-number?country=BY → { registrationNumber: "BY-DP00002-26" }
+ */
+export async function fetchNextRegistrationNumber(countryCode: string): Promise<{ registrationNumber: string }> {
+  const country = (countryCode || 'BY').trim().toUpperCase().slice(0, 2)
+  const response = await fetch(`${BASE_URL}api/dpa/next-registration-number?country=${encodeURIComponent(country)}`)
+  if (!response.ok) {
+    const text = await response.text()
+    let errMsg = response.statusText
+    try {
+      const json = JSON.parse(text)
+      if (json.error) errMsg = json.error
+    } catch {
+      if (text) errMsg = text.slice(0, 200)
+    }
+    throw new Error(errMsg)
+  }
+  return response.json()
 }
 
 /**

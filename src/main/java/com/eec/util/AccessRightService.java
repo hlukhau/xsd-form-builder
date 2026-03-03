@@ -90,4 +90,12 @@ public final class AccessRightService {
         // TODO: проверка по внутренней карте прав
         return true;
     }
+
+    /**
+     * Редактирование / сохранение исходящих сведений — dangerousProductOut:edit.
+     */
+    public static boolean hasDangerousProductOutEdit(String id) {
+        // TODO: проверка по внутренней карте прав
+        return true;
+    }
 }
