@@ -9,6 +9,8 @@ import { useSanitaryMeasureOptions } from '@/hooks/useSanitaryMeasureOptions'
 import { useLanguageOptions } from '@/hooks/useLanguageOptions'
 import { useMediaTypeOptions } from '@/hooks/useMediaTypeOptions'
 import CountrySelect from '@/components/common/CountrySelect'
+import { labelWithHelp } from '@/components/common/FieldHelp'
+import { FIELD_HELP } from '@/constants/fieldDescriptions'
 import type { CountryOption } from '@/utils/referenceDataApi'
 import type {
   MeasuresData,
@@ -382,7 +384,7 @@ const MeasuresTabEdit: React.FC<MeasuresTabEditProps> = ({ data, onChange }) => 
 
   const columns = [
     {
-      title: 'Язык',
+      title: labelWithHelp('Код языка', FIELD_HELP.languageCode),
       key: 'language',
       width: 100,
       render: (_: any, record: SanitaryMeasure, index: number) => (
@@ -397,7 +399,7 @@ const MeasuresTabEdit: React.FC<MeasuresTabEditProps> = ({ data, onChange }) => 
       ),
     },
     {
-      title: 'Наименование меры',
+      title: labelWithHelp('Код / Наименование принятой меры', FIELD_HELP.measureName),
       key: 'measureName',
       width: 300,
       render: (_: any, record: SanitaryMeasure, index: number) => {
@@ -476,7 +478,7 @@ const MeasuresTabEdit: React.FC<MeasuresTabEditProps> = ({ data, onChange }) => 
       },
     },
     {
-      title: 'Вид объекта действия',
+      title: labelWithHelp('Вид объекта действия меры', FIELD_HELP.measureAffectedObjectKind),
       key: 'affectedObject',
       width: 200,
       render: (_: any, record: SanitaryMeasure, index: number) => (
@@ -495,7 +497,7 @@ const MeasuresTabEdit: React.FC<MeasuresTabEditProps> = ({ data, onChange }) => 
       ),
     },
     {
-      title: 'Начальная дата',
+      title: labelWithHelp('Начальная дата', FIELD_HELP.measureStartDate),
       key: 'startDate',
       width: 120,
       render: (_: any, record: SanitaryMeasure, index: number) => (
@@ -507,7 +509,7 @@ const MeasuresTabEdit: React.FC<MeasuresTabEditProps> = ({ data, onChange }) => 
       ),
     },
     {
-      title: 'Конечная дата',
+      title: labelWithHelp('Конечная дата', FIELD_HELP.measureEndDate),
       key: 'endDate',
       width: 120,
       render: (_: any, record: SanitaryMeasure, index: number) => (
@@ -519,7 +521,7 @@ const MeasuresTabEdit: React.FC<MeasuresTabEditProps> = ({ data, onChange }) => 
       ),
     },
     {
-      title: 'Обоснование',
+      title: labelWithHelp('Обоснование меры', FIELD_HELP.measureJustification),
       key: 'justification',
       width: 200,
       render: (_: any, record: SanitaryMeasure, index: number) => (
@@ -601,7 +603,7 @@ const MeasuresTabEdit: React.FC<MeasuresTabEditProps> = ({ data, onChange }) => 
         <div style={{ marginTop: '16px', padding: '16px', border: '1px solid #d9d9d9', borderRadius: '4px' }}>
           <h4>Детализация меры</h4>
           <Form layout="vertical">
-            <Form.Item label="Обоснование">
+            <Form.Item label={labelWithHelp('Обоснование', FIELD_HELP.measureJustification)}>
               <Input.TextArea
                 rows={3}
                 value={selectedMeasure.measureJustificationText}
@@ -622,7 +624,7 @@ const MeasuresTabEdit: React.FC<MeasuresTabEditProps> = ({ data, onChange }) => 
             items={[
               {
                 key: 'measureDoc',
-                label: 'Документ, регламентирующий введение (отмену) меры',
+                label: labelWithHelp('Документ, регламентирующий введение (отмену) меры', FIELD_HELP.measureDocDetails),
                 children: (
                   <MeasureDocDetailsEdit
                     doc={selectedMeasure.measureDocDetails}
@@ -633,7 +635,7 @@ const MeasuresTabEdit: React.FC<MeasuresTabEditProps> = ({ data, onChange }) => 
               },
               {
                 key: 'initialMeasureDoc',
-                label: 'Документ, регламентирующий введение исходной меры',
+                label: labelWithHelp('Документ, регламентирующий введение исходной меры', FIELD_HELP.initialMeasureDocDetails),
                 children: (
                   <MeasureDocDetailsEdit
                     doc={selectedMeasure.initialMeasureDocDetails}
@@ -644,7 +646,7 @@ const MeasuresTabEdit: React.FC<MeasuresTabEditProps> = ({ data, onChange }) => 
               },
               {
                 key: 'basis',
-                label: 'НПА-основание для введения меры',
+                label: labelWithHelp('Основание для введения меры', FIELD_HELP.measureInitiationBasis),
                 children: (
                   <div>
                     <Table
@@ -723,14 +725,14 @@ const MeasuresTabEdit: React.FC<MeasuresTabEditProps> = ({ data, onChange }) => 
               },
               {
                 key: 'implementation',
-                label: 'Мероприятия, обеспечивающие соблюдение меры',
+                label: labelWithHelp('Сведения о мероприятии, обеспечивающем соблюдение меры', FIELD_HELP.measureImplementation),
                 children: (
                   <div>
                     <Table
                       dataSource={selectedMeasure.measureImplementationDetails || []}
                       columns={[
                         {
-                          title: 'Страна',
+                          title: labelWithHelp('Код страны', FIELD_HELP.executorCountry),
                           key: 'country',
                           render: (_: any, record: MeasureImplementationItem, implIndex: number) => (
                             <Input
@@ -740,7 +742,7 @@ const MeasuresTabEdit: React.FC<MeasuresTabEditProps> = ({ data, onChange }) => 
                           ),
                         },
                         {
-                          title: 'Начальная дата',
+                          title: labelWithHelp('Начальная дата', FIELD_HELP.measureStartDate),
                           key: 'startDate',
                           render: (_: any, record: MeasureImplementationItem, implIndex: number) => (
                             <DatePicker
@@ -751,7 +753,7 @@ const MeasuresTabEdit: React.FC<MeasuresTabEditProps> = ({ data, onChange }) => 
                           ),
                         },
                         {
-                          title: 'Конечная дата',
+                          title: labelWithHelp('Конечная дата', FIELD_HELP.measureEndDate),
                           key: 'endDate',
                           render: (_: any, record: MeasureImplementationItem, implIndex: number) => (
                             <DatePicker
@@ -773,7 +775,7 @@ const MeasuresTabEdit: React.FC<MeasuresTabEditProps> = ({ data, onChange }) => 
                           ),
                         },
                         {
-                          title: 'Вид объекта действия',
+                          title: labelWithHelp('Вид объекта действия', FIELD_HELP.measureAffectedObjectKind),
                           key: 'measureAffectedObjectKindCode',
                           width: 200,
                           render: (_: any, record: MeasureImplementationItem, implIndex: number) => {
@@ -870,7 +872,7 @@ const MeasureImplementationDetailsEdit: React.FC<{
     <div style={{ marginTop: '16px', padding: '12px', border: '1px solid #d9d9d9', borderRadius: '4px' }}>
       <h5>Детализация мероприятия</h5>
       <Form layout="vertical" style={{ marginBottom: '16px' }}>
-        <Form.Item label="Страна">
+        <Form.Item label={labelWithHelp('Код страны', FIELD_HELP.executorCountry)}>
           <CountrySelect
             value={item.country}
             onChange={(value) => onChange('country', value || '')}
@@ -879,21 +881,21 @@ const MeasureImplementationDetailsEdit: React.FC<{
             normalizeCountryCode={normalizeCountryCode}
           />
         </Form.Item>
-        <Form.Item label="Начальная дата">
+        <Form.Item label={labelWithHelp('Начальная дата', FIELD_HELP.measureStartDate)}>
           <DatePicker
             value={item.startDate ? dayjs(item.startDate) : null}
             onChange={(date) => onChange('startDate', date ? date.format('YYYY-MM-DD') : undefined)}
             style={{ width: '100%' }}
           />
         </Form.Item>
-        <Form.Item label="Конечная дата">
+        <Form.Item label={labelWithHelp('Конечная дата', FIELD_HELP.measureEndDate)}>
           <DatePicker
             value={item.endDate ? dayjs(item.endDate) : null}
             onChange={(date) => onChange('endDate', date ? date.format('YYYY-MM-DD') : undefined)}
             style={{ width: '100%' }}
           />
         </Form.Item>
-        <Form.Item label="Вид объекта действия">
+        <Form.Item label={labelWithHelp('Вид объекта действия', FIELD_HELP.measureAffectedObjectKind)}>
           <Select
             showSearch
             placeholder="Выберите вид объекта действия"
@@ -1024,35 +1026,35 @@ const MeasureImplementationDetailsEdit: React.FC<{
           },
           {
             key: 'document',
-            label: 'Документ, устанавливающий мероприятие',
+            label: labelWithHelp('Документ, устанавливающий мероприятие', FIELD_HELP.documentEstablishingMeasure),
             children: item.documentDetails ? (
               <Form layout="vertical">
-                <Form.Item label="Вид">
+                <Form.Item label={labelWithHelp('Код вида документа', FIELD_HELP.implDocKindCode)}>
                   <Input
                     value={item.documentDetails.docKindName}
                     onChange={(e) => onChange('documentDetails', { ...item.documentDetails, docKindName: e.target.value })}
                   />
                 </Form.Item>
-                <Form.Item label="Наименование">
+                <Form.Item label={labelWithHelp('Наименование', FIELD_HELP.implDocName)}>
                   <Input
                     value={item.documentDetails.docName}
                     onChange={(e) => onChange('documentDetails', { ...item.documentDetails, docName: e.target.value })}
                   />
                 </Form.Item>
-                <Form.Item label="Номер">
+                <Form.Item label={labelWithHelp('Номер', FIELD_HELP.implDocId)}>
                   <Input
                     value={item.documentDetails.docId}
                     onChange={(e) => onChange('documentDetails', { ...item.documentDetails, docId: e.target.value })}
                   />
                 </Form.Item>
-                <Form.Item label="Дата документа">
+                <Form.Item label={labelWithHelp('Дата', FIELD_HELP.implDocCreationDate)}>
                   <DatePicker
                     value={item.documentDetails.docCreationDate ? dayjs(item.documentDetails.docCreationDate) : null}
                     onChange={(date) => onChange('documentDetails', { ...item.documentDetails, docCreationDate: date ? date.format('YYYY-MM-DD') : undefined })}
                     style={{ width: '100%' }}
                   />
                 </Form.Item>
-                <Form.Item label="Срок действия. Начало">
+                <Form.Item label={labelWithHelp('Дата начала срока действия', FIELD_HELP.implDocStartDate)}>
                   <DatePicker
                     value={item.documentDetails.docStartDate ? dayjs(item.documentDetails.docStartDate) : null}
                     onChange={(date) => onChange('documentDetails', { ...item.documentDetails, docStartDate: date ? date.format('YYYY-MM-DD') : undefined })}
@@ -1138,7 +1140,7 @@ const SubjectPersonEdit: React.FC<{
 }> = ({ subject, onChange, countryOptions, loadingCountries, normalizeCountryCode }) => {
   return (
     <Form layout="vertical">
-      <Form.Item label="Страна">
+      <Form.Item label={labelWithHelp('Страна', FIELD_HELP.executorCountry)}>
         <Input
           value={subject.country}
           onChange={(e) => onChange({ ...subject, country: e.target.value })}
@@ -1152,9 +1154,9 @@ const SubjectPersonEdit: React.FC<{
       </Form.Item>
       {subject.identityDoc && (
         <div style={{ marginTop: '16px', padding: '12px', border: '1px solid #d9d9d9', borderRadius: '4px' }}>
-          <h5>Удостоверение личности</h5>
+          <h5>{labelWithHelp('Удостоверение личности', FIELD_HELP.identityDoc)}</h5>
           <Form layout="vertical">
-            <Form.Item label="Страна">
+            <Form.Item label={labelWithHelp('Страна', FIELD_HELP.executorCountry)}>
               <CountrySelect
                 value={subject.identityDoc.country}
                 onChange={(value) => onChange({ ...subject, identityDoc: { ...subject.identityDoc, country: value || '' } })}
@@ -1175,7 +1177,7 @@ const SubjectPersonEdit: React.FC<{
                 onChange={(e) => onChange({ ...subject, identityDoc: { ...subject.identityDoc, docSeriesId: e.target.value } })}
               />
             </Form.Item>
-            <Form.Item label="Номер">
+            <Form.Item label={labelWithHelp('Номер', FIELD_HELP.implDocId)}>
               <Input
                 value={subject.identityDoc.docId}
                 onChange={(e) => onChange({ ...subject, identityDoc: { ...subject.identityDoc, docId: e.target.value } })}

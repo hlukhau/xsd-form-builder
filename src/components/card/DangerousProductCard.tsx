@@ -300,6 +300,7 @@ const DangerousProductCard: React.FC<DangerousProductCardProps> = ({
         isIdentical: true,
         differences: [],
         warnings: [],
+        added: [],
         isNewDocument: true,
         filled,
         unfilled,
@@ -326,7 +327,7 @@ const DangerousProductCard: React.FC<DangerousProductCardProps> = ({
         setComparisonResult(result)
         setComparisonModalVisible(true)
       } catch {
-        setComparisonResult({ isIdentical: true, differences: [], warnings: [] })
+        setComparisonResult({ isIdentical: true, differences: [], warnings: [], added: [] })
         setComparisonModalVisible(true)
       }
     }

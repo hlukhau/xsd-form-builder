@@ -3,6 +3,8 @@ import { Form, Input, Button, Table, Space, Descriptions, Select } from 'antd'
 import { PlusOutlined, DeleteOutlined } from '@ant-design/icons'
 import { format } from 'date-fns'
 import { ru } from 'date-fns/locale'
+import { labelWithHelp } from '@/components/common/FieldHelp'
+import { FIELD_HELP } from '@/constants/fieldDescriptions'
 import type { ViolationsData, ViolatedRequirement, ViolatedIndicator, DocStructuralElement } from '@/types/card'
 import { useTechRegulOptions } from '@/hooks/useTechRegulOptions'
 import { useMeasurementUnitOptions } from '@/hooks/useMeasurementUnitOptions'
@@ -135,7 +137,7 @@ const ViolationsTabEdit: React.FC<ViolationsTabEditProps> = ({ data, onChange })
 
   const requirementsColumns = [
     {
-      title: 'Номер техрегламента',
+      title: labelWithHelp('Номер техрегламента', FIELD_HELP.technicalRegulationId),
       key: 'technicalRegulationId',
       width: 120,
       render: (_: any, record: ViolatedRequirement, index: number) => (
@@ -147,7 +149,7 @@ const ViolationsTabEdit: React.FC<ViolationsTabEditProps> = ({ data, onChange })
       ),
     },
     {
-      title: 'Наименование техрегламента',
+      title: labelWithHelp('Наименование техрегламента', FIELD_HELP.technicalRegulationName),
       key: 'technicalRegulationName',
       width: 300,
       render: (_: any, record: ViolatedRequirement, index: number) => (
@@ -183,7 +185,7 @@ const ViolationsTabEdit: React.FC<ViolationsTabEditProps> = ({ data, onChange })
       ),
     },
     {
-      title: 'Регистрационный номер',
+      title: labelWithHelp('Регистрационный номер', FIELD_HELP.registrationNumber),
       key: 'registrationNumber',
       width: 120,
       render: (_: any, record: ViolatedRequirement, index: number) => (
@@ -237,7 +239,7 @@ const ViolationsTabEdit: React.FC<ViolationsTabEditProps> = ({ data, onChange })
       ),
     },
     {
-      title: 'Наименование показателя',
+      title: labelWithHelp('Наименование показателя', FIELD_HELP.indicatorName),
       key: 'indicatorName',
       width: 200,
       render: (_: any, record: ViolatedIndicator, index: number) => (
@@ -248,7 +250,7 @@ const ViolationsTabEdit: React.FC<ViolationsTabEditProps> = ({ data, onChange })
       ),
     },
     {
-      title: 'Значение показателя',
+      title: labelWithHelp('Значение показателя', FIELD_HELP.indicatorValue),
       key: 'indicatorValue',
       width: 150,
       render: (_: any, record: ViolatedIndicator, index: number) => (
@@ -279,7 +281,7 @@ const ViolationsTabEdit: React.FC<ViolationsTabEditProps> = ({ data, onChange })
       ),
     },
     {
-      title: 'Примечание',
+      title: labelWithHelp('Примечание', FIELD_HELP.indicatorNote),
       key: 'note',
       width: 300,
       render: (_: any, record: ViolatedIndicator, index: number) => (
@@ -310,7 +312,7 @@ const ViolationsTabEdit: React.FC<ViolationsTabEditProps> = ({ data, onChange })
   return (
     <div>
       {/* Общая характеристика нарушений */}
-      <Form.Item label="Описание нарушения">
+      <Form.Item label={labelWithHelp('Описание нарушения', FIELD_HELP.violationDescription)}>
         <Input.TextArea
           rows={3}
           value={data.generalDescription}

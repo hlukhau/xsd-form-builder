@@ -1,6 +1,8 @@
 import { useState, useEffect } from 'react'
 import { Collapse, Form, Input, Button, Space, Select } from 'antd'
 import { PlusOutlined, DeleteOutlined } from '@ant-design/icons'
+import { labelWithHelp } from '@/components/common/FieldHelp'
+import { FIELD_HELP } from '@/constants/fieldDescriptions'
 import type { SupplyChainPartyDetails, AddressDetails, ContactDetails } from '@/types/card'
 import { useCountryOptions } from '@/hooks/useCountryOptions'
 import CountrySelect from '@/components/common/CountrySelect'
@@ -46,10 +48,8 @@ const ManufacturerDetailsEdit: React.FC<ManufacturerDetailsEditProps> = ({
   const effectiveKindCode = fixedSupplyChainPartyKindCode ?? data.supplyChainPartyKindCode
   useEffect(() => {
     if (fixedSupplyChainPartyKindCode && data.supplyChainPartyKindCode !== fixedSupplyChainPartyKindCode) {
-      onChange({
-        ...data,
-        supplyChainPartyKindCode: fixedSupplyChainPartyKindCode,
-      })
+      // Передаём только код вида, чтобы не перезаписать уже введённые поля (наименование и т.д.)
+      onChange({ supplyChainPartyKindCode: fixedSupplyChainPartyKindCode })
     }
   }, [fixedSupplyChainPartyKindCode, data.supplyChainPartyKindCode])
 
@@ -77,9 +77,9 @@ const ManufacturerDetailsEdit: React.FC<ManufacturerDetailsEditProps> = ({
     })
   }
 
-  const handleValuesChange = (_: any, allValues: any) => {
-    // Игнорируем изменения в supplyChainPartyKindCode (обрабатывается отдельно)
-    if (allValues.supplyChainPartyKindCode !== undefined) {
+  const handleValuesChange = (changedValues: any, allValues: any) => {
+    // Изменение вида участника обрабатывается отдельно (handleSupplyChainPartyKindSelect)
+    if (changedValues?.supplyChainPartyKindCode !== undefined) {
       return
     }
     onChange({
@@ -156,7 +156,7 @@ const ManufacturerDetailsEdit: React.FC<ManufacturerDetailsEditProps> = ({
                   />
                 </Form.Item>
                 <Form.Item 
-                  label="Вид участника цепи поставки" 
+                  label={labelWithHelp('Вид', FIELD_HELP.supplyChainPartyKind)}
                   name="supplyChainPartyKindCode"
                   validateStatus={kindCodeError ? 'error' : ''}
                   help={kindCodeError ? 'Код не найден в справочнике' : ''}

@@ -8,6 +8,8 @@ import { useCountryOptions } from '@/hooks/useCountryOptions'
 import { useIncidentAlertKindOptions } from '@/hooks/useIncidentAlertKindOptions'
 import { useAuthorityOptions } from '@/hooks/useAuthorityOptions'
 import CountrySelect from '@/components/common/CountrySelect'
+import { labelWithHelp } from '@/components/common/FieldHelp'
+import { FIELD_HELP } from '@/constants/fieldDescriptions'
 
 export interface NotificationTabEditProps {
   data: Notification
@@ -175,7 +177,7 @@ const NotificationTabEdit: React.FC<NotificationTabEditProps> = ({ data, onChang
             onChange={handleAuthorizedBodyCountryChange}
           />
         </Form.Item>
-        <Form.Item label="Уполномоченный орган">
+        <Form.Item label={labelWithHelp('Уполномоченный орган', FIELD_HELP.authority)}>
           <Select
             showSearch
             placeholder={authorizedBodyCountryCode 

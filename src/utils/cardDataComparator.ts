@@ -25,9 +25,11 @@ export function compareCardData(original: CardData, exported: CardData): {
   isIdentical: boolean
   differences: string[]
   warnings: string[]
+  added: string[]
 } {
   const differences: string[] = []
   const warnings: string[] = []
+  const added: string[] = []
 
   // Функция для глубокого сравнения значений
   const compareValue = (path: string, originalVal: any, exportedVal: any) => {
@@ -43,6 +45,12 @@ export function compareCardData(original: CardData, exported: CardData): {
     // Обработка null/undefined
     if (originalVal == null && exportedVal == null) return true
     if (originalVal == null) {
+      // В экспорте есть значение — пользователь добавил поле; показываем как отличие, не как предупреждение
+      if (exportedVal != null && (typeof exportedVal !== 'string' || String(exportedVal).trim() !== '')) {
+        const displayVal = typeof exportedVal === 'string' ? exportedVal : JSON.stringify(exportedVal)
+        added.push(`${path} = "${displayVal}"`)
+        return false
+      }
       warnings.push(`Отсутствует значение в исходных данных: ${path}`)
       return false
     }
@@ -122,22 +130,22 @@ export function compareCardData(original: CardData, exported: CardData): {
       const originalKeys = new Set(Object.keys(originalVal))
       const exportedKeys = new Set(Object.keys(exportedVal))
       
-      // Проверяем отсутствующие ключи
+      // Проверяем отсутствующие ключи: только предупреждаем, если в исходных было поле, а в экспорте его нет (потеря данных)
       for (const key of originalKeys) {
         if (!exportedKeys.has(key)) {
           warnings.push(`Отсутствует поле в экспортированных данных: ${path}.${key}`)
         }
       }
-      for (const key of exportedKeys) {
-        if (!originalKeys.has(key)) {
-          warnings.push(`Отсутствует поле в исходных данных: ${path}.${key}`)
-        }
-      }
-      
       // Сравниваем общие ключи
       for (const key of originalKeys) {
         if (exportedKeys.has(key)) {
           compareValue(`${path}.${key}`, originalVal[key], exportedVal[key])
+        }
+      }
+      // Ключи только в экспорте — пользователь добавил поля; сравниваем с undefined, чтобы попасть в "Добавлено значение"
+      for (const key of exportedKeys) {
+        if (!originalKeys.has(key)) {
+          compareValue(`${path}.${key}`, undefined, exportedVal[key])
         }
       }
       return true
@@ -189,9 +197,10 @@ export function compareCardData(original: CardData, exported: CardData): {
   compareValue('accessList', original.accessList, exported.accessList)
 
   return {
-    isIdentical: differences.length === 0 && warnings.length === 0,
+    isIdentical: differences.length === 0 && warnings.length === 0 && added.length === 0,
     differences: [...new Set(differences)],
     warnings: [...new Set(warnings)],
+    added: [...new Set(added)],
   }
 }
 

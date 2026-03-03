@@ -2,6 +2,8 @@ import { useState, useEffect } from 'react'
 import { Form, Input, Button, Space, Select } from 'antd'
 import { PlusOutlined, DeleteOutlined } from '@ant-design/icons'
 import ManufacturerDetailsEdit from '../common/ManufacturerDetailsEdit'
+import { labelWithHelp } from '@/components/common/FieldHelp'
+import { FIELD_HELP } from '@/constants/fieldDescriptions'
 import type { ProductData, TechnicalDocument } from '@/types/card'
 import { useSanitaryProdTypeOptions } from '@/hooks/useSanitaryProdTypeOptions'
 import { checkSanitaryProdTypeExists } from '@/utils/referenceDataApi'
@@ -151,7 +153,7 @@ const ProductTabEdit: React.FC<ProductTabEditProps> = ({ data, onChange }) => {
       onValuesChange={handleValuesChange}
     >
       <Form.Item 
-        label="Вид продукции" 
+        label={labelWithHelp('Код вида продукции', FIELD_HELP.productTypeCode)}
         name="typeCode"
         validateStatus={typeCodeError ? 'error' : ''}
         help={typeCodeError ? 'Код не найден в справочнике' : ''}
@@ -170,7 +172,7 @@ const ProductTabEdit: React.FC<ProductTabEditProps> = ({ data, onChange }) => {
           status={typeCodeError ? 'error' : undefined}
         />
       </Form.Item>
-      <Form.Item label="Наименование вида">
+      <Form.Item label={labelWithHelp('Наименование вида продукции', FIELD_HELP.productTypeName)}>
         <Input readOnly value={data.typeName || ''} />
       </Form.Item>
       <Form.Item label="Идентификатор" name="productId">

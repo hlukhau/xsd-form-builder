@@ -3,6 +3,8 @@ import { Form, Input, Button, Table, Space, DatePicker, Collapse, Select, Row, C
 import { PlusOutlined, DeleteOutlined } from '@ant-design/icons'
 import dayjs from 'dayjs'
 import ManufacturerDetailsEdit from '../common/ManufacturerDetailsEdit'
+import { labelWithHelp } from '@/components/common/FieldHelp'
+import { FIELD_HELP } from '@/constants/fieldDescriptions'
 import type { TSDData, ProductBatchDetails, ShippingDocument, ProductDetails, SupplyChainPartyDetails, MeasureWithUnit } from '@/types/card'
 import { useMeasurementUnitOptions } from '@/hooks/useMeasurementUnitOptions'
 import { useShipDocKindOptions } from '@/hooks/useShipDocKindOptions'
@@ -224,7 +226,7 @@ const TSDTabEdit: React.FC<TSDTabEditProps> = ({ data, onChange }) => {
 
   const documentColumns = [
     {
-      title: 'Вид',
+      title: labelWithHelp('Код вида документа', FIELD_HELP.tsdDocKindCode),
       key: 'docKindCode',
       width: 120,
       render: (_: any, record: ShippingDocument, index: number) => (
@@ -246,7 +248,7 @@ const TSDTabEdit: React.FC<TSDTabEditProps> = ({ data, onChange }) => {
       ),
     },
     {
-      title: 'Наименование',
+      title: labelWithHelp('Наименование документа', FIELD_HELP.tsdDocName),
       key: 'docName',
       width: 200,
       render: (_: any, record: ShippingDocument, index: number) => (
@@ -259,7 +261,7 @@ const TSDTabEdit: React.FC<TSDTabEditProps> = ({ data, onChange }) => {
       ),
     },
     {
-      title: 'Номер',
+      title: labelWithHelp('Номер', FIELD_HELP.tsdDocId),
       key: 'docId',
       width: 120,
       render: (_: any, record: ShippingDocument, index: number) => (
@@ -272,7 +274,7 @@ const TSDTabEdit: React.FC<TSDTabEditProps> = ({ data, onChange }) => {
       ),
     },
     {
-      title: 'Дата',
+      title: labelWithHelp('Дата', FIELD_HELP.tsdDocCreationDate),
       key: 'docCreationDate',
       width: 120,
       render: (_: any, record: ShippingDocument, index: number) => (
@@ -329,27 +331,27 @@ const TSDTabEdit: React.FC<TSDTabEditProps> = ({ data, onChange }) => {
   return (
     <div>
       <Form layout="vertical">
-        <Form.Item label="Номер серии товара">
+        <Form.Item label={labelWithHelp('Номер серии товара', FIELD_HELP.batchId)}>
           <Input
             value={batch.batchId}
             onChange={(e) => handleBatchChange('batchId', e.target.value)}
           />
         </Form.Item>
-        <Form.Item label="Дата производства">
+        <Form.Item label={labelWithHelp('Дата производства', FIELD_HELP.manufactureDate)}>
           <DatePicker
             value={batch.manufactureDate ? dayjs(batch.manufactureDate) : null}
             onChange={(date) => handleBatchChange('manufactureDate', date ? date.format('YYYY-MM-DD') : '')}
             style={{ width: '100%' }}
           />
         </Form.Item>
-        <Form.Item label="Срок годности">
+        <Form.Item label={labelWithHelp('Срок годности', FIELD_HELP.productShelfLifeEndDate)}>
           <DatePicker
             value={batch.productShelfLifeEndDate ? dayjs(batch.productShelfLifeEndDate) : null}
             onChange={(date) => handleBatchChange('productShelfLifeEndDate', date ? date.format('YYYY-MM-DD') : '')}
             style={{ width: '100%' }}
           />
         </Form.Item>
-        <Form.Item label="Примечание">
+        <Form.Item label={labelWithHelp('Примечание', FIELD_HELP.note)}>
           <Input.TextArea
             rows={2}
             value={batch.note}
@@ -357,7 +359,7 @@ const TSDTabEdit: React.FC<TSDTabEditProps> = ({ data, onChange }) => {
           />
         </Form.Item>
         
-        <Form.Item label="Количество товара">
+        <Form.Item label={labelWithHelp('Количество товара', FIELD_HELP.commodityMeasure)}>
           <Row gutter={8}>
             <Col span={16}>
               <Input
@@ -383,14 +385,14 @@ const TSDTabEdit: React.FC<TSDTabEditProps> = ({ data, onChange }) => {
           </Row>
         </Form.Item>
         
-        <Form.Item label="Номер товарной партии">
+        <Form.Item label={labelWithHelp('Номер товарной партии', FIELD_HELP.consignmentId)}>
           <Input
             value={batch.consignmentId}
             onChange={(e) => handleBatchChange('consignmentId', e.target.value)}
           />
         </Form.Item>
         
-        <Form.Item label="Количество товара в партии">
+        <Form.Item label={labelWithHelp('Количество товара в партии', FIELD_HELP.batchCommodityMeasure)}>
           <Row gutter={8}>
             <Col span={16}>
               <Input
@@ -466,7 +468,7 @@ const TSDTabEdit: React.FC<TSDTabEditProps> = ({ data, onChange }) => {
               items={[
                 {
                   key: 'products',
-                  label: 'Продукция',
+                  label: labelWithHelp('Продукция', FIELD_HELP.tsdProducts),
                   children: (
                     <div>
                       {batch.shippingDocuments[selectedDocumentIndex].products?.map((product, pIndex) => (
@@ -518,7 +520,7 @@ const TSDTabEdit: React.FC<TSDTabEditProps> = ({ data, onChange }) => {
                 },
                 {
                   key: 'parties',
-                  label: 'Участники цепи поставки',
+                  label: labelWithHelp('Участник цепи поставки', FIELD_HELP.tsdSupplyChainParty),
                   children: (
                     <div>
                       {batch.shippingDocuments[selectedDocumentIndex].supplyChainParties?.map((party, pIndex) => (

@@ -2,6 +2,8 @@ import { useState } from 'react'
 import { Form, Input, Button, Table, Space, DatePicker, Modal, Descriptions } from 'antd'
 import { PlusOutlined, DeleteOutlined, EyeOutlined } from '@ant-design/icons'
 import dayjs from 'dayjs'
+import { labelWithHelp } from '@/components/common/FieldHelp'
+import { FIELD_HELP } from '@/constants/fieldDescriptions'
 import type { ComplianceDocumentsData, ComplianceDocument, UnifiedAuthorityDetails } from '@/types/card'
 import { useCountryOptions } from '@/hooks/useCountryOptions'
 import CountrySelect from '@/components/common/CountrySelect'
@@ -68,7 +70,7 @@ const ComplianceDocumentsTabEdit: React.FC<ComplianceDocumentsTabEditProps> = ({
 
   const columns = [
     {
-      title: 'Вид',
+      title: labelWithHelp('Код вида документа', FIELD_HELP.complianceDocKindCode),
       key: 'docKindCode',
       width: 150,
       render: (_: any, record: ComplianceDocument, index: number) => (
@@ -79,7 +81,7 @@ const ComplianceDocumentsTabEdit: React.FC<ComplianceDocumentsTabEditProps> = ({
       ),
     },
     {
-      title: 'Наименование',
+      title: labelWithHelp('Наименование', FIELD_HELP.complianceDocName),
       key: 'docName',
       width: 200,
       render: (_: any, record: ComplianceDocument, index: number) => (
@@ -101,7 +103,7 @@ const ComplianceDocumentsTabEdit: React.FC<ComplianceDocumentsTabEditProps> = ({
       ),
     },
     {
-      title: 'Дата',
+      title: labelWithHelp('Дата', FIELD_HELP.complianceDocCreationDate),
       key: 'docCreationDate',
       width: 150,
       render: (_: any, record: ComplianceDocument, index: number) => (
@@ -126,7 +128,7 @@ const ComplianceDocumentsTabEdit: React.FC<ComplianceDocumentsTabEditProps> = ({
               setAuthorityModalVisible(true)
             }}
           >
-            Уполномоченный орган
+            {labelWithHelp('Уполномоченный орган', FIELD_HELP.complianceAuthority)}
           </Button>
           <Button
             type="link"
@@ -162,7 +164,7 @@ const ComplianceDocumentsTabEdit: React.FC<ComplianceDocumentsTabEditProps> = ({
 
       {/* Модальное окно редактирования уполномоченного органа */}
       <Modal
-        title="Уполномоченный орган"
+        title={labelWithHelp('Уполномоченный орган', FIELD_HELP.complianceAuthority)}
         open={authorityModalVisible}
         onCancel={() => {
           setAuthorityModalVisible(false)

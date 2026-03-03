@@ -7,6 +7,8 @@ export interface ComparisonResultShape {
   isIdentical: boolean
   differences: string[]
   warnings: string[]
+  /** Добавленные пользователем значения (отображаются зелёным в разделе «Добавленные данные») */
+  added?: string[]
   isNewDocument?: boolean
   filled?: string[]
   unfilled?: string[]
@@ -120,6 +122,23 @@ const XMLComparisonModal: React.FC<XMLComparisonModalProps> = ({
         </div>
       )}
 
+      {(comparisonResult.added?.length ?? 0) > 0 && (
+        <div style={{ marginBottom: '16px' }}>
+          <Text strong style={{ color: '#52c41a' }}>Добавленные данные:</Text>
+          <List
+            size="small"
+            dataSource={comparisonResult.added}
+            renderItem={(item) => (
+              <List.Item>
+                <Text style={{ color: '#52c41a' }}>
+                  <CheckCircleOutlined /> {item}
+                </Text>
+              </List.Item>
+            )}
+          />
+        </div>
+      )}
+
       {comparisonResult.warnings.length > 0 && (
         <div>
           <Text strong>Предупреждения:</Text>
@@ -137,7 +156,7 @@ const XMLComparisonModal: React.FC<XMLComparisonModalProps> = ({
         </div>
       )}
 
-      {comparisonResult.differences.length === 0 && comparisonResult.warnings.length === 0 && !comparisonResult.isIdentical && (
+      {comparisonResult.differences.length === 0 && comparisonResult.warnings.length === 0 && (comparisonResult.added?.length ?? 0) === 0 && !comparisonResult.isIdentical && (
         <Paragraph>Различия не обнаружены, но документы не идентичны (возможно, разница в форматировании).</Paragraph>
       )}
         </>
