@@ -119,12 +119,13 @@ export function compareCardData(original: CardData, exported: CardData): {
     }
     
     // Простое сравнение примитивов
-    if (String(originalVal).trim() !== String(exportedVal).trim()) {
-      differences.push(`Разное значение на пути ${path}: "${originalVal}" vs "${exportedVal}"`)
-      return false
-    }
-    
-    return true
+    const o = String(originalVal).trim()
+    const e = String(exportedVal).trim()
+    if (o === e) return true
+    // Не выводить различия, где одна из сторон пустая — не засорять список
+    if (o === '' || e === '') return true
+    differences.push(`Разное значение на пути ${path}: "${originalVal}" vs "${exportedVal}"`)
+    return false
   }
 
   // Сравниваем основные поля

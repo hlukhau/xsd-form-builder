@@ -290,7 +290,7 @@ export function parseXMLToCardData(xmlText: string): CardData {
       formationDate: notification.formationDate || new Date().toISOString().split('T')[0],
       endDate: notification.endDate,
       authorizedBody: {
-        country: notification.authorizedBody.country || 'RU',
+        country: notification.authorizedBody.country || notification.country || 'BY',
         identifier: notification.authorizedBody.identifier || '',
         name: notification.authorizedBody.name || '',
         shortName: notification.authorizedBody.shortName || '',
