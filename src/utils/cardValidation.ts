@@ -108,7 +108,6 @@ export function validateOutgoingCard(data: CardData): ValidationResult {
       for (const addr of addrs) {
         if (empty(addr?.country)) {
           add(sectionProduct, 'Для каждого адреса изготовителя продукции должна быть указана страна')
-          break
         }
       }
       let noCityOrSettlement = false
@@ -137,24 +136,21 @@ export function validateOutgoingCard(data: CardData): ValidationResult {
     const docs = batch?.shippingDocuments ?? []
     if (docs.length === 0) {
       add(sectionTsd, 'В каждом составе сведений о серии или партии продукции должен быть указан хотя бы один товаросопроводительный документ')
-      break
+      continue
     }
     for (const d of docs) {
       if (empty(d?.docName)) {
         add(sectionTsd, 'Для каждого товаросопроводительного документа должно быть указано его Наименование')
-        break
       }
     }
     for (const d of docs) {
       if (empty(d?.docId)) {
         add(sectionTsd, 'Для каждого товаросопроводительного документа должен быть указан его номер')
-        break
       }
     }
     for (const d of docs) {
       if (empty(d?.docCreationDate)) {
         add(sectionTsd, 'Для каждого товаросопроводительного документа должна быть указана его дата')
-        break
       }
     }
   }
@@ -168,37 +164,31 @@ export function validateOutgoingCard(data: CardData): ValidationResult {
   for (const doc of complianceList) {
     if (empty(doc?.docKindCode)) {
       add(sectionCompliance, 'Для каждого документа об оценке соответствия продукции должен быть указан код вида документа')
-      break
     }
   }
   for (const doc of complianceList) {
     if (empty(doc?.docName)) {
       add(sectionCompliance, 'Для каждого документа об оценке соответствия продукции должно быть указано его наименование')
-      break
     }
   }
   for (const doc of complianceList) {
     if (empty(doc?.docId)) {
       add(sectionCompliance, 'Для каждого документа об оценке соответствия продукции должен быть указан его номер')
-      break
     }
   }
   for (const doc of complianceList) {
     if (empty(doc?.docCreationDate)) {
       add(sectionCompliance, 'Для каждого документа об оценке соответствия продукции должна быть указана его дата')
-      break
     }
   }
   for (const doc of complianceList) {
     if (empty(doc?.authority?.country)) {
       add(sectionCompliance, 'Для каждого документа об оценке соответствия продукции должна быть указана страна уполномоченного органа')
-      break
     }
   }
   for (const doc of complianceList) {
     if (empty(doc?.authority?.authorityName)) {
       add(sectionCompliance, 'Для каждого документа об оценке соответствия продукции должно быть указано наименование уполномоченного органа')
-      break
     }
   }
   if (sectionCompliance.remarks.length) sections.push(sectionCompliance)
@@ -255,7 +245,6 @@ export function validateOutgoingCard(data: CardData): ValidationResult {
         for (const addr of orgAddresses) {
           if (empty(addr?.country)) {
             add(sectionDetectionPlace, 'Для каждого адреса организации-места обнаружения должна быть указана страна')
-            break
           }
         }
         let noCityOrSettlement = false
@@ -289,13 +278,11 @@ export function validateOutgoingCard(data: CardData): ValidationResult {
   for (const m of measuresList) {
     if (empty(m?.measureCode) && empty(m?.measureName)) {
       add(sectionMeasures, 'В составе каждого набора сведений о принятой мере должен быть указан или Код принятой меры, или ее Наименование')
-      break
     }
   }
   for (const m of measuresList) {
     if (!m?.measureDocDetails) {
       add(sectionMeasures, 'В составе каждого набора сведений о принятой мере должен быть указан хотя один документ, регламентирующий введение (отмену) меры')
-      break
     }
   }
   for (const m of measuresList) {
@@ -303,26 +290,21 @@ export function validateOutgoingCard(data: CardData): ValidationResult {
     if (docDetails) {
       if (empty(docDetails.country)) {
         add(sectionMeasures, 'Для документа, регламентирующего введение (отмену) меры должна быть указана страна')
-        break
       }
       if (empty(docDetails.docName)) {
         add(sectionMeasures, 'Для документа, регламентирующего введение (отмену) меры должно быть указано его наименование')
-        break
       }
       if (empty(docDetails.docId)) {
         add(sectionMeasures, 'Для документа, регламентирующего введение (отмену) меры должен быть указано его номер')
-        break
       }
       if (empty(docDetails.docCreationDate)) {
         add(sectionMeasures, 'Для документа, регламентирующего введение (отмену) меры должна быть указано его дата')
-        break
       }
     }
   }
   for (const m of measuresList) {
     if (empty(m?.measureAffectedObjectKindCode)) {
       add(sectionMeasures, 'В составе каждого набора сведений о принятой мере должен быть указан хотя один вид объекта действия меры')
-      break
     }
   }
   const implList = measuresList.flatMap((m) => m?.measureImplementationDetails ?? [])
@@ -331,7 +313,6 @@ export function validateOutgoingCard(data: CardData): ValidationResult {
     const hasDoc = !!impl?.documentDetails
     if (!hasEntity || !hasDoc) {
       add(sectionMeasures, 'В составе каждого набора сведений о мероприятии, обеспечивающем соблюдение меры должны быть указаны сведения об исполнителе и документ, устанавливающий мероприятие')
-      break
     }
   }
   for (const impl of implList) {
@@ -339,18 +320,15 @@ export function validateOutgoingCard(data: CardData): ValidationResult {
     const hasSubject = !!impl?.subjectDetails
     if (!hasAuthority && !hasSubject) {
       add(sectionMeasures, 'В составе каждого набора сведений об исполнителе мероприятия, обеспечивающего соблюдение меры, должен быть указан один из следующих реквизитов: "Уполномоченный орган", "Субъект"')
-      break
     }
   }
   for (const impl of implList) {
     if (impl?.authority) {
       if (empty(impl.authority.country)) {
         add(sectionMeasures, 'Страна уполномоченного органа, обеспечивающего соблюдение меры должна быть указана')
-        break
       }
       if (empty(impl.authority.authorityName)) {
         add(sectionMeasures, 'Наименование уполномоченного органа, обеспечивающего соблюдение меры должно быть указано')
-        break
       }
     }
   }
@@ -359,7 +337,6 @@ export function validateOutgoingCard(data: CardData): ValidationResult {
     const identityDoc = subj?.identityDoc ?? (subj as { identityDoc?: { docId?: string } })?.identityDoc
     if (identityDoc && empty(identityDoc?.docId)) {
       add(sectionMeasures, 'В составе сведений об удостоверении личности субъекта, обеспечивающего соблюдение меры должен быть указан номер документа')
-      break
     }
   }
   for (const impl of implList) {
@@ -370,7 +347,6 @@ export function validateOutgoingCard(data: CardData): ValidationResult {
     for (const addr of subjAddrs) {
       if (empty(addr?.country)) {
         add(sectionMeasures, 'Для каждого адреса субъекта-исполнителя мероприятия должна быть указана страна')
-        break
       }
     }
     let noCityOrSettlement = false
@@ -381,7 +357,6 @@ export function validateOutgoingCard(data: CardData): ValidationResult {
     }
     if (noCityOrSettlement) {
       add(sectionMeasures, 'В составе каждого адреса субъекта-исполнителя мероприятия должен быть указан или город, или населенный пункт')
-      break
     }
   }
   for (const impl of implList) {
@@ -389,15 +364,12 @@ export function validateOutgoingCard(data: CardData): ValidationResult {
     if (docRef) {
       if (empty(docRef?.docName)) {
         add(sectionMeasures, 'В составе сведений о документе, устанавливающем мероприятие, обеспечивающее соблюдение меры должно быть указано его наименование')
-        break
       }
       if (empty(docRef?.docId)) {
         add(sectionMeasures, 'В составе сведений о документе, устанавливающем мероприятие, обеспечивающее соблюдение меры должен быть указан его номер')
-        break
       }
       if (empty(docRef?.docCreationDate)) {
         add(sectionMeasures, 'В составе сведений о документе, устанавливающем мероприятие, обеспечивающее соблюдение меры должна быть указана его дата')
-        break
       }
     }
   }

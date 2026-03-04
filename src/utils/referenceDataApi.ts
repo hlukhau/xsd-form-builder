@@ -106,10 +106,20 @@ export async function saveDpaCard(payload: {
   metadata: DpaSaveMetadata
   /** Для обновления — DPAID из URL (если не "-") */
   dpaid?: number
+  /** При создании новой версии (копия из «Доставлено») — исходный DPAID и guid для проверки прав */
+  copyFromDpaid?: number
+  guid?: string
 }): Promise<DpaSaveResponse> {
-  const body = payload.dpaid != null && !payload.isNew
-    ? { isNew: false, dpaid: payload.dpaid, xmlBody: payload.xmlBody, metadata: payload.metadata }
-    : { isNew: true, xmlBody: payload.xmlBody, metadata: payload.metadata }
+  let body: Record<string, unknown>
+  if (payload.dpaid != null && !payload.isNew) {
+    body = { isNew: false, dpaid: payload.dpaid, xmlBody: payload.xmlBody, metadata: payload.metadata }
+  } else {
+    body = { isNew: true, xmlBody: payload.xmlBody, metadata: payload.metadata }
+    if (payload.copyFromDpaid != null && payload.guid) {
+      body.copyFromDpaid = payload.copyFromDpaid
+      body.guid = payload.guid
+    }
+  }
   const url = `${BASE_URL}api/dpa/save`
   const response = await fetch(url, {
     method: 'POST',
@@ -129,6 +139,53 @@ export async function saveDpaCard(payload: {
     throw new Error(errMsg)
   }
   return JSON.parse(text) as DpaSaveResponse
+}
+
+/** Проверка возможности создания новой версии карты (кнопка «Сделать копию»). GET /api/dpa/can-create-new-version */
+export interface CanCreateNewVersionResponse {
+  allowed: boolean
+  reason?: string
+}
+export async function canCreateNewVersion(dpaid: string, guid: string): Promise<CanCreateNewVersionResponse> {
+  const url = `${BASE_URL}api/dpa/can-create-new-version?dpaid=${encodeURIComponent(dpaid)}&guid=${encodeURIComponent(guid)}`
+  const response = await fetch(url)
+  const text = await response.text()
+  if (!response.ok) {
+    return { allowed: false, reason: text || response.statusText }
+  }
+  return JSON.parse(text) as CanCreateNewVersionResponse
+}
+
+/** Ответ успешного удаления карты исходящих (черновик). */
+export interface DpaDeleteResponse {
+  success: boolean
+  registrationNumber?: string
+}
+
+/**
+ * Удалить карту исходящих сведений (только черновик).
+ * POST /api/dpa/delete — тело { dpaid, guid }.
+ * Условия на сервере: DATASOURCEKINDCODE=2, DPASTATUSID=5, право dangerousProductOut:edit в пределах хотя бы одного подразделения из DPADEPPERMIS.
+ */
+export async function deleteDpaCard(dpaid: number | string, guid: string): Promise<DpaDeleteResponse> {
+  const url = `${BASE_URL}api/dpa/delete`
+  const response = await fetch(url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ dpaid: Number(dpaid), guid }),
+  })
+  const text = await response.text()
+  if (!response.ok) {
+    let errMsg = response.statusText
+    try {
+      const json = JSON.parse(text)
+      if (json.error) errMsg = json.error
+    } catch {
+      if (text) errMsg = text.slice(0, 300)
+    }
+    throw new Error(errMsg)
+  }
+  return JSON.parse(text) as DpaDeleteResponse
 }
 
 /**
@@ -214,7 +271,7 @@ export interface DpaMetadata {
   alertCountryCode: string | null
   alertCountryName: string | null
   dpaVersion: number | null
-  /** DATASOURCEKINDCODE из DPA; "3" = исходящие */
+  /** DATASOURCEKINDCODE из DPA; "2" = исходящие (код 3 — из БД ЕЭК) */
   datasourceKindCode: string | null
   datasourceKindName: string | null
   creationDateTime: string | null
@@ -543,12 +600,18 @@ export async function checkAccessRight(id: string | null, right: string): Promis
   return data.allowed === true
 }
 
-/** Смена статуса карты (входящие: complete_processing, close). POST /api/dpa/status */
-export async function changeDpaStatus(dpaid: string, action: string): Promise<{ newStatus: string }> {
+/** Смена статуса карты. Входящие: complete_processing, close. Исходящие: mark_ready (передайте depKindCode), send, close. POST /api/dpa/status */
+export async function changeDpaStatus(
+  dpaid: string,
+  action: string,
+  options?: { depKindCode?: string }
+): Promise<{ newStatus: string }> {
+  const body: { dpaid: string; action: string; depKindCode?: string } = { dpaid, action }
+  if (options?.depKindCode != null && options.depKindCode !== '') body.depKindCode = options.depKindCode
   const response = await fetch(`${BASE_URL}api/dpa/status`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ dpaid, action }),
+    body: JSON.stringify(body),
   })
   if (!response.ok) {
     const text = await response.text()

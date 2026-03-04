@@ -6,7 +6,7 @@ export interface CardData {
   registrationNumber: string
   version: number
   source: string // напр. "Входящие сведения", "Исходящие сведения", "Данные ЕЭК"
-  /** Код типа источника из DPA (DATASOURCEKINDCODE); "3" = исходящие */
+  /** Код типа источника из DPA (DATASOURCEKINDCODE); "2" = исходящие (код 3 — из БД ЕЭК) */
   datasourceKindCode?: string | null
   createdAt: string // ISO 8601
   modifiedAt: string // ISO 8601

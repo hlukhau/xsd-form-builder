@@ -48,7 +48,8 @@ export function createNewCardData(
     source: 'исходящие',
     createdAt: documentDateTime,
     modifiedAt: documentDateTime,
-    status: 'новое',
+    status: 'Черновик',
+    statusId: 5, // DPASTATUSID для исходящих «Черновик» (DRAFT)
 
     electronicDocument: {
       messageCode: '',

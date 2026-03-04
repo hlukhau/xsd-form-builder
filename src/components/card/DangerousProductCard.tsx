@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from 'react'
-import { Card, Tabs, Button, Space, Switch, message } from 'antd'
+import { Card, Tabs, Button, Space, Switch, message, Modal } from 'antd'
 import { EditOutlined, EyeOutlined, DownloadOutlined, PlusOutlined } from '@ant-design/icons'
 import ProductTabEdit from '../tabs/ProductTabEdit'
 import ViolationsTabEdit from '../tabs/ViolationsTabEdit'
@@ -23,7 +23,7 @@ import MeasuresTab from '../tabs/MeasuresTab'
 import { exportCardDataToXML } from '@/utils/xmlExporter'
 import { parseXMLToCardData } from '@/utils/xmlParser'
 import { compareCardData, getCardDataReview } from '@/utils/cardDataComparator'
-import { fetchDpaStatusHistory, fetchDpaElectronicDocs, changeDpaStatus, checkAccessRight, fetchCurrentUser, fetchDpaResolutions, saveDpaCard, buildSaveMetadataFromCardData, type DpaSaveMetadata } from '@/utils/referenceDataApi'
+import { fetchDpaStatusHistory, fetchDpaElectronicDocs, changeDpaStatus, checkAccessRight, fetchCurrentUser, fetchDpaResolutions, saveDpaCard, buildSaveMetadataFromCardData, deleteDpaCard, canCreateNewVersion, type DpaSaveMetadata } from '@/utils/referenceDataApi'
 import { getStatusButtonConfig } from '@/utils/statusButtonConfig'
 import { parseElectronicDocContentBody } from '@/utils/xmlParser'
 import { openLegacyRegisterAllVersions, isLegacyRegisterConfigured } from '@/utils/legacyRegisterUrl'
@@ -43,6 +43,12 @@ interface DangerousProductCardProps {
   initialEditMode?: boolean
   /** После успешного сохранения новой карты (dpaid === '-') вызывается с новым DPAID для редиректа */
   onSaveNewCard?: (newDpaid: number) => void
+  /** После успешного удаления карты (закрыть форму и показать сообщение) */
+  onCardDeleted?: () => void
+  /** При создании новой версии (Сделать копию) — исходный DPAID для сохранения */
+  copyFromDpaid?: number
+  /** Открыть форму новой версии (после «Сделать копию») — навигация с state */
+  onMakeCopy?: (initialCardData: CardData, sourceDpaid: number) => void
 }
 
 const DangerousProductCard: React.FC<DangerousProductCardProps> = ({
@@ -53,6 +59,9 @@ const DangerousProductCard: React.FC<DangerousProductCardProps> = ({
   guid,
   initialEditMode,
   onSaveNewCard,
+  onCardDeleted,
+  copyFromDpaid,
+  onMakeCopy,
 }) => {
   // Отладочный вывод
   console.log('DangerousProductCard получил данные:', data)
@@ -88,14 +97,14 @@ const DangerousProductCard: React.FC<DangerousProductCardProps> = ({
     if (dpaid !== '-') setSavedDpaid(null)
   }, [dpaid])
 
-  // Новая карта (/-/) всегда исходящая; иначе — по DPA DATASOURCEKINDCODE ("3") или по названию источника
+  // Новая карта (/-/) всегда исходящая; иначе — по DPA DATASOURCEKINDCODE ("2") или по названию источника (код 3 — из БД ЕЭК)
   const datasourceKindCode = data?.datasourceKindCode != null ? String(data.datasourceKindCode) : ''
   const sourceFromData = data?.source ?? ''
   const isOutgoingSource =
     effectiveDpaid === '-' ||
-    datasourceKindCode === '3' ||
+    datasourceKindCode === '2' ||
     sourceFromData.toLowerCase().includes('исходящ') ||
-    sourceFromData === '3'
+    sourceFromData === '2'
 
   // Права и уровень пользователя / резолюции по карте (исходящие)
   useEffect(() => {
@@ -132,7 +141,10 @@ const DangerousProductCard: React.FC<DangerousProductCardProps> = ({
     }
   }, [isOutgoingSource, hasSaveRight])
 
-  const statusButton = getStatusButtonConfig(
+  // Новая карта (/-/) всегда исходящая — подставляем код "2", т.к. метаданные ещё могут быть не заполнены
+  const effectiveDatasourceKindCode =
+    editedData.datasourceKindCode ?? data.datasourceKindCode ?? (effectiveDpaid === '-' ? '2' : undefined)
+  const statusButtonResult = getStatusButtonConfig(
     editedData.source,
     editedData.status,
     hasStatusRight,
@@ -140,8 +152,79 @@ const DangerousProductCard: React.FC<DangerousProductCardProps> = ({
     hasResolution,
     currentUserDepKindCode,
     dpaResolutionDepKindCodes,
-    editedData.statusId ?? undefined
+    editedData.statusId ?? undefined,
+    effectiveDatasourceKindCode
   )
+  const statusButton = statusButtonResult.config
+  const statusButtonComment = statusButtonResult.comment
+
+  // Кнопка «Удалить»: исходящая карта, статус Черновик, право dangerousProductOut:edit, карта сохранена в БД, есть guid
+  const isDraftStatus =
+    (editedData.statusId ?? data.statusId) === 5 ||
+    /черновик/i.test(editedData.status ?? data.status ?? '')
+  const showDeleteButton =
+    isOutgoingSource &&
+    isDraftStatus &&
+    hasSaveRight &&
+    effectiveDpaid !== '-' &&
+    effectiveDpaid != null &&
+    !!guid
+
+  const handleDelete = () => {
+    const regNumber = editedData.registrationNumber ?? data.registrationNumber ?? effectiveDpaid ?? ''
+    Modal.confirm({
+      title: 'Подтверждение удаления',
+      content: `Карта ${regNumber} будет удалена безвозвратно. Продолжить?`,
+      okText: 'Удалить',
+      okButtonProps: { danger: true },
+      cancelText: 'Отмена',
+      onOk: async () => {
+        try {
+          await deleteDpaCard(Number(effectiveDpaid), guid!)
+          message.success('Карта удалена')
+          onCardDeleted?.()
+        } catch (e) {
+          message.error(e instanceof Error ? e.message : 'Ошибка удаления')
+        }
+      },
+    })
+  }
+
+  // Кнопка «Сделать копию»: исходящая карта, статус Доставлено (11), право dangerousProductOut:edit, есть guid
+  const showCopyButton =
+    isOutgoingSource &&
+    hasSaveRight &&
+    effectiveDpaid !== '-' &&
+    effectiveDpaid != null &&
+    !!guid &&
+    !!onMakeCopy &&
+    (editedData.statusId ?? data.statusId) === 11
+
+  const handleCopy = async () => {
+    if (!effectiveDpaid || !guid || !onMakeCopy) return
+    try {
+      const res = await canCreateNewVersion(String(effectiveDpaid), guid)
+      if (!res.allowed) {
+        message.error(res.reason ?? 'Создание новой версии недоступно')
+        return
+      }
+      const today = new Date().toISOString().slice(0, 10)
+      const initialCardData: CardData = {
+        ...currentData,
+        version: (currentData.version ?? 1) + 1,
+        status: 'Черновик',
+        statusId: 5,
+        notification: {
+          ...currentData.notification!,
+          formationDate: today,
+          type: '',
+        },
+      }
+      onMakeCopy(initialCardData, Number(effectiveDpaid))
+    } catch (e) {
+      message.error(e instanceof Error ? e.message : 'Ошибка проверки возможности создания копии')
+    }
+  }
   
   // Обновляем originalXML при изменении prop
   useEffect(() => {
@@ -344,6 +427,7 @@ const DangerousProductCard: React.FC<DangerousProductCardProps> = ({
         xmlBody: pendingSavePayload.xmlBody,
         metadata: pendingSavePayload.metadata,
         ...(isNewCard ? {} : { dpaid: Number(effectiveDpaid) }),
+        ...(isNewCard && copyFromDpaid != null && guid ? { copyFromDpaid, guid } : {}),
       })
       setPendingSavePayload(null)
       setComparisonModalVisible(false)
@@ -643,7 +727,16 @@ const DangerousProductCard: React.FC<DangerousProductCardProps> = ({
                 Валидация карты
               </Button>
             )}
-            <Button onClick={() => console.log('Закрыть')} size="middle">Закрыть</Button>
+            <Button
+                onClick={() => {
+                  if (typeof window !== 'undefined') {
+                    window.parent.postMessage({ code: 'exit' }, '*')
+                  }
+                }}
+                size="middle"
+              >
+                {effectiveDpaid === '-' ? 'Отменить создание' : 'Закрыть'}
+              </Button>
           </Space>
         }
       >
@@ -676,6 +769,10 @@ const DangerousProductCard: React.FC<DangerousProductCardProps> = ({
         <CardActions
           data={currentData}
           onDefineAccess={() => setAccessModalVisible(true)}
+          showDeleteButton={showDeleteButton}
+          onDelete={handleDelete}
+          showCopyButton={showCopyButton}
+          onCopy={handleCopy}
           onOpenAllVersions={() => {
             const payload = {
               code: 'all_version' as const,
@@ -691,14 +788,17 @@ const DangerousProductCard: React.FC<DangerousProductCardProps> = ({
             }
           }}
           statusButton={statusButton}
+          statusButtonComment={statusButtonComment}
           onStatusAction={(action) => {
             if (!effectiveDpaid) return
-            changeDpaStatus(effectiveDpaid, action)
+            const opts = action === 'mark_ready' && currentUserDepKindCode ? { depKindCode: currentUserDepKindCode } : undefined
+            changeDpaStatus(effectiveDpaid, action, opts)
               .then((res) => {
                 const newStatus = res.newStatus ?? currentData.status
                 onUpdate({ ...currentData, status: newStatus })
                 setEditedData((prev) => ({ ...prev, status: newStatus }))
                 message.success('Статус обновлён')
+                if (action === 'mark_ready') fetchDpaResolutions(effectiveDpaid).then((list) => setDpaResolutionDepKindCodes(list.map((r) => r.depKindCode)))
               })
               .catch((e) => message.error(e instanceof Error ? e.message : 'Ошибка смены статуса'))
           }}

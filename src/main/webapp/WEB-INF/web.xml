@@ -278,6 +278,26 @@
         <url-pattern>/api/dpa/save</url-pattern>
     </servlet-mapping>
 
+    <!-- Удаление карты исходящих (только черновик, с проверкой права dangerousProductOut:edit по подразделениям DPADEPPERMIS) -->
+    <servlet>
+        <servlet-name>DpaDeleteServlet</servlet-name>
+        <servlet-class>com.eec.servlet.DpaDeleteServlet</servlet-class>
+    </servlet>
+    <servlet-mapping>
+        <servlet-name>DpaDeleteServlet</servlet-name>
+        <url-pattern>/api/dpa/delete</url-pattern>
+    </servlet-mapping>
+
+    <!-- Проверка возможности создания новой версии карты (кнопка «Сделать копию») -->
+    <servlet>
+        <servlet-name>DpaCanCreateNewVersionServlet</servlet-name>
+        <servlet-class>com.eec.servlet.DpaCanCreateNewVersionServlet</servlet-class>
+    </servlet>
+    <servlet-mapping>
+        <servlet-name>DpaCanCreateNewVersionServlet</servlet-name>
+        <url-pattern>/api/dpa/can-create-new-version</url-pattern>
+    </servlet-mapping>
+
     <!-- Текущий пользователь: уровень ЦГЭ (DEPKINDCODE, DEPKINDNAME) -->
     <servlet>
         <servlet-name>CurrentUserServlet</servlet-name>

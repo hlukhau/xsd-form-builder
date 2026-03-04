@@ -1,4 +1,5 @@
 import { Button, Space, Tooltip } from 'antd'
+import { InfoCircleOutlined, DeleteOutlined, CopyOutlined } from '@ant-design/icons'
 import type { CardData } from '@/types/card'
 import type { StatusButtonConfig } from '@/utils/statusButtonConfig'
 
@@ -8,8 +9,16 @@ interface CardActionsProps {
   onOpenAllVersions: () => void
   /** Конфигурация кнопки смены статуса (название и действие по текущему статусу и правам) */
   statusButton: StatusButtonConfig | null
+  /** Комментарий: при наличии кнопки — что она выполнит; при отсутствии — почему кнопки нет (для подсказки по иконке «i») */
+  statusButtonComment?: string
   onStatusAction: (action: string) => void
   onElectronicDocumentClick: () => void
+  /** Показать кнопку «Удалить» (исходящая карта в статусе Черновик при наличии права редактирования) */
+  showDeleteButton?: boolean
+  onDelete?: () => void
+  /** Показать кнопку «Сделать копию» (исходящая карта в статусе Доставлено при наличии права редактирования) */
+  showCopyButton?: boolean
+  onCopy?: () => void
 }
 
 const CardActions: React.FC<CardActionsProps> = ({
@@ -17,27 +26,33 @@ const CardActions: React.FC<CardActionsProps> = ({
   onDefineAccess,
   onOpenAllVersions,
   statusButton,
+  statusButtonComment,
   onStatusAction,
   onElectronicDocumentClick,
+  showDeleteButton,
+  onDelete,
+  showCopyButton,
+  onCopy,
 }) => {
   const statusButtonNode = statusButton ? (
-    statusButton.hint ? (
-      <Tooltip title={statusButton.hint}>
-        <span>
-          <Button
-            type="primary"
-            disabled={statusButton.disabled}
-            onClick={() => !statusButton.disabled && onStatusAction(statusButton.action)}
-          >
-            {statusButton.label}
-          </Button>
-        </span>
-      </Tooltip>
-    ) : (
-      <Button type="primary" onClick={() => onStatusAction(statusButton.action)}>
-        {statusButton.label}
-      </Button>
-    )
+    <Tooltip title={statusButton.hint ?? statusButtonComment}>
+      <span>
+        <Button
+          type="primary"
+          disabled={statusButton.disabled}
+          onClick={() => !statusButton.disabled && onStatusAction(statusButton.action)}
+        >
+          {statusButton.label}
+        </Button>
+      </span>
+    </Tooltip>
+  ) : statusButtonComment ? (
+    <Tooltip title={statusButtonComment}>
+      <span style={{ display: 'inline-flex', alignItems: 'center', color: '#8c8c8c' }}>
+        <InfoCircleOutlined style={{ fontSize: 16 }} />
+        <span style={{ marginLeft: 6, fontSize: 12 }}>Смена статуса</span>
+      </span>
+    </Tooltip>
   ) : null
 
   return (
@@ -46,6 +61,16 @@ const CardActions: React.FC<CardActionsProps> = ({
         <Button onClick={onDefineAccess}>Определить доступ</Button>
         <Button onClick={onOpenAllVersions}>Открыть все версии</Button>
         {statusButtonNode}
+        {showDeleteButton && onDelete && (
+          <Button type="primary" danger icon={<DeleteOutlined />} onClick={onDelete}>
+            Удалить
+          </Button>
+        )}
+        {showCopyButton && onCopy && (
+          <Button icon={<CopyOutlined />} onClick={onCopy}>
+            Сделать копию
+          </Button>
+        )}
         <a onClick={onElectronicDocumentClick} style={{ cursor: 'pointer' }}>
           Электронный документ
         </a>

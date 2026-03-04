@@ -32,7 +32,8 @@ public class DpaSaveServlet extends HttpServlet {
         System.out.println("[DpaSaveServlet] Initialized (POST /api/dpa/save)");
     }
 
-    private static final String DATASOURCEKINDCODE_OUTGOING = "3";
+    /** Код типа источника для исходящих карт: в DPA и в DPASTATUS хранится 2 (код 3 — из БД ЕЭК) */
+    private static final String DATASOURCEKINDCODE_OUTGOING = "2";
     private static final String EDOCCODE_DEFAULT = "R.SM.SS.08.002";
     private static final String EDOCVERSION_DEFAULT = "1.0.0";
 
@@ -40,8 +41,8 @@ public class DpaSaveServlet extends HttpServlet {
     private static final String SQL_NEXT_DPAID = "SELECT SESINT.SEQ_DPA.NEXTVAL FROM DUAL";
     private static final String SQL_NEXT_DPAID_FALLBACK = "SELECT NVL(MAX(DPAID),0)+1 AS NEXTVAL FROM SESINT.DPA";
 
-    /** DPASTATUSID по названию «Черновик» */
-    private static final String SQL_STATUS_DRAFT = "SELECT DPASTATUSID FROM SESINT.DPASTATUS WHERE TRIM(DPASTATUSNAME) = 'Черновик'";
+    /** DPASTATUSID по названию «Черновик» для исходящих (в DPASTATUS у них DATASOURCEKINDCODE = 2) */
+    private static final String SQL_STATUS_DRAFT = "SELECT DPASTATUSID FROM SESINT.DPASTATUS WHERE TRIM(DPASTATUSNAME) = 'Черновик' AND DATASOURCEKINDCODE = ?";
 
     /** COUNTRYID по коду страны (COUNTRYCODE) */
     private static final String SQL_COUNTRY_ID = "SELECT COUNTRYID FROM SESINT.COUNTRY WHERE UPPER(TRIM(COUNTRYCODE)) = ? AND COUNTRYSDATE <= SYSDATE AND COUNTRYEDATE >= SYSDATE";
@@ -56,11 +57,27 @@ public class DpaSaveServlet extends HttpServlet {
     /** INSERT DPAXML */
     private static final String SQL_INSERT_DPAXML = "INSERT INTO SESINT.DPAXML (DPAID, DPAXMLBODY, EDOCCODE, EDOCVERSION) VALUES (?, ?, ?, ?)";
 
+    /** INSERT в историю смены статусов — присвоение статуса «Черновик» при создании карты */
+    private static final String SQL_INSERT_DPASTATUSHIST = "INSERT INTO SESINT.DPASTATUSHIST (DPAID, DPASTATUSID, DPASTATUSDATETIME, USERID) VALUES (?, ?, SYSDATE, NULL)";
+
     /** UPDATE DPAXML при обновлении существующей карты */
     private static final String SQL_UPDATE_DPAXML = "UPDATE SESINT.DPAXML SET DPAXMLBODY = ?, EDOCCODE = ?, EDOCVERSION = ? WHERE DPAID = ?";
 
     /** Обновить MODIFICATIONDATETIME в DPA при обновлении XML */
     private static final String SQL_UPDATE_DPA_MODIFIED = "UPDATE SESINT.DPA SET MODIFICATIONDATETIME = SYSDATE WHERE DPAID = ?";
+    /** Текущий DPASTATUSID карты (для перехода в «Отредактировано» при сохранении из Новое/Отправка не удалась/Ошибка) */
+    private static final String SQL_SELECT_DPASTATUSID = "SELECT DPASTATUSID FROM SESINT.DPA WHERE DPAID = ?";
+    private static final int OUTGOING_NEW = 6, OUTGOING_FAILED = 9, OUTGOING_ERROR = 10, OUTGOING_EDITED = 12;
+    private static final int OUTGOING_DELIVERED = 11;
+
+    /** Исходная карта для новой версии (все поля DPA для копирования) */
+    private static final String SQL_SOURCE_DPA_FOR_COPY = ""
+            + "SELECT INCIDENTID, DPAVERSION, ALERTCOUNTRYID, AUTHORITYID, INCIDENTALERTKINDCODE, COMMODITYCODE, "
+            + "SANITARYPRODTYPEID, SANITARYPRODNAME, MANUFCOUNTRYID, MANUFBUSENTNAME, MANUFBUSENTBRIEFNAME, SANITARYPRODTYPENAME "
+            + "FROM SESINT.DPA WHERE DPAID = ? AND DATASOURCEKINDCODE = ? AND DPASTATUSID = ? AND ENDDATE IS NULL";
+    private static final String SQL_MAX_VERSION_BY_INCIDENT = "SELECT NVL(MAX(DPAVERSION), 0) FROM SESINT.DPA WHERE INCIDENTID = ? AND ALERTCOUNTRYID = ?";
+    private static final String SQL_INSERT_DPADEPPERMIS = "INSERT INTO SESINT.DPADEPPERMIS (DPAID, DEPID, GRANTDATETIME) VALUES (?, ?, SYSDATE)";
+    private static final String SQL_DEPS_FOR_COPY = "SELECT DEPID FROM SESINT.DPADEPPERMIS WHERE DPAID = ?";
 
     @Override
     protected void doPost(HttpServletRequest request, HttpServletResponse response)
@@ -80,6 +97,8 @@ public class DpaSaveServlet extends HttpServlet {
 
         boolean isNew = extractJsonBoolean(body, "isNew");
         Long dpaidParam = extractJsonLong(body, "dpaid");
+        Long copyFromDpaid = extractJsonLong(body, "copyFromDpaid");
+        String guid = extractJsonString(body, "guid");
 
         String xmlBody = extractJsonStringXmlBody(body);
         if (xmlBody == null || xmlBody.trim().isEmpty()) {
@@ -117,6 +136,10 @@ public class DpaSaveServlet extends HttpServlet {
             conn.setAutoCommit(false);
 
             if (isNew) {
+                if (copyFromDpaid != null && copyFromDpaid > 0 && guid != null && !guid.trim().isEmpty()) {
+                    handleNewVersionCopy(conn, response, copyFromDpaid, guid.trim(), xmlBody, body);
+                    return;
+                }
                 // Создание: INSERT, версия 1. Регистрационный номер из metadata (incidentId). Поиск существующей записи не делаем.
                 if (alertCountryId == null && countryCode != null && !countryCode.trim().isEmpty()) {
                     alertCountryId = resolveCountryId(conn, countryCode.trim());
@@ -137,8 +160,13 @@ public class DpaSaveServlet extends HttpServlet {
                     return;
                 }
                 long dpaid = getNextDpaid(conn);
-                Integer draftStatusId = getDraftStatusId(conn);
-                System.out.println("[DpaSaveServlet] Create: DPAID=" + dpaid + ", INCIDENTID=" + incId);
+                Integer draftStatusId = getDraftStatusId(conn, DATASOURCEKINDCODE_OUTGOING);
+                if (draftStatusId == null) {
+                    sendJsonError(response, HttpServletResponse.SC_INTERNAL_SERVER_ERROR,
+                        "Статус «Черновик» не найден в DPASTATUS для исходящих (DATASOURCEKINDCODE=2).");
+                    return;
+                }
+                System.out.println("[DpaSaveServlet] Create: DPAID=" + dpaid + ", INCIDENTID=" + incId + ", DPASTATUSID(Черновик)=" + draftStatusId);
 
                 try (PreparedStatement ps = conn.prepareStatement(SQL_INSERT_DPA)) {
                     int i = 1;
@@ -165,6 +193,12 @@ public class DpaSaveServlet extends HttpServlet {
                     ps.setClob(2, clob);
                     ps.setString(3, edocCode);
                     ps.setString(4, edocVersion);
+                    ps.executeUpdate();
+                }
+
+                try (PreparedStatement ps = conn.prepareStatement(SQL_INSERT_DPASTATUSHIST)) {
+                    ps.setLong(1, dpaid);
+                    ps.setInt(2, draftStatusId);
                     ps.executeUpdate();
                 }
 
@@ -197,6 +231,25 @@ public class DpaSaveServlet extends HttpServlet {
                 try (PreparedStatement ps = conn.prepareStatement(SQL_UPDATE_DPA_MODIFIED)) {
                     ps.setLong(1, dpaid);
                     ps.executeUpdate();
+                }
+                int currentStatusId = -1;
+                try (PreparedStatement ps = conn.prepareStatement(SQL_SELECT_DPASTATUSID)) {
+                    ps.setLong(1, dpaid);
+                    try (ResultSet rs = ps.executeQuery()) {
+                        if (rs.next()) currentStatusId = rs.getInt(1);
+                    }
+                }
+                if (currentStatusId == OUTGOING_NEW || currentStatusId == OUTGOING_FAILED || currentStatusId == OUTGOING_ERROR) {
+                    try (PreparedStatement ps = conn.prepareStatement("UPDATE SESINT.DPA SET DPASTATUSID = ? WHERE DPAID = ?")) {
+                        ps.setInt(1, OUTGOING_EDITED);
+                        ps.setLong(2, dpaid);
+                        ps.executeUpdate();
+                    }
+                    try (PreparedStatement ps = conn.prepareStatement(SQL_INSERT_DPASTATUSHIST)) {
+                        ps.setLong(1, dpaid);
+                        ps.setInt(2, OUTGOING_EDITED);
+                        ps.executeUpdate();
+                    }
                 }
                 conn.commit();
                 response.setStatus(HttpServletResponse.SC_OK);
@@ -390,10 +443,12 @@ public class DpaSaveServlet extends HttpServlet {
         throw new SQLException("Не удалось получить следующий DPAID");
     }
 
-    private Integer getDraftStatusId(Connection conn) throws SQLException {
-        try (PreparedStatement ps = conn.prepareStatement(SQL_STATUS_DRAFT);
-             ResultSet rs = ps.executeQuery()) {
-            if (rs.next()) return rs.getInt("DPASTATUSID");
+    private Integer getDraftStatusId(Connection conn, String datasourceKindCode) throws SQLException {
+        try (PreparedStatement ps = conn.prepareStatement(SQL_STATUS_DRAFT)) {
+            ps.setString(1, datasourceKindCode);
+            try (ResultSet rs = ps.executeQuery()) {
+                if (rs.next()) return rs.getInt("DPASTATUSID");
+            }
         }
         return null;
     }
@@ -413,5 +468,184 @@ public class DpaSaveServlet extends HttpServlet {
         response.setStatus(status);
         String escaped = message != null ? message.replace("\\", "\\\\").replace("\"", "\\\"") : "Unknown error";
         response.getWriter().print("{\"error\":\"" + escaped + "\"}");
+    }
+
+    /** Создание новой версии карты (копия из карты в статусе Доставлено). */
+    private void handleNewVersionCopy(Connection conn, HttpServletResponse response, long sourceDpaid, String guid,
+                                      String xmlBody, String body) throws IOException, SQLException {
+        String metaBlock = extractJsonObject(body, "metadata");
+        if (metaBlock == null) metaBlock = "{}";
+        String docCreationDate = extractJsonString(metaBlock, "docCreationDate");
+        String incidentAlertKindCode = extractJsonString(metaBlock, "incidentAlertKindCode");
+        String edocCode = extractJsonString(metaBlock, "edocCode");
+        String edocVersion = extractJsonString(metaBlock, "edocVersion");
+        if (edocCode == null || edocCode.isEmpty()) edocCode = EDOCCODE_DEFAULT;
+        if (edocVersion == null || edocVersion.isEmpty()) edocVersion = EDOCVERSION_DEFAULT;
+
+        try (PreparedStatement ps = conn.prepareStatement(SQL_SOURCE_DPA_FOR_COPY)) {
+            ps.setLong(1, sourceDpaid);
+            ps.setString(2, DATASOURCEKINDCODE_OUTGOING);
+            ps.setInt(3, OUTGOING_DELIVERED);
+            ResultSet rs = ps.executeQuery();
+            if (!rs.next()) {
+                sendJsonError(response, HttpServletResponse.SC_BAD_REQUEST,
+                    "Исходная карта не найдена или не подходит для создания новой версии (исходящая, статус «Доставлено», дата закрытия не указана).");
+                return;
+            }
+            String incidentId = rs.getString("INCIDENTID");
+            int sourceVersion = rs.getInt("DPAVERSION");
+            Integer alertCountryId = (Integer) rs.getObject("ALERTCOUNTRYID");
+            Integer authorityId = (Integer) rs.getObject("AUTHORITYID");
+            String commodityCode = rs.getString("COMMODITYCODE");
+            Integer sanitaryProdTypeId = (Integer) rs.getObject("SANITARYPRODTYPEID");
+            String sanitaryProdName = rs.getString("SANITARYPRODNAME");
+            Integer manufCountryId = (Integer) rs.getObject("MANUFCOUNTRYID");
+            String manufBusEntName = rs.getString("MANUFBUSENTNAME");
+            String manufBusEntBriefName = rs.getString("MANUFBUSENTBRIEFNAME");
+            String sanitaryProdTypeName = rs.getString("SANITARYPRODTYPENAME");
+            rs.close();
+
+            int maxVersion = 0;
+            try (PreparedStatement ps2 = conn.prepareStatement(SQL_MAX_VERSION_BY_INCIDENT)) {
+                ps2.setString(1, incidentId != null ? incidentId : "");
+                ps2.setObject(2, alertCountryId);
+                ResultSet rs2 = ps2.executeQuery();
+                if (rs2.next()) maxVersion = rs2.getInt(1);
+            }
+            if (sourceVersion < maxVersion) {
+                sendJsonError(response, HttpServletResponse.SC_BAD_REQUEST,
+                    "Создание новой версии доступно только для карты с максимальной версией по данному регистрационному номеру.");
+                return;
+            }
+
+            java.util.Set<String> cardDepIds = new java.util.HashSet<>();
+            try (PreparedStatement ps2 = conn.prepareStatement(SQL_DEPS_FOR_COPY)) {
+                ps2.setLong(1, sourceDpaid);
+                ResultSet rs2 = ps2.executeQuery();
+                while (rs2.next()) {
+                    String depId = rs2.getString(1);
+                    if (depId != null && !depId.trim().isEmpty()) cardDepIds.add(depId.trim());
+                }
+            }
+            if (cardDepIds.isEmpty()) {
+                sendJsonError(response, HttpServletResponse.SC_FORBIDDEN, "Нет доступа к исходной карте.");
+                return;
+            }
+
+            String rightsJson = RightsJsonStore.guidMap.get(guid);
+            if (rightsJson == null || rightsJson.isEmpty()) {
+                sendJsonError(response, HttpServletResponse.SC_FORBIDDEN, "Права по GUID не найдены.");
+                return;
+            }
+            java.util.Set<String> userEditDepIds = parseEditDepIdsFromRights(rightsJson);
+            boolean hasEdit = false;
+            for (String depId : userEditDepIds) {
+                if (cardDepIds.contains(depId)) { hasEdit = true; break; }
+            }
+            if (!hasEdit) {
+                sendJsonError(response, HttpServletResponse.SC_FORBIDDEN,
+                    "Нет права на редактирование исходящих сведений в пределах ни одного подразделения, имеющего доступ к данной карте.");
+                return;
+            }
+
+            Integer userDepId = getDepartmentDepIdFromRights(rightsJson);
+            if (userDepId == null) {
+                sendJsonError(response, HttpServletResponse.SC_FORBIDDEN, "В контексте прав не указано подразделение пользователя (department.depid).");
+                return;
+            }
+
+            long newDpaid = getNextDpaid(conn);
+            Integer draftStatusId = getDraftStatusId(conn, DATASOURCEKINDCODE_OUTGOING);
+            if (draftStatusId == null) {
+                sendJsonError(response, HttpServletResponse.SC_INTERNAL_SERVER_ERROR, "Статус «Черновик» не найден в DPASTATUS.");
+                return;
+            }
+
+            String sqlInsertDpaCopy = ""
+                + "INSERT INTO SESINT.DPA (DPAID, DATASOURCEKINDCODE, ALERTCOUNTRYID, INCIDENTID, DPAVERSION, AUTHORITYID, "
+                + "INCIDENTALERTKINDCODE, DOCCREATIONDATE, DPASTATUSID, COMMODITYCODE, SANITARYPRODTYPEID, SANITARYPRODNAME, "
+                + "MANUFCOUNTRYID, MANUFBUSENTNAME, MANUFBUSENTBRIEFNAME, ENDDATE, CREATIONDATETIME, MODIFICATIONDATETIME, SANITARYPRODTYPENAME) "
+                + "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, SYSDATE, SYSDATE, ?)";
+            try (PreparedStatement ps2 = conn.prepareStatement(sqlInsertDpaCopy)) {
+                int i = 1;
+                ps2.setLong(i++, newDpaid);
+                ps2.setString(i++, DATASOURCEKINDCODE_OUTGOING);
+                setIntOrNull(ps2, i++, alertCountryId);
+                ps2.setString(i++, incidentId != null ? incidentId : "");
+                ps2.setInt(i++, sourceVersion + 1);
+                setIntOrNull(ps2, i++, authorityId);
+                ps2.setString(i++, incidentAlertKindCode != null ? incidentAlertKindCode.trim() : "");
+                setDateOrNull(ps2, i++, docCreationDate);
+                ps2.setInt(i++, draftStatusId);
+                ps2.setString(i++, commodityCode != null ? commodityCode : "");
+                setIntOrNull(ps2, i++, sanitaryProdTypeId);
+                ps2.setString(i++, sanitaryProdName != null ? sanitaryProdName : "");
+                setIntOrNull(ps2, i++, manufCountryId);
+                ps2.setString(i++, manufBusEntName);
+                ps2.setString(i++, manufBusEntBriefName);
+                ps2.setString(i++, sanitaryProdTypeName != null ? sanitaryProdTypeName : "");
+                ps2.executeUpdate();
+            }
+
+            try (PreparedStatement ps2 = conn.prepareStatement(SQL_INSERT_DPAXML)) {
+                ps2.setLong(1, newDpaid);
+                Clob clob = conn.createClob();
+                clob.setString(1, xmlBody);
+                ps2.setClob(2, clob);
+                ps2.setString(3, edocCode);
+                ps2.setString(4, edocVersion);
+                ps2.executeUpdate();
+            }
+
+            try (PreparedStatement ps2 = conn.prepareStatement(SQL_INSERT_DPASTATUSHIST)) {
+                ps2.setLong(1, newDpaid);
+                ps2.setInt(2, draftStatusId);
+                ps2.executeUpdate();
+            }
+
+            try (PreparedStatement ps2 = conn.prepareStatement(SQL_INSERT_DPADEPPERMIS)) {
+                ps2.setLong(1, newDpaid);
+                ps2.setInt(2, userDepId);
+                ps2.executeUpdate();
+            }
+
+            conn.commit();
+            response.setStatus(HttpServletResponse.SC_OK);
+            response.getWriter().print("{\"success\":true,\"dpaid\":" + newDpaid + "}");
+        }
+    }
+
+    private static java.util.Set<String> parseEditDepIdsFromRights(String json) {
+        java.util.Set<String> out = new java.util.HashSet<>();
+        int outStart = json.indexOf("\"dangerousProductOut\"");
+        if (outStart < 0) return out;
+        int editStart = json.indexOf("\"edit\"", outStart);
+        if (editStart < 0) return out;
+        int braceStart = json.indexOf('{', editStart);
+        if (braceStart < 0) return out;
+        int depth = 1;
+        int i = braceStart + 1;
+        while (i < json.length() && depth > 0) {
+            char c = json.charAt(i);
+            if (c == '{') depth++;
+            else if (c == '}') depth--;
+            i++;
+        }
+        String editBlock = depth == 0 ? json.substring(braceStart, i) : "";
+        Pattern keyP = Pattern.compile("\"([^\"]+)\"\\s*:");
+        Matcher keyM = keyP.matcher(editBlock);
+        while (keyM.find()) out.add(keyM.group(1).trim());
+        return out;
+    }
+
+    private static Integer getDepartmentDepIdFromRights(String json) {
+        Pattern p = Pattern.compile("\"depid\"\\s*:\\s*(\\d+)");
+        Matcher m = p.matcher(json);
+        if (!m.find()) return null;
+        try {
+            return Integer.parseInt(m.group(1));
+        } catch (NumberFormatException e) {
+            return null;
+        }
     }
 }

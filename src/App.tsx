@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { Routes, Route, useParams, useSearchParams } from 'react-router-dom'
+import { Routes, Route, useParams, useSearchParams, useNavigate, useLocation } from 'react-router-dom'
 import { message, Spin } from 'antd'
 import DangerousProductCard from './components/card/DangerousProductCard'
 import type { CardData } from './types/card'
@@ -73,16 +73,31 @@ const mockCardData: CardData = {
 function AppContent() {
   const [cardData, setCardData] = useState<CardData | null>(null)
   const [originalXML, setOriginalXML] = useState<string | null>(null)
+  const [copyFromDpaid, setCopyFromDpaid] = useState<number | null>(null)
   const [loadByDpaidState, setLoadByDpaidState] = useState<{
     loading: boolean
     error: string | null
   }>({ loading: false, error: null })
   const { dpaid, guid } = useParams<{ dpaid: string; guid?: string }>()
   const [searchParams] = useSearchParams()
+  const navigate = useNavigate()
+  const location = useLocation()
 
-  // Режим новой карты: /xsd_form_builder/-/1 — запросить уникальный регистрационный номер и предзаполнить карту
+  // Режим новой карты: /xsd_form_builder/-/1 — запросить регистрационный номер или открыть форму новой версии (Сделать копию)
   useEffect(() => {
-    if (dpaid !== '-') return
+    if (dpaid !== '-') {
+      setCopyFromDpaid(null)
+      return
+    }
+    const state = location.state as { newVersionFrom?: number; initialCardData?: CardData } | null
+    if (state?.newVersionFrom != null && state?.initialCardData) {
+      setCardData(state.initialCardData)
+      setCopyFromDpaid(state.newVersionFrom)
+      setOriginalXML(null)
+      setLoadByDpaidState({ loading: false, error: null })
+      return
+    }
+    setCopyFromDpaid(null)
     const country = searchParams.get('country')?.trim()?.toUpperCase().slice(0, 2) || 'BY'
     let cancelled = false
     setLoadByDpaidState({ loading: true, error: null })
@@ -105,7 +120,7 @@ function AppContent() {
       }
     })()
     return () => { cancelled = true }
-  }, [dpaid, searchParams])
+  }, [dpaid, searchParams, location.state])
 
   // Загрузка XML по DPAID из БД при открытии /xsd_form_builder/{DPAID}
   useEffect(() => {
@@ -197,11 +212,21 @@ function AppContent() {
           originalXML={originalXML}
           dpaid={dpaid ?? undefined}
           guid={guid ?? undefined}
+          copyFromDpaid={copyFromDpaid ?? undefined}
           onSaveNewCard={(newDpaid) => {
             try {
               sessionStorage.setItem('xsd_form_builder_last_saved_dpaid', String(newDpaid))
               sessionStorage.setItem('xsd_form_builder_save_happened', '1')
             } catch (_) {}
+            navigate(`/${newDpaid}/${guid ?? ''}`, { replace: true })
+          }}
+          onCardDeleted={() => {
+            setCardData(null)
+            setOriginalXML(null)
+            navigate('/', { replace: true })
+          }}
+          onMakeCopy={(initialCardData, sourceDpaid) => {
+            navigate(`/-/${guid ?? ''}`, { state: { newVersionFrom: sourceDpaid, initialCardData } })
           }}
         />
       )}
