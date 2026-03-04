@@ -86,7 +86,9 @@ export function validateOutgoingCard(data: CardData): ValidationResult {
 
   // —— Продукция ——
   const product = data.product
-  if (product) {
+  if (!product) {
+    add(sectionProduct, 'Раздел «Продукция» не заполнен. Необходимо указать сведения о продукции.')
+  } else {
     const pd = product.productDetails
     if (empty(pd?.productName)) {
       add(sectionProduct, 'Наименование продукции, присвоенное производителем (изготовителем) и отличающее данную продукцию от аналогичной продукции других производителей должно быть указано')
@@ -126,8 +128,8 @@ export function validateOutgoingCard(data: CardData): ValidationResult {
     if (mfr?.subjectIdentifier != null && String(mfr.subjectIdentifier).trim() !== '' && empty(mfr?.identificationMethod)) {
       add(sectionProduct, 'Если по изготовителю продукции указан идентификатор хозяйствующего субъекта, то метод идентификации должен быть указан обязательно')
     }
-    if (sectionProduct.remarks.length) sections.push(sectionProduct)
   }
+  if (sectionProduct.remarks.length) sections.push(sectionProduct)
 
   // —— ТСД (по партиям) ——
   const batches = data.tsd?.batches ?? []
@@ -222,7 +224,9 @@ export function validateOutgoingCard(data: CardData): ValidationResult {
 
   // —— Место обнаружения ——
   const place = data.detectionPlace
-  if (place) {
+  if (!place) {
+    add(sectionDetectionPlace, 'Раздел «Место обнаружения» не заполнен. Необходимо указать сведения о месте обнаружения продукции.')
+  } else {
     const hasOrg = !!place.organization
     const hasCheckpoint = !!place.borderCheckpoint
     const hasAddr = !!place.address
@@ -275,6 +279,9 @@ export function validateOutgoingCard(data: CardData): ValidationResult {
 
   // —— Принятые меры ——
   const measuresList = data.measures?.measures ?? []
+  if (measuresList.length === 0) {
+    add(sectionMeasures, 'Раздел «Принятые меры» не заполнен. Необходимо указать хотя бы одну принятую меру.')
+  }
   for (const m of measuresList) {
     if (empty(m?.measureCode) && empty(m?.measureName)) {
       add(sectionMeasures, 'В составе каждого набора сведений о принятой мере должен быть указан или Код принятой меры, или ее Наименование')
