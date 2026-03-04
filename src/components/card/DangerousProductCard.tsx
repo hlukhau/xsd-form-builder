@@ -23,7 +23,7 @@ import MeasuresTab from '../tabs/MeasuresTab'
 import { exportCardDataToXML } from '@/utils/xmlExporter'
 import { parseXMLToCardData } from '@/utils/xmlParser'
 import { compareCardData, getCardDataReview } from '@/utils/cardDataComparator'
-import { fetchDpaStatusHistory, fetchDpaElectronicDocs, changeDpaStatus, checkAccessRight, fetchCurrentUser, fetchDpaResolutions, saveDpaCard, buildSaveMetadataFromCardData, deleteDpaCard, canCreateNewVersion, type DpaSaveMetadata } from '@/utils/referenceDataApi'
+import { fetchDpaStatusHistory, fetchDpaElectronicDocs, changeDpaStatus, checkAccessRight, fetchCurrentUser, fetchDpaResolutions, fetchRightsByGuid, fetchDepInfo, saveDpaCard, buildSaveMetadataFromCardData, deleteDpaCard, canCreateNewVersion, type DpaSaveMetadata } from '@/utils/referenceDataApi'
 import { getStatusButtonConfig } from '@/utils/statusButtonConfig'
 import { parseElectronicDocContentBody } from '@/utils/xmlParser'
 import { openLegacyRegisterAllVersions, isLegacyRegisterConfigured } from '@/utils/legacyRegisterUrl'
@@ -87,6 +87,10 @@ const DangerousProductCard: React.FC<DangerousProductCardProps> = ({
   const [hasSaveRight, setHasSaveRight] = useState(false)
   const [hasResolution, setHasResolution] = useState(false)
   const [currentUserDepKindCode, setCurrentUserDepKindCode] = useState<string | null>(null)
+  const [currentUserDepKindName, setCurrentUserDepKindName] = useState<string | null>(null)
+  /** Уровень ЦГЭ по depid из карты прав (когда текущий пользователь не загружен) — для подсказки в черновике */
+  const [rightsDepKindCode, setRightsDepKindCode] = useState<string | null>(null)
+  const [rightsDepKindName, setRightsDepKindName] = useState<string | null>(null)
   const [dpaResolutionDepKindCodes, setDpaResolutionDepKindCodes] = useState<string[]>([])
   /** После успешного создания — dpaid сохранённой карты; до редиректа все сохранения идут как update по нему */
   const [savedDpaid, setSavedDpaid] = useState<number | null>(null)
@@ -126,13 +130,28 @@ const DangerousProductCard: React.FC<DangerousProductCardProps> = ({
         setHasSendRight(send)
         setHasSaveRight(edit)
       })
-      fetchCurrentUser().then((u) => setCurrentUserDepKindCode(u.depKindCode ?? null))
+      fetchCurrentUser().then((u) => {
+        setCurrentUserDepKindCode(u.depKindCode ?? null)
+        setCurrentUserDepKindName(u.depKindName ?? null)
+      })
+      if (guid) {
+        fetchRightsByGuid(guid)
+          .then((r) => (r.department?.depid != null ? fetchDepInfo(r.department.depid) : Promise.resolve({ depKindCode: null, depKindName: null })))
+          .then((level) => {
+            setRightsDepKindCode(level.depKindCode ?? null)
+            setRightsDepKindName(level.depKindName ?? null)
+          })
+          .catch(() => { setRightsDepKindCode(null); setRightsDepKindName(null) })
+      } else {
+        setRightsDepKindCode(null)
+        setRightsDepKindName(null)
+      }
       fetchDpaResolutions(effectiveDpaid).then((list) => {
         setDpaResolutionDepKindCodes(list.map((r) => r.depKindCode))
         setHasResolution(list.length > 0)
       })
     }
-  }, [effectiveDpaid, isOutgoingSource, data?.source])
+  }, [effectiveDpaid, isOutgoingSource, data?.source, guid])
 
   // Исходящая карта: при наличии права dangerousProductOut:edit включаем режим редактирования автоматически
   useEffect(() => {
@@ -150,13 +169,21 @@ const DangerousProductCard: React.FC<DangerousProductCardProps> = ({
     hasStatusRight,
     hasSendRight,
     hasResolution,
-    currentUserDepKindCode,
+    currentUserDepKindCode ?? rightsDepKindCode,
     dpaResolutionDepKindCodes,
     editedData.statusId ?? undefined,
-    effectiveDatasourceKindCode
+    effectiveDatasourceKindCode,
+    currentUserDepKindName ?? rightsDepKindName
   )
   const statusButton = statusButtonResult.config
   const statusButtonComment = statusButtonResult.comment
+  // Несохранённая карта: кнопка смены статуса заблокирована с подсказкой «Сохраните изменения»
+  const effectiveStatusButton =
+    effectiveDpaid === '-' && statusButton
+      ? { ...statusButton, disabled: true, hint: 'Сохраните изменения' }
+      : statusButton
+  const effectiveStatusButtonComment =
+    effectiveDpaid === '-' && statusButton ? 'Сохраните изменения' : statusButtonComment
 
   // Кнопка «Удалить»: исходящая карта, статус Черновик, право dangerousProductOut:edit, карта сохранена в БД, есть guid
   const isDraftStatus =
@@ -428,6 +455,7 @@ const DangerousProductCard: React.FC<DangerousProductCardProps> = ({
         metadata: pendingSavePayload.metadata,
         ...(isNewCard ? {} : { dpaid: Number(effectiveDpaid) }),
         ...(isNewCard && copyFromDpaid != null && guid ? { copyFromDpaid, guid } : {}),
+        ...(guid ? { guid } : {}),
       })
       setPendingSavePayload(null)
       setComparisonModalVisible(false)
@@ -452,11 +480,6 @@ const DangerousProductCard: React.FC<DangerousProductCardProps> = ({
     } finally {
       setSaving(false)
     }
-  }
-
-  const handleCancel = () => {
-    setEditedData(data)
-    setIsEditMode(false)
   }
 
   // Создаем редактируемые версии вкладок
@@ -707,7 +730,6 @@ const DangerousProductCard: React.FC<DangerousProductCardProps> = ({
             </div>
             {isEditMode && (
               <>
-                <Button onClick={handleCancel} size="middle">Отмена</Button>
                 {(effectiveDpaid === '-' || (isOutgoingSource && hasSaveRight)) && (
                   <Button type="primary" onClick={handleSave} loading={saving} size="middle">Сохранить</Button>
                 )}
@@ -787,16 +809,23 @@ const DangerousProductCard: React.FC<DangerousProductCardProps> = ({
               openLegacyRegisterAllVersions(currentData.country ?? '', currentData.registrationNumber ?? '')
             }
           }}
-          statusButton={statusButton}
-          statusButtonComment={statusButtonComment}
+          statusButton={effectiveStatusButton}
+          statusButtonComment={effectiveStatusButtonComment}
           onStatusAction={(action) => {
-            if (!effectiveDpaid) return
-            const opts = action === 'mark_ready' && currentUserDepKindCode ? { depKindCode: currentUserDepKindCode } : undefined
-            changeDpaStatus(effectiveDpaid, action, opts)
+            if (!effectiveDpaid || effectiveDpaid === '-') {
+              message.warning('Сначала сохраните карту перед сменой статуса')
+              return
+            }
+            const depKindForAction = currentUserDepKindCode ?? rightsDepKindCode
+            const opts: { depKindCode?: string; guid?: string } = {}
+            if (action === 'mark_ready' && depKindForAction) opts.depKindCode = depKindForAction
+            if (guid) opts.guid = guid
+            changeDpaStatus(effectiveDpaid, action, Object.keys(opts).length ? opts : undefined)
               .then((res) => {
                 const newStatus = res.newStatus ?? currentData.status
-                onUpdate({ ...currentData, status: newStatus })
-                setEditedData((prev) => ({ ...prev, status: newStatus }))
+                const newStatusId = newStatus === 'Новое' ? 6 : newStatus === 'Ожидает отправки' ? 7 : newStatus === 'Завершено' ? 13 : (editedData.statusId ?? data.statusId)
+                onUpdate({ ...currentData, status: newStatus, statusId: newStatusId })
+                setEditedData((prev) => ({ ...prev, status: newStatus, statusId: newStatusId }))
                 message.success('Статус обновлён')
                 if (action === 'mark_ready') fetchDpaResolutions(effectiveDpaid).then((list) => setDpaResolutionDepKindCodes(list.map((r) => r.depKindCode)))
               })

@@ -120,6 +120,7 @@ export async function saveDpaCard(payload: {
       body.guid = payload.guid
     }
   }
+  if (payload.guid != null && payload.guid !== '') body.guid = payload.guid
   const url = `${BASE_URL}api/dpa/save`
   const response = await fetch(url, {
     method: 'POST',
@@ -563,14 +564,25 @@ export async function removeDpaAccess(dpaid: string, depId: string): Promise<voi
   }
 }
 
-/** Текущий пользователь: уровень ЦГЭ (TB_USER → TB_EMP → TB_DEP → TB_DEPKIND). GET /api/current-user */
-export interface CurrentUserLevel {
+/** Уровень ЦГЭ (depKindCode + depKindName). Для текущего пользователя и для уровня по depid из карты прав. */
+export interface DepKindLevel {
   depKindCode: string | null
   depKindName: string | null
 }
 
+/** Текущий пользователь: уровень ЦГЭ (TB_USER → TB_EMP → TB_DEP → TB_DEPKIND). GET /api/current-user */
+export type CurrentUserLevel = DepKindLevel
+
 export async function fetchCurrentUser(): Promise<CurrentUserLevel> {
   const response = await fetch(`${BASE_URL}api/current-user`)
+  if (!response.ok) return { depKindCode: null, depKindName: null }
+  const data = await response.json()
+  return { depKindCode: data.depKindCode ?? null, depKindName: data.depKindName ?? null }
+}
+
+/** Уровень ЦГЭ по DEPID (из карты прав доступа). GET /api/dep/info?depid=... */
+export async function fetchDepInfo(depid: number): Promise<DepKindLevel> {
+  const response = await fetch(`${BASE_URL}api/dep/info?depid=${encodeURIComponent(depid)}`)
   if (!response.ok) return { depKindCode: null, depKindName: null }
   const data = await response.json()
   return { depKindCode: data.depKindCode ?? null, depKindName: data.depKindName ?? null }
@@ -600,14 +612,15 @@ export async function checkAccessRight(id: string | null, right: string): Promis
   return data.allowed === true
 }
 
-/** Смена статуса карты. Входящие: complete_processing, close. Исходящие: mark_ready (передайте depKindCode), send, close. POST /api/dpa/status */
+/** Смена статуса карты. Входящие: complete_processing, close. Исходящие: mark_ready (передайте depKindCode), send, close. guid — для USERID из карты прав. POST /api/dpa/status */
 export async function changeDpaStatus(
   dpaid: string,
   action: string,
-  options?: { depKindCode?: string }
+  options?: { depKindCode?: string; guid?: string }
 ): Promise<{ newStatus: string }> {
-  const body: { dpaid: string; action: string; depKindCode?: string } = { dpaid, action }
+  const body: { dpaid: string; action: string; depKindCode?: string; guid?: string } = { dpaid, action }
   if (options?.depKindCode != null && options.depKindCode !== '') body.depKindCode = options.depKindCode
+  if (options?.guid != null && options.guid !== '') body.guid = options.guid
   const response = await fetch(`${BASE_URL}api/dpa/status`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },

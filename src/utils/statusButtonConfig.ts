@@ -105,14 +105,41 @@ function getResolutionButtonLabel(depKindCode: string | null | undefined): strin
   return 'Отметка готовности'
 }
 
-/** Описание перехода при наложении резолюции по уровню подразделения */
-function getResolutionHint(depKindCode: string | null | undefined): string {
-  if (!depKindCode) return 'Наложение отметки готовности — переход карты в состояние «Готово к направлению».'
+/** Подсказка при наложении резолюции в статусе «Черновик»: переход в «Новое». */
+function getResolutionHintFromDraft(depKindCode: string | null | undefined): string {
+  if (!depKindCode) return 'Наложение отметки готовности — переход карты в состояние «Новое».'
   const c = depKindCode.trim().toLowerCase()
-  if (c === 'dep0601') return 'Наложение резолюции районного ЦГЭ — переход карты в состояние «Готово к направлению» (после резолюции вашего уровня карту можно направить в ЕЭК или закрыть).'
-  if (c === 'dep0602') return 'Наложение резолюции областного ЦГЭ — переход карты в состояние «Готово к направлению».'
-  if (c === 'dep0603') return 'Наложение резолюции республиканского ЦГЭ — переход карты в состояние «Готово к направлению».'
-  return 'Наложение отметки готовности — переход карты в состояние «Готово к направлению».'
+  if (c === 'dep0601') return 'Наложение резолюции районного ЦГЭ — переход карты в состояние «Новое».'
+  if (c === 'dep0602') return 'Наложение резолюции областного ЦГЭ — переход карты в состояние «Новое».'
+  if (c === 'dep0603') return 'Наложение резолюции республиканского ЦГЭ — переход карты в состояние «Новое».'
+  return 'Наложение отметки готовности — переход карты в состояние «Новое».'
+}
+
+/** Подсказка при наложении резолюции в статусе «Новое»: добавление резолюции вашего уровня, статус остаётся «Новое»; после резолюции областного или республиканского ЦГЭ станет доступно направление сведений. */
+function getResolutionHintWhenAlreadyNew(depKindCode: string | null | undefined): string {
+  if (!depKindCode) return 'Добавление резолюции вашего уровня. Карта остаётся в состоянии «Новое». После резолюции областного или республиканского ЦГЭ станет доступно направление сведений.'
+  const c = depKindCode.trim().toLowerCase()
+  if (c === 'dep0601') return 'Добавление резолюции районного ЦГЭ. Карта остаётся в состоянии «Новое».'
+  if (c === 'dep0602') return 'Добавление резолюции областного ЦГЭ. Карта остаётся в состоянии «Новое»; после этого станет доступно направление сведений в ЕЭК.'
+  if (c === 'dep0603') return 'Добавление резолюции республиканского ЦГЭ. Карта остаётся в состоянии «Новое»; после этого станет доступно направление сведений в ЕЭК.'
+  return 'Добавление резолюции вашего уровня. Карта остаётся в состоянии «Новое».'
+}
+
+/** Подсказка для черновика: резолюций ещё нет — ожидается резолюция уровня пользователя (по коду или по названию из карты прав) */
+function getResolutionHintForDraft(
+  depKindCode: string | null | undefined,
+  depKindName: string | null | undefined
+): string {
+  if (depKindCode && depKindCode.trim()) {
+    const c = depKindCode.trim().toLowerCase()
+    if (c === 'dep0601') return 'Ожидается резолюция районного ЦГЭ.'
+    if (c === 'dep0602') return 'Ожидается резолюция областного ЦГЭ.'
+    if (c === 'dep0603') return 'Ожидается резолюция республиканского ЦГЭ.'
+  }
+  if (depKindName && depKindName.trim()) {
+    return `Ожидается резолюция: ${depKindName.trim()}.`
+  }
+  return 'Ожидается резолюция (уровень ЦГЭ определяется по подразделению пользователя в карте прав доступа).'
 }
 
 function outgoingStatusButton(
@@ -122,7 +149,8 @@ function outgoingStatusButton(
   hasSendRight: boolean,
   hasResolution: boolean,
   userDepKindCode: string | null | undefined,
-  existingResolutionDepKindCodes: string[] | undefined
+  existingResolutionDepKindCodes: string[] | undefined,
+  userDepKindName?: string | null
 ): StatusButtonResult {
   if (!hasStatusRight && !hasSendRight) {
     return {
@@ -131,14 +159,22 @@ function outgoingStatusButton(
     }
   }
   const resolutionLabel = getResolutionButtonLabel(userDepKindCode)
-  const resolutionHint = getResolutionHint(userDepKindCode)
   const hasResolutionOfUserLevel =
     userDepKindCode &&
     Array.isArray(existingResolutionDepKindCodes) &&
     existingResolutionDepKindCodes.some((c) => norm(c) === norm(userDepKindCode))
 
-  const hintSend = 'Направление сведений в ЕЭК — переход карты в состояние «Отправлено».'
+  const hintSend = 'Направление сведений в ЕЭК — переход карты в состояние «Ожидает отправки».'
   const hintClose = 'Закрытие карты — переход в состояние «Завершено» (без направления в ЕЭК).'
+  /** «Направление сведений» при статусе Новое разрешено только при резолюции областного или республиканского ЦГЭ. */
+  const hasRegionalOrRepublicanResolution =
+    Array.isArray(existingResolutionDepKindCodes) &&
+    existingResolutionDepKindCodes.some((c) => {
+      const x = norm(c)
+      return x === 'dep0602' || x === 'dep0603'
+    })
+  const NEED_REGIONAL_OR_REPUBLICAN_HINT =
+    'Ожидается резолюция областного или республиканского ЦГЭ.'
 
   // По DPASTATUSID (исходящие 5–13)
   if (statusId === OUTGOING_DRAFT) {
@@ -148,19 +184,34 @@ function outgoingStatusButton(
         comment: 'Кнопка смены статуса не отображается: нет права на смену статуса; в состоянии «Черновик» доступна только резолюция/отметка готовности.',
       }
     }
+    const draftComment = getResolutionHintForDraft(userDepKindCode, userDepKindName)
+    const draftButtonHint = getResolutionHintFromDraft(userDepKindCode)
     return {
-      config: { label: resolutionLabel, action: 'mark_ready', hint: resolutionHint },
-      comment: resolutionHint,
+      config: { label: resolutionLabel, action: 'mark_ready', hint: draftButtonHint },
+      comment: draftComment,
     }
   }
   if (statusId === OUTGOING_NEW) {
     if (hasStatusRight && !hasResolutionOfUserLevel) {
+      const hintNew = getResolutionHintWhenAlreadyNew(userDepKindCode)
       return {
-        config: { label: resolutionLabel, action: 'mark_ready', hint: resolutionHint },
-        comment: resolutionHint,
+        config: { label: resolutionLabel, action: 'mark_ready', hint: hintNew },
+        comment: hintNew,
       }
     }
-    if (hasStatusRight && hasResolutionOfUserLevel) {
+    // После резолюции районного ЦГЭ — только ожидание резолюции областного/республиканского (кнопка заблокирована)
+    if (hasResolution && !hasRegionalOrRepublicanResolution) {
+      return {
+        config: {
+          label: 'Направление сведений',
+          action: 'send',
+          hint: NEED_REGIONAL_OR_REPUBLICAN_HINT,
+          disabled: true,
+        },
+        comment: NEED_REGIONAL_OR_REPUBLICAN_HINT,
+      }
+    }
+    if (hasStatusRight && hasResolutionOfUserLevel && hasRegionalOrRepublicanResolution) {
       if (hasSendRight) {
         return {
           config: { label: 'Направление сведений', action: 'send', hint: hintSend },
@@ -183,10 +234,21 @@ function outgoingStatusButton(
         comment: NO_RESOLUTION_HINT,
       }
     }
-    if (hasSendRight) {
+    if (hasSendRight && hasRegionalOrRepublicanResolution) {
       return {
         config: { label: 'Направление сведений', action: 'send', hint: hintSend },
         comment: hintSend,
+      }
+    }
+    if (hasSendRight && !hasRegionalOrRepublicanResolution) {
+      return {
+        config: {
+          label: 'Направление сведений',
+          action: 'send',
+          hint: NEED_REGIONAL_OR_REPUBLICAN_HINT,
+          disabled: true,
+        },
+        comment: NEED_REGIONAL_OR_REPUBLICAN_HINT,
       }
     }
     if (hasStatusRight) {
@@ -196,18 +258,13 @@ function outgoingStatusButton(
       }
     }
   }
-  if (
-    statusId === OUTGOING_PENDING ||
-    statusId === OUTGOING_FAILED ||
-    statusId === OUTGOING_ERROR ||
-    statusId === OUTGOING_EDITED
-  ) {
-    if (!hasResolution) {
-      return {
-        config: { label: 'Направление сведений', action: 'send', hint: NO_RESOLUTION_HINT, disabled: true },
-        comment: NO_RESOLUTION_HINT,
-      }
+  if (statusId === OUTGOING_PENDING) {
+    return {
+      config: null,
+      comment: 'Ожидает отправки в ЕЭК; следующее изменение статуса (Отправлено / Отправка не удалась / Ошибка обработки / Доставлено) выполняется системой.',
     }
+  }
+  if (statusId === OUTGOING_FAILED || statusId === OUTGOING_ERROR || statusId === OUTGOING_EDITED) {
     if (hasSendRight) {
       return {
         config: { label: 'Направление сведений', action: 'send', hint: hintSend },
@@ -222,7 +279,7 @@ function outgoingStatusButton(
     }
     return {
       config: null,
-      comment: 'Кнопка смены статуса не отображается: для состояния «Ожидает отправки» / «Ошибка» / «Отредактировано» нужны права на направление сведений или закрытие карты.',
+      comment: 'Кнопка смены статуса не отображается: для состояния «Отправка не удалась» / «Ошибка обработки» / «Отредактировано» нужны права на направление сведений или закрытие карты.',
     }
   }
   if (statusId === OUTGOING_DELIVERED) {
@@ -262,19 +319,33 @@ function outgoingStatusButton(
         comment: 'Кнопка смены статуса не отображается: нет права на смену статуса.',
       }
     }
+    const draftComment = getResolutionHintForDraft(userDepKindCode, userDepKindName)
+    const draftButtonHint = getResolutionHintFromDraft(userDepKindCode)
     return {
-      config: { label: resolutionLabel, action: 'mark_ready', hint: resolutionHint },
-      comment: resolutionHint,
+      config: { label: resolutionLabel, action: 'mark_ready', hint: draftButtonHint },
+      comment: draftComment,
     }
   }
   if (s.includes('новое') || s.includes('новая') || s === 'новый') {
     if (hasStatusRight && !hasResolutionOfUserLevel) {
+      const hintNew = getResolutionHintWhenAlreadyNew(userDepKindCode)
       return {
-        config: { label: resolutionLabel, action: 'mark_ready', hint: resolutionHint },
-        comment: resolutionHint,
+        config: { label: resolutionLabel, action: 'mark_ready', hint: hintNew },
+        comment: hintNew,
       }
     }
-    if (hasStatusRight && hasResolutionOfUserLevel) {
+    if (hasResolution && !hasRegionalOrRepublicanResolution) {
+      return {
+        config: {
+          label: 'Направление сведений',
+          action: 'send',
+          hint: NEED_REGIONAL_OR_REPUBLICAN_HINT,
+          disabled: true,
+        },
+        comment: NEED_REGIONAL_OR_REPUBLICAN_HINT,
+      }
+    }
+    if (hasStatusRight && hasResolutionOfUserLevel && hasRegionalOrRepublicanResolution) {
       if (hasSendRight) {
         return {
           config: { label: 'Направление сведений', action: 'send', hint: hintSend },
@@ -297,7 +368,7 @@ function outgoingStatusButton(
         comment: NO_RESOLUTION_HINT,
       }
     }
-    if (hasSendRight) {
+    if (hasSendRight && hasRegionalOrRepublicanResolution) {
       return {
         config: { label: 'Направление сведений', action: 'send', hint: hintSend },
         comment: hintSend,
@@ -310,18 +381,13 @@ function outgoingStatusButton(
       }
     }
   }
-  if (
-    s.includes('ожидает отправки') ||
-    s.includes('отправка не удалась') ||
-    s.includes('ошибка обработки') ||
-    s.includes('отредактировано')
-  ) {
-    if (!hasResolution) {
-      return {
-        config: { label: 'Направление сведений', action: 'send', hint: NO_RESOLUTION_HINT, disabled: true },
-        comment: NO_RESOLUTION_HINT,
-      }
+  if (s.includes('ожидает отправки')) {
+    return {
+      config: null,
+      comment: 'Ожидает отправки в ЕЭК; следующее изменение статуса выполняется системой.',
     }
+  }
+  if (s.includes('отправка не удалась') || s.includes('ошибка обработки') || s.includes('отредактировано')) {
     if (hasSendRight) {
       return {
         config: { label: 'Направление сведений', action: 'send', hint: hintSend },
@@ -375,7 +441,9 @@ export function getStatusButtonConfig(
   existingResolutionDepKindCodes?: string[],
   statusId?: number | null,
   /** Код типа источника из DPA (DATASOURCEKINDCODE); "2" = исходящие. Приоритет над текстом source. */
-  datasourceKindCode?: string | null
+  datasourceKindCode?: string | null,
+  /** Название уровня ЦГЭ пользователя (из текущего пользователя / карты прав) для подсказки в черновике */
+  userDepKindName?: string | null
 ): StatusButtonResult {
   const code = datasourceKindCode != null ? String(datasourceKindCode).trim() : ''
   const src = norm(source)
@@ -389,7 +457,8 @@ export function getStatusButtonConfig(
       hasSendRight ?? false,
       hasResolution ?? false,
       userDepKindCode ?? null,
-      existingResolutionDepKindCodes ?? []
+      existingResolutionDepKindCodes ?? [],
+      userDepKindName ?? null
     )
   }
 
@@ -402,7 +471,8 @@ export function getStatusButtonConfig(
       hasSendRight ?? false,
       hasResolution ?? false,
       userDepKindCode ?? null,
-      existingResolutionDepKindCodes ?? []
+      existingResolutionDepKindCodes ?? [],
+      userDepKindName ?? null
     )
   }
   if (src.includes('входящ')) {

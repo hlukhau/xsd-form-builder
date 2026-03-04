@@ -58,7 +58,7 @@ public class DpaSaveServlet extends HttpServlet {
     private static final String SQL_INSERT_DPAXML = "INSERT INTO SESINT.DPAXML (DPAID, DPAXMLBODY, EDOCCODE, EDOCVERSION) VALUES (?, ?, ?, ?)";
 
     /** INSERT в историю смены статусов — присвоение статуса «Черновик» при создании карты */
-    private static final String SQL_INSERT_DPASTATUSHIST = "INSERT INTO SESINT.DPASTATUSHIST (DPAID, DPASTATUSID, DPASTATUSDATETIME, USERID) VALUES (?, ?, SYSDATE, NULL)";
+    private static final String SQL_INSERT_DPASTATUSHIST = "INSERT INTO SESINT.DPASTATUSHIST (DPAID, DPASTATUSID, DPASTATUSDATETIME, USERID) VALUES (?, ?, SYSDATE, ?)";
 
     /** UPDATE DPAXML при обновлении существующей карты */
     private static final String SQL_UPDATE_DPAXML = "UPDATE SESINT.DPAXML SET DPAXMLBODY = ?, EDOCCODE = ?, EDOCVERSION = ? WHERE DPAID = ?";
@@ -109,6 +109,8 @@ public class DpaSaveServlet extends HttpServlet {
             sendJsonError(response, HttpServletResponse.SC_BAD_REQUEST, "xmlBody должен содержать валидный XML (начинаться с <)");
             return;
         }
+
+        Integer userId = getUserIdFromRightsByGuid(guid != null ? guid.trim() : null);
 
         String metaBlock = extractJsonObject(body, "metadata");
         if (metaBlock == null) metaBlock = "{}";
@@ -196,9 +198,14 @@ public class DpaSaveServlet extends HttpServlet {
                     ps.executeUpdate();
                 }
 
+                if (userId == null) {
+                    sendJsonError(response, HttpServletResponse.SC_BAD_REQUEST, "Укажите guid в теле запроса (в карте прав должен быть атрибут userId)");
+                    return;
+                }
                 try (PreparedStatement ps = conn.prepareStatement(SQL_INSERT_DPASTATUSHIST)) {
                     ps.setLong(1, dpaid);
                     ps.setInt(2, draftStatusId);
+                    ps.setInt(3, userId);
                     ps.executeUpdate();
                 }
 
@@ -245,9 +252,14 @@ public class DpaSaveServlet extends HttpServlet {
                         ps.setLong(2, dpaid);
                         ps.executeUpdate();
                     }
+                    if (userId == null) {
+                        sendJsonError(response, HttpServletResponse.SC_BAD_REQUEST, "Укажите guid в теле запроса (в карте прав должен быть атрибут userId)");
+                        return;
+                    }
                     try (PreparedStatement ps = conn.prepareStatement(SQL_INSERT_DPASTATUSHIST)) {
                         ps.setLong(1, dpaid);
                         ps.setInt(2, OUTGOING_EDITED);
+                        ps.setInt(3, userId);
                         ps.executeUpdate();
                     }
                 }
@@ -471,8 +483,8 @@ public class DpaSaveServlet extends HttpServlet {
     }
 
     /** Создание новой версии карты (копия из карты в статусе Доставлено). */
-    private void handleNewVersionCopy(Connection conn, HttpServletResponse response, long sourceDpaid, String guid,
-                                      String xmlBody, String body) throws IOException, SQLException {
+    private void handleNewVersionCopy(Connection conn, HttpServletResponse response,
+                                      long sourceDpaid, String guid, String xmlBody, String body) throws IOException, SQLException {
         String metaBlock = extractJsonObject(body, "metadata");
         if (metaBlock == null) metaBlock = "{}";
         String docCreationDate = extractJsonString(metaBlock, "docCreationDate");
@@ -597,9 +609,15 @@ public class DpaSaveServlet extends HttpServlet {
                 ps2.executeUpdate();
             }
 
+            Integer copyUserId = getUserIdFromRights(rightsJson);
+            if (copyUserId == null) {
+                sendJsonError(response, HttpServletResponse.SC_BAD_REQUEST, "В карте прав доступа укажите атрибут userId");
+                return;
+            }
             try (PreparedStatement ps2 = conn.prepareStatement(SQL_INSERT_DPASTATUSHIST)) {
                 ps2.setLong(1, newDpaid);
                 ps2.setInt(2, draftStatusId);
+                ps2.setInt(3, copyUserId);
                 ps2.executeUpdate();
             }
 
@@ -636,6 +654,28 @@ public class DpaSaveServlet extends HttpServlet {
         Matcher keyM = keyP.matcher(editBlock);
         while (keyM.find()) out.add(keyM.group(1).trim());
         return out;
+    }
+
+    /** USERID из карты прав (атрибут userId) по guid. */
+    private static Integer getUserIdFromRightsByGuid(String guid) {
+        if (guid == null || guid.isEmpty()) return null;
+        String rightsJson = RightsJsonStore.guidMap.get(guid);
+        if (rightsJson == null || rightsJson.isEmpty()) return null;
+        return getUserIdFromRights(rightsJson);
+    }
+
+    /** Извлекает userId из JSON прав: "userId": 1 или "userId": "1". */
+    private static Integer getUserIdFromRights(String json) {
+        if (json == null) return null;
+        Matcher m = Pattern.compile("\"userId\"\\s*:\\s*(-?\\d+)").matcher(json);
+        if (m.find()) {
+            try { return Integer.parseInt(m.group(1)); } catch (NumberFormatException e) { return null; }
+        }
+        m = Pattern.compile("\"userId\"\\s*:\\s*\"(-?\\d+)\"").matcher(json);
+        if (m.find()) {
+            try { return Integer.parseInt(m.group(1)); } catch (NumberFormatException e) { return null; }
+        }
+        return null;
     }
 
     private static Integer getDepartmentDepIdFromRights(String json) {

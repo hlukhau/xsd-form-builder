@@ -238,6 +238,16 @@
         <url-pattern>/api/dep/options</url-pattern>
     </servlet-mapping>
 
+    <!-- Уровень ЦГЭ по DEPID (из карты прав) — для подсказки в черновике -->
+    <servlet>
+        <servlet-name>DepInfoServlet</servlet-name>
+        <servlet-class>com.eec.servlet.DepInfoServlet</servlet-class>
+    </servlet>
+    <servlet-mapping>
+        <servlet-name>DepInfoServlet</servlet-name>
+        <url-pattern>/api/dep/info</url-pattern>
+    </servlet-mapping>
+
     <!-- Доступ по DPAID: подразделения, связь SESINT.DPADEPPERMIS(DPAID, DEPID) -->
     <servlet>
         <servlet-name>DpaAccessServlet</servlet-name>
