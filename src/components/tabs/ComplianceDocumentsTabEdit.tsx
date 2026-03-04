@@ -1,191 +1,126 @@
 import { useState } from 'react'
-import { Form, Input, Button, Table, Space, DatePicker, Modal, Descriptions } from 'antd'
+import { Form, Input, Button, Table, Space, DatePicker, Modal, Descriptions, Collapse } from 'antd'
 import { PlusOutlined, DeleteOutlined, EyeOutlined } from '@ant-design/icons'
 import dayjs from 'dayjs'
+import { format } from 'date-fns'
+import { ru } from 'date-fns/locale'
 import { labelWithHelp } from '@/components/common/FieldHelp'
 import { FIELD_HELP } from '@/constants/fieldDescriptions'
-import type { ComplianceDocumentsData, ComplianceDocument, UnifiedAuthorityDetails } from '@/types/card'
+import type { ComplianceDocument, TSDData, ProductBatchDetails } from '@/types/card'
 import { useCountryOptions } from '@/hooks/useCountryOptions'
 import CountrySelect from '@/components/common/CountrySelect'
 
 interface ComplianceDocumentsTabEditProps {
-  data: ComplianceDocumentsData
-  onChange: (data: ComplianceDocumentsData) => void
+  tsd: TSDData
+  onTsdChange: (tsd: TSDData) => void
 }
 
-const ComplianceDocumentsTabEdit: React.FC<ComplianceDocumentsTabEditProps> = ({ data, onChange }) => {
-  const [selectedDocIndex, setSelectedDocIndex] = useState<number | null>(null)
-  const { countryOptions, loading: loadingCountries, normalizeCountryCode } = useCountryOptions()
+const ComplianceDocumentsTabEdit: React.FC<ComplianceDocumentsTabEditProps> = ({ tsd, onTsdChange }) => {
+  const batches = tsd.batches?.length ? tsd.batches : []
   const [authorityModalVisible, setAuthorityModalVisible] = useState(false)
+  const [authorityContext, setAuthorityContext] = useState<{ batchIndex: number; docIndex: number } | null>(null)
+  const { countryOptions, loading: loadingCountries, normalizeCountryCode } = useCountryOptions()
 
-  const handleAddDocument = () => {
-    const newDoc: ComplianceDocument = {
-      docKindCode: '',
-      docName: '',
-      docId: '',
-      docCreationDate: '',
-      docStartDate: '',
+  const formatDateShort = (date: string | null | undefined) => {
+    if (!date) return '-'
+    const d = new Date(date)
+    return isNaN(d.getTime()) ? date : format(d, 'dd.MM.yyyy', { locale: ru })
+  }
+
+  const updateBatchCompliance = (batchIndex: number, docs: ComplianceDocument[]) => {
+    const newBatches = [...tsd.batches]
+    newBatches[batchIndex] = { ...newBatches[batchIndex], complianceDocuments: docs }
+    onTsdChange({ ...tsd, batches: newBatches })
+  }
+
+  const handleAddDocument = (batchIndex: number) => {
+    const batch = batches[batchIndex]
+    const docs = [...(batch.complianceDocuments || []), { docKindCode: '', docName: '', docId: '', docCreationDate: '', docStartDate: '' } as ComplianceDocument]
+    updateBatchCompliance(batchIndex, docs)
+  }
+
+  const handleRemoveDocument = (batchIndex: number, docIndex: number) => {
+    const batch = batches[batchIndex]
+    const docs = [...(batch.complianceDocuments || [])]
+    docs.splice(docIndex, 1)
+    updateBatchCompliance(batchIndex, docs)
+  }
+
+  const handleDocumentChange = (batchIndex: number, docIndex: number, field: string, value: any) => {
+    const batch = batches[batchIndex]
+    const docs = [...(batch.complianceDocuments || [])]
+    docs[docIndex] = { ...docs[docIndex], [field]: value }
+    updateBatchCompliance(batchIndex, docs)
+  }
+
+  const handleAuthorityChange = (batchIndex: number, docIndex: number, field: string, value: string) => {
+    const batch = batches[batchIndex]
+    const docs = [...(batch.complianceDocuments || [])]
+    docs[docIndex] = {
+      ...docs[docIndex],
+      authority: { ...docs[docIndex].authority, [field]: value },
     }
-    onChange({
-      ...data,
-      documents: [...(data.documents || []), newDoc],
-    })
+    updateBatchCompliance(batchIndex, docs)
   }
 
-  const handleRemoveDocument = (index: number) => {
-    const updated = [...(data.documents || [])]
-    updated.splice(index, 1)
-    onChange({
-      ...data,
-      documents: updated,
-    })
-  }
-
-  const handleDocumentChange = (index: number, field: string, value: any) => {
-    const updated = [...(data.documents || [])]
-    updated[index] = {
-      ...updated[index],
-      [field]: value,
-    }
-    onChange({
-      ...data,
-      documents: updated,
-    })
-  }
-
-  const handleAuthorityChange = (index: number, field: string, value: string) => {
-    const updated = [...(data.documents || [])]
-    updated[index] = {
-      ...updated[index],
-      authority: {
-        ...updated[index].authority,
-        [field]: value,
-      },
-    }
-    onChange({
-      ...data,
-      documents: updated,
-    })
-  }
-
-  const columns = [
-    {
-      title: labelWithHelp('Код вида документа', FIELD_HELP.complianceDocKindCode),
-      key: 'docKindCode',
-      width: 150,
-      render: (_: any, record: ComplianceDocument, index: number) => (
-        <Input
-          value={record.docKindCode}
-          onChange={(e) => handleDocumentChange(index, 'docKindCode', e.target.value)}
-        />
-      ),
-    },
-    {
-      title: labelWithHelp('Наименование', FIELD_HELP.complianceDocName),
-      key: 'docName',
-      width: 200,
-      render: (_: any, record: ComplianceDocument, index: number) => (
-        <Input
-          value={record.docName}
-          onChange={(e) => handleDocumentChange(index, 'docName', e.target.value)}
-        />
-      ),
-    },
-    {
-      title: 'Номер',
-      key: 'docId',
-      width: 150,
-      render: (_: any, record: ComplianceDocument, index: number) => (
-        <Input
-          value={record.docId}
-          onChange={(e) => handleDocumentChange(index, 'docId', e.target.value)}
-        />
-      ),
-    },
-    {
-      title: labelWithHelp('Дата', FIELD_HELP.complianceDocCreationDate),
-      key: 'docCreationDate',
-      width: 150,
-      render: (_: any, record: ComplianceDocument, index: number) => (
-        <DatePicker
-          value={record.docCreationDate ? dayjs(record.docCreationDate) : null}
-          onChange={(date) => handleDocumentChange(index, 'docCreationDate', date ? date.format('YYYY-MM-DD') : '')}
-          style={{ width: '100%' }}
-        />
-      ),
-    },
-    {
-      title: 'Действия',
-      key: 'actions',
-      width: 200,
-      render: (_: any, record: ComplianceDocument, index: number) => (
-        <Space>
-          <Button
-            type="link"
-            icon={<EyeOutlined />}
-            onClick={() => {
-              setSelectedDocIndex(index)
-              setAuthorityModalVisible(true)
-            }}
-          >
-            {labelWithHelp('Уполномоченный орган', FIELD_HELP.complianceAuthority)}
-          </Button>
-          <Button
-            type="link"
-            danger
-            icon={<DeleteOutlined />}
-            onClick={() => handleRemoveDocument(index)}
-          >
-            Удалить
-          </Button>
-        </Space>
-      ),
-    },
+  const getColumns = (batchIndex: number) => [
+    { title: labelWithHelp('Код вида документа', FIELD_HELP.complianceDocKindCode), key: 'docKindCode', width: 150, render: (_: any, record: ComplianceDocument, docIndex: number) => (<Input value={record.docKindCode} onChange={(e) => handleDocumentChange(batchIndex, docIndex, 'docKindCode', e.target.value)} />) },
+    { title: labelWithHelp('Наименование', FIELD_HELP.complianceDocName), key: 'docName', width: 200, render: (_: any, record: ComplianceDocument, docIndex: number) => (<Input value={record.docName} onChange={(e) => handleDocumentChange(batchIndex, docIndex, 'docName', e.target.value)} />) },
+    { title: 'Номер', key: 'docId', width: 150, render: (_: any, record: ComplianceDocument, docIndex: number) => (<Input value={record.docId} onChange={(e) => handleDocumentChange(batchIndex, docIndex, 'docId', e.target.value)} />) },
+    { title: labelWithHelp('Дата', FIELD_HELP.complianceDocCreationDate), key: 'docCreationDate', width: 150, render: (_: any, record: ComplianceDocument, docIndex: number) => (<DatePicker value={record.docCreationDate ? dayjs(record.docCreationDate) : null} onChange={(date) => handleDocumentChange(batchIndex, docIndex, 'docCreationDate', date ? date.format('YYYY-MM-DD') : '')} style={{ width: '100%' }} />) },
+    { title: 'Действия', key: 'actions', width: 200, render: (_: any, record: ComplianceDocument, docIndex: number) => (<Space><Button type="link" icon={<EyeOutlined />} onClick={() => { setAuthorityContext({ batchIndex, docIndex }); setAuthorityModalVisible(true) }}>{labelWithHelp('Уполномоченный орган', FIELD_HELP.complianceAuthority)}</Button><Button type="link" danger icon={<DeleteOutlined />} onClick={() => handleRemoveDocument(batchIndex, docIndex)}>Удалить</Button></Space>) },
   ]
+
+  if (batches.length === 0) {
+    return <div>Нет партий. Добавьте партию во вкладке ТСД.</div>
+  }
 
   return (
     <div>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
-        <h3>Документы соответствия</h3>
-        <Button
-          type="dashed"
-          icon={<PlusOutlined />}
-          onClick={handleAddDocument}
-        >
-          Добавить документ
-        </Button>
-      </div>
-      <Table
-        dataSource={data.documents || []}
-        columns={columns}
-        rowKey={(record, index) => `doc-${index}`}
-        pagination={false}
+      <div style={{ marginBottom: 8 }}>Документы соответствия по партиям: <strong>{batches.length}</strong>.</div>
+      <Collapse
+        accordion={false}
+        items={batches.map((batch, batchIndex) => {
+          const docs = batch.complianceDocuments ?? []
+          return {
+            key: String(batchIndex),
+            label: `Партия ${batchIndex + 1}${batch.batchId ? ` — № ${batch.batchId}` : ''}${batch.manufactureDate ? ` (производство: ${formatDateShort(batch.manufactureDate)})` : ''} (документов: ${docs.length})`,
+            children: (
+              <div>
+                <Descriptions column={1} bordered size="small" style={{ marginBottom: 12 }}>
+                  <Descriptions.Item label="Номер серии товара">{batch.batchId || '-'}</Descriptions.Item>
+                  <Descriptions.Item label="Дата производства">{formatDateShort(batch.manufactureDate)}</Descriptions.Item>
+                  <Descriptions.Item label="Номер товарной партии">{batch.consignmentId || '-'}</Descriptions.Item>
+                </Descriptions>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+                  <h4 style={{ margin: 0 }}>Документы соответствия</h4>
+                  <Button type="dashed" icon={<PlusOutlined />} onClick={() => handleAddDocument(batchIndex)}>Добавить документ</Button>
+                </div>
+                <Table
+                  dataSource={docs}
+                  columns={getColumns(batchIndex)}
+                  rowKey={(_, i) => `batch-${batchIndex}-doc-${i}`}
+                  pagination={false}
+                />
+              </div>
+            ),
+          }
+        })}
       />
 
-      {/* Модальное окно редактирования уполномоченного органа */}
       <Modal
         title={labelWithHelp('Уполномоченный орган', FIELD_HELP.complianceAuthority)}
         open={authorityModalVisible}
-        onCancel={() => {
-          setAuthorityModalVisible(false)
-          setSelectedDocIndex(null)
-        }}
-        footer={[
-          <Button key="close" onClick={() => {
-            setAuthorityModalVisible(false)
-            setSelectedDocIndex(null)
-          }}>
-            Закрыть
-          </Button>,
-        ]}
+        onCancel={() => { setAuthorityModalVisible(false); setAuthorityContext(null) }}
+        footer={[<Button key="close" onClick={() => { setAuthorityModalVisible(false); setAuthorityContext(null) }}>Закрыть</Button>]}
         width={600}
       >
-        {selectedDocIndex !== null && data.documents[selectedDocIndex] && (
+        {authorityContext !== null && batches[authorityContext.batchIndex]?.complianceDocuments?.[authorityContext.docIndex] && (
           <Form layout="vertical">
             <Form.Item label="Страна">
               <CountrySelect
-                value={data.documents[selectedDocIndex].authority?.country}
-                onChange={(value) => handleAuthorityChange(selectedDocIndex, 'country', value || '')}
+                value={batches[authorityContext.batchIndex].complianceDocuments![authorityContext.docIndex].authority?.country}
+                onChange={(value) => handleAuthorityChange(authorityContext.batchIndex, authorityContext.docIndex, 'country', value || '')}
                 loading={loadingCountries}
                 countryOptions={countryOptions}
                 normalizeCountryCode={normalizeCountryCode}
@@ -193,20 +128,20 @@ const ComplianceDocumentsTabEdit: React.FC<ComplianceDocumentsTabEditProps> = ({
             </Form.Item>
             <Form.Item label="Наименование">
               <Input
-                value={data.documents[selectedDocIndex].authority?.authorityName}
-                onChange={(e) => handleAuthorityChange(selectedDocIndex, 'authorityName', e.target.value)}
+                value={batches[authorityContext.batchIndex].complianceDocuments![authorityContext.docIndex].authority?.authorityName}
+                onChange={(e) => handleAuthorityChange(authorityContext.batchIndex, authorityContext.docIndex, 'authorityName', e.target.value)}
               />
             </Form.Item>
             <Form.Item label="Краткое наименование">
               <Input
-                value={data.documents[selectedDocIndex].authority?.authorityBriefName}
-                onChange={(e) => handleAuthorityChange(selectedDocIndex, 'authorityBriefName', e.target.value)}
+                value={batches[authorityContext.batchIndex].complianceDocuments![authorityContext.docIndex].authority?.authorityBriefName}
+                onChange={(e) => handleAuthorityChange(authorityContext.batchIndex, authorityContext.docIndex, 'authorityBriefName', e.target.value)}
               />
             </Form.Item>
             <Form.Item label="Идентификатор">
               <Input
-                value={data.documents[selectedDocIndex].authority?.authorityId}
-                onChange={(e) => handleAuthorityChange(selectedDocIndex, 'authorityId', e.target.value)}
+                value={batches[authorityContext.batchIndex].complianceDocuments![authorityContext.docIndex].authority?.authorityId}
+                onChange={(e) => handleAuthorityChange(authorityContext.batchIndex, authorityContext.docIndex, 'authorityId', e.target.value)}
               />
             </Form.Item>
           </Form>
@@ -217,8 +152,3 @@ const ComplianceDocumentsTabEdit: React.FC<ComplianceDocumentsTabEditProps> = ({
 }
 
 export default ComplianceDocumentsTabEdit
-
-
-
-
-

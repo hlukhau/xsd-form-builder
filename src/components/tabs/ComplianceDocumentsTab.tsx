@@ -1,18 +1,19 @@
 import { useState } from 'react'
-import { Table, Descriptions, Button, Modal, message } from 'antd'
+import { Table, Descriptions, Button, Modal, message, Collapse } from 'antd'
 import { EyeOutlined } from '@ant-design/icons'
 import { format } from 'date-fns'
 import { ru } from 'date-fns/locale'
-import type { ComplianceDocumentsData, ComplianceDocument, UnifiedAuthorityDetails } from '@/types/card'
+import type { ComplianceDocument, TSDData } from '@/types/card'
 
 interface ComplianceDocumentsTabProps {
-  data: ComplianceDocumentsData
+  /** По XSD документы соответствия только в tsd.batches[].complianceDocuments */
+  tsd: TSDData | null | undefined
   hasEditPermission?: boolean // dangerousProductIn:edit
 }
 
 const ComplianceDocumentsTab: React.FC<ComplianceDocumentsTabProps> = ({
-  data,
-  hasEditPermission = false, // По умолчанию нет прав
+  tsd,
+  hasEditPermission = false,
 }) => {
   const [selectedDocument, setSelectedDocument] = useState<ComplianceDocument | null>(null)
   const [authorityModalVisible, setAuthorityModalVisible] = useState(false)
@@ -196,13 +197,49 @@ const ComplianceDocumentsTab: React.FC<ComplianceDocumentsTabProps> = ({
     return countryMap[code] || code
   }
 
+  const formatDateShort = (date: string | null | undefined) => {
+    if (!date) return '-'
+    const d = new Date(date)
+    return isNaN(d.getTime()) ? date : format(d, 'dd.MM.yyyy', { locale: ru })
+  }
+
+  const batchesWithCompliance = tsd?.batches?.filter((b) => (b.complianceDocuments?.length ?? 0) > 0) ?? []
+
+  if (batchesWithCompliance.length === 0) {
+    return <div>Данные о документах соответствия не найдены. Добавьте партию во вкладке ТСД и укажите документы в составе партии.</div>
+  }
+
   return (
     <div>
-      <Table
-        dataSource={data.documents}
-        columns={columns}
-        rowKey={(record, index) => `doc-${index}`}
-        pagination={false}
+      <div style={{ marginBottom: 8 }}>
+        Документы соответствия по партиям: <strong>{batchesWithCompliance.length}</strong>.
+      </div>
+      <Collapse
+        accordion={false}
+        items={batchesWithCompliance.map((batch) => {
+          const batchIndex = tsd!.batches!.indexOf(batch)
+          const docs = batch.complianceDocuments ?? []
+          return {
+            key: String(batchIndex),
+            label: `Партия ${batchIndex + 1}${batch.batchId ? ` — № ${batch.batchId}` : ''}${batch.manufactureDate ? ` (производство: ${formatDateShort(batch.manufactureDate)})` : ''} (документов: ${docs.length})`,
+            children: (
+              <div>
+                <Descriptions column={1} bordered size="small" style={{ marginBottom: 12 }}>
+                  <Descriptions.Item label="Номер серии товара">{batch.batchId || '-'}</Descriptions.Item>
+                  <Descriptions.Item label="Дата производства">{formatDateShort(batch.manufactureDate)}</Descriptions.Item>
+                  <Descriptions.Item label="Номер товарной партии">{batch.consignmentId || '-'}</Descriptions.Item>
+                </Descriptions>
+                <Table
+                  dataSource={docs}
+                  columns={columns}
+                  rowKey={(_, i) => `batch-${batchIndex}-doc-${i}`}
+                  pagination={false}
+                  size="small"
+                />
+              </div>
+            ),
+          }
+        })}
       />
 
       {/* Модальное окно с деталями уполномоченного органа */}

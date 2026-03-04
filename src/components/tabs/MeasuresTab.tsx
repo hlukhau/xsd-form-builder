@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
 import { Table, Button, Descriptions, Collapse } from 'antd'
 import { DownloadOutlined } from '@ant-design/icons'
 import { format } from 'date-fns'
@@ -343,29 +343,6 @@ const MeasureImplementationView: React.FC<{
   onRowClick: (index: number) => void
 }> = ({ items, selectedIndex, onRowClick }) => {
   const { getNameByCode: getSanitaryMeasureObjKindNameByCode } = useSanitaryMeasureObjKindOptions()
-  const [objKindNamesCache, setObjKindNamesCache] = useState<Record<string, string>>({})
-
-  // Загружаем названия видов объектов действия
-  useEffect(() => {
-    const loadObjKindNames = async () => {
-      const names: Record<string, string> = {}
-      for (const item of items) {
-        if (item.measureAffectedObjectKindCode) {
-          try {
-            const name = await getSanitaryMeasureObjKindNameByCode(item.measureAffectedObjectKindCode)
-            if (name) {
-              names[item.measureAffectedObjectKindCode] = name
-            }
-          } catch (error) {
-            console.error('Ошибка загрузки названия вида объекта действия:', error)
-          }
-        }
-      }
-      setObjKindNamesCache(names)
-    }
-
-    loadObjKindNames()
-  }, [items, getSanitaryMeasureObjKindNameByCode])
 
   const formatDate = (date: string | null | undefined) => {
     if (!date) return '-'

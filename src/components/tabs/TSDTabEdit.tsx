@@ -16,98 +16,87 @@ interface TSDTabEditProps {
 }
 
 const TSDTabEdit: React.FC<TSDTabEditProps> = ({ data, onChange }) => {
+  const batches = data.batches?.length ? data.batches : [{ shippingDocuments: [] as ShippingDocument[] }]
+  const [selectedBatchIndex, setSelectedBatchIndex] = useState<number | null>(null)
   const [selectedDocumentIndex, setSelectedDocumentIndex] = useState<number | null>(null)
   const { options: measurementUnitOptions, loading: loadingMeasurementUnits, getSelectOptions: getMeasurementUnitSelectOptions, getUnitByCode } = useMeasurementUnitOptions()
   const { options: shipDocKindOptions, loading: loadingShipDocKinds, getSelectOptions: getShipDocKindSelectOptions, getNameByCode: getShipDocKindNameByCode } = useShipDocKindOptions()
-  const [docKindErrors, setDocKindErrors] = useState<Map<number, boolean>>(new Map())
+  const [docKindErrors, setDocKindErrors] = useState<Map<string, boolean>>(new Map())
 
-  // Проверяем валидность кодов видов документов при загрузке
+  const docKindErrorKey = (batchIndex: number, docIndex: number) => `${batchIndex}-${docIndex}`
+
   useEffect(() => {
-    const batch = data.batches[0]
-    if (batch?.shippingDocuments) {
-      const errors = new Map<number, boolean>()
-      batch.shippingDocuments.forEach((doc, index) => {
+    const errors = new Map<string, boolean>()
+    batches.forEach((batch, batchIndex) => {
+      batch.shippingDocuments?.forEach((doc, docIndex) => {
         if (doc.docKindCode) {
           checkShipDocKindExists(doc.docKindCode)
             .then((exists) => {
-              errors.set(index, !exists)
+              errors.set(docKindErrorKey(batchIndex, docIndex), !exists)
               setDocKindErrors(new Map(errors))
             })
             .catch(() => {
-              errors.set(index, false)
+              errors.set(docKindErrorKey(batchIndex, docIndex), false)
               setDocKindErrors(new Map(errors))
             })
-        } else {
-          errors.set(index, false)
-          setDocKindErrors(new Map(errors))
         }
       })
-    }
+    })
   }, [data])
 
-  // Проверяем валидность selectedDocumentIndex при изменении данных
   useEffect(() => {
-    const batch = data.batches[0]
-    if (selectedDocumentIndex !== null && batch?.shippingDocuments) {
-      if (selectedDocumentIndex >= batch.shippingDocuments.length) {
-        // Индекс стал невалидным, сбрасываем выбор
+    if (selectedBatchIndex !== null && selectedDocumentIndex !== null) {
+      const batch = batches[selectedBatchIndex]
+      if (!batch?.shippingDocuments || selectedDocumentIndex >= batch.shippingDocuments.length) {
         setSelectedDocumentIndex(null)
+        setSelectedBatchIndex(null)
       }
     }
-  }, [data, selectedDocumentIndex])
+  }, [data, selectedBatchIndex, selectedDocumentIndex])
 
-  const handleBatchChange = (field: string, value: any) => {
-    const batch = data.batches[0] || { shippingDocuments: [] }
-    const updatedBatch: ProductBatchDetails = {
-      ...batch,
-      [field]: value,
-    }
-    onChange({
-      ...data,
-      batches: [updatedBatch],
-    })
+  const updateBatch = (batchIndex: number, updatedBatch: ProductBatchDetails) => {
+    const newBatches = [...batches]
+    newBatches[batchIndex] = updatedBatch
+    onChange({ ...data, batches: newBatches })
   }
 
-  // Обработчик изменения количества товара
-  const handleCommodityMeasureChange = (value: string, unitCode: string | undefined) => {
-    const batch = data.batches[0] || { shippingDocuments: [] }
+  const handleBatchChange = (batchIndex: number, field: string, value: any) => {
+    const batch = batches[batchIndex] || { shippingDocuments: [] }
+    updateBatch(batchIndex, { ...batch, [field]: value })
+  }
+
+  const handleCommodityMeasureChange = (batchIndex: number, value: string, unitCode: string | undefined) => {
+    const batch = batches[batchIndex] || { shippingDocuments: [] }
     const unit = unitCode ? getUnitByCode(unitCode) : undefined
     const commodityMeasure: MeasureWithUnit = {
       value: value || '',
       unitCode: unitCode,
-      unitCodeListId: unitCode ? '1025' : undefined, // Идентификатор справочника единиц измерения
+      unitCodeListId: unitCode ? '1025' : undefined,
       unitName: unit?.name || unit?.briefName,
     }
-    onChange({
-      ...data,
-      batches: [{
-        ...batch,
-        commodityMeasure: value || unitCode ? commodityMeasure : undefined,
-      }],
+    updateBatch(batchIndex, {
+      ...batch,
+      commodityMeasure: value || unitCode ? commodityMeasure : undefined,
     })
   }
 
-  // Обработчик изменения количества товара в партии
-  const handleBatchCommodityMeasureChange = (value: string, unitCode: string | undefined) => {
-    const batch = data.batches[0] || { shippingDocuments: [] }
+  const handleBatchCommodityMeasureChange = (batchIndex: number, value: string, unitCode: string | undefined) => {
+    const batch = batches[batchIndex] || { shippingDocuments: [] }
     const unit = unitCode ? getUnitByCode(unitCode) : undefined
     const batchCommodityMeasure: MeasureWithUnit = {
       value: value || '',
       unitCode: unitCode,
-      unitCodeListId: unitCode ? '1025' : undefined, // Идентификатор справочника единиц измерения
+      unitCodeListId: unitCode ? '1025' : undefined,
       unitName: unit?.name || unit?.briefName,
     }
-    onChange({
-      ...data,
-      batches: [{
-        ...batch,
-        batchCommodityMeasure: value || unitCode ? batchCommodityMeasure : undefined,
-      }],
+    updateBatch(batchIndex, {
+      ...batch,
+      batchCommodityMeasure: value || unitCode ? batchCommodityMeasure : undefined,
     })
   }
 
-  const handleAddDocument = () => {
-    const batch = data.batches[0] || { shippingDocuments: [] }
+  const handleAddDocument = (batchIndex: number) => {
+    const batch = batches[batchIndex] || { shippingDocuments: [] }
     const newDoc: ShippingDocument = {
       docKindCode: undefined,
       docKindName: undefined,
@@ -117,131 +106,97 @@ const TSDTabEdit: React.FC<TSDTabEditProps> = ({ data, onChange }) => {
       products: [],
       supplyChainParties: [],
     }
-    onChange({
-      ...data,
-      batches: [{
-        ...batch,
-        shippingDocuments: [...(batch.shippingDocuments || []), newDoc],
-      }],
+    updateBatch(batchIndex, {
+      ...batch,
+      shippingDocuments: [...(batch.shippingDocuments || []), newDoc],
     })
   }
 
-  const handleRemoveDocument = (index: number) => {
-    const batch = data.batches[0] || { shippingDocuments: [] }
+  const handleRemoveDocument = (batchIndex: number, docIndex: number) => {
+    const batch = batches[batchIndex] || { shippingDocuments: [] }
     const updated = [...(batch.shippingDocuments || [])]
-    updated.splice(index, 1)
-    
-    // Если удаляем выбранный документ, сбрасываем выбор
-    if (selectedDocumentIndex === index) {
+    updated.splice(docIndex, 1)
+    if (selectedBatchIndex === batchIndex && selectedDocumentIndex === docIndex) {
       setSelectedDocumentIndex(null)
-    } else if (selectedDocumentIndex !== null && selectedDocumentIndex > index) {
-      // Если удаляем документ перед выбранным, уменьшаем индекс
+      setSelectedBatchIndex(null)
+    } else if (selectedBatchIndex === batchIndex && selectedDocumentIndex !== null && selectedDocumentIndex > docIndex) {
       setSelectedDocumentIndex(selectedDocumentIndex - 1)
     }
-    
-    onChange({
-      ...data,
-      batches: [{
-        ...batch,
-        shippingDocuments: updated,
-      }],
-    })
+    updateBatch(batchIndex, { ...batch, shippingDocuments: updated })
   }
 
-  const handleDocumentChange = (index: number, field: string, value: any) => {
-    const batch = data.batches[0] || { shippingDocuments: [] }
+  const handleDocumentChange = (batchIndex: number, docIndex: number, field: string, value: any) => {
+    const batch = batches[batchIndex] || { shippingDocuments: [] }
     const updated = [...(batch.shippingDocuments || [])]
-    updated[index] = {
-      ...updated[index],
-      [field]: value,
-    }
-    // Если изменяется docKindCode, обновляем docKindName из справочника
+    updated[docIndex] = { ...updated[docIndex], [field]: value }
     if (field === 'docKindCode' && value) {
-      const docKindName = getShipDocKindNameByCode(value) || ''
-      updated[index].docKindName = docKindName
-      const errors = new Map(docKindErrors)
-      errors.set(index, false)
-      setDocKindErrors(errors)
+      updated[docIndex].docKindName = getShipDocKindNameByCode(value) || ''
+      const err = new Map(docKindErrors)
+      err.set(docKindErrorKey(batchIndex, docIndex), false)
+      setDocKindErrors(err)
     }
-    onChange({
-      ...data,
-      batches: [{
-        ...batch,
-        shippingDocuments: updated,
-      }],
-    })
+    updateBatch(batchIndex, { ...batch, shippingDocuments: updated })
   }
 
-  const handleAddProduct = (docIndex: number) => {
-    const batch = data.batches[0] || { shippingDocuments: [] }
+  const handleAddProduct = (batchIndex: number, docIndex: number) => {
+    const batch = batches[batchIndex] || { shippingDocuments: [] }
     const doc = batch.shippingDocuments[docIndex]
-    const newProduct: ProductDetails = {
-      productId: '',
-      productName: '',
-    }
+    const newProduct: ProductDetails = { productId: '', productName: '' }
     const updated = [...(batch.shippingDocuments || [])]
-    updated[docIndex] = {
-      ...doc,
-      products: [...(doc.products || []), newProduct],
-    }
-    onChange({
-      ...data,
-      batches: [{
-        ...batch,
-        shippingDocuments: updated,
-      }],
-    })
+    updated[docIndex] = { ...doc, products: [...(doc.products || []), newProduct] }
+    updateBatch(batchIndex, { ...batch, shippingDocuments: updated })
   }
 
-  const handleAddParty = (docIndex: number) => {
-    const batch = data.batches[0] || { shippingDocuments: [] }
+  const handleAddParty = (batchIndex: number, docIndex: number) => {
+    const batch = batches[batchIndex] || { shippingDocuments: [] }
     const doc = batch.shippingDocuments[docIndex]
-    const newParty: SupplyChainPartyDetails = {
-      country: '',
-    }
+    const newParty: SupplyChainPartyDetails = { country: '' }
     const updated = [...(batch.shippingDocuments || [])]
-    updated[docIndex] = {
-      ...doc,
-      supplyChainParties: [...(doc.supplyChainParties || []), newParty],
+    updated[docIndex] = { ...doc, supplyChainParties: [...(doc.supplyChainParties || []), newParty] }
+    updateBatch(batchIndex, { ...batch, shippingDocuments: updated })
+  }
+
+  const handleAddBatch = () => {
+    const newBatch: ProductBatchDetails = { shippingDocuments: [] }
+    onChange({ ...data, batches: [...batches, newBatch] })
+  }
+
+  const handleRemoveBatch = (batchIndex: number) => {
+    const newBatches = batches.filter((_, i) => i !== batchIndex)
+    if (selectedBatchIndex === batchIndex) {
+      setSelectedBatchIndex(null)
+      setSelectedDocumentIndex(null)
+    } else if (selectedBatchIndex !== null && selectedBatchIndex > batchIndex) {
+      setSelectedBatchIndex(selectedBatchIndex - 1)
     }
-    onChange({
-      ...data,
-      batches: [{
-        ...batch,
-        shippingDocuments: updated,
-      }],
-    })
+    onChange({ ...data, batches: newBatches.length ? newBatches : [{ shippingDocuments: [] }] })
   }
 
-  const batch = data.batches[0] || { shippingDocuments: [] }
-
-  // Обработчик выбора вида документа
-  const handleDocKindSelect = (index: number, code: string) => {
-    const errors = new Map(docKindErrors)
-    errors.set(index, false) // Сбрасываем ошибку при выборе из справочника
-    setDocKindErrors(errors)
-    // handleDocumentChange автоматически обновит docKindName
-    handleDocumentChange(index, 'docKindCode', code)
+  const handleDocKindSelect = (batchIndex: number, docIndex: number, code: string) => {
+    const err = new Map(docKindErrors)
+    err.set(docKindErrorKey(batchIndex, docIndex), false)
+    setDocKindErrors(err)
+    handleDocumentChange(batchIndex, docIndex, 'docKindCode', code)
   }
 
-  const documentColumns = [
+  const getDocumentColumns = (batchIndex: number) => [
     {
       title: labelWithHelp('Код вида документа', FIELD_HELP.tsdDocKindCode),
       key: 'docKindCode',
       width: 120,
-      render: (_: any, record: ShippingDocument, index: number) => (
+      render: (_: any, record: ShippingDocument, docIndex: number) => (
         <Select
           showSearch
           placeholder="Вид"
           loading={loadingShipDocKinds}
           value={record.docKindCode}
-          onChange={(code) => handleDocKindSelect(index, code)}
+          onChange={(code) => handleDocKindSelect(batchIndex, docIndex, code)}
           filterOption={(input, option) =>
             (option?.label ?? '').toLowerCase().includes(input.toLowerCase())
           }
           options={getShipDocKindSelectOptions()}
           allowClear
-          status={docKindErrors.get(index) ? 'error' : undefined}
+          status={docKindErrors.get(docKindErrorKey(batchIndex, docIndex)) ? 'error' : undefined}
           style={{ width: '100%', minWidth: 100 }}
           size="small"
         />
@@ -251,10 +206,10 @@ const TSDTabEdit: React.FC<TSDTabEditProps> = ({ data, onChange }) => {
       title: labelWithHelp('Наименование документа', FIELD_HELP.tsdDocName),
       key: 'docName',
       width: 200,
-      render: (_: any, record: ShippingDocument, index: number) => (
+      render: (_: any, record: ShippingDocument, docIndex: number) => (
         <Input
           value={record.docName || ''}
-          onChange={(e) => handleDocumentChange(index, 'docName', e.target.value)}
+          onChange={(e) => handleDocumentChange(batchIndex, docIndex, 'docName', e.target.value)}
           placeholder="Наименование"
           size="small"
         />
@@ -264,10 +219,10 @@ const TSDTabEdit: React.FC<TSDTabEditProps> = ({ data, onChange }) => {
       title: labelWithHelp('Номер', FIELD_HELP.tsdDocId),
       key: 'docId',
       width: 120,
-      render: (_: any, record: ShippingDocument, index: number) => (
+      render: (_: any, record: ShippingDocument, docIndex: number) => (
         <Input
           value={record.docId || ''}
-          onChange={(e) => handleDocumentChange(index, 'docId', e.target.value)}
+          onChange={(e) => handleDocumentChange(batchIndex, docIndex, 'docId', e.target.value)}
           placeholder="Номер"
           size="small"
         />
@@ -277,10 +232,10 @@ const TSDTabEdit: React.FC<TSDTabEditProps> = ({ data, onChange }) => {
       title: labelWithHelp('Дата', FIELD_HELP.tsdDocCreationDate),
       key: 'docCreationDate',
       width: 120,
-      render: (_: any, record: ShippingDocument, index: number) => (
+      render: (_: any, record: ShippingDocument, docIndex: number) => (
         <DatePicker
           value={record.docCreationDate ? dayjs(record.docCreationDate) : null}
-          onChange={(date) => handleDocumentChange(index, 'docCreationDate', date ? date.format('YYYY-MM-DD') : '')}
+          onChange={(date) => handleDocumentChange(batchIndex, docIndex, 'docCreationDate', date ? date.format('YYYY-MM-DD') : '')}
           style={{ width: '100%' }}
           size="small"
         />
@@ -291,22 +246,23 @@ const TSDTabEdit: React.FC<TSDTabEditProps> = ({ data, onChange }) => {
       key: 'actions',
       width: 150,
       fixed: 'right' as const,
-      render: (_: any, record: ShippingDocument, index: number) => (
+      render: (_: any, record: ShippingDocument, docIndex: number) => (
         <Space>
           <Button
             type="link"
             size="small"
             onClick={(e) => {
               e.stopPropagation()
-              console.log('Детализация кликнута, индекс:', index, 'текущий выбранный:', selectedDocumentIndex)
-              if (selectedDocumentIndex === index) {
+              if (selectedDocumentIndex === docIndex && selectedBatchIndex === batchIndex) {
                 setSelectedDocumentIndex(null)
+                setSelectedBatchIndex(null)
               } else {
-                setSelectedDocumentIndex(index)
+                setSelectedDocumentIndex(docIndex)
+                setSelectedBatchIndex(batchIndex)
               }
             }}
           >
-            {selectedDocumentIndex === index ? 'Скрыть детали' : 'Детализация'}
+            {selectedDocumentIndex === docIndex && selectedBatchIndex === batchIndex ? 'Скрыть детали' : 'Детализация'}
           </Button>
           <Button
             type="link"
@@ -315,10 +271,11 @@ const TSDTabEdit: React.FC<TSDTabEditProps> = ({ data, onChange }) => {
             icon={<DeleteOutlined />}
             onClick={(e) => {
               e.stopPropagation()
-              if (selectedDocumentIndex === index) {
+              if (selectedBatchIndex === batchIndex && selectedDocumentIndex === docIndex) {
                 setSelectedDocumentIndex(null)
+                setSelectedBatchIndex(null)
               }
-              handleRemoveDocument(index)
+              handleRemoveDocument(batchIndex, docIndex)
             }}
           >
             Удалить
@@ -328,242 +285,269 @@ const TSDTabEdit: React.FC<TSDTabEditProps> = ({ data, onChange }) => {
     },
   ]
 
-  return (
-    <div>
-      <Form layout="vertical">
-        <Form.Item label={labelWithHelp('Номер серии товара', FIELD_HELP.batchId)}>
-          <Input
-            value={batch.batchId}
-            onChange={(e) => handleBatchChange('batchId', e.target.value)}
-          />
-        </Form.Item>
-        <Form.Item label={labelWithHelp('Дата производства', FIELD_HELP.manufactureDate)}>
-          <DatePicker
-            value={batch.manufactureDate ? dayjs(batch.manufactureDate) : null}
-            onChange={(date) => handleBatchChange('manufactureDate', date ? date.format('YYYY-MM-DD') : '')}
-            style={{ width: '100%' }}
-          />
-        </Form.Item>
-        <Form.Item label={labelWithHelp('Срок годности', FIELD_HELP.productShelfLifeEndDate)}>
-          <DatePicker
-            value={batch.productShelfLifeEndDate ? dayjs(batch.productShelfLifeEndDate) : null}
-            onChange={(date) => handleBatchChange('productShelfLifeEndDate', date ? date.format('YYYY-MM-DD') : '')}
-            style={{ width: '100%' }}
-          />
-        </Form.Item>
-        <Form.Item label={labelWithHelp('Примечание', FIELD_HELP.note)}>
-          <Input.TextArea
-            rows={2}
-            value={batch.note}
-            onChange={(e) => handleBatchChange('note', e.target.value)}
-          />
-        </Form.Item>
-        
-        <Form.Item label={labelWithHelp('Количество товара', FIELD_HELP.commodityMeasure)}>
-          <Row gutter={8}>
-            <Col span={16}>
-              <Input
-                placeholder="Значение"
-                value={batch.commodityMeasure?.value || ''}
-                onChange={(e) => handleCommodityMeasureChange(e.target.value, batch.commodityMeasure?.unitCode)}
-              />
-            </Col>
-            <Col span={8}>
-              <Select
-                placeholder="Единица измерения"
-                loading={loadingMeasurementUnits}
-                value={batch.commodityMeasure?.unitCode}
-                onChange={(code) => handleCommodityMeasureChange(batch.commodityMeasure?.value || '', code)}
-                options={getMeasurementUnitSelectOptions()}
-                allowClear
-                showSearch
-                filterOption={(input, option) =>
-                  (option?.label ?? '').toLowerCase().includes(input.toLowerCase())
-                }
-              />
-            </Col>
-          </Row>
-        </Form.Item>
-        
-        <Form.Item label={labelWithHelp('Номер товарной партии', FIELD_HELP.consignmentId)}>
-          <Input
-            value={batch.consignmentId}
-            onChange={(e) => handleBatchChange('consignmentId', e.target.value)}
-          />
-        </Form.Item>
-        
-        <Form.Item label={labelWithHelp('Количество товара в партии', FIELD_HELP.batchCommodityMeasure)}>
-          <Row gutter={8}>
-            <Col span={16}>
-              <Input
-                placeholder="Значение"
-                value={batch.batchCommodityMeasure?.value || ''}
-                onChange={(e) => handleBatchCommodityMeasureChange(e.target.value, batch.batchCommodityMeasure?.unitCode)}
-              />
-            </Col>
-            <Col span={8}>
-              <Select
-                placeholder="Единица измерения"
-                loading={loadingMeasurementUnits}
-                value={batch.batchCommodityMeasure?.unitCode}
-                onChange={(code) => handleBatchCommodityMeasureChange(batch.batchCommodityMeasure?.value || '', code)}
-                options={getMeasurementUnitSelectOptions()}
-                allowClear
-                showSearch
-                filterOption={(input, option) =>
-                  (option?.label ?? '').toLowerCase().includes(input.toLowerCase())
-                }
-              />
-            </Col>
-          </Row>
-        </Form.Item>
-      </Form>
+  const renderBatchPanel = (batch: ProductBatchDetails, batchIndex: number) => {
+    const docs = batch.shippingDocuments || []
+    const isSelectedBatch = selectedBatchIndex === batchIndex
+    const selDocIndex = isSelectedBatch ? selectedDocumentIndex : null
+    const selectedDoc = selDocIndex !== null && docs[selDocIndex]
 
-      <div style={{ marginTop: '24px' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
-          <h3>Товаросопроводительные документы</h3>
-          <Button
-            type="dashed"
-            icon={<PlusOutlined />}
-            onClick={handleAddDocument}
-          >
-            Добавить документ
-          </Button>
-        </div>
-        <Table
-          dataSource={batch.shippingDocuments || []}
-          columns={documentColumns}
-          rowKey={(record, index) => `doc-${index}`}
-          pagination={false}
-          scroll={{ x: 'max-content' }}
-          onRow={(record, index) => ({
-            onClick: () => {
-              // При клике на строку открываем/закрываем детализацию
-              if (selectedDocumentIndex === index) {
-                setSelectedDocumentIndex(null)
-              } else {
-                setSelectedDocumentIndex(index ?? null)
-              }
-            },
-            style: { cursor: 'pointer' },
-          })}
-        />
+    return (
+      <div key={batchIndex}>
+        <Form layout="vertical">
+          <Form.Item label={labelWithHelp('Номер серии товара', FIELD_HELP.batchId)}>
+            <Input
+              value={batch.batchId}
+              onChange={(e) => handleBatchChange(batchIndex, 'batchId', e.target.value)}
+            />
+          </Form.Item>
+          <Form.Item label={labelWithHelp('Дата производства', FIELD_HELP.manufactureDate)}>
+            <DatePicker
+              value={batch.manufactureDate ? dayjs(batch.manufactureDate) : null}
+              onChange={(date) => handleBatchChange(batchIndex, 'manufactureDate', date ? date.format('YYYY-MM-DD') : '')}
+              style={{ width: '100%' }}
+            />
+          </Form.Item>
+          <Form.Item label={labelWithHelp('Срок годности', FIELD_HELP.productShelfLifeEndDate)}>
+            <DatePicker
+              value={batch.productShelfLifeEndDate ? dayjs(batch.productShelfLifeEndDate) : null}
+              onChange={(date) => handleBatchChange(batchIndex, 'productShelfLifeEndDate', date ? date.format('YYYY-MM-DD') : '')}
+              style={{ width: '100%' }}
+            />
+          </Form.Item>
+          <Form.Item label={labelWithHelp('Примечание', FIELD_HELP.note)}>
+            <Input.TextArea
+              rows={2}
+              value={batch.note}
+              onChange={(e) => handleBatchChange(batchIndex, 'note', e.target.value)}
+            />
+          </Form.Item>
+          <Form.Item label={labelWithHelp('Количество товара', FIELD_HELP.commodityMeasure)}>
+            <Row gutter={8}>
+              <Col span={16}>
+                <Input
+                  placeholder="Значение"
+                  value={batch.commodityMeasure?.value || ''}
+                  onChange={(e) => handleCommodityMeasureChange(batchIndex, e.target.value, batch.commodityMeasure?.unitCode)}
+                />
+              </Col>
+              <Col span={8}>
+                <Select
+                  placeholder="Единица измерения"
+                  loading={loadingMeasurementUnits}
+                  value={batch.commodityMeasure?.unitCode}
+                  onChange={(code) => handleCommodityMeasureChange(batchIndex, batch.commodityMeasure?.value || '', code)}
+                  options={getMeasurementUnitSelectOptions()}
+                  allowClear
+                  showSearch
+                  filterOption={(input, option) =>
+                    (option?.label ?? '').toLowerCase().includes(input.toLowerCase())
+                  }
+                />
+              </Col>
+            </Row>
+          </Form.Item>
+          <Form.Item label={labelWithHelp('Номер товарной партии', FIELD_HELP.consignmentId)}>
+            <Input
+              value={batch.consignmentId}
+              onChange={(e) => handleBatchChange(batchIndex, 'consignmentId', e.target.value)}
+            />
+          </Form.Item>
+          <Form.Item label={labelWithHelp('Количество товара в партии', FIELD_HELP.batchCommodityMeasure)}>
+            <Row gutter={8}>
+              <Col span={16}>
+                <Input
+                  placeholder="Значение"
+                  value={batch.batchCommodityMeasure?.value || ''}
+                  onChange={(e) => handleBatchCommodityMeasureChange(batchIndex, e.target.value, batch.batchCommodityMeasure?.unitCode)}
+                />
+              </Col>
+              <Col span={8}>
+                <Select
+                  placeholder="Единица измерения"
+                  loading={loadingMeasurementUnits}
+                  value={batch.batchCommodityMeasure?.unitCode}
+                  onChange={(code) => handleBatchCommodityMeasureChange(batchIndex, batch.batchCommodityMeasure?.value || '', code)}
+                  options={getMeasurementUnitSelectOptions()}
+                  allowClear
+                  showSearch
+                  filterOption={(input, option) =>
+                    (option?.label ?? '').toLowerCase().includes(input.toLowerCase())
+                  }
+                />
+              </Col>
+            </Row>
+          </Form.Item>
+        </Form>
 
-        {/* Детализация документа */}
-        {selectedDocumentIndex !== null && batch.shippingDocuments && batch.shippingDocuments[selectedDocumentIndex] && (
-          <div style={{ marginTop: '16px', padding: '16px', border: '1px solid #d9d9d9', borderRadius: '4px' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
-              <h4 style={{ margin: 0 }}>
-                Детализация документа: {batch.shippingDocuments[selectedDocumentIndex].docName || batch.shippingDocuments[selectedDocumentIndex].docId || `Документ ${selectedDocumentIndex + 1}`}
-              </h4>
-              <Button
-                type="link"
-                onClick={() => setSelectedDocumentIndex(null)}
-              >
-                Закрыть
+        <div style={{ marginTop: '24px' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+            <h3>Товаросопроводительные документы</h3>
+            <Space>
+              <Button type="dashed" icon={<PlusOutlined />} onClick={() => handleAddDocument(batchIndex)}>
+                Добавить документ
               </Button>
-            </div>
-            <Collapse
-              defaultActiveKey={['products', 'parties']}
-              items={[
-                {
-                  key: 'products',
-                  label: labelWithHelp('Продукция', FIELD_HELP.tsdProducts),
-                  children: (
-                    <div>
-                      {batch.shippingDocuments[selectedDocumentIndex].products?.map((product, pIndex) => (
-                        <div key={pIndex} style={{ marginBottom: '16px', padding: '12px', border: '1px solid #d9d9d9', borderRadius: '4px' }}>
-                          <Space direction="vertical" style={{ width: '100%' }}>
-                            <Input
-                              placeholder="Идентификатор"
-                              value={product.productId}
-                              onChange={(e) => {
-                                const updated = [...(batch.shippingDocuments[selectedDocumentIndex].products || [])]
-                                updated[pIndex] = { ...updated[pIndex], productId: e.target.value }
-                                handleDocumentChange(selectedDocumentIndex, 'products', updated)
+              {batches.length > 1 && (
+                <Button type="link" danger onClick={() => handleRemoveBatch(batchIndex)}>
+                  Удалить партию
+                </Button>
+              )}
+            </Space>
+          </div>
+          <Table
+            dataSource={docs}
+            columns={getDocumentColumns(batchIndex)}
+            rowKey={(record, index) => `batch-${batchIndex}-doc-${index}`}
+            pagination={false}
+            scroll={{ x: 'max-content' }}
+            onRow={(record, docIndex) => ({
+              onClick: () => {
+                if (selectedDocumentIndex === docIndex && selectedBatchIndex === batchIndex) {
+                  setSelectedDocumentIndex(null)
+                  setSelectedBatchIndex(null)
+                } else {
+                  setSelectedDocumentIndex(docIndex ?? null)
+                  setSelectedBatchIndex(batchIndex)
+                }
+              },
+              style: { cursor: 'pointer' },
+            })}
+            rowClassName={(record, docIndex) =>
+              selectedBatchIndex === batchIndex && selectedDocumentIndex === docIndex ? 'ant-table-row-selected' : ''
+            }
+          />
+
+          {/* Детализация документа — сразу под таблицей выбранной партии */}
+          {selectedDoc && (
+            <div style={{ marginTop: '16px', padding: '16px', border: '1px solid #d9d9d9', borderRadius: '4px' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+                <h4 style={{ margin: 0 }}>
+                  Детализация документа: {selectedDoc.docName || selectedDoc.docId || `Документ ${(selDocIndex ?? 0) + 1}`}
+                </h4>
+                <Button type="link" onClick={() => { setSelectedDocumentIndex(null); setSelectedBatchIndex(null) }}>
+                  Закрыть
+                </Button>
+              </div>
+              <Collapse
+                defaultActiveKey={['products', 'parties']}
+                items={[
+                  {
+                    key: 'products',
+                    label: labelWithHelp('Продукция', FIELD_HELP.tsdProducts),
+                    children: (
+                      <div>
+                        {selectedDoc.products?.map((product, pIndex) => (
+                          <div key={pIndex} style={{ marginBottom: '16px', padding: '12px', border: '1px solid #d9d9d9', borderRadius: '4px' }}>
+                            <Space direction="vertical" style={{ width: '100%' }}>
+                              <Input
+                                placeholder="Идентификатор"
+                                value={product.productId}
+                                onChange={(e) => {
+                                  const updated = [...(selectedDoc.products || [])]
+                                  updated[pIndex] = { ...updated[pIndex], productId: e.target.value }
+                                  handleDocumentChange(batchIndex, selDocIndex!, 'products', updated)
+                                }}
+                              />
+                              <Input
+                                placeholder="Наименование"
+                                value={product.productName}
+                                onChange={(e) => {
+                                  const updated = [...(selectedDoc.products || [])]
+                                  updated[pIndex] = { ...updated[pIndex], productName: e.target.value }
+                                  handleDocumentChange(batchIndex, selDocIndex!, 'products', updated)
+                                }}
+                              />
+                              <Button
+                                type="link"
+                                danger
+                                icon={<DeleteOutlined />}
+                                onClick={() => {
+                                  const updated = [...(selectedDoc.products || [])]
+                                  updated.splice(pIndex, 1)
+                                  handleDocumentChange(batchIndex, selDocIndex!, 'products', updated)
+                                }}
+                              >
+                                Удалить продукт
+                              </Button>
+                            </Space>
+                          </div>
+                        ))}
+                        <Button
+                          type="dashed"
+                          icon={<PlusOutlined />}
+                          onClick={() => handleAddProduct(batchIndex, selDocIndex!)}
+                          style={{ width: '100%' }}
+                        >
+                          Добавить продукт
+                        </Button>
+                      </div>
+                    ),
+                  },
+                  {
+                    key: 'parties',
+                    label: labelWithHelp('Участник цепи поставки', FIELD_HELP.tsdSupplyChainParty),
+                    children: (
+                      <div>
+                        {selectedDoc.supplyChainParties?.map((party, pIndex) => (
+                          <div key={pIndex} style={{ marginBottom: '16px' }}>
+                            <ManufacturerDetailsEdit
+                              data={party}
+                              onChange={(updatedParty) => {
+                                const updated = [...(selectedDoc.supplyChainParties || [])]
+                                updated[pIndex] = updatedParty
+                                handleDocumentChange(batchIndex, selDocIndex!, 'supplyChainParties', updated)
                               }}
-                            />
-                            <Input
-                              placeholder="Наименование"
-                              value={product.productName}
-                              onChange={(e) => {
-                                const updated = [...(batch.shippingDocuments[selectedDocumentIndex].products || [])]
-                                updated[pIndex] = { ...updated[pIndex], productName: e.target.value }
-                                handleDocumentChange(selectedDocumentIndex, 'products', updated)
-                              }}
+                              title={`Участник ${pIndex + 1}`}
                             />
                             <Button
                               type="link"
                               danger
                               icon={<DeleteOutlined />}
                               onClick={() => {
-                                const updated = [...(batch.shippingDocuments[selectedDocumentIndex].products || [])]
+                                const updated = [...(selectedDoc.supplyChainParties || [])]
                                 updated.splice(pIndex, 1)
-                                handleDocumentChange(selectedDocumentIndex, 'products', updated)
+                                handleDocumentChange(batchIndex, selDocIndex!, 'supplyChainParties', updated)
                               }}
                             >
-                              Удалить продукт
+                              Удалить участника
                             </Button>
-                          </Space>
-                        </div>
-                      ))}
-                      <Button
-                        type="dashed"
-                        icon={<PlusOutlined />}
-                        onClick={() => handleAddProduct(selectedDocumentIndex)}
-                        style={{ width: '100%' }}
-                      >
-                        Добавить продукт
-                      </Button>
-                    </div>
-                  ),
-                },
-                {
-                  key: 'parties',
-                  label: labelWithHelp('Участник цепи поставки', FIELD_HELP.tsdSupplyChainParty),
-                  children: (
-                    <div>
-                      {batch.shippingDocuments[selectedDocumentIndex].supplyChainParties?.map((party, pIndex) => (
-                        <div key={pIndex} style={{ marginBottom: '16px' }}>
-                          <ManufacturerDetailsEdit
-                            data={party}
-                            onChange={(updatedParty) => {
-                              const updated = [...(batch.shippingDocuments[selectedDocumentIndex].supplyChainParties || [])]
-                              updated[pIndex] = updatedParty
-                              handleDocumentChange(selectedDocumentIndex, 'supplyChainParties', updated)
-                            }}
-                            title={`Участник ${pIndex + 1}`}
-                          />
-                          <Button
-                            type="link"
-                            danger
-                            icon={<DeleteOutlined />}
-                            onClick={() => {
-                              const updated = [...(batch.shippingDocuments[selectedDocumentIndex].supplyChainParties || [])]
-                              updated.splice(pIndex, 1)
-                              handleDocumentChange(selectedDocumentIndex, 'supplyChainParties', updated)
-                            }}
-                          >
-                            Удалить участника
-                          </Button>
-                        </div>
-                      ))}
-                      <Button
-                        type="dashed"
-                        icon={<PlusOutlined />}
-                        onClick={() => handleAddParty(selectedDocumentIndex)}
-                        style={{ width: '100%' }}
-                      >
-                        Добавить участника цепи поставки
-                      </Button>
-                    </div>
-                  ),
-                },
-              ]}
-            />
-          </div>
-        )}
+                          </div>
+                        ))}
+                        <Button
+                          type="dashed"
+                          icon={<PlusOutlined />}
+                          onClick={() => handleAddParty(batchIndex, selDocIndex!)}
+                          style={{ width: '100%' }}
+                        >
+                          Добавить участника цепи поставки
+                        </Button>
+                      </div>
+                    ),
+                  },
+                ]}
+              />
+            </div>
+          )}
+        </div>
       </div>
+    )
+  }
+
+  return (
+    <div>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+        <h3 style={{ margin: 0 }}>Сведения о серии или партии продукции</h3>
+        <Button type="dashed" icon={<PlusOutlined />} onClick={handleAddBatch}>
+          Добавить партию
+        </Button>
+      </div>
+      <Collapse
+        accordion={false}
+        items={batches.map((batch, batchIndex) => ({
+          key: String(batchIndex),
+          label: `Партия ${batchIndex + 1}${batch.batchId ? ` — № ${batch.batchId}` : ''}${batch.manufactureDate ? ` (производство: ${batch.manufactureDate})` : ''} (документов: ${(batch.shippingDocuments?.length ?? 0)})`,
+          children: renderBatchPanel(batch, batchIndex),
+        }))}
+      />
     </div>
   )
 }

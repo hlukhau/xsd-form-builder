@@ -15,24 +15,12 @@ interface TSDTabProps {
 }
 
 const TSDTab: React.FC<TSDTabProps> = ({ data }) => {
+  const [selectedBatchIndex, setSelectedBatchIndex] = useState<number | null>(null)
   const [selectedDocument, setSelectedDocument] = useState<ShippingDocument | null>(null)
   const [selectedProduct, setSelectedProduct] = useState<ProductDetails | null>(null)
   const [selectedParty, setSelectedParty] = useState<SupplyChainPartyDetails | null>(null)
   const [productModalVisible, setProductModalVisible] = useState(false)
   const [partyModalVisible, setPartyModalVisible] = useState(false)
-  
-  console.log('TSDTab получил данные:', data)
-  if (data?.batches?.[0]?.shippingDocuments) {
-    console.log('Документы в партии:', data.batches[0].shippingDocuments)
-    data.batches[0].shippingDocuments.forEach((doc, index) => {
-      console.log(`Документ ${index}:`, {
-        docName: doc.docName,
-        docId: doc.docId,
-        productsCount: doc.products?.length || 0,
-        partiesCount: doc.supplyChainParties?.length || 0,
-      })
-    })
-  }
 
   const formatDate = (date: string | null | undefined) => {
     if (!date) return '-'
@@ -73,10 +61,8 @@ const TSDTab: React.FC<TSDTabProps> = ({ data }) => {
     return <div>Данные о партиях продукции не найдены</div>
   }
 
-  // Берем первую партию (в XML обычно одна)
-  const batch = data.batches[0]
+  const batches = data.batches
 
-  // Таблица товаросопроводительных документов
   const shippingDocsColumns = [
     {
       title: 'Вид',
@@ -99,208 +85,136 @@ const TSDTab: React.FC<TSDTabProps> = ({ data }) => {
     },
   ]
 
+  const renderDocumentDetailBlock = (doc: ShippingDocument) => (
+    <div style={{ marginTop: '16px', padding: 12, background: '#fafafa', borderRadius: 8 }}>
+      <h3>
+        Детализация документа: {doc.docName || 'Документ'}
+        {doc.docId && ` (№ ${doc.docId})`}
+      </h3>
+      <Collapse
+        items={[
+          {
+            key: 'products',
+            label: 'Продукция',
+            children: doc.products && doc.products.length > 0 ? (
+              <Table
+                dataSource={doc.products}
+                columns={[
+                  { title: 'Идентификатор', dataIndex: 'productId', key: 'productId', render: (t: string) => t || '<штрихкод>' },
+                  { title: 'Код ТН ВЭД ЕАЭС', dataIndex: 'commodityCode', key: 'commodityCode' },
+                  { title: 'Наименование', dataIndex: 'productName', key: 'productName' },
+                  {
+                    title: 'Действия',
+                    key: 'actions',
+                    render: (_: unknown, record: ProductDetails) => (
+                      <Button type="link" onClick={() => { setSelectedProduct(record); setProductModalVisible(true) }}>Подробнее</Button>
+                    ),
+                  },
+                ]}
+                rowKey={(_, i) => String(i)}
+                pagination={false}
+                size="small"
+              />
+            ) : (
+              <div>Продукция не указана</div>
+            ),
+          },
+          {
+            key: 'parties',
+            label: 'Участники цепи поставки',
+            children: doc.supplyChainParties && doc.supplyChainParties.length > 0 ? (
+              <Table
+                dataSource={doc.supplyChainParties}
+                columns={[
+                  { title: 'Вид', key: 'kind', render: (_: unknown, r: SupplyChainPartyDetails) => getSupplyChainPartyKindName(r.supplyChainPartyKindCode) || '-' },
+                  { title: 'Страна', dataIndex: 'country', key: 'country', render: (c: string) => getCountryName(c) },
+                  { title: 'Наименование', dataIndex: 'businessEntityName', key: 'businessEntityName', render: (t: string) => t || '-' },
+                  {
+                    title: 'Адреса',
+                    key: 'addresses',
+                    render: (_: unknown, record: SupplyChainPartyDetails) => {
+                      const list = getAddressListFromParty(record)
+                      const lines = formatAddressList(list, getDefaultAddressKindName, getCountryName)
+                      return lines.length > 0 ? (
+                        <ul style={{ margin: 0, paddingLeft: '20px', fontSize: '12px' }}>
+                          {lines.map((line, idx) => <li key={idx}>{line}</li>)}
+                        </ul>
+                      ) : '-'
+                    },
+                  },
+                  {
+                    title: 'Действия',
+                    key: 'actions',
+                    render: (_: unknown, record: SupplyChainPartyDetails) => (
+                      <Button type="link" onClick={() => { setSelectedParty(record); setPartyModalVisible(true) }}>Подробнее</Button>
+                    ),
+                  },
+                ]}
+                rowKey={(_, i) => `party-${i}`}
+                pagination={false}
+                size="small"
+              />
+            ) : (
+              <div>Участники цепи поставки не указаны</div>
+            ),
+          },
+        ]}
+      />
+    </div>
+  )
+
+  const renderBatchContent = (batch: ProductBatchDetails, batchIndex: number) => (
+    <div>
+      <Descriptions column={1} bordered size="small" style={{ marginBottom: '12px' }}>
+        <Descriptions.Item label="Номер серии товара">{batch.batchId || '-'}</Descriptions.Item>
+        <Descriptions.Item label="Дата производства">{formatDate(batch.manufactureDate)}</Descriptions.Item>
+        <Descriptions.Item label="Срок годности">{formatDate(batch.productShelfLifeEndDate)}</Descriptions.Item>
+        <Descriptions.Item label="Количество товара">{formatMeasure(batch.commodityMeasure)}</Descriptions.Item>
+        <Descriptions.Item label="Примечание">{batch.note || '-'}</Descriptions.Item>
+        <Descriptions.Item label="Номер товарной партии">{batch.consignmentId || '-'}</Descriptions.Item>
+        <Descriptions.Item label="Количество товара в партии">{formatMeasure(batch.batchCommodityMeasure)}</Descriptions.Item>
+      </Descriptions>
+      <h4 style={{ marginTop: 12, marginBottom: 8 }}>Товаросопроводительные документы</h4>
+      <Table
+        dataSource={batch.shippingDocuments}
+        columns={shippingDocsColumns}
+        rowKey={(_, index) => `batch-${batchIndex}-doc-${index}`}
+        pagination={false}
+        size="small"
+        onRow={(record) => ({
+          onClick: () => {
+            if (selectedDocument === record && selectedBatchIndex === batchIndex) {
+              setSelectedDocument(null)
+              setSelectedBatchIndex(null)
+            } else {
+              setSelectedDocument(record)
+              setSelectedBatchIndex(batchIndex)
+            }
+          },
+          style: { cursor: 'pointer' },
+        })}
+        rowClassName={(record) =>
+          selectedDocument === record && selectedBatchIndex === batchIndex ? 'ant-table-row-selected' : ''
+        }
+      />
+      {/* Детализация документа — сразу под таблицей этой партии */}
+      {selectedDocument && selectedBatchIndex === batchIndex && renderDocumentDetailBlock(selectedDocument)}
+    </div>
+  )
+
   return (
     <div>
-      {/* Информация по серии и партии */}
-      <Descriptions column={1} bordered style={{ marginBottom: '16px' }}>
-        <Descriptions.Item label="Номер серии товара">
-          {batch.batchId || '-'}
-        </Descriptions.Item>
-        <Descriptions.Item label="Дата производства">
-          {formatDate(batch.manufactureDate)}
-        </Descriptions.Item>
-        <Descriptions.Item label="Срок годности">
-          {formatDate(batch.productShelfLifeEndDate)}
-        </Descriptions.Item>
-        <Descriptions.Item label="Количество товара">
-          {formatMeasure(batch.commodityMeasure)}
-        </Descriptions.Item>
-        <Descriptions.Item label="Примечание">
-          {batch.note || '-'}
-        </Descriptions.Item>
-        <Descriptions.Item label="Номер товарной партии">
-          {batch.consignmentId || '-'}
-        </Descriptions.Item>
-        <Descriptions.Item label="Количество товара в партии">
-          {formatMeasure(batch.batchCommodityMeasure)}
-        </Descriptions.Item>
-      </Descriptions>
-
-      {/* Таблица товаросопроводительных документов */}
-      <div style={{ marginBottom: '16px' }}>
-        <h3>Товаросопроводительные документы</h3>
-        <Table
-          dataSource={batch.shippingDocuments}
-          columns={shippingDocsColumns}
-          rowKey={(record, index) => index?.toString() || ''}
-          pagination={false}
-          onRow={(record, index) => ({
-            onClick: () => {
-              // Переключаем детализацию: если уже выбран этот документ, скрываем, иначе показываем
-              if (selectedDocument === record) {
-                setSelectedDocument(null)
-              } else {
-                setSelectedDocument(record)
-              }
-            },
-            style: { cursor: 'pointer' },
-          })}
-          rowClassName={(record, index) => {
-            // Выделяем выбранную строку
-            return selectedDocument === record ? 'ant-table-row-selected' : ''
-          }}
-        />
+      <div style={{ marginBottom: 8 }}>
+        Партий продукции: <strong>{batches.length}</strong>. Выберите партию для просмотра сведений о серии/партии и ТСД.
       </div>
-
-      {/* Детализация по выбранному документу */}
-      {selectedDocument && (
-        <div style={{ marginTop: '16px' }}>
-          <h3>
-            Детализация документа: {selectedDocument.docName || 'Документ'}
-            {selectedDocument.docId && ` (№ ${selectedDocument.docId})`}
-          </h3>
-          
-          <Collapse
-            items={[
-              {
-                key: 'products',
-                label: 'Продукция',
-                children: selectedDocument.products && selectedDocument.products.length > 0 ? (
-                  <Table
-                    dataSource={selectedDocument.products}
-                    columns={[
-                      {
-                        title: 'Идентификатор',
-                        dataIndex: 'productId',
-                        key: 'productId',
-                        render: (text: string) => text || '<штрихкод>',
-                      },
-                      {
-                        title: 'Код ТН ВЭД ЕАЭС',
-                        dataIndex: 'commodityCode',
-                        key: 'commodityCode',
-                      },
-                      {
-                        title: 'Наименование',
-                        dataIndex: 'productName',
-                        key: 'productName',
-                      },
-                      {
-                        title: 'Действия',
-                        key: 'actions',
-                        render: (_: any, record: ProductDetails) => (
-                          <Button
-                            type="link"
-                            onClick={() => {
-                              setSelectedProduct(record)
-                              setProductModalVisible(true)
-                            }}
-                          >
-                            Подробнее
-                          </Button>
-                        ),
-                      },
-                    ]}
-                    rowKey={(record, index) => index?.toString() || ''}
-                    pagination={false}
-                  />
-                ) : (
-                  <div>Продукция не указана</div>
-                ),
-              },
-              {
-                key: 'parties',
-                label: 'Участники цепи поставки',
-                children: (() => {
-                  console.log('Проверка участников для документа:', {
-                    docName: selectedDocument.docName,
-                    docId: selectedDocument.docId,
-                    hasParties: !!selectedDocument.supplyChainParties,
-                    partiesLength: selectedDocument.supplyChainParties?.length || 0,
-                    parties: selectedDocument.supplyChainParties,
-                  })
-                  
-                  if (selectedDocument.supplyChainParties && selectedDocument.supplyChainParties.length > 0) {
-                    // Логируем детали каждого участника
-                    selectedDocument.supplyChainParties.forEach((party, index) => {
-                      console.log(`Участник ${index + 1}:`, {
-                        country: party.country,
-                        businessEntityName: party.businessEntityName,
-                        supplyChainPartyKindCode: party.supplyChainPartyKindCode,
-                        shortName: party.shortName,
-                        subjectIdentifier: party.subjectIdentifier,
-                        taxpayerId: party.taxpayerId,
-                      })
-                    })
-                    
-                    return (
-                      <Table
-                        dataSource={selectedDocument.supplyChainParties}
-                        columns={[
-                          {
-                            title: 'Вид',
-                            key: 'kind',
-                            render: (_: any, record: SupplyChainPartyDetails) => {
-                              const kindName = getSupplyChainPartyKindName(record.supplyChainPartyKindCode)
-                              return kindName || '-'
-                            },
-                          },
-                          {
-                            title: 'Страна',
-                            dataIndex: 'country',
-                            key: 'country',
-                            render: (code: string) => getCountryName(code),
-                          },
-                          {
-                            title: 'Наименование',
-                            dataIndex: 'businessEntityName',
-                            key: 'businessEntityName',
-                            render: (text: string) => text || '-',
-                          },
-                          {
-                            title: 'Адреса',
-                            key: 'addresses',
-                            render: (_: any, record: SupplyChainPartyDetails) => {
-                              const list = getAddressListFromParty(record)
-                              const lines = formatAddressList(list, getDefaultAddressKindName, getCountryName)
-                              return lines.length > 0 ? (
-                                <ul style={{ margin: 0, paddingLeft: '20px', fontSize: '12px' }}>
-                                  {lines.map((line, idx) => (
-                                    <li key={idx} style={{ marginBottom: '4px' }}>{line}</li>
-                                  ))}
-                                </ul>
-                              ) : '-'
-                            },
-                          },
-                          {
-                            title: 'Действия',
-                            key: 'actions',
-                            render: (_: any, record: SupplyChainPartyDetails) => (
-                              <Button
-                                type="link"
-                                onClick={() => {
-                                  setSelectedParty(record)
-                                  setPartyModalVisible(true)
-                                }}
-                              >
-                                Подробнее
-                              </Button>
-                            ),
-                          },
-                        ]}
-                        rowKey={(record, index) => `party-${index}`}
-                        pagination={false}
-                      />
-                    )
-                  } else {
-                    return <div>Участники цепи поставки не указаны</div>
-                  }
-                })(),
-              },
-            ]}
-          />
-        </div>
-      )}
+      <Collapse
+        accordion={false}
+        items={batches.map((batch, index) => ({
+          key: String(index),
+          label: `Партия ${index + 1}${batch.batchId ? ` — № ${batch.batchId}` : ''}${batch.manufactureDate ? ` (производство: ${formatDate(batch.manufactureDate)})` : ''}`,
+          children: renderBatchContent(batch, index),
+        }))}
+      />
 
       {/* Модальное окно с деталями продукции */}
       <Modal

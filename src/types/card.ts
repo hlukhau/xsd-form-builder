@@ -26,11 +26,9 @@ export interface CardData {
   // Доступные ЦГЭ
   accessList: AccessItem[]
 
-  // Данные вкладок
+  // Данные вкладок (по XSD нарушения и документы соответствия только в tsd.batches[].*)
   product?: ProductData
   tsd?: TSDData
-  complianceDocuments?: ComplianceDocumentsData
-  violations?: ViolationsData
   detectionPlace?: DetectionPlaceData
   measures?: MeasuresData
 }
@@ -48,6 +46,10 @@ export interface ProductBatchDetails {
   consignmentId?: string // ConsignmentId
   batchCommodityMeasure?: MeasureWithUnit // CommodityMeasure
   shippingDocuments: ShippingDocument[]
+  /** Документы соответствия в составе данного кортежа партии (smcdo:ConformityDocDetails внутри NonCompliantSanitaryProductBatchDetails) */
+  complianceDocuments?: ComplianceDocument[]
+  /** Нарушения в составе данного кортежа партии (smcdo:RequirementViolationDetails внутри NonCompliantSanitaryProductBatchDetails) */
+  violations?: ViolationsData
 }
 
 export interface MeasureWithUnit {

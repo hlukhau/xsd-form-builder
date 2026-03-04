@@ -3,6 +3,7 @@
  * Проверка по перечню контролей; результат — отчёт по разделам с замечаниями или успех.
  */
 import type { CardData } from '@/types/card'
+import { mergeComplianceDocumentsFromBatches, mergeViolationsFromBatches } from '@/utils/xmlParser'
 
 export interface ValidationResult {
   success: boolean
@@ -158,8 +159,8 @@ export function validateOutgoingCard(data: CardData): ValidationResult {
   }
   if (sectionTsd.remarks.length) sections.push(sectionTsd)
 
-  // —— Документы соответствия ——
-  const complianceList = data.complianceDocuments?.documents ?? []
+  // —— Документы соответствия (по XSD только в tsd.batches[]) ——
+  const complianceList = mergeComplianceDocumentsFromBatches(data.tsd)?.documents ?? []
   if (batches.length > 0 && complianceList.length === 0) {
     add(sectionCompliance, 'В каждом составе сведений о серии или партии продукции должен быть указан хотя бы один документ об оценке соответствия продукции')
   }
@@ -195,8 +196,8 @@ export function validateOutgoingCard(data: CardData): ValidationResult {
   }
   if (sectionCompliance.remarks.length) sections.push(sectionCompliance)
 
-  // —— Нарушения ——
-  const violations = data.violations
+  // —— Нарушения (по XSD только в tsd.batches[]) ——
+  const violations = mergeViolationsFromBatches(data.tsd)
   if (batches.length > 0) {
     const reqs = violations?.violatedRequirements ?? []
     const inds = violations?.violatedIndicators ?? []

@@ -1,13 +1,14 @@
-import { Descriptions, Table } from 'antd'
+import { Descriptions, Table, Collapse } from 'antd'
 import { format } from 'date-fns'
 import { ru } from 'date-fns/locale'
-import type { ViolationsData, ViolatedRequirement, ViolatedIndicator } from '@/types/card'
+import type { ViolationsData, ViolatedRequirement, ViolatedIndicator, TSDData } from '@/types/card'
 
 interface ViolationsTabProps {
-  data: ViolationsData
+  /** По XSD нарушения только в tsd.batches[].violations */
+  tsd: TSDData | null | undefined
 }
 
-const ViolationsTab: React.FC<ViolationsTabProps> = ({ data }) => {
+const ViolationsTab: React.FC<ViolationsTabProps> = ({ tsd }) => {
   const formatDate = (date: string | null | undefined) => {
     if (!date) return '-'
     const dateObj = new Date(date)
@@ -218,63 +219,95 @@ const ViolationsTab: React.FC<ViolationsTabProps> = ({ data }) => {
     },
   ]
 
-  if (!data) {
-    return <div>Данные о нарушениях не найдены</div>
+  const formatDateShort = (date: string | null | undefined) => {
+    if (!date) return '-'
+    const d = new Date(date)
+    return isNaN(d.getTime()) ? date : format(d, 'dd.MM.yyyy', { locale: ru })
   }
 
-  return (
-    <div>
-      {/* Общая характеристика нарушений */}
-      {data.generalDescription && (
-        <div style={{ marginBottom: '24px' }}>
-          <Descriptions column={1} bordered>
+  const hasViolations = (v: ViolationsData | undefined) =>
+    v && (
+      (v.violatedRequirements?.length ?? 0) > 0 ||
+      (v.violatedIndicators?.length ?? 0) > 0 ||
+      !!v.generalDescription
+    )
+
+  const batchesWithViolations = tsd?.batches?.filter((b) => hasViolations(b.violations)) ?? []
+  const useBatches = batchesWithViolations.length > 0
+
+  const renderViolationsContent = (violationsData: ViolationsData) => (
+    <>
+      {violationsData.generalDescription && (
+        <div style={{ marginBottom: '16px' }}>
+          <Descriptions column={1} bordered size="small">
             <Descriptions.Item label="Описание нарушения">
-              {data.generalDescription}
+              {violationsData.generalDescription}
             </Descriptions.Item>
           </Descriptions>
         </div>
       )}
-
-      {/* Таблица нарушенных требований */}
-      <div style={{ marginBottom: '24px' }}>
-        <h3>Перечень нарушенных требований</h3>
-        <div style={{ 
-          overflowX: 'auto',
-          width: '100%',
-        }}>
+      <div style={{ marginBottom: '16px' }}>
+        <h4 style={{ marginBottom: 8 }}>Перечень нарушенных требований</h4>
+        <div style={{ overflowX: 'auto', width: '100%' }}>
           <Table
-            dataSource={data.violatedRequirements || []}
+            dataSource={violationsData.violatedRequirements || []}
             columns={requirementsColumns}
-            rowKey={(record, index) => `requirement-${index}`}
+            rowKey={(record, index) => `req-${index}`}
             pagination={false}
             size="small"
-            style={{ 
-              width: '100%',
-            }}
+            style={{ width: '100%' }}
           />
         </div>
       </div>
-
-      {/* Таблица нарушенных показателей */}
       <div>
-        <h3>Перечень нарушенных показателей</h3>
-        <div style={{ 
-          overflowX: 'auto',
-          width: '100%',
-        }}>
+        <h4 style={{ marginBottom: 8 }}>Перечень нарушенных показателей</h4>
+        <div style={{ overflowX: 'auto', width: '100%' }}>
           <Table
-            dataSource={data.violatedIndicators || []}
+            dataSource={violationsData.violatedIndicators || []}
             columns={indicatorsColumns}
-            rowKey={(record, index) => `indicator-${index}`}
+            rowKey={(record, index) => `ind-${index}`}
             pagination={false}
             size="small"
-            style={{ 
-              width: '100%',
-            }}
+            style={{ width: '100%' }}
           />
         </div>
       </div>
-    </div>
+    </>
+  )
+
+  if (!useBatches) {
+    return <div>Данные о нарушениях не найдены. Добавьте партию во вкладке ТСД и укажите нарушения в составе партии.</div>
+  }
+
+  return (
+      <div>
+        <div style={{ marginBottom: 8 }}>
+          Нарушения по партиям: <strong>{batchesWithViolations.length}</strong>.
+        </div>
+        <Collapse
+          accordion={false}
+          items={batchesWithViolations.map((batch, idx) => {
+            const batchIndex = tsd!.batches!.indexOf(batch)
+            const v = batch.violations!
+            const reqCount = v.violatedRequirements?.length ?? 0
+            const indCount = v.violatedIndicators?.length ?? 0
+            return {
+              key: String(batchIndex),
+              label: `Партия ${batchIndex + 1}${batch.batchId ? ` — № ${batch.batchId}` : ''}${batch.manufactureDate ? ` (производство: ${formatDateShort(batch.manufactureDate)})` : ''} (требований: ${reqCount}, показателей: ${indCount})`,
+              children: (
+                <div>
+                  <Descriptions column={1} bordered size="small" style={{ marginBottom: 12 }}>
+                    <Descriptions.Item label="Номер серии товара">{batch.batchId || '-'}</Descriptions.Item>
+                    <Descriptions.Item label="Дата производства">{formatDateShort(batch.manufactureDate)}</Descriptions.Item>
+                    <Descriptions.Item label="Номер товарной партии">{batch.consignmentId || '-'}</Descriptions.Item>
+                  </Descriptions>
+                  {renderViolationsContent(v)}
+                </div>
+              ),
+            }
+          })}
+        />
+      </div>
   )
 }
 

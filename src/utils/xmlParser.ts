@@ -233,15 +233,32 @@ export function parseXMLToCardData(xmlText: string): CardData {
   // Передаем и alertDetails, и корневой элемент для поиска
   const productData = parseProductData(alertDetails, xmlDoc.documentElement)
   
-  // Парсинг данных о партиях (ТСД)
+  // Парсинг данных о партиях (ТСД); в каждой партии также парсятся документы соответствия и нарушения
   const tsdData = parseTSDData(alertDetails, xmlDoc.documentElement)
   
-  // Парсинг документов соответствия
-  const complianceDocumentsData = parseComplianceDocuments(alertDetails, xmlDoc.documentElement)
-  
-  // Парсинг нарушений
-  const violationsData = parseViolations(alertDetails, xmlDoc.documentElement)
-  
+  // По XSD документы соответствия и нарушения только внутри партий; при разборе из корня (старый XML) кладём в партию
+  let finalTsd = tsdData
+  const mergedCompliance = mergeComplianceDocumentsFromBatches(tsdData)
+  const mergedViolations = mergeViolationsFromBatches(tsdData)
+  if (!mergedCompliance?.documents?.length) {
+    const fallbackCompliance = parseComplianceDocuments(alertDetails, xmlDoc.documentElement)
+    if (fallbackCompliance?.documents?.length) {
+      const batches = finalTsd?.batches?.length ? [...finalTsd.batches] : [{ shippingDocuments: [] }]
+      const first = batches[0]
+      batches[0] = { ...first, complianceDocuments: fallbackCompliance.documents }
+      finalTsd = { batches }
+    }
+  }
+  if (!mergedViolations || ((mergedViolations.violatedRequirements?.length ?? 0) === 0 && (mergedViolations.violatedIndicators?.length ?? 0) === 0 && !mergedViolations.generalDescription)) {
+    const fallbackViolations = parseViolations(alertDetails, xmlDoc.documentElement)
+    if (fallbackViolations && ((fallbackViolations.violatedRequirements?.length ?? 0) > 0 || (fallbackViolations.violatedIndicators?.length ?? 0) > 0 || !!fallbackViolations.generalDescription)) {
+      const batches = finalTsd?.batches?.length ? [...finalTsd.batches] : [{ shippingDocuments: [] }]
+      const first = batches[0]
+      batches[0] = { ...first, violations: fallbackViolations }
+      finalTsd = { batches }
+    }
+  }
+
   // Парсинг места обнаружения
   const detectionPlaceData = parseDetectionPlace(alertDetails, xmlDoc.documentElement)
   
@@ -307,9 +324,7 @@ export function parseXMLToCardData(xmlText: string): CardData {
       { id: '1', name: 'РЦГЭИОЗ' },
     ],
     product: productData,
-    tsd: tsdData,
-    complianceDocuments: complianceDocumentsData,
-    violations: violationsData,
+    tsd: finalTsd,
     detectionPlace: detectionPlaceData,
     measures: measuresData,
   }
@@ -1311,8 +1326,12 @@ function parseBatchDetails(batchElement: Element): ProductBatchDetails | null {
   }
   
   console.log('Найдено документов:', shippingDocuments.length)
+
+  // Документы соответствия и нарушения в составе данного кортежа (smcdo:ConformityDocDetails, smcdo:RequirementViolationDetails внутри NonCompliantSanitaryProductBatchDetails)
+  const complianceData = parseComplianceDocuments(batchElement)
+  const violationsData = parseViolations(batchElement)
   
-  const result = {
+  const result: ProductBatchDetails = {
     batchId,
     manufactureDate,
     productShelfLifeEndDate,
@@ -1321,6 +1340,8 @@ function parseBatchDetails(batchElement: Element): ProductBatchDetails | null {
     consignmentId,
     batchCommodityMeasure,
     shippingDocuments,
+    ...(complianceData?.documents?.length ? { complianceDocuments: complianceData.documents } : {}),
+    ...(violationsData ? { violations: violationsData } : {}),
   }
   
   console.log('Результат парсинга партии:', result)
@@ -1556,6 +1577,34 @@ function parseMeasure(parent: Element | null, tagName: string): MeasureWithUnit 
     unitCodeListId,
     unitName: unitCode ? (unitNameMap[unitCode] || unitCode) : undefined,
   }
+}
+
+/**
+ * Объединяет документы соответствия из всех партий (для валидации и т.п.).
+ */
+export function mergeComplianceDocumentsFromBatches(tsdData: TSDData | undefined): ComplianceDocumentsData | undefined {
+  const documents = tsdData?.batches?.flatMap((b) => b.complianceDocuments ?? []) ?? []
+  if (documents.length === 0) return undefined
+  return { documents }
+}
+
+/**
+ * Объединяет нарушения из всех партий (для валидации и т.п.).
+ */
+export function mergeViolationsFromBatches(tsdData: TSDData | undefined): ViolationsData | undefined {
+  const batches = tsdData?.batches ?? []
+  const allReqs: ViolatedRequirement[] = []
+  const allInds: ViolatedIndicator[] = []
+  let generalDescription: string | undefined
+  for (const b of batches) {
+    const v = b.violations
+    if (!v) continue
+    if (v.violatedRequirements?.length) allReqs.push(...v.violatedRequirements)
+    if (v.violatedIndicators?.length) allInds.push(...v.violatedIndicators)
+    if (v.generalDescription && !generalDescription) generalDescription = v.generalDescription
+  }
+  if (allReqs.length === 0 && allInds.length === 0 && !generalDescription) return undefined
+  return { generalDescription, violatedRequirements: allReqs, violatedIndicators: allInds }
 }
 
 /**

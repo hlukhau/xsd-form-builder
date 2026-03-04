@@ -1,368 +1,182 @@
 import { useState } from 'react'
-import { Form, Input, Button, Table, Space, Descriptions, Select } from 'antd'
+import { Form, Input, Button, Table, Space, Descriptions, Select, Collapse } from 'antd'
 import { PlusOutlined, DeleteOutlined } from '@ant-design/icons'
 import { format } from 'date-fns'
 import { ru } from 'date-fns/locale'
 import { labelWithHelp } from '@/components/common/FieldHelp'
 import { FIELD_HELP } from '@/constants/fieldDescriptions'
-import type { ViolationsData, ViolatedRequirement, ViolatedIndicator, DocStructuralElement } from '@/types/card'
+import type { ViolationsData, ViolatedRequirement, ViolatedIndicator, DocStructuralElement, TSDData, ProductBatchDetails } from '@/types/card'
 import { useTechRegulOptions } from '@/hooks/useTechRegulOptions'
 import { useMeasurementUnitOptions } from '@/hooks/useMeasurementUnitOptions'
 
 interface ViolationsTabEditProps {
-  data: ViolationsData
-  onChange: (data: ViolationsData) => void
+  /** По XSD нарушения только в tsd.batches[].violations */
+  tsd: TSDData
+  onTsdChange: (tsd: TSDData) => void
 }
 
-const ViolationsTabEdit: React.FC<ViolationsTabEditProps> = ({ data, onChange }) => {
+const ViolationsTabEdit: React.FC<ViolationsTabEditProps> = ({ tsd, onTsdChange }) => {
   const [form] = Form.useForm()
   const { options: techRegulOptions, loading: loadingTechReguls, getSelectOptions: getTechRegulSelectOptions, getNameByCode: getTechRegulNameByCode } = useTechRegulOptions()
   const { options: measurementUnitOptions, loading: loadingMeasurementUnits, getSelectOptions: getMeasurementUnitSelectOptions, getUnitByCode } = useMeasurementUnitOptions()
 
-  const formatDate = (date: string | null | undefined) => {
+  const formatDateShort = (date: string | null | undefined) => {
     if (!date) return '-'
     const dateObj = new Date(date)
     if (isNaN(dateObj.getTime())) return date
     return format(dateObj, 'dd.MM.yyyy', { locale: ru })
   }
 
-  const handleGeneralDescriptionChange = (value: string) => {
-    onChange({
-      ...data,
-      generalDescription: value,
-    })
+  const batches = tsd.batches?.length ? tsd.batches : []
+
+  const updateBatchViolations = (batchIndex: number, next: ViolationsData) => {
+    if (!onTsdChange || !tsd?.batches) return
+    const newBatches = [...tsd.batches]
+    newBatches[batchIndex] = { ...newBatches[batchIndex], violations: next }
+    onTsdChange({ ...tsd, batches: newBatches })
   }
 
-  const handleAddRequirement = () => {
-    const newReq: ViolatedRequirement = {
-      technicalRegulationId: '',
-      technicalRegulationName: '',
-      registrationNumber: '',
-      description: '',
-    }
-    onChange({
-      ...data,
-      violatedRequirements: [...(data.violatedRequirements || []), newReq],
-    })
-  }
+  const getViolationsForBatch = (batch: ProductBatchDetails): ViolationsData => ({
+    generalDescription: batch.violations?.generalDescription ?? '',
+    violatedRequirements: batch.violations?.violatedRequirements ?? [],
+    violatedIndicators: batch.violations?.violatedIndicators ?? [],
+  })
 
-  const handleRemoveRequirement = (index: number) => {
-    const updated = [...(data.violatedRequirements || [])]
-    updated.splice(index, 1)
-    onChange({
-      ...data,
-      violatedRequirements: updated,
-    })
-  }
-
-  const handleRequirementChange = (index: number, field: string, value: any) => {
-    console.log(`[ViolationsTabEdit] handleRequirementChange: index=${index}, field=${field}, value=`, value)
-    const updated = [...(data.violatedRequirements || [])]
-    updated[index] = {
-      ...updated[index],
-      [field]: value,
-    }
-    console.log(`[ViolationsTabEdit] Обновленное требование:`, updated[index])
-    console.log(`[ViolationsTabEdit] Все требования:`, updated)
-    onChange({
-      ...data,
-      violatedRequirements: updated,
-    })
-  }
-
-  // Обработчик выбора технического регламента
-  const handleTechRegulSelect = (index: number, code: string) => {
-    const techRegulOption = techRegulOptions.find(opt => opt.code === code)
-    if (techRegulOption) {
-      const updated = [...(data.violatedRequirements || [])]
-      updated[index] = {
-        ...updated[index],
-        technicalRegulationId: techRegulOption.code, // Обозначение (код) - TECHREGULCODE
-        technicalRegulationName: techRegulOption.name, // Наименование - TECHREGULNAME
-        registrationNumber: techRegulOption.regNum || '', // Регистрационный номер - TECHREGULREGNUM
+  const renderViolationsForm = (vData: ViolationsData, onVChange: (v: ViolationsData) => void) => {
+    const handleGeneralDescriptionChange = (value: string) => onVChange({ ...vData, generalDescription: value })
+    const handleAddRequirement = () => {
+      const newReq: ViolatedRequirement = {
+        technicalRegulationId: '',
+        technicalRegulationName: '',
+        registrationNumber: '',
+        description: '',
       }
-      onChange({
-        ...data,
-        violatedRequirements: updated,
-      })
+      onVChange({ ...vData, violatedRequirements: [...(vData.violatedRequirements || []), newReq] })
     }
-  }
-
-  const handleAddIndicator = () => {
-    const newInd: ViolatedIndicator = {
-      isNormative: false,
-      indicatorCode: '',
-      indicatorName: '',
-      indicatorValue: '',
-      unitCode: '',
-      unitName: '',
-      note: '',
+    const handleRemoveRequirement = (index: number) => {
+      const updated = [...(vData.violatedRequirements || [])]
+      updated.splice(index, 1)
+      onVChange({ ...vData, violatedRequirements: updated })
     }
-    onChange({
-      ...data,
-      violatedIndicators: [...(data.violatedIndicators || []), newInd],
-    })
-  }
-
-  const handleRemoveIndicator = (index: number) => {
-    const updated = [...(data.violatedIndicators || [])]
-    updated.splice(index, 1)
-    onChange({
-      ...data,
-      violatedIndicators: updated,
-    })
-  }
-
-  const handleIndicatorChange = (index: number, field: string, value: any) => {
-    const updated = [...(data.violatedIndicators || [])]
-    updated[index] = {
-      ...updated[index],
-      [field]: value,
+    const handleRequirementChange = (index: number, field: string, value: any) => {
+      const updated = [...(vData.violatedRequirements || [])]
+      updated[index] = { ...updated[index], [field]: value }
+      onVChange({ ...vData, violatedRequirements: updated })
     }
-    onChange({
-      ...data,
-      violatedIndicators: updated,
-    })
-  }
-
-  // Обработчик выбора единицы измерения
-  const handleMeasurementUnitSelect = (index: number, code: string) => {
-    const unit = getUnitByCode(code)
-    handleIndicatorChange(index, 'unitCode', code)
-    handleIndicatorChange(index, 'unitCodeListId', '1025') // measurementUnitCodeListId = 1025
-    if (unit) {
-      handleIndicatorChange(index, 'unitName', unit.name)
+    const handleTechRegulSelect = (index: number, code: string) => {
+      const techRegulOption = techRegulOptions.find(opt => opt.code === code)
+      if (techRegulOption) {
+        const updated = [...(vData.violatedRequirements || [])]
+        updated[index] = {
+          ...updated[index],
+          technicalRegulationId: techRegulOption.code,
+          technicalRegulationName: techRegulOption.name,
+          registrationNumber: techRegulOption.regNum || '',
+        }
+        onVChange({ ...vData, violatedRequirements: updated })
+      }
     }
+    const handleAddIndicator = () => {
+      const newInd: ViolatedIndicator = {
+        isNormative: false,
+        indicatorCode: '',
+        indicatorName: '',
+        indicatorValue: '',
+        unitCode: '',
+        unitName: '',
+        note: '',
+      }
+      onVChange({ ...vData, violatedIndicators: [...(vData.violatedIndicators || []), newInd] })
+    }
+    const handleRemoveIndicator = (index: number) => {
+      const updated = [...(vData.violatedIndicators || [])]
+      updated.splice(index, 1)
+      onVChange({ ...vData, violatedIndicators: updated })
+    }
+    const handleIndicatorChange = (index: number, field: string, value: any) => {
+      const updated = [...(vData.violatedIndicators || [])]
+      updated[index] = { ...updated[index], [field]: value }
+      onVChange({ ...vData, violatedIndicators: updated })
+    }
+    const handleMeasurementUnitSelect = (index: number, code: string) => {
+      const unit = getUnitByCode(code)
+      handleIndicatorChange(index, 'unitCode', code)
+      handleIndicatorChange(index, 'unitCodeListId', '1025')
+      if (unit) handleIndicatorChange(index, 'unitName', unit.name)
+    }
+
+    const requirementsColumns = [
+      { title: labelWithHelp('Номер техрегламента', FIELD_HELP.technicalRegulationId), key: 'technicalRegulationId', width: 120, render: (_: any, record: ViolatedRequirement, index: number) => (<Input value={record.technicalRegulationId} onChange={(e) => handleRequirementChange(index, 'technicalRegulationId', e.target.value)} style={{ wordWrap: 'break-word', whiteSpace: 'normal' }} />) },
+      { title: labelWithHelp('Наименование техрегламента', FIELD_HELP.technicalRegulationName), key: 'technicalRegulationName', width: 300, render: (_: any, record: ViolatedRequirement, index: number) => (<Select showSearch placeholder="Выберите техрегламент" loading={loadingTechReguls} value={record.technicalRegulationId || undefined} onChange={(code) => code ? handleTechRegulSelect(index, code) : onVChange({ ...vData, violatedRequirements: (vData.violatedRequirements || []).map((r, i) => i === index ? { ...r, technicalRegulationId: '', technicalRegulationName: '' } : r) })} filterOption={(input, option) => (option?.label ?? '').toLowerCase().includes(input.toLowerCase())} options={getTechRegulSelectOptions()} allowClear style={{ width: '100%' }} />) },
+      { title: labelWithHelp('Регистрационный номер', FIELD_HELP.registrationNumber), key: 'registrationNumber', width: 120, render: (_: any, record: ViolatedRequirement, index: number) => (<Input value={record.registrationNumber} onChange={(e) => handleRequirementChange(index, 'registrationNumber', e.target.value)} />) },
+      { title: 'Описание', key: 'description', width: 500, render: (_: any, record: ViolatedRequirement, index: number) => (<Input.TextArea value={record.description} onChange={(e) => handleRequirementChange(index, 'description', e.target.value)} rows={2} style={{ wordWrap: 'break-word', whiteSpace: 'normal' }} />) },
+      { title: 'Действия', key: 'actions', width: 100, render: (_: any, record: ViolatedRequirement, index: number) => (<Button type="link" danger icon={<DeleteOutlined />} onClick={() => handleRemoveRequirement(index)}>Удалить</Button>) },
+    ]
+    const indicatorsColumns = [
+      { title: 'Нормативный показатель', key: 'isNormative', width: 150, render: (_: any, record: ViolatedIndicator, index: number) => (<Input type="checkbox" checked={record.isNormative} onChange={(e) => handleIndicatorChange(index, 'isNormative', e.target.checked)} />) },
+      { title: labelWithHelp('Наименование показателя', FIELD_HELP.indicatorName), key: 'indicatorName', width: 200, render: (_: any, record: ViolatedIndicator, index: number) => (<Input value={record.indicatorName} onChange={(e) => handleIndicatorChange(index, 'indicatorName', e.target.value)} />) },
+      { title: labelWithHelp('Значение показателя', FIELD_HELP.indicatorValue), key: 'indicatorValue', width: 150, render: (_: any, record: ViolatedIndicator, index: number) => (<Input value={record.indicatorValue} onChange={(e) => handleIndicatorChange(index, 'indicatorValue', e.target.value)} />) },
+      { title: 'Единица измерения', key: 'unit', width: 200, render: (_: any, record: ViolatedIndicator, index: number) => (<Select showSearch placeholder="Выберите единицу измерения" loading={loadingMeasurementUnits} value={record.unitCode || undefined} onChange={(code) => handleMeasurementUnitSelect(index, code)} filterOption={(input, option) => (option?.label ?? '').toLowerCase().includes(input.toLowerCase())} options={getMeasurementUnitSelectOptions()} allowClear style={{ width: '100%' }} />) },
+      { title: labelWithHelp('Примечание', FIELD_HELP.indicatorNote), key: 'note', width: 300, render: (_: any, record: ViolatedIndicator, index: number) => (<Input.TextArea value={record.note} onChange={(e) => handleIndicatorChange(index, 'note', e.target.value)} rows={2} />) },
+      { title: 'Действия', key: 'actions', width: 100, render: (_: any, record: ViolatedIndicator, index: number) => (<Button type="link" danger icon={<DeleteOutlined />} onClick={() => handleRemoveIndicator(index)}>Удалить</Button>) },
+    ]
+
+    return (
+      <>
+        <Form.Item label={labelWithHelp('Описание нарушения', FIELD_HELP.violationDescription)}>
+          <Input.TextArea rows={3} value={vData.generalDescription} onChange={(e) => handleGeneralDescriptionChange(e.target.value)} />
+        </Form.Item>
+        <div style={{ marginBottom: '24px' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+            <h3>Перечень нарушенных требований</h3>
+            <Button type="dashed" icon={<PlusOutlined />} onClick={handleAddRequirement}>Добавить требование</Button>
+          </div>
+          <Table dataSource={vData.violatedRequirements || []} columns={requirementsColumns} rowKey={(record, index) => `requirement-${index}`} pagination={false} scroll={{ x: 'max-content' }} />
+        </div>
+        <div>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+            <h3>Перечень нарушенных показателей</h3>
+            <Button type="dashed" icon={<PlusOutlined />} onClick={handleAddIndicator}>Добавить показатель</Button>
+          </div>
+          <Table dataSource={vData.violatedIndicators || []} columns={indicatorsColumns} rowKey={(record, index) => `indicator-${index}`} pagination={false} scroll={{ x: 'max-content' }} />
+        </div>
+      </>
+    )
   }
 
-  const requirementsColumns = [
-    {
-      title: labelWithHelp('Номер техрегламента', FIELD_HELP.technicalRegulationId),
-      key: 'technicalRegulationId',
-      width: 120,
-      render: (_: any, record: ViolatedRequirement, index: number) => (
-        <Input
-          value={record.technicalRegulationId}
-          onChange={(e) => handleRequirementChange(index, 'technicalRegulationId', e.target.value)}
-          style={{ wordWrap: 'break-word', whiteSpace: 'normal' }}
-        />
-      ),
-    },
-    {
-      title: labelWithHelp('Наименование техрегламента', FIELD_HELP.technicalRegulationName),
-      key: 'technicalRegulationName',
-      width: 300,
-      render: (_: any, record: ViolatedRequirement, index: number) => (
-        <Select
-          showSearch
-          placeholder="Выберите техрегламент"
-          loading={loadingTechReguls}
-          value={record.technicalRegulationId || undefined}
-          onChange={(code) => {
-            if (code) {
-              handleTechRegulSelect(index, code)
-            } else {
-              // При очистке сбрасываем все поля
-              const updated = [...(data.violatedRequirements || [])]
-              updated[index] = {
-                ...updated[index],
-                technicalRegulationId: '',
-                technicalRegulationName: '',
-              }
-              onChange({
-                ...data,
-                violatedRequirements: updated,
-              })
-            }
-          }}
-          filterOption={(input, option) =>
-            (option?.label ?? '').toLowerCase().includes(input.toLowerCase())
-          }
-          options={getTechRegulSelectOptions()}
-          allowClear
-          style={{ width: '100%' }}
-        />
-      ),
-    },
-    {
-      title: labelWithHelp('Регистрационный номер', FIELD_HELP.registrationNumber),
-      key: 'registrationNumber',
-      width: 120,
-      render: (_: any, record: ViolatedRequirement, index: number) => (
-        <Input
-          value={record.registrationNumber}
-          onChange={(e) => handleRequirementChange(index, 'registrationNumber', e.target.value)}
-        />
-      ),
-    },
-    {
-      title: 'Описание',
-      key: 'description',
-      width: 500,
-      render: (_: any, record: ViolatedRequirement, index: number) => (
-        <Input.TextArea
-          value={record.description}
-          onChange={(e) => handleRequirementChange(index, 'description', e.target.value)}
-          rows={2}
-          style={{ wordWrap: 'break-word', whiteSpace: 'normal' }}
-        />
-      ),
-    },
-    {
-      title: 'Действия',
-      key: 'actions',
-      width: 100,
-      render: (_: any, record: ViolatedRequirement, index: number) => (
-        <Button
-          type="link"
-          danger
-          icon={<DeleteOutlined />}
-          onClick={() => handleRemoveRequirement(index)}
-        >
-          Удалить
-        </Button>
-      ),
-    },
-  ]
-
-  const indicatorsColumns = [
-    {
-      title: 'Нормативный показатель',
-      key: 'isNormative',
-      width: 150,
-      render: (_: any, record: ViolatedIndicator, index: number) => (
-        <Input
-          type="checkbox"
-          checked={record.isNormative}
-          onChange={(e) => handleIndicatorChange(index, 'isNormative', e.target.checked)}
-        />
-      ),
-    },
-    {
-      title: labelWithHelp('Наименование показателя', FIELD_HELP.indicatorName),
-      key: 'indicatorName',
-      width: 200,
-      render: (_: any, record: ViolatedIndicator, index: number) => (
-        <Input
-          value={record.indicatorName}
-          onChange={(e) => handleIndicatorChange(index, 'indicatorName', e.target.value)}
-        />
-      ),
-    },
-    {
-      title: labelWithHelp('Значение показателя', FIELD_HELP.indicatorValue),
-      key: 'indicatorValue',
-      width: 150,
-      render: (_: any, record: ViolatedIndicator, index: number) => (
-        <Input
-          value={record.indicatorValue}
-          onChange={(e) => handleIndicatorChange(index, 'indicatorValue', e.target.value)}
-        />
-      ),
-    },
-    {
-      title: 'Единица измерения',
-      key: 'unit',
-      width: 200,
-      render: (_: any, record: ViolatedIndicator, index: number) => (
-        <Select
-          showSearch
-          placeholder="Выберите единицу измерения"
-          loading={loadingMeasurementUnits}
-          value={record.unitCode || undefined}
-          onChange={(code) => handleMeasurementUnitSelect(index, code)}
-          filterOption={(input, option) =>
-            (option?.label ?? '').toLowerCase().includes(input.toLowerCase())
-          }
-          options={getMeasurementUnitSelectOptions()}
-          allowClear
-          style={{ width: '100%' }}
-        />
-      ),
-    },
-    {
-      title: labelWithHelp('Примечание', FIELD_HELP.indicatorNote),
-      key: 'note',
-      width: 300,
-      render: (_: any, record: ViolatedIndicator, index: number) => (
-        <Input.TextArea
-          value={record.note}
-          onChange={(e) => handleIndicatorChange(index, 'note', e.target.value)}
-          rows={2}
-        />
-      ),
-    },
-    {
-      title: 'Действия',
-      key: 'actions',
-      width: 100,
-      render: (_: any, record: ViolatedIndicator, index: number) => (
-        <Button
-          type="link"
-          danger
-          icon={<DeleteOutlined />}
-          onClick={() => handleRemoveIndicator(index)}
-        >
-          Удалить
-        </Button>
-      ),
-    },
-  ]
+  if (batches.length === 0) {
+    return <div>Нет партий. Добавьте партию во вкладке ТСД.</div>
+  }
 
   return (
-    <div>
-      {/* Общая характеристика нарушений */}
-      <Form.Item label={labelWithHelp('Описание нарушения', FIELD_HELP.violationDescription)}>
-        <Input.TextArea
-          rows={3}
-          value={data.generalDescription}
-          onChange={(e) => handleGeneralDescriptionChange(e.target.value)}
-        />
-      </Form.Item>
-
-      {/* Таблица нарушенных требований */}
-      <div style={{ marginBottom: '24px' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
-          <h3>Перечень нарушенных требований</h3>
-          <Button
-            type="dashed"
-            icon={<PlusOutlined />}
-            onClick={handleAddRequirement}
-          >
-            Добавить требование
-          </Button>
-        </div>
-        <Table
-          dataSource={data.violatedRequirements || []}
-          columns={requirementsColumns}
-          rowKey={(record, index) => `requirement-${index}`}
-          pagination={false}
-          scroll={{ x: 'max-content' }}
-        />
-      </div>
-
-      {/* Таблица нарушенных показателей */}
       <div>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
-          <h3>Перечень нарушенных показателей</h3>
-          <Button
-            type="dashed"
-            icon={<PlusOutlined />}
-            onClick={handleAddIndicator}
-          >
-            Добавить показатель
-          </Button>
+        <div style={{ marginBottom: 8 }}>
+          Нарушения по партиям: <strong>{batches.length}</strong>. Выберите партию для редактирования.
         </div>
-        <Table
-          dataSource={data.violatedIndicators || []}
-          columns={indicatorsColumns}
-          rowKey={(record, index) => `indicator-${index}`}
-          pagination={false}
-          scroll={{ x: 'max-content' }}
+        <Collapse
+          accordion={false}
+          items={batches.map((batch, batchIndex) => {
+            const vData = getViolationsForBatch(batch)
+            const reqCount = vData.violatedRequirements?.length ?? 0
+            const indCount = vData.violatedIndicators?.length ?? 0
+            return {
+              key: String(batchIndex),
+              label: `Партия ${batchIndex + 1}${batch.batchId ? ` — № ${batch.batchId}` : ''}${batch.manufactureDate ? ` (производство: ${formatDateShort(batch.manufactureDate)})` : ''} (требований: ${reqCount}, показателей: ${indCount})`,
+              children: (
+                <div>
+                  <Descriptions column={1} bordered size="small" style={{ marginBottom: 12 }}>
+                    <Descriptions.Item label="Номер серии товара">{batch.batchId || '-'}</Descriptions.Item>
+                    <Descriptions.Item label="Дата производства">{formatDateShort(batch.manufactureDate)}</Descriptions.Item>
+                    <Descriptions.Item label="Номер товарной партии">{batch.consignmentId || '-'}</Descriptions.Item>
+                  </Descriptions>
+                  {renderViolationsForm(vData, (next) => updateBatchViolations(batchIndex, next))}
+                </div>
+              ),
+            }
+          })}
         />
       </div>
-    </div>
-  )
+    )
 }
 
 export default ViolationsTabEdit

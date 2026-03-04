@@ -172,14 +172,8 @@ export function compareCardData(original: CardData, exported: CardData): {
   // Сравниваем product
   compareValue('product', original.product, exported.product)
   
-  // Сравниваем tsd
+  // Сравниваем tsd (по XSD нарушения и документы соответствия только внутри tsd.batches[])
   compareValue('tsd', original.tsd, exported.tsd)
-  
-  // Сравниваем violations
-  compareValue('violations', original.violations, exported.violations)
-  
-  // Сравниваем complianceDocuments
-  compareValue('complianceDocuments', original.complianceDocuments, exported.complianceDocuments)
   
   // Сравниваем detectionPlace
   compareValue('detectionPlace', original.detectionPlace, exported.detectionPlace)
@@ -263,8 +257,6 @@ export function getCardDataReview(data: CardData): { filled: string[]; unfilled:
   walk('notification', data.notification)
   walk('product', data.product)
   walk('tsd', data.tsd)
-  walk('violations', data.violations)
-  walk('complianceDocuments', data.complianceDocuments)
   walk('detectionPlace', data.detectionPlace)
   walk('measures', data.measures)
   walk('electronicDocument', data.electronicDocument)

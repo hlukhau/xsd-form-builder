@@ -37,7 +37,6 @@ export function exportCardDataToXML(data: CardData): string {
   console.log('[exportCardDataToXML] data.notification?.authorizedBody:', data.notification?.authorizedBody)
   console.log('[exportCardDataToXML] data.product:', data.product)
   console.log('[exportCardDataToXML] data.tsd:', data.tsd)
-  console.log('[exportCardDataToXML] data.violations:', data.violations)
   
   const xmlParts: string[] = []
   
@@ -72,11 +71,14 @@ export function exportCardDataToXML(data: CardData): string {
     // Используем registrationNumber из метаданных как IncidentId
     xmlParts.push(`        <smsdo:IncidentId>${escapeXML(data.registrationNumber)}</smsdo:IncidentId>`)
     if (data.notification.type) {
-      // Преобразуем type в IncidentKindCode (нужно будет улучшить)
       xmlParts.push(`        <smsdo:IncidentKindCode>${escapeXML(data.notification.type)}</smsdo:IncidentKindCode>`)
     }
     if (data.notification.formationDate) {
       xmlParts.push(`        <csdo:DocCreationDate>${escapeXML(data.notification.formationDate)}</csdo:DocCreationDate>`)
+    }
+    // EndDate (IncidentAlertDetailsType) — дата закрытия уведомления
+    if (data.notification.endDate) {
+      xmlParts.push(`        <csdo:EndDate>${escapeXML(data.notification.endDate)}</csdo:EndDate>`)
     }
   }
   
@@ -156,19 +158,12 @@ export function exportCardDataToXML(data: CardData): string {
           })
         }
         
-        // ComplianceDocuments и Violations экспортируем только внутри последней партии
-        // В исходном XML они находятся внутри одной из партий, но в структуре данных они на верхнем уровне
-        const isLastBatch = batchIndex === data.tsd.batches.length - 1
-        if (isLastBatch) {
-          // ComplianceDocuments (внутри NonCompliantSanitaryProductBatchDetails)
-          if (data.complianceDocuments && data.complianceDocuments.documents && data.complianceDocuments.documents.length > 0) {
-            exportComplianceDocuments(xmlParts, data.complianceDocuments, '                ')
-          }
-          
-          // Violations (внутри NonCompliantSanitaryProductBatchDetails)
-          if (data.violations) {
-            exportViolations(xmlParts, data.violations, '                ')
-          }
+        // Документы соответствия и нарушения только в составе партии (по XSD)
+        if (batch.complianceDocuments?.length) {
+          exportComplianceDocuments(xmlParts, { documents: batch.complianceDocuments }, '                ')
+        }
+        if (batch.violations && ((batch.violations.violatedRequirements?.length ?? 0) > 0 || (batch.violations.violatedIndicators?.length ?? 0) > 0 || !!batch.violations.generalDescription)) {
+          exportViolations(xmlParts, batch.violations, '                ')
         }
         
         xmlParts.push('            </smcdo:NonCompliantSanitaryProductBatchDetails>')
@@ -337,10 +332,12 @@ function exportShippingDocument(xmlParts: string[], doc: ShippingDocument, inden
 }
 
 function exportViolations(xmlParts: string[], violations: ViolationsData, indent: string) {
-  // generalDescription не экспортируем на уровне RequirementViolationDetails,
-  // так как в исходном XML его там нет - DescriptionText только внутри RequirementsDocDetails
-  
-  if (violations.violatedRequirements && violations.violatedRequirements.length > 0) {
+  // По XSD в RequirementViolationDetails обязателен минимум один RequirementsDocDetails; затем идут DiscrepancyOfQualityIndexDetails*, DescriptionText?
+  const hasRequirements = violations.violatedRequirements && violations.violatedRequirements.length > 0
+  const hasIndicators = violations.violatedIndicators && violations.violatedIndicators.length > 0
+  const hasGeneralDesc = !!(violations.generalDescription && violations.generalDescription.trim())
+
+  if (hasRequirements) {
     console.log('[exportViolations] Экспортируем violatedRequirements:', violations.violatedRequirements)
     violations.violatedRequirements.forEach((req, index) => {
       console.log(`[exportViolations] Требование ${index}:`, {
@@ -362,6 +359,15 @@ function exportViolations(xmlParts: string[], violations: ViolationsData, indent
           xmlParts.push(`${indent}    </smcdo:DocStructuralElementDetails>`)
         })
       }
+      // ccdo:DocReferenceDetails (документ, утверждающий требования) — порядок по XSD RequirementsDocDetailsType
+      if (req.approvingDocument && (req.approvingDocument.docName || req.approvingDocument.docId || req.approvingDocument.docCreationDate || req.approvingDocument.docStartDate)) {
+        xmlParts.push(`${indent}    <ccdo:DocReferenceDetails>`)
+        if (req.approvingDocument.docName) xmlParts.push(`${indent}      <csdo:DocName>${escapeXML(req.approvingDocument.docName)}</csdo:DocName>`)
+        if (req.approvingDocument.docId) xmlParts.push(`${indent}      <csdo:DocId>${escapeXML(req.approvingDocument.docId)}</csdo:DocId>`)
+        if (req.approvingDocument.docCreationDate) xmlParts.push(`${indent}      <csdo:DocCreationDate>${escapeXML(req.approvingDocument.docCreationDate)}</csdo:DocCreationDate>`)
+        if (req.approvingDocument.docStartDate) xmlParts.push(`${indent}      <csdo:DocStartDate>${escapeXML(req.approvingDocument.docStartDate)}</csdo:DocStartDate>`)
+        xmlParts.push(`${indent}    </ccdo:DocReferenceDetails>`)
+      }
       // DescriptionText внутри RequirementsDocDetails
       if (req.description) {
         xmlParts.push(`${indent}    <csdo:DescriptionText>${escapeXML(req.description)}</csdo:DescriptionText>`)
@@ -377,33 +383,45 @@ function exportViolations(xmlParts: string[], violations: ViolationsData, indent
     })
   }
   
-  if (violations.violatedIndicators && violations.violatedIndicators.length > 0) {
-    violations.violatedIndicators.forEach(indicator => {
+  // Только показатели или только общее описание: по XSD нужен минимум один RequirementsDocDetails в каждом RequirementViolationDetails
+  if (hasIndicators || hasGeneralDesc) {
+    if (hasIndicators) {
+      violations.violatedIndicators!.forEach(indicator => {
+        xmlParts.push(`${indent}<smcdo:RequirementViolationDetails>`)
+        xmlParts.push(`${indent}  <smcdo:RequirementsDocDetails></smcdo:RequirementsDocDetails>`)
+        xmlParts.push(`${indent}  <smcdo:DiscrepancyOfQualityIndexDetails${indicator.isNormative ? ' normativeDiscrepancyOfQualityIndexIndicator="1"' : ''}>`)
+        if (indicator.indicatorCode) xmlParts.push(`${indent}    <smsdo:DiscrepancyOfQualityIndexCode>${escapeXML(indicator.indicatorCode)}</smsdo:DiscrepancyOfQualityIndexCode>`)
+        if (indicator.indicatorName) xmlParts.push(`${indent}    <smsdo:DiscrepancyOfQualityIndexName>${escapeXML(indicator.indicatorName)}</smsdo:DiscrepancyOfQualityIndexName>`)
+        if (indicator.indicatorValue) {
+          const unitAttrs = indicator.unitCode ? ` measurementUnitCode="${escapeXML(indicator.unitCode)}"` : ''
+          xmlParts.push(`${indent}    <smsdo:DiscrepancyOfQualityIndexValue${unitAttrs}>${escapeXML(indicator.indicatorValue)}</smsdo:DiscrepancyOfQualityIndexValue>`)
+        }
+        if (indicator.note) xmlParts.push(`${indent}    <csdo:NoteText>${escapeXML(indicator.note)}</csdo:NoteText>`)
+        xmlParts.push(`${indent}  </smcdo:DiscrepancyOfQualityIndexDetails>`)
+        xmlParts.push(`${indent}</smcdo:RequirementViolationDetails>`)
+      })
+    }
+    if (hasGeneralDesc && !hasRequirements) {
       xmlParts.push(`${indent}<smcdo:RequirementViolationDetails>`)
-      xmlParts.push(`${indent}  <smcdo:DiscrepancyOfQualityIndexDetails${indicator.isNormative ? ' normativeDiscrepancyOfQualityIndexIndicator="1"' : ''}>`)
-      if (indicator.indicatorCode) xmlParts.push(`${indent}    <smsdo:DiscrepancyOfQualityIndexCode>${escapeXML(indicator.indicatorCode)}</smsdo:DiscrepancyOfQualityIndexCode>`)
-      if (indicator.indicatorName) xmlParts.push(`${indent}    <smsdo:DiscrepancyOfQualityIndexName>${escapeXML(indicator.indicatorName)}</smsdo:DiscrepancyOfQualityIndexName>`)
-      if (indicator.indicatorValue) {
-        const unitAttrs = indicator.unitCode ? ` measurementUnitCode="${escapeXML(indicator.unitCode)}"` : ''
-        xmlParts.push(`${indent}    <smsdo:DiscrepancyOfQualityIndexValue${unitAttrs}>${escapeXML(indicator.indicatorValue)}</smsdo:DiscrepancyOfQualityIndexValue>`)
-      }
-      if (indicator.note) xmlParts.push(`${indent}    <csdo:NoteText>${escapeXML(indicator.note)}</csdo:NoteText>`)
-      xmlParts.push(`${indent}  </smcdo:DiscrepancyOfQualityIndexDetails>`)
+      xmlParts.push(`${indent}  <smcdo:RequirementsDocDetails></smcdo:RequirementsDocDetails>`)
+      xmlParts.push(`${indent}  <csdo:DescriptionText>${escapeXML(violations.generalDescription)}</csdo:DescriptionText>`)
       xmlParts.push(`${indent}</smcdo:RequirementViolationDetails>`)
-    })
+    } else if (hasGeneralDesc && hasRequirements) {
+      // generalDescription уже мог быть выведен как requirementLevelDescription в одном из требований; выводим отдельным блоком только если ни в одном нет
+      const alreadyOutput = violations.violatedRequirements!.some(r => r.requirementLevelDescription === violations.generalDescription)
+      if (!alreadyOutput) {
+        xmlParts.push(`${indent}<smcdo:RequirementViolationDetails>`)
+        xmlParts.push(`${indent}  <smcdo:RequirementsDocDetails></smcdo:RequirementsDocDetails>`)
+        xmlParts.push(`${indent}  <csdo:DescriptionText>${escapeXML(violations.generalDescription)}</csdo:DescriptionText>`)
+        xmlParts.push(`${indent}</smcdo:RequirementViolationDetails>`)
+      }
+    }
   }
 }
 
 function exportDetectionPlace(xmlParts: string[], place: DetectionPlaceData, indent: string) {
   xmlParts.push(`${indent}<smcdo:DetectionPlaceDetails>`)
-  
-  if (place.borderCheckpoint) {
-    xmlParts.push(`${indent}    <smcdo:BorderCheckpointDetails>`)
-    if (place.borderCheckpoint.checkpointCode) xmlParts.push(`${indent}        <csdo:BorderCheckpointCode>${escapeXML(place.borderCheckpoint.checkpointCode)}</csdo:BorderCheckpointCode>`)
-    if (place.borderCheckpoint.checkpointName) xmlParts.push(`${indent}        <csdo:BorderCheckpointName>${escapeXML(place.borderCheckpoint.checkpointName)}</csdo:BorderCheckpointName>`)
-    xmlParts.push(`${indent}    </smcdo:BorderCheckpointDetails>`)
-  }
-  
+  // Порядок по XSD LocationDetailsType: OrganizationDetails, BorderCheckpointDetails, ObjectAddressDetails, GeoCoordinateDetails, DescriptionText
   if (place.organization) {
     xmlParts.push(`${indent}    <smcdo:OrganizationDetails>`)
     if (place.organization.country) {
@@ -437,7 +455,12 @@ function exportDetectionPlace(xmlParts: string[], place: DetectionPlaceData, ind
     }
     xmlParts.push(`${indent}    </smcdo:OrganizationDetails>`)
   }
-  
+  if (place.borderCheckpoint) {
+    xmlParts.push(`${indent}    <smcdo:BorderCheckpointDetails>`)
+    if (place.borderCheckpoint.checkpointCode) xmlParts.push(`${indent}        <csdo:BorderCheckpointCode>${escapeXML(place.borderCheckpoint.checkpointCode)}</csdo:BorderCheckpointCode>`)
+    if (place.borderCheckpoint.checkpointName) xmlParts.push(`${indent}        <csdo:BorderCheckpointName>${escapeXML(place.borderCheckpoint.checkpointName)}</csdo:BorderCheckpointName>`)
+    xmlParts.push(`${indent}    </smcdo:BorderCheckpointDetails>`)
+  }
   if (place.address) {
     exportAddress(xmlParts, place.address, '1', `${indent}    `)
   }
@@ -499,18 +522,35 @@ function exportSanitaryMeasure(xmlParts: string[], measure: SanitaryMeasure, ind
 }
 
 function exportMeasureDocDetails(xmlParts: string[], doc: MeasureDocDetails, tagName: string, indent: string) {
+  const inner = `${indent}        `
   xmlParts.push(`${indent}<smcdo:${tagName}>`)
   if (doc.country) {
-    xmlParts.push(`${indent}        <csdo:UnifiedCountryCode codeListId="2021">${escapeXML(doc.country)}</csdo:UnifiedCountryCode>`)
+    xmlParts.push(`${inner}<csdo:UnifiedCountryCode codeListId="2021">${escapeXML(doc.country)}</csdo:UnifiedCountryCode>`)
   }
-  if (doc.languageCode) xmlParts.push(`${indent}        <csdo:LanguageCode>${escapeXML(doc.languageCode)}</csdo:LanguageCode>`)
-  if (doc.docKindName) xmlParts.push(`${indent}        <csdo:DocKindName>${escapeXML(doc.docKindName)}</csdo:DocKindName>`)
-  if (doc.docName) xmlParts.push(`${indent}        <csdo:DocName>${escapeXML(doc.docName)}</csdo:DocName>`)
-  if (doc.docId) xmlParts.push(`${indent}        <csdo:DocId>${escapeXML(doc.docId)}</csdo:DocId>`)
-  if (doc.docCreationDate) xmlParts.push(`${indent}        <csdo:DocCreationDate>${escapeXML(doc.docCreationDate)}</csdo:DocCreationDate>`)
-  if (doc.docStartDate) xmlParts.push(`${indent}        <csdo:DocStartDate>${escapeXML(doc.docStartDate)}</csdo:DocStartDate>`)
-  if (doc.authorityName) xmlParts.push(`${indent}        <csdo:AuthorityName>${escapeXML(doc.authorityName)}</csdo:AuthorityName>`)
-  if (doc.description) xmlParts.push(`${indent}        <csdo:DescriptionText>${escapeXML(doc.description)}</csdo:DescriptionText>`)
+  if (doc.languageCode) xmlParts.push(`${inner}<csdo:LanguageCode>${escapeXML(doc.languageCode)}</csdo:LanguageCode>`)
+  if (doc.docKindCode) {
+    const codeListIdAttr = doc.docKindCodeListId ? ` codeListId="${escapeXML(doc.docKindCodeListId)}"` : ''
+    xmlParts.push(`${inner}<csdo:DocKindCode${codeListIdAttr}>${escapeXML(doc.docKindCode)}</csdo:DocKindCode>`)
+  }
+  if (doc.docKindName) xmlParts.push(`${inner}<csdo:DocKindName>${escapeXML(doc.docKindName)}</csdo:DocKindName>`)
+  if (doc.docName) xmlParts.push(`${inner}<csdo:DocName>${escapeXML(doc.docName)}</csdo:DocName>`)
+  if (doc.docSeriesId) xmlParts.push(`${inner}<csdo:DocSeriesId>${escapeXML(doc.docSeriesId)}</csdo:DocSeriesId>`)
+  if (doc.docId) xmlParts.push(`${inner}<csdo:DocId>${escapeXML(doc.docId)}</csdo:DocId>`)
+  if (doc.docCreationDate) xmlParts.push(`${inner}<csdo:DocCreationDate>${escapeXML(doc.docCreationDate)}</csdo:DocCreationDate>`)
+  if (doc.docStartDate) xmlParts.push(`${inner}<csdo:DocStartDate>${escapeXML(doc.docStartDate)}</csdo:DocStartDate>`)
+  if (doc.docValidityDate) xmlParts.push(`${inner}<csdo:DocValidityDate>${escapeXML(doc.docValidityDate)}</csdo:DocValidityDate>`)
+  if (doc.docValidityDuration) xmlParts.push(`${inner}<csdo:DocValidityDuration>${escapeXML(doc.docValidityDuration)}</csdo:DocValidityDuration>`)
+  if (doc.authorityId) xmlParts.push(`${inner}<csdo:AuthorityId>${escapeXML(doc.authorityId)}</csdo:AuthorityId>`)
+  if (doc.authorityName) xmlParts.push(`${inner}<csdo:AuthorityName>${escapeXML(doc.authorityName)}</csdo:AuthorityName>`)
+  if (doc.description) xmlParts.push(`${inner}<csdo:DescriptionText>${escapeXML(doc.description)}</csdo:DescriptionText>`)
+  if (doc.pageQuantity) xmlParts.push(`${inner}<csdo:PageQuantity>${escapeXML(doc.pageQuantity)}</csdo:PageQuantity>`)
+  if (doc.docBinaryText && (doc.docBinaryText.content || doc.docBinaryText.mediaTypeCode)) {
+    const mediaAttr = doc.docBinaryText.mediaTypeCode ? ` mediaTypeCode="${escapeXML(doc.docBinaryText.mediaTypeCode)}"` : ''
+    xmlParts.push(`${inner}<csdo:DocBinaryText${mediaAttr}>${escapeXML(doc.docBinaryText.content || '')}</csdo:DocBinaryText>`)
+  }
+  if (doc.xmlDocument) {
+    xmlParts.push(`${inner}<ccdo:AnyDetails>${escapeXML(doc.xmlDocument)}</ccdo:AnyDetails>`)
+  }
   xmlParts.push(`${indent}    </smcdo:${tagName}>`)
 }
 
@@ -551,24 +591,43 @@ function exportMeasureImplementation(xmlParts: string[], impl: MeasureImplementa
         xmlParts.push(`${indent}    <ccdo:IdentityDocV3Details>`)
         const idDoc = impl.subjectDetails.identityDoc
         if (idDoc.country) xmlParts.push(`${indent}      <csdo:UnifiedCountryCode>${escapeXML(idDoc.country)}</csdo:UnifiedCountryCode>`)
-        if (idDoc.docKindCode) xmlParts.push(`${indent}      <csdo:IdentityDocKindCode>${escapeXML(idDoc.docKindCode)}</csdo:IdentityDocKindCode>`)
+        if (idDoc.docKindCode) {
+          const codeListIdAttr = idDoc.docKindCodeListId ? ` codeListId="${escapeXML(idDoc.docKindCodeListId)}"` : ''
+          xmlParts.push(`${indent}      <csdo:IdentityDocKindCode${codeListIdAttr}>${escapeXML(idDoc.docKindCode)}</csdo:IdentityDocKindCode>`)
+        }
         if (idDoc.docKindName) xmlParts.push(`${indent}      <csdo:DocKindName>${escapeXML(idDoc.docKindName)}</csdo:DocKindName>`)
         if (idDoc.docSeriesId) xmlParts.push(`${indent}      <csdo:DocSeriesId>${escapeXML(idDoc.docSeriesId)}</csdo:DocSeriesId>`)
         if (idDoc.docId) xmlParts.push(`${indent}      <csdo:DocId>${escapeXML(idDoc.docId)}</csdo:DocId>`)
         if (idDoc.docCreationDate) xmlParts.push(`${indent}      <csdo:DocCreationDate>${escapeXML(idDoc.docCreationDate)}</csdo:DocCreationDate>`)
         if (idDoc.docValidityDate) xmlParts.push(`${indent}      <csdo:DocValidityDate>${escapeXML(idDoc.docValidityDate)}</csdo:DocValidityDate>`)
+        if (idDoc.authorityId) xmlParts.push(`${indent}      <csdo:AuthorityId>${escapeXML(idDoc.authorityId)}</csdo:AuthorityId>`)
+        if (idDoc.authorityName) xmlParts.push(`${indent}      <csdo:AuthorityName>${escapeXML(idDoc.authorityName)}</csdo:AuthorityName>`)
         xmlParts.push(`${indent}    </ccdo:IdentityDocV3Details>`)
       }
       if (impl.subjectDetails.registrationAddress) exportAddress(xmlParts, impl.subjectDetails.registrationAddress, '1', `${indent}    `)
       if (impl.subjectDetails.actualAddress) exportAddress(xmlParts, impl.subjectDetails.actualAddress, '2', `${indent}    `)
       if (impl.subjectDetails.mailingAddress) exportAddress(xmlParts, impl.subjectDetails.mailingAddress, '3', `${indent}    `)
+      if (impl.subjectDetails.contacts && impl.subjectDetails.contacts.length > 0) {
+        impl.subjectDetails.contacts.forEach(contact => {
+          xmlParts.push(`${indent}    <ccdo:CommunicationDetails>`)
+          if (contact.communicationChannelCode) xmlParts.push(`${indent}      <csdo:CommunicationChannelCode>${escapeXML(contact.communicationChannelCode)}</csdo:CommunicationChannelCode>`)
+          if (contact.communicationChannelName) xmlParts.push(`${indent}      <csdo:CommunicationChannelName>${escapeXML(contact.communicationChannelName)}</csdo:CommunicationChannelName>`)
+          if (contact.communicationChannelId) xmlParts.push(`${indent}      <csdo:CommunicationChannelId>${escapeXML(contact.communicationChannelId)}</csdo:CommunicationChannelId>`)
+          if (contact.contactKind) xmlParts.push(`${indent}      <csdo:ContactKind>${escapeXML(contact.contactKind)}</csdo:ContactKind>`)
+          if (contact.contactValue) xmlParts.push(`${indent}      <csdo:ContactValue>${escapeXML(contact.contactValue)}</csdo:ContactValue>`)
+          xmlParts.push(`${indent}    </ccdo:CommunicationDetails>`)
+        })
+      }
     }
     xmlParts.push(`${indent}  </smcdo:SubjectDetails>`)
   }
   
   if (impl.documentDetails) {
     xmlParts.push(`${indent}  <ccdo:DocReferenceDetails>`)
-    if (impl.documentDetails.docKindCode) xmlParts.push(`${indent}    <csdo:DocKindCode>${escapeXML(impl.documentDetails.docKindCode)}</csdo:DocKindCode>`)
+    if (impl.documentDetails.docKindCode) {
+      const codeListIdAttr = impl.documentDetails.docKindCodeListId ? ` codeListId="${escapeXML(impl.documentDetails.docKindCodeListId)}"` : ''
+      xmlParts.push(`${indent}    <csdo:DocKindCode${codeListIdAttr}>${escapeXML(impl.documentDetails.docKindCode)}</csdo:DocKindCode>`)
+    }
     if (impl.documentDetails.docKindName) xmlParts.push(`${indent}    <csdo:DocKindName>${escapeXML(impl.documentDetails.docKindName)}</csdo:DocKindName>`)
     if (impl.documentDetails.docName) xmlParts.push(`${indent}    <csdo:DocName>${escapeXML(impl.documentDetails.docName)}</csdo:DocName>`)
     if (impl.documentDetails.docId) xmlParts.push(`${indent}    <csdo:DocId>${escapeXML(impl.documentDetails.docId)}</csdo:DocId>`)
@@ -1182,15 +1241,33 @@ function compareElements(
       warnings.push(`Разное количество элементов ${name} на пути ${currentPath}: ${originalGroup.length} vs ${exportedGroup.length}`)
     }
     
-    // Для NonCompliantSanitaryProductBatchDetails и RequirementViolationDetails сравниваем по содержимому, а не по порядку
+    // Для NonCompliantSanitaryProductBatchDetails сравниваем по порядку (партия 1 ↔ партия 1 и т.д.);
+    // внутри каждой партии ConformityDocDetails и RequirementViolationDetails — по содержимому (порядок не важен).
     if (name === 'noncompliantsanitaryproductbatchdetails') {
       console.log(`[compareElements] Сравниваем ${originalGroup.length} исходных и ${exportedGroup.length} экспортированных NonCompliantSanitaryProductBatchDetails на пути ${currentPath}`)
       
-      // Для батчей сравниваем по порядку (так как они должны соответствовать)
       const maxLength = Math.max(originalGroup.length, exportedGroup.length)
       for (let i = 0; i < maxLength; i++) {
         compareElements(originalGroup[i], exportedGroup[i], differences, warnings, currentPath)
       }
+    } else if (name === 'conformitydocdetails') {
+      // Документы соответствия внутри партии: сопоставление по содержимому (docId, docName), а не по порядку
+      exportedGroup.forEach((exportedEl) => {
+        const bestMatch = findBestMatch(exportedEl, originalGroup)
+        if (bestMatch) {
+          compareElements(bestMatch, exportedEl, differences, warnings, currentPath)
+        } else {
+          const fp = getElementFingerprint(exportedEl)
+          warnings.push(`Новый элемент ConformityDocDetails на пути ${currentPath}: ${fp.substring(0, 100)}`)
+        }
+      })
+      originalGroup.forEach((originalEl) => {
+        const bestMatch = findBestMatch(originalEl, exportedGroup)
+        if (!bestMatch) {
+          const fp = getElementFingerprint(originalEl)
+          warnings.push(`Удален элемент ConformityDocDetails на пути ${currentPath}: ${fp.substring(0, 100)}`)
+        }
+      })
     } else if (name === 'requirementviolationdetails') {
       console.log(`[compareElements] Сравниваем ${originalGroup.length} исходных и ${exportedGroup.length} экспортированных RequirementViolationDetails на пути ${currentPath}`)
       

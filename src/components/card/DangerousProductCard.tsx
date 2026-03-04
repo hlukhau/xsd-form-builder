@@ -328,20 +328,12 @@ const DangerousProductCard: React.FC<DangerousProductCardProps> = ({
     {
       key: 'compliance',
       label: 'Документы соответствия',
-      children: currentData.complianceDocuments ? (
-        <ComplianceDocumentsTab data={currentData.complianceDocuments} hasEditPermission={true} />
-      ) : (
-        <div>Данные о документах соответствия не найдены</div>
-      ),
+      children: <ComplianceDocumentsTab tsd={currentData.tsd} hasEditPermission={true} />,
     },
     {
       key: 'violations',
       label: 'Нарушения',
-      children: currentData.violations ? (
-        <ViolationsTab data={currentData.violations} />
-      ) : (
-        <div>Данные о нарушениях не найдены</div>
-      ),
+      children: <ViolationsTab tsd={currentData.tsd} />,
     },
     {
       key: 'detectionPlace',
@@ -543,40 +535,23 @@ const DangerousProductCard: React.FC<DangerousProductCardProps> = ({
           }
           break
         case 'violations':
-          if (currentData.violations) {
+          if (currentData.tsd?.batches?.length) {
             editChildren = (
               <ViolationsTabEdit
-                data={currentData.violations}
-                onChange={(violations) => {
-                  console.log('[DangerousProductCard] Получены изменения violations:', violations)
-                  console.log('[DangerousProductCard] violatedRequirements:', violations.violatedRequirements)
-                  setEditedData((prev) => {
-                    const updated = { ...prev, violations }
-                    console.log('[DangerousProductCard] Обновленный editedData:', updated)
-                    console.log('[DangerousProductCard] editedData.violations:', updated.violations)
-                    return updated
-                  })
-                }}
+                tsd={currentData.tsd}
+                onTsdChange={(tsd) => setEditedData((prev) => ({ ...prev, tsd }))}
               />
             )
           } else {
             editChildren = (
               <div>
+                <span style={{ marginRight: 8 }}>Добавьте партию во вкладке «ТСД», затем укажите нарушения в составе партии.</span>
                 <Button
                   type="dashed"
                   icon={<PlusOutlined />}
-                  onClick={() => {
-                    setEditedData({
-                      ...editedData,
-                      violations: {
-                        generalDescription: '',
-                        violatedRequirements: [],
-                        violatedIndicators: [],
-                      },
-                    })
-                  }}
+                  onClick={() => setEditedData((prev) => ({ ...prev, tsd: { batches: [{ shippingDocuments: [] }] } }))}
                 >
-                  Добавить данные о нарушениях
+                  Добавить партию
                 </Button>
               </div>
             )
@@ -624,29 +599,23 @@ const DangerousProductCard: React.FC<DangerousProductCardProps> = ({
           }
           break
         case 'compliance':
-          if (currentData.complianceDocuments) {
+          if (currentData.tsd?.batches?.length) {
             editChildren = (
               <ComplianceDocumentsTabEdit
-                data={currentData.complianceDocuments}
-                onChange={(compliance) => setEditedData((prev) => ({ ...prev, complianceDocuments: compliance }))}
+                tsd={currentData.tsd}
+                onTsdChange={(tsd) => setEditedData((prev) => ({ ...prev, tsd }))}
               />
             )
           } else {
             editChildren = (
               <div>
+                <span style={{ marginRight: 8 }}>Добавьте партию во вкладке «ТСД», затем укажите документы соответствия в составе партии.</span>
                 <Button
                   type="dashed"
                   icon={<PlusOutlined />}
-                  onClick={() => {
-                    setEditedData({
-                      ...editedData,
-                      complianceDocuments: {
-                        documents: [],
-                      },
-                    })
-                  }}
+                  onClick={() => setEditedData((prev) => ({ ...prev, tsd: { batches: [{ shippingDocuments: [] }] } }))}
                 >
-                  Добавить документы соответствия
+                  Добавить партию
                 </Button>
               </div>
             )
