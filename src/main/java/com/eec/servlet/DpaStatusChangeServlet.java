@@ -25,6 +25,7 @@ import java.util.regex.Pattern;
  */
 public class DpaStatusChangeServlet extends HttpServlet {
 
+    private static final int INCOMING_COMPLETED = 4;
     private static final int OUTGOING_DRAFT = 5;
     private static final int OUTGOING_NEW = 6;
     private static final int OUTGOING_PENDING = 7;
@@ -47,6 +48,8 @@ public class DpaStatusChangeServlet extends HttpServlet {
             + "INSERT INTO SESINT.DPASTATUSHIST (DPAID, DPASTATUSID, DPASTATUSDATETIME, USERID) VALUES (?, ?, SYSDATE, ?)";
     /** DEPKINDID по DEPKINDCODE (SESDEV.TB_DEPKIND) */
     private static final String SQL_DEPKIND_ID = "SELECT DEPKINDID FROM SESDEV.TB_DEPKIND WHERE TRIM(UPPER(DEPKINDCODE)) = TRIM(UPPER(?))";
+    /** DEPKINDCODE по DEPKINDID (DEPKINDID из карты прав: department.depkindid) */
+    private static final String SQL_DEPKINDCODE_BY_DEPKINDID = "SELECT DEPKINDCODE FROM SESDEV.TB_DEPKIND WHERE DEPKINDID = ?";
     /** Вставка резолюции (для mark_ready). DPASTATUSID — статус карты после наложения резолюции (Новое). При дубликате (DPAID,DEPKINDID) — игнорируем. */
     private static final String SQL_INSERT_RESOLUTION = ""
             + "INSERT INTO SESINT.DPARESOLUTION (DPAID, DPASTATUSID, DEPKINDID, RESOLUTIONDATETIME, USERID) VALUES (?, ?, ?, SYSDATE, ?)";
@@ -68,6 +71,10 @@ public class DpaStatusChangeServlet extends HttpServlet {
         String action = extractJsonString(body, "action");
         String depKindCode = extractJsonString(body, "depKindCode");
         String guid = extractJsonString(body, "guid");
+        if (guid == null) guid = extractJsonStringOrNumber(body, "guid");
+        if (guid == null) guid = extractJsonString(body, "GUID");
+        if (guid == null) guid = extractJsonStringOrNumber(body, "GUID");
+        log("[DpaStatusChange] request: dpaid=" + dpaid + ", action=" + action + ", guid=" + (guid != null ? guid : "null") + ", depKindCode=" + (depKindCode != null ? depKindCode : "null"));
         if (dpaid == null || dpaid.trim().isEmpty() || action == null || action.trim().isEmpty()) {
             sendJsonError(response, HttpServletResponse.SC_BAD_REQUEST, "Нужны dpaid и action");
             return;
@@ -78,6 +85,7 @@ public class DpaStatusChangeServlet extends HttpServlet {
         if (guid != null) guid = guid.trim();
 
         Integer userId = resolveUserId(guid);
+        log("[DpaStatusChange] userId from rights: " + (userId != null ? userId : "null") + (guid != null ? " (guid=" + guid + ")" : ""));
 
         long dpaidNum;
         try {
@@ -126,7 +134,7 @@ public class DpaStatusChangeServlet extends HttpServlet {
                     sendJsonError(response, HttpServletResponse.SC_BAD_REQUEST, "Укажите guid в теле запроса (в карте прав должен быть атрибут userId)");
                     return;
                 }
-                handleOutgoing(response, conn, dpaidNum, action, depKindCode, currentStatusId, currentStatusName, userId);
+                handleOutgoing(response, conn, dpaidNum, action, depKindCode, currentStatusId, currentStatusName, userId, guid);
                 return;
             }
             sendJsonError(response, HttpServletResponse.SC_BAD_REQUEST, "Смена статуса по действию доступна только для входящих или исходящих сведений");
@@ -156,7 +164,19 @@ public class DpaStatusChangeServlet extends HttpServlet {
                 sendJsonError(response, HttpServletResponse.SC_BAD_REQUEST, "Действие «Закрытие карты» возможно только при статусе «Обработано»");
                 return;
             }
-            newStatusName = "Завершено";
+            try (PreparedStatement ps = conn.prepareStatement(SQL_UPDATE)) {
+                ps.setInt(1, INCOMING_COMPLETED);
+                ps.setLong(2, dpaid);
+                ps.executeUpdate();
+            }
+            try (PreparedStatement ps = conn.prepareStatement(SQL_INSERT_HIST)) {
+                ps.setLong(1, dpaid);
+                ps.setInt(2, INCOMING_COMPLETED);
+                ps.setInt(3, userId);
+                ps.executeUpdate();
+            }
+            response.getWriter().print("{\"ok\":true,\"newStatus\":\"Завершено\"}");
+            return;
         } else {
             sendJsonError(response, HttpServletResponse.SC_BAD_REQUEST, "Неизвестное действие: " + action);
             return;
@@ -166,16 +186,22 @@ public class DpaStatusChangeServlet extends HttpServlet {
 
     private void handleOutgoing(HttpServletResponse response, Connection conn,
                                 long dpaid, String action, String depKindCode,
-                                int currentStatusId, String currentStatusName, Integer userId) throws IOException, SQLException {
+                                int currentStatusId, String currentStatusName, Integer userId, String guid) throws IOException, SQLException {
         if ("mark_ready".equals(action)) {
             if (!AccessRightService.hasDangerousProductOutStatus(String.valueOf(dpaid))) {
                 sendJsonError(response, HttpServletResponse.SC_FORBIDDEN, "Нет права управления статусом исходящих сведений (dangerousProductOut:status)");
                 return;
             }
-            if (depKindCode == null || depKindCode.isEmpty()) {
-                sendJsonError(response, HttpServletResponse.SC_BAD_REQUEST, "Для действия «Отметка готовности» укажите depKindCode (уровень ЦГЭ)");
+            if (depKindCode == null || depKindCode.trim().isEmpty()) {
+                log("[DpaStatusChange] mark_ready: depKindCode not in body, resolving from rights (guid=" + guid + ")");
+                depKindCode = resolveDepKindCodeFromRights(conn, guid);
+            }
+            if (depKindCode == null || depKindCode.trim().isEmpty()) {
+                log("[DpaStatusChange] mark_ready: depKindCode still null; guid=" + guid + ", mapSize=" + RightsJsonStore.guidMap.size() + ", mapContainsGuid=" + (guid != null && RightsJsonStore.guidMap.containsKey(guid)));
+                sendJsonError(response, HttpServletResponse.SC_BAD_REQUEST, "Для действия «Отметка готовности» укажите depKindCode в теле запроса или guid (в карте прав должен быть department.depkindid)");
                 return;
             }
+            depKindCode = depKindCode.trim();
             int depKindId = resolveDepKindId(conn, depKindCode);
             if (depKindId <= 0) {
                 sendJsonError(response, HttpServletResponse.SC_BAD_REQUEST, "Неизвестный код подразделения (depKindCode): " + depKindCode);
@@ -283,6 +309,59 @@ public class DpaStatusChangeServlet extends HttpServlet {
         return -1;
     }
 
+    /** DEPKINDCODE из БД по DEPKINDID; DEPKINDID берётся из карты прав (department.depkindid). */
+    private static String resolveDepKindCodeFromRights(Connection conn, String guid) throws SQLException {
+        if (guid == null || guid.trim().isEmpty()) {
+            System.out.println("[DpaStatusChange] resolveDepKindCodeFromRights: guid null or empty");
+            return null;
+        }
+        String g = guid.trim();
+        String rightsJson = RightsJsonStore.guidMap.get(g);
+        if (rightsJson == null || rightsJson.isEmpty()) {
+            System.out.println("[DpaStatusChange] resolveDepKindCodeFromRights: no rights for guid=" + g + ", mapSize=" + RightsJsonStore.guidMap.size() + ", keys=" + RightsJsonStore.guidMap.keySet());
+            return null;
+        }
+        Integer depkindid = extractDepKindIdFromRights(rightsJson);
+        if (depkindid == null) {
+            System.out.println("[DpaStatusChange] resolveDepKindCodeFromRights: depkindid not found in rights JSON (guid=" + g + ")");
+            return null;
+        }
+        try (PreparedStatement ps = conn.prepareStatement(SQL_DEPKINDCODE_BY_DEPKINDID)) {
+            ps.setInt(1, depkindid);
+            ResultSet rs = ps.executeQuery();
+            if (rs.next()) {
+                String code = rs.getString(1);
+                System.out.println("[DpaStatusChange] resolveDepKindCodeFromRights: guid=" + g + ", depkindid=" + depkindid + " -> depKindCode=" + code);
+                return code;
+            }
+        }
+        System.out.println("[DpaStatusChange] resolveDepKindCodeFromRights: no DEPKINDCODE in DB for depkindid=" + depkindid);
+        return null;
+    }
+
+    /** Извлекает department.depkindid из JSON прав: "depkindid": 73 или "depKindId": 73 или "depkindid": "73". */
+    private static Integer extractDepKindIdFromRights(String json) {
+        if (json == null) return null;
+        Matcher m = Pattern.compile("\"depkindid\"\\s*:\\s*(\\d+)").matcher(json);
+        if (m.find()) return parseIntOrNull(m.group(1));
+        m = Pattern.compile("\"depKindId\"\\s*:\\s*(\\d+)").matcher(json);
+        if (m.find()) return parseIntOrNull(m.group(1));
+        m = Pattern.compile("\"depkindid\"\\s*:\\s*\"(\\d+)\"").matcher(json);
+        if (m.find()) return parseIntOrNull(m.group(1));
+        m = Pattern.compile("\"depKindId\"\\s*:\\s*\"(\\d+)\"").matcher(json);
+        if (m.find()) return parseIntOrNull(m.group(1));
+        return null;
+    }
+
+    private static Integer parseIntOrNull(String s) {
+        if (s == null) return null;
+        try {
+            return Integer.parseInt(s);
+        } catch (NumberFormatException e) {
+            return null;
+        }
+    }
+
     private void applyNewStatus(HttpServletResponse response, Connection conn, long dpaid, String newStatusName, Integer userId) throws IOException, SQLException {
         PreparedStatement ps = conn.prepareStatement(SQL_STATUS_ID);
         ps.setString(1, newStatusName);
@@ -325,6 +404,14 @@ public class DpaStatusChangeServlet extends HttpServlet {
         Pattern p = Pattern.compile("\"" + Pattern.quote(key) + "\"\\s*:\\s*\"([^\"]*)\"");
         Matcher m = p.matcher(json);
         return m.find() ? m.group(1) : null;
+    }
+
+    /** Извлекает значение по ключу как строку: "key": "value" или "key": number (для guid: 1 → "1"). */
+    private static String extractJsonStringOrNumber(String json, String key) {
+        if (json == null) return null;
+        Matcher m = Pattern.compile("\"" + Pattern.quote(key) + "\"\\s*:\\s*(\\d+)").matcher(json);
+        if (m.find()) return m.group(1);
+        return null;
     }
 
     /** USERID из карты прав (атрибут userId) по guid. */

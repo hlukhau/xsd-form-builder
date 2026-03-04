@@ -16,6 +16,8 @@ export interface StatusButtonResult {
   config: StatusButtonConfig | null
   /** Комментарий: при наличии кнопки — что она выполнит; при отсутствии — почему кнопки нет */
   comment: string
+  /** Вторая кнопка «Закрытие карты», когда допустимы оба действия (направление сведений и закрытие) */
+  closeConfig?: StatusButtonConfig | null
 }
 
 /** DPASTATUSID: входящие 1–4, исходящие 5–13 (DRAFT=5, NEW=6, PENDING=7, SENT=8, FAILED=9, ERROR=10, DELIVERED=11, EDITED=12, COMPLETED=13) */
@@ -24,6 +26,7 @@ const INCOMING_PROCESSED = 3
 const OUTGOING_DRAFT = 5
 const OUTGOING_NEW = 6
 const OUTGOING_PENDING = 7
+const OUTGOING_SENT = 8
 const OUTGOING_FAILED = 9
 const OUTGOING_ERROR = 10
 const OUTGOING_DELIVERED = 11
@@ -33,10 +36,13 @@ function norm(s: string | undefined): string {
   return (s ?? '').trim().toLowerCase()
 }
 
+const CLOSE_NEEDS_END_DATE = 'Для закрытия карты укажите дату закрытия (архивации) нежелательной ситуации (csdo:EndDate).'
+
 function incomingStatusButton(
   statusId: number | null | undefined,
   status: string,
-  hasRight: boolean
+  hasRight: boolean,
+  notificationEndDate?: string | null
 ): StatusButtonResult {
   if (!hasRight) {
     return {
@@ -44,6 +50,7 @@ function incomingStatusButton(
       comment: 'Кнопка смены статуса не отображается: нет права на смену статуса по входящим картам.',
     }
   }
+  const hasEndDate = notificationEndDate != null && String(notificationEndDate).trim() !== ''
   if (statusId === INCOMING_PROCESSING) {
     return {
       config: {
@@ -59,9 +66,10 @@ function incomingStatusButton(
       config: {
         label: 'Закрытие карты',
         action: 'close',
-        hint: 'Переход карты в состояние «Завершено» (закрытие входящей карты).',
+        hint: hasEndDate ? 'Переход карты в состояние «Завершено» (закрытие входящей карты).' : CLOSE_NEEDS_END_DATE,
+        disabled: !hasEndDate,
       },
-      comment: 'Переход карты в состояние «Завершено».',
+      comment: hasEndDate ? 'Переход карты в состояние «Завершено».' : CLOSE_NEEDS_END_DATE,
     }
   }
   const s = norm(status)
@@ -80,9 +88,10 @@ function incomingStatusButton(
       config: {
         label: 'Закрытие карты',
         action: 'close',
-        hint: 'Переход карты в состояние «Завершено».',
+        hint: hasEndDate ? 'Переход карты в состояние «Завершено».' : CLOSE_NEEDS_END_DATE,
+        disabled: !hasEndDate,
       },
-      comment: 'Переход карты в состояние «Завершено».',
+      comment: hasEndDate ? 'Переход карты в состояние «Завершено».' : CLOSE_NEEDS_END_DATE,
     }
   }
   return {
@@ -150,8 +159,10 @@ function outgoingStatusButton(
   hasResolution: boolean,
   userDepKindCode: string | null | undefined,
   existingResolutionDepKindCodes: string[] | undefined,
-  userDepKindName?: string | null
+  userDepKindName?: string | null,
+  notificationEndDate?: string | null
 ): StatusButtonResult {
+  const hasEndDate = notificationEndDate != null && String(notificationEndDate).trim() !== ''
   if (!hasStatusRight && !hasSendRight) {
     return {
       config: null,
@@ -165,6 +176,8 @@ function outgoingStatusButton(
     existingResolutionDepKindCodes.some((c) => norm(c) === norm(userDepKindCode))
 
   const hintSend = 'Направление сведений в ЕЭК — переход карты в состояние «Ожидает отправки».'
+  /** Подсказка, когда при статусе «Новое» уже есть резолюция областного/республиканского ЦГЭ — следующий шаг «Ожидает отправки». */
+  const hintNewToPending = 'Новое + резолюция областного ЦГЭ → Ожидает отправки'
   const hintClose = 'Закрытие карты — переход в состояние «Завершено» (без направления в ЕЭК).'
   /** «Направление сведений» при статусе Новое разрешено только при резолюции областного или республиканского ЦГЭ. */
   const hasRegionalOrRepublicanResolution =
@@ -192,6 +205,20 @@ function outgoingStatusButton(
     }
   }
   if (statusId === OUTGOING_NEW) {
+    // При статусе «Новое» и уже наложенной резолюции областного/республиканского ЦГЭ — следующий шаг «Направление сведений» → «Ожидает отправки»
+    if (hasRegionalOrRepublicanResolution && hasSendRight) {
+      return {
+        config: { label: 'Направление сведений', action: 'send', hint: hintNewToPending },
+        comment: hintNewToPending,
+        closeConfig: hasStatusRight ? { label: 'Закрытие карты', action: 'close', hint: hintClose } : null,
+      }
+    }
+    if (hasRegionalOrRepublicanResolution && !hasSendRight && hasStatusRight) {
+      return {
+        config: { label: 'Закрытие карты', action: 'close', hint: hintClose },
+        comment: hintClose,
+      }
+    }
     if (hasStatusRight && !hasResolutionOfUserLevel) {
       const hintNew = getResolutionHintWhenAlreadyNew(userDepKindCode)
       return {
@@ -238,6 +265,7 @@ function outgoingStatusButton(
       return {
         config: { label: 'Направление сведений', action: 'send', hint: hintSend },
         comment: hintSend,
+        closeConfig: hasStatusRight ? { label: 'Закрытие карты', action: 'close', hint: hintClose } : null,
       }
     }
     if (hasSendRight && !hasRegionalOrRepublicanResolution) {
@@ -269,6 +297,7 @@ function outgoingStatusButton(
       return {
         config: { label: 'Направление сведений', action: 'send', hint: hintSend },
         comment: hintSend,
+        closeConfig: hasStatusRight ? { label: 'Закрытие карты', action: 'close', hint: hintClose } : null,
       }
     }
     if (hasStatusRight) {
@@ -289,6 +318,12 @@ function outgoingStatusButton(
         comment: 'Кнопка смены статуса не отображается: в состоянии «Доставлено» доступно только закрытие карты, но нет права на смену статуса.',
       }
     }
+    if (!hasEndDate) {
+      return {
+        config: { label: 'Закрытие карты', action: 'close', hint: CLOSE_NEEDS_END_DATE, disabled: true },
+        comment: CLOSE_NEEDS_END_DATE,
+      }
+    }
     if (!hasResolution) {
       return {
         config: { label: 'Закрытие карты', action: 'close', hint: NO_RESOLUTION_HINT, disabled: true },
@@ -300,11 +335,11 @@ function outgoingStatusButton(
       comment: hintClose,
     }
   }
-  if (statusId === 8 || statusId === 13) {
+  if (statusId === OUTGOING_SENT || statusId === 13) {
     return {
       config: null,
       comment:
-        statusId === 8
+        statusId === OUTGOING_SENT
           ? 'Кнопка смены статуса не отображается: карта уже в состоянии «Отправлено», дальнейшие переходы не предусмотрены.'
           : 'Кнопка смены статуса не отображается: карта в состоянии «Завершено».',
     }
@@ -327,6 +362,19 @@ function outgoingStatusButton(
     }
   }
   if (s.includes('новое') || s.includes('новая') || s === 'новый') {
+    if (hasRegionalOrRepublicanResolution && hasSendRight) {
+      return {
+        config: { label: 'Направление сведений', action: 'send', hint: hintNewToPending },
+        comment: hintNewToPending,
+        closeConfig: hasStatusRight ? { label: 'Закрытие карты', action: 'close', hint: hintClose } : null,
+      }
+    }
+    if (hasRegionalOrRepublicanResolution && !hasSendRight && hasStatusRight) {
+      return {
+        config: { label: 'Закрытие карты', action: 'close', hint: hintClose },
+        comment: hintClose,
+      }
+    }
     if (hasStatusRight && !hasResolutionOfUserLevel) {
       const hintNew = getResolutionHintWhenAlreadyNew(userDepKindCode)
       return {
@@ -350,6 +398,7 @@ function outgoingStatusButton(
         return {
           config: { label: 'Направление сведений', action: 'send', hint: hintSend },
           comment: hintSend,
+          closeConfig: { label: 'Закрытие карты', action: 'close', hint: hintClose },
         }
       }
       return {
@@ -372,6 +421,7 @@ function outgoingStatusButton(
       return {
         config: { label: 'Направление сведений', action: 'send', hint: hintSend },
         comment: hintSend,
+        closeConfig: hasStatusRight ? { label: 'Закрытие карты', action: 'close', hint: hintClose } : null,
       }
     }
     if (hasStatusRight) {
@@ -406,6 +456,12 @@ function outgoingStatusButton(
       return {
         config: null,
         comment: 'Кнопка смены статуса не отображается: в состоянии «Доставлено» доступно только закрытие, но нет права на смену статуса.',
+      }
+    }
+    if (!hasEndDate) {
+      return {
+        config: { label: 'Закрытие карты', action: 'close', hint: CLOSE_NEEDS_END_DATE, disabled: true },
+        comment: CLOSE_NEEDS_END_DATE,
       }
     }
     if (!hasResolution) {
@@ -443,12 +499,17 @@ export function getStatusButtonConfig(
   /** Код типа источника из DPA (DATASOURCEKINDCODE); "2" = исходящие. Приоритет над текстом source. */
   datasourceKindCode?: string | null,
   /** Название уровня ЦГЭ пользователя (из текущего пользователя / карты прав) для подсказки в черновике */
-  userDepKindName?: string | null
+  userDepKindName?: string | null,
+  /** Дата закрытия (архивации) csdo:EndDate — обязательна для закрытия входящей при статусе «Обработано» и исходящей при статусе «Доставлено» */
+  notificationEndDate?: string | null
 ): StatusButtonResult {
   const code = datasourceKindCode != null ? String(datasourceKindCode).trim() : ''
   const src = norm(source)
 
-  // Тип карты по метаданным DATASOURCEKINDCODE
+  // Тип карты по метаданным DATASOURCEKINDCODE (1 = входящие, 2 = исходящие)
+  if (code === '1') {
+    return incomingStatusButton(statusId, status ?? '', hasStatusRight, notificationEndDate ?? null)
+  }
   if (code === '2') {
     return outgoingStatusButton(
       statusId,
@@ -458,7 +519,8 @@ export function getStatusButtonConfig(
       hasResolution ?? false,
       userDepKindCode ?? null,
       existingResolutionDepKindCodes ?? [],
-      userDepKindName ?? null
+      userDepKindName ?? null,
+      notificationEndDate ?? null
     )
   }
 
@@ -472,11 +534,12 @@ export function getStatusButtonConfig(
       hasResolution ?? false,
       userDepKindCode ?? null,
       existingResolutionDepKindCodes ?? [],
-      userDepKindName ?? null
+      userDepKindName ?? null,
+      notificationEndDate ?? null
     )
   }
   if (src.includes('входящ')) {
-    return incomingStatusButton(statusId, status ?? '', hasStatusRight)
+    return incomingStatusButton(statusId, status ?? '', hasStatusRight, notificationEndDate ?? null)
   }
   if (src.includes('еэк')) {
     return {

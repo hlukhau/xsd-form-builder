@@ -32,6 +32,9 @@ import ValidationResultModal from '../modals/ValidationResultModal'
 import { validateOutgoingCard, type ValidationResult } from '@/utils/cardValidation'
 import type { CardData, StatusHistoryItem, ElectronicDocument } from '@/types/card'
 
+/** Статусы исходящей карты, при которых разрешено редактирование (DPASTATUSID). */
+const EDITABLE_OUTGOING_STATUS_IDS = [5, 6, 9, 10, 12] // DRAFT, NEW, FAILED, ERROR, EDITED
+
 interface DangerousProductCardProps {
   data: CardData
   onUpdate: (data: CardData) => void
@@ -97,10 +100,6 @@ const DangerousProductCard: React.FC<DangerousProductCardProps> = ({
 
   const effectiveDpaid = (dpaid !== '-' && dpaid) ? dpaid : (savedDpaid != null ? String(savedDpaid) : '-')
 
-  useEffect(() => {
-    if (dpaid !== '-') setSavedDpaid(null)
-  }, [dpaid])
-
   // Новая карта (/-/) всегда исходящая; иначе — по DPA DATASOURCEKINDCODE ("2") или по названию источника (код 3 — из БД ЕЭК)
   const datasourceKindCode = data?.datasourceKindCode != null ? String(data.datasourceKindCode) : ''
   const sourceFromData = data?.source ?? ''
@@ -109,6 +108,14 @@ const DangerousProductCard: React.FC<DangerousProductCardProps> = ({
     datasourceKindCode === '2' ||
     sourceFromData.toLowerCase().includes('исходящ') ||
     sourceFromData === '2'
+
+  const currentStatusId = editedData.statusId ?? data.statusId ?? undefined
+  const canEditByStatus =
+    !isOutgoingSource || currentStatusId === undefined || EDITABLE_OUTGOING_STATUS_IDS.includes(currentStatusId)
+
+  useEffect(() => {
+    if (dpaid !== '-') setSavedDpaid(null)
+  }, [dpaid])
 
   // Права и уровень пользователя / резолюции по карте (исходящие)
   useEffect(() => {
@@ -153,12 +160,19 @@ const DangerousProductCard: React.FC<DangerousProductCardProps> = ({
     }
   }, [effectiveDpaid, isOutgoingSource, data?.source, guid])
 
-  // Исходящая карта: при наличии права dangerousProductOut:edit включаем режим редактирования автоматически
+  // Исходящая карта: при наличии права dangerousProductOut:edit и статусе, допускающем редактирование, включаем режим редактирования автоматически
   useEffect(() => {
-    if (isOutgoingSource && hasSaveRight) {
+    if (isOutgoingSource && hasSaveRight && canEditByStatus) {
       setIsEditMode(true)
     }
-  }, [isOutgoingSource, hasSaveRight])
+  }, [isOutgoingSource, hasSaveRight, canEditByStatus])
+
+  // Для статусов, не допускающих редактирование, принудительно выключаем режим редактирования
+  useEffect(() => {
+    if (isOutgoingSource && !canEditByStatus) {
+      setIsEditMode(false)
+    }
+  }, [isOutgoingSource, canEditByStatus])
 
   // Новая карта (/-/) всегда исходящая — подставляем код "2", т.к. метаданные ещё могут быть не заполнены
   const effectiveDatasourceKindCode =
@@ -173,10 +187,12 @@ const DangerousProductCard: React.FC<DangerousProductCardProps> = ({
     dpaResolutionDepKindCodes,
     editedData.statusId ?? undefined,
     effectiveDatasourceKindCode,
-    currentUserDepKindName ?? rightsDepKindName
+    currentUserDepKindName ?? rightsDepKindName,
+    editedData.notification?.endDate ?? data.notification?.endDate ?? null
   )
   const statusButton = statusButtonResult.config
   const statusButtonComment = statusButtonResult.comment
+  const closeConfig = statusButtonResult.closeConfig ?? null
   // Несохранённая карта: кнопка смены статуса заблокирована с подсказкой «Сохраните изменения»
   const effectiveStatusButton =
     effectiveDpaid === '-' && statusButton
@@ -184,6 +200,10 @@ const DangerousProductCard: React.FC<DangerousProductCardProps> = ({
       : statusButton
   const effectiveStatusButtonComment =
     effectiveDpaid === '-' && statusButton ? 'Сохраните изменения' : statusButtonComment
+  const effectiveCloseButton =
+    effectiveDpaid === '-' && closeConfig
+      ? { ...closeConfig, disabled: true, hint: 'Сохраните изменения' }
+      : closeConfig
 
   // Кнопка «Удалить»: исходящая карта, статус Черновик, право dangerousProductOut:edit, карта сохранена в БД, есть guid
   const isDraftStatus =
@@ -725,12 +745,17 @@ const DangerousProductCard: React.FC<DangerousProductCardProps> = ({
                 checkedChildren={<EditOutlined />}
                 unCheckedChildren={<EyeOutlined />}
                 size="default"
+                disabled={isOutgoingSource && !canEditByStatus}
+                title={isOutgoingSource && !canEditByStatus ? 'Редактирование недоступно для текущего статуса карты' : undefined}
               />
-              <span style={{ color: '#ffffff', fontWeight: 500 }}>Режим редактирования</span>
+              <span style={{ color: '#ffffff', fontWeight: 500 }}>
+                Режим редактирования
+                {isOutgoingSource && !canEditByStatus && ' (недоступен для текущего статуса)'}
+              </span>
             </div>
             {isEditMode && (
               <>
-                {(effectiveDpaid === '-' || (isOutgoingSource && hasSaveRight)) && (
+                {(effectiveDpaid === '-' || (isOutgoingSource && hasSaveRight && canEditByStatus)) && (
                   <Button type="primary" onClick={handleSave} loading={saving} size="middle">Сохранить</Button>
                 )}
                 <Button icon={<DownloadOutlined />} onClick={handleExportXML} size="middle">Экспорт XML</Button>
@@ -811,6 +836,7 @@ const DangerousProductCard: React.FC<DangerousProductCardProps> = ({
           }}
           statusButton={effectiveStatusButton}
           statusButtonComment={effectiveStatusButtonComment}
+          closeButton={effectiveCloseButton}
           onStatusAction={(action) => {
             if (!effectiveDpaid || effectiveDpaid === '-') {
               message.warning('Сначала сохраните карту перед сменой статуса')
@@ -820,6 +846,70 @@ const DangerousProductCard: React.FC<DangerousProductCardProps> = ({
             const opts: { depKindCode?: string; guid?: string } = {}
             if (action === 'mark_ready' && depKindForAction) opts.depKindCode = depKindForAction
             if (guid) opts.guid = guid
+
+            if (action === 'send') {
+              const dataToValidate = isEditMode ? editedData : currentData
+              const validation = validateOutgoingCard(dataToValidate)
+              if (!validation.success) {
+                setValidationResult(validation)
+                setValidationModalVisible(true)
+                message.error('Необходимо доработать карту исходящих сведений перед направлением.')
+                return
+              }
+              Modal.confirm({
+                title: 'Направление сведений участникам ОП 57',
+                content: 'Подтвердите выполнение операции отправки сведений данной карты участникам ОП 57.',
+                okText: 'Направить сведения',
+                cancelText: 'Отмена',
+                onOk: async () => {
+                  const hasSend = await checkAccessRight(effectiveDpaid, 'dangerousProductOut:send')
+                  if (!hasSend) {
+                    message.error('Нет права на направление сведений об опасной продукции в пределах доступа к данной карте.')
+                    return
+                  }
+                  changeDpaStatus(effectiveDpaid, 'send', Object.keys(opts).length ? opts : undefined)
+                    .then((res) => {
+                      const newStatus = res.newStatus ?? currentData.status
+                      const newStatusId = newStatus === 'Новое' ? 6 : newStatus === 'Ожидает отправки' ? 7 : newStatus === 'Завершено' ? 13 : (editedData.statusId ?? data.statusId)
+                      onUpdate({ ...currentData, status: newStatus, statusId: newStatusId })
+                      setEditedData((prev) => ({ ...prev, status: newStatus, statusId: newStatusId }))
+                      message.success('Статус обновлён: карта переведена в состояние «Ожидает отправки».')
+                    })
+                    .catch((e) => message.error(e instanceof Error ? e.message : 'Ошибка смены статуса'))
+                },
+              })
+              return
+            }
+
+            if (action === 'close') {
+              const regNumber = currentData.registrationNumber ?? currentData.notification?.registrationNumber ?? effectiveDpaid ?? ''
+              Modal.confirm({
+                title: 'Закрытие карты',
+                content: `Внимание! После подтверждения карта ${regNumber} будет переведена в статус „Завершено“. Выполнение каких-либо действий, кроме просмотра, станет невозможным. Отменить данное действие будет нельзя. Продолжить?`,
+                okText: 'Продолжить',
+                cancelText: 'Отмена',
+                okButtonProps: { danger: true },
+                onOk: async () => {
+                  const rightKey = isOutgoingSource ? 'dangerousProductOut:status' : 'dangerousProductIn:status'
+                  const hasRight = await checkAccessRight(effectiveDpaid, rightKey)
+                  if (!hasRight) {
+                    message.error(isOutgoingSource ? 'Нет права на управление статусом исходящих сведений.' : 'Нет права на управление статусом входящих сведений.')
+                    return
+                  }
+                  changeDpaStatus(effectiveDpaid, 'close', Object.keys(opts).length ? opts : undefined)
+                    .then((res) => {
+                      const newStatus = res.newStatus ?? currentData.status
+                      const newStatusId = newStatus === 'Завершено' ? (isOutgoingSource ? 13 : 4) : (editedData.statusId ?? data.statusId)
+                      onUpdate({ ...currentData, status: newStatus, statusId: newStatusId })
+                      setEditedData((prev) => ({ ...prev, status: newStatus, statusId: newStatusId }))
+                      message.success('Карта переведена в статус «Завершено».')
+                    })
+                    .catch((e) => message.error(e instanceof Error ? e.message : 'Ошибка смены статуса'))
+                },
+              })
+              return
+            }
+
             changeDpaStatus(effectiveDpaid, action, Object.keys(opts).length ? opts : undefined)
               .then((res) => {
                 const newStatus = res.newStatus ?? currentData.status

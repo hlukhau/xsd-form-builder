@@ -344,6 +344,7 @@
     <servlet>
         <servlet-name>XsdFormBuilderServlet</servlet-name>
         <servlet-class>com.eec.servlet.XsdFormBuilderServlet</servlet-class>
+        <load-on-startup>1</load-on-startup>
     </servlet>
     <servlet-mapping>
         <servlet-name>XsdFormBuilderServlet</servlet-name>

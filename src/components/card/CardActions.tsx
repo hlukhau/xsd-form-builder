@@ -11,6 +11,8 @@ interface CardActionsProps {
   statusButton: StatusButtonConfig | null
   /** Комментарий: при наличии кнопки — что она выполнит; при отсутствии — почему кнопки нет (для подсказки по иконке «i») */
   statusButtonComment?: string
+  /** Вторая кнопка (например «Закрытие карты»), когда допустимы оба действия */
+  closeButton?: StatusButtonConfig | null
   onStatusAction: (action: string) => void
   onElectronicDocumentClick: () => void
   /** Показать кнопку «Удалить» (исходящая карта в статусе Черновик при наличии права редактирования) */
@@ -27,6 +29,7 @@ const CardActions: React.FC<CardActionsProps> = ({
   onOpenAllVersions,
   statusButton,
   statusButtonComment,
+  closeButton,
   onStatusAction,
   onElectronicDocumentClick,
   showDeleteButton,
@@ -55,12 +58,26 @@ const CardActions: React.FC<CardActionsProps> = ({
     </Tooltip>
   ) : null
 
+  const closeButtonNode = closeButton ? (
+    <Tooltip title={closeButton.hint}>
+      <span>
+        <Button
+          disabled={closeButton.disabled}
+          onClick={() => !closeButton.disabled && onStatusAction(closeButton.action)}
+        >
+          {closeButton.label}
+        </Button>
+      </span>
+    </Tooltip>
+  ) : null
+
   return (
     <div style={{ marginBottom: '16px' }}>
       <Space>
         <Button onClick={onDefineAccess}>Определить доступ</Button>
         <Button onClick={onOpenAllVersions}>Открыть все версии</Button>
         {statusButtonNode}
+        {closeButtonNode}
         {showDeleteButton && onDelete && (
           <Button type="primary" danger icon={<DeleteOutlined />} onClick={onDelete}>
             Удалить
