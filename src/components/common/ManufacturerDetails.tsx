@@ -7,6 +7,10 @@ import {
   getDefaultAddressKindName,
   getDefaultCountryName,
 } from '@/utils/addressFormatUtils'
+import { useLegalFormOptions } from '@/hooks/useLegalFormOptions'
+import { useIdentificationMethodOptions } from '@/hooks/useIdentificationMethodOptions'
+
+const LEGAL_FORM_CODE_LIST_ID = '2049'
 
 interface ManufacturerDetailsProps {
   data: SupplyChainPartyDetails
@@ -18,6 +22,12 @@ const ManufacturerDetails: React.FC<ManufacturerDetailsProps> = ({
   title = 'Изготовитель продукции',
 }) => {
   const [isOpen, setIsOpen] = useState(false)
+  const { getNameByCode: getLegalFormNameByCode } = useLegalFormOptions(data.country)
+  const { getDisplayLabel: getIdentificationMethodDisplayLabel } = useIdentificationMethodOptions(data.country)
+  const isFromRef = !!(data.businessEntityTypeCode && data.businessEntityTypeCodeListId === LEGAL_FORM_CODE_LIST_ID)
+  const organizationalFormDisplay = isFromRef && data.businessEntityTypeCode
+    ? (getLegalFormNameByCode(data.businessEntityTypeCode) ? `${data.businessEntityTypeCode} - ${getLegalFormNameByCode(data.businessEntityTypeCode)}` : (data.organizationalForm || data.businessEntityTypeCode))
+    : (data.organizationalForm || '-')
   
   console.log('ManufacturerDetails получил данные:', data)
   
@@ -82,13 +92,13 @@ const ManufacturerDetails: React.FC<ManufacturerDetailsProps> = ({
                   {data.shortName || '-'}
                 </Descriptions.Item>
                 <Descriptions.Item label="Организационно-правовая форма">
-                  {data.organizationalForm || '-'}
+                  {organizationalFormDisplay}
                 </Descriptions.Item>
                 <Descriptions.Item label="Идентификатор субъекта">
                   {data.subjectIdentifier || '-'}
                 </Descriptions.Item>
                 <Descriptions.Item label="Метод идентификации">
-                  {data.identificationMethod || '-'}
+                  {data.identificationMethod ? getIdentificationMethodDisplayLabel(data.identificationMethod) : '-'}
                 </Descriptions.Item>
                 <Descriptions.Item label="Таможенный номер">
                   {data.customsNumber || '-'}

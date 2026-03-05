@@ -234,6 +234,10 @@ function exportProductDetails(xmlParts: string[], details: ProductDetails, inden
     details.technicalDocs.forEach((doc, index) => {
       console.log(`[exportProductDetails] Doc ${index}:`, doc)
       xmlParts.push(`${indent}<ccdo:DocReferenceDetails>`)
+      if (doc.docKindCode) {
+        const codeListIdAttr = ' codeListId="2009"'
+        xmlParts.push(`${indent}  <csdo:DocKindCode${codeListIdAttr}>${escapeXML(doc.docKindCode)}</csdo:DocKindCode>`)
+      }
       if (doc.docName) xmlParts.push(`${indent}  <csdo:DocName>${escapeXML(doc.docName)}</csdo:DocName>`)
       if (doc.docId) xmlParts.push(`${indent}  <csdo:DocId>${escapeXML(doc.docId)}</csdo:DocId>`)
       if (doc.docCreationDate) xmlParts.push(`${indent}  <csdo:DocCreationDate>${escapeXML(doc.docCreationDate)}</csdo:DocCreationDate>`)
@@ -251,8 +255,12 @@ function exportSupplyChainParty(xmlParts: string[], party: SupplyChainPartyDetai
   if (party.country) xmlParts.push(`${indent}  <csdo:UnifiedCountryCode>${escapeXML(party.country)}</csdo:UnifiedCountryCode>`)
   if (party.businessEntityName) xmlParts.push(`${indent}  <csdo:BusinessEntityName>${escapeXML(party.businessEntityName)}</csdo:BusinessEntityName>`)
   if (party.shortName) xmlParts.push(`${indent}  <csdo:BusinessEntityBriefName>${escapeXML(party.shortName)}</csdo:BusinessEntityBriefName>`)
+  // Организационно-правовая форма: при наличии кода и codeListId — вывод с атрибутом; наименование из справочника или свободный текст
+  if (party.businessEntityTypeCode) {
+    const codeListIdAttr = party.businessEntityTypeCodeListId ? ` codeListId="${escapeXML(party.businessEntityTypeCodeListId)}"` : ''
+    xmlParts.push(`${indent}  <csdo:BusinessEntityTypeCode${codeListIdAttr}>${escapeXML(party.businessEntityTypeCode)}</csdo:BusinessEntityTypeCode>`)
+  }
   if (party.organizationalForm) xmlParts.push(`${indent}  <csdo:BusinessEntityTypeName>${escapeXML(party.organizationalForm)}</csdo:BusinessEntityTypeName>`)
-  if (party.businessEntityTypeCode) xmlParts.push(`${indent}  <csdo:BusinessEntityTypeCode>${escapeXML(party.businessEntityTypeCode)}</csdo:BusinessEntityTypeCode>`)
   if (party.subjectIdentifier) {
     // Добавляем kindId как атрибут, если есть identificationMethod
     if (party.identificationMethod) {

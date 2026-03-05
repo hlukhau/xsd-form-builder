@@ -9,6 +9,9 @@ import {
   formatAddressList,
   getDefaultAddressKindName,
 } from '@/utils/addressFormatUtils'
+import { useIdentificationMethodOptions } from '@/hooks/useIdentificationMethodOptions'
+import { useMeasurementUnitOptions } from '@/hooks/useMeasurementUnitOptions'
+import { useShipDocKindOptions } from '@/hooks/useShipDocKindOptions'
 
 interface TSDTabProps {
   data: TSDData
@@ -21,6 +24,9 @@ const TSDTab: React.FC<TSDTabProps> = ({ data }) => {
   const [selectedParty, setSelectedParty] = useState<SupplyChainPartyDetails | null>(null)
   const [productModalVisible, setProductModalVisible] = useState(false)
   const [partyModalVisible, setPartyModalVisible] = useState(false)
+  const { getDisplayLabel: getIdentificationMethodDisplayLabel } = useIdentificationMethodOptions(selectedParty?.country ?? '')
+  const { getDisplayLabel: getMeasurementUnitDisplayLabel } = useMeasurementUnitOptions()
+  const { getDisplayLabel: getShipDocKindDisplayLabel, getNameByCode: getShipDocKindNameByCode } = useShipDocKindOptions()
 
   const formatDate = (date: string | null | undefined) => {
     if (!date) return '-'
@@ -31,7 +37,9 @@ const TSDTab: React.FC<TSDTabProps> = ({ data }) => {
 
   const formatMeasure = (measure?: { value: string; unitCode?: string; unitName?: string }) => {
     if (!measure || !measure.value) return '-'
-    const unit = measure.unitName || measure.unitCode || ''
+    const unit = measure.unitCode
+      ? getMeasurementUnitDisplayLabel(measure.unitCode) || measure.unitName || measure.unitCode
+      : (measure.unitName || measure.unitCode || '')
     return `${measure.value} ${unit}`.trim()
   }
 
@@ -68,8 +76,12 @@ const TSDTab: React.FC<TSDTabProps> = ({ data }) => {
       title: 'Вид',
       dataIndex: 'docKindName',
       key: 'docKindName',
-      render: (text: string, record: ShippingDocument) => {
-        return record.docKindName || record.docName || '-'
+      render: (_: string, record: ShippingDocument) => {
+        if (record.docKindCode) {
+          const fromRef = getShipDocKindDisplayLabel(record.docKindCode)
+          return fromRef || record.docName || '-'
+        }
+        return record.docName || '-'
       },
     },
     {
@@ -266,18 +278,25 @@ const TSDTab: React.FC<TSDTabProps> = ({ data }) => {
             <Descriptions.Item label="Информация на этикетке">
               {selectedProduct.labelText || '-'}
             </Descriptions.Item>
-            {selectedProduct.technicalDocs && selectedProduct.technicalDocs.length > 0 && (
-              <Descriptions.Item label="Техническая документация">
+            <Descriptions.Item label="Техническая документация">
+              {selectedProduct.technicalDocs && selectedProduct.technicalDocs.length > 0 ? (
                 <div>
-                  {selectedProduct.technicalDocs.map((doc, index) => (
-                    <div key={index} style={{ marginBottom: '4px' }}>
-                      {doc.docKindName || ''} {doc.docName || ''} {doc.docId || ''} {doc.docCreationDate ? formatDate(doc.docCreationDate) : ''}
-                      {doc.docStartDate && ` действует с ${formatDate(doc.docStartDate)}`}
-                    </div>
-                  ))}
+                  {selectedProduct.technicalDocs.map((doc, index) => {
+                    const kindName = doc.docKindCode ? (getShipDocKindNameByCode(doc.docKindCode) || doc.docKindName || '') : (doc.docKindName || '')
+                    const parts = [kindName, doc.docName, doc.docId].filter(Boolean)
+                    const dateStr = doc.docCreationDate ? formatDate(doc.docCreationDate) : ''
+                    const startStr = doc.docStartDate ? ` действует с ${formatDate(doc.docStartDate)}` : ''
+                    return (
+                      <div key={index} style={{ marginBottom: '4px' }}>
+                        {parts.join(' ')}{dateStr ? ` ${dateStr}` : ''}{startStr}
+                      </div>
+                    )
+                  })}
                 </div>
-              </Descriptions.Item>
-            )}
+              ) : (
+                '—'
+              )}
+            </Descriptions.Item>
           </Descriptions>
         )}
       </Modal>
@@ -321,7 +340,7 @@ const TSDTab: React.FC<TSDTabProps> = ({ data }) => {
               {selectedParty.subjectIdentifier || '-'}
             </Descriptions.Item>
             <Descriptions.Item label="Метод идентификации">
-              {selectedParty.identificationMethod || '-'}
+              {selectedParty.identificationMethod ? getIdentificationMethodDisplayLabel(selectedParty.identificationMethod) : '-'}
             </Descriptions.Item>
             <Descriptions.Item label="Таможенный номер">
               {selectedParty.customsNumber || '-'}

@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Form, Input, Button, Table, Space, DatePicker, Modal, Descriptions, Collapse } from 'antd'
+import { Form, Input, Button, Table, Space, DatePicker, Modal, Descriptions, Collapse, Select } from 'antd'
 import { PlusOutlined, DeleteOutlined, EyeOutlined } from '@ant-design/icons'
 import dayjs from 'dayjs'
 import { format } from 'date-fns'
@@ -8,6 +8,7 @@ import { labelWithHelp } from '@/components/common/FieldHelp'
 import { FIELD_HELP } from '@/constants/fieldDescriptions'
 import type { ComplianceDocument, TSDData, ProductBatchDetails } from '@/types/card'
 import { useCountryOptions } from '@/hooks/useCountryOptions'
+import { useConformityDocKindOptions } from '@/hooks/useConformityDocKindOptions'
 import CountrySelect from '@/components/common/CountrySelect'
 
 interface ComplianceDocumentsTabEditProps {
@@ -20,6 +21,7 @@ const ComplianceDocumentsTabEdit: React.FC<ComplianceDocumentsTabEditProps> = ({
   const [authorityModalVisible, setAuthorityModalVisible] = useState(false)
   const [authorityContext, setAuthorityContext] = useState<{ batchIndex: number; docIndex: number } | null>(null)
   const { countryOptions, loading: loadingCountries, normalizeCountryCode } = useCountryOptions()
+  const { getSelectOptions: getConformityDocKindSelectOptions, loading: loadingConformityDocKinds } = useConformityDocKindOptions()
 
   const formatDateShort = (date: string | null | undefined) => {
     if (!date) return '-'
@@ -64,7 +66,27 @@ const ComplianceDocumentsTabEdit: React.FC<ComplianceDocumentsTabEditProps> = ({
   }
 
   const getColumns = (batchIndex: number) => [
-    { title: labelWithHelp('Код вида документа', FIELD_HELP.complianceDocKindCode), key: 'docKindCode', width: 150, render: (_: any, record: ComplianceDocument, docIndex: number) => (<Input value={record.docKindCode} onChange={(e) => handleDocumentChange(batchIndex, docIndex, 'docKindCode', e.target.value)} />) },
+    {
+      title: labelWithHelp('Вид', FIELD_HELP.complianceDocKindCode),
+      key: 'docKindCode',
+      width: 220,
+      render: (_: any, record: ComplianceDocument, docIndex: number) => (
+        <Select
+          showSearch
+          placeholder="Код — наименование (CONFDOCKIND)"
+          loading={loadingConformityDocKinds}
+          value={record.docKindCode || undefined}
+          onChange={(code) => handleDocumentChange(batchIndex, docIndex, 'docKindCode', code ?? '')}
+          filterOption={(input, option) =>
+            (option?.label ?? '').toLowerCase().includes(input.toLowerCase())
+          }
+          options={getConformityDocKindSelectOptions()}
+          allowClear
+          style={{ width: '100%', minWidth: 180 }}
+          size="small"
+        />
+      ),
+    },
     { title: labelWithHelp('Наименование', FIELD_HELP.complianceDocName), key: 'docName', width: 200, render: (_: any, record: ComplianceDocument, docIndex: number) => (<Input value={record.docName} onChange={(e) => handleDocumentChange(batchIndex, docIndex, 'docName', e.target.value)} />) },
     { title: 'Номер', key: 'docId', width: 150, render: (_: any, record: ComplianceDocument, docIndex: number) => (<Input value={record.docId} onChange={(e) => handleDocumentChange(batchIndex, docIndex, 'docId', e.target.value)} />) },
     { title: labelWithHelp('Дата', FIELD_HELP.complianceDocCreationDate), key: 'docCreationDate', width: 150, render: (_: any, record: ComplianceDocument, docIndex: number) => (<DatePicker value={record.docCreationDate ? dayjs(record.docCreationDate) : null} onChange={(date) => handleDocumentChange(batchIndex, docIndex, 'docCreationDate', date ? date.format('YYYY-MM-DD') : '')} style={{ width: '100%' }} />) },

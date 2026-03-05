@@ -4,6 +4,8 @@ import { EyeOutlined } from '@ant-design/icons'
 import { format } from 'date-fns'
 import { ru } from 'date-fns/locale'
 import type { ComplianceDocument, TSDData } from '@/types/card'
+import { useIdentificationMethodOptions } from '@/hooks/useIdentificationMethodOptions'
+import { useConformityDocKindOptions } from '@/hooks/useConformityDocKindOptions'
 
 interface ComplianceDocumentsTabProps {
   /** По XSD документы соответствия только в tsd.batches[].complianceDocuments */
@@ -23,6 +25,9 @@ const ComplianceDocumentsTab: React.FC<ComplianceDocumentsTabProps> = ({
   const [protocolsError, setProtocolsError] = useState<'local' | 'source' | null>(null)
   const [selectedLaboratory, setSelectedLaboratory] = useState<any>(null)
   const [laboratoryModalVisible, setLaboratoryModalVisible] = useState(false)
+  const labCountry = selectedLaboratory?.registrationAddress?.country ?? selectedLaboratory?.actualAddress?.country ?? selectedLaboratory?.mailingAddress?.country ?? ''
+  const { getDisplayLabel: getIdentificationMethodDisplayLabel } = useIdentificationMethodOptions(labCountry)
+  const { getDisplayLabel: getConformityDocKindDisplayLabel } = useConformityDocKindOptions()
 
   const formatDate = (date: string | null | undefined) => {
     if (!date) return '-'
@@ -135,9 +140,15 @@ const ComplianceDocumentsTab: React.FC<ComplianceDocumentsTabProps> = ({
   const columns = [
     {
       title: 'Вид',
-      dataIndex: 'docKindName',
-      key: 'docKindName',
-      render: (text: string) => text || '-',
+      dataIndex: 'docKindCode',
+      key: 'docKindCode',
+      render: (_: string, record: ComplianceDocument) => {
+        if (record.docKindCode) {
+          const codeNameLabel = getConformityDocKindDisplayLabel(record.docKindCode)
+          return codeNameLabel || record.docKindName || record.docKindCode || '-'
+        }
+        return record.docKindName || '-'
+      },
     },
     {
       title: 'Наименование',
@@ -411,7 +422,7 @@ const ComplianceDocumentsTab: React.FC<ComplianceDocumentsTabProps> = ({
               {selectedLaboratory.subjectId || '-'}
             </Descriptions.Item>
             <Descriptions.Item label="Метод идентификации">
-              {selectedLaboratory.identificationMethod || '-'}
+              {selectedLaboratory.identificationMethod ? getIdentificationMethodDisplayLabel(selectedLaboratory.identificationMethod) : '-'}
             </Descriptions.Item>
             <Descriptions.Item label="Организационно-правовая форма">
               {selectedLaboratory.organizationalForm || '-'}

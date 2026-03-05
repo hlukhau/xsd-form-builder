@@ -612,6 +612,8 @@ function parseTechnicalDocs(parent: Element | null): TechnicalDocument[] {
     for (let i = 0; i < docRefElements.length; i++) {
       const el = docRefElements[i]
       const doc: TechnicalDocument = {
+        docKindCode: getTextContent(el, 'DocKindCode') || undefined,
+        docKindName: getTextContent(el, 'DocKindName') || undefined,
         docName: getTextContent(el, 'DocName') || undefined,
         docId: getTextContent(el, 'DocId') || undefined,
         docCreationDate: getTextContent(el, 'DocCreationDate') || undefined,
@@ -619,7 +621,7 @@ function parseTechnicalDocs(parent: Element | null): TechnicalDocument[] {
       }
       
       // Добавляем только если есть хотя бы одно поле
-      if (doc.docName || doc.docId) {
+      if (doc.docName || doc.docId || doc.docKindCode) {
         docs.push(doc)
       }
     }
@@ -792,8 +794,17 @@ function parseSupplyChainPartyDetails(supplyChainEl: Element): SupplyChainPartyD
   // В XML может быть BusinessEntityBriefName
   const shortName = getTextContent(supplyChainEl, 'BusinessEntityBriefName') || 
                     getTextContent(supplyChainEl, 'BusinessEntityShortName') || undefined
-  // В XML может быть BusinessEntityTypeCode, нужно получить название из справочника
-  const businessEntityTypeCode = getTextContent(supplyChainEl, 'BusinessEntityTypeCode') || undefined
+  // BusinessEntityTypeCode может иметь атрибут codeListId (2049 — справочник организационно-правовых форм)
+  let businessEntityTypeCode: string | undefined = undefined
+  let businessEntityTypeCodeListId: string | undefined = undefined
+  const businessEntityTypeCodeEl = Array.from(supplyChainEl.getElementsByTagName('*')).find((el) => {
+    const localName = el.localName || el.tagName.split(':').pop()?.toLowerCase()
+    return localName === 'businessentitytypecode'
+  })
+  if (businessEntityTypeCodeEl) {
+    businessEntityTypeCode = businessEntityTypeCodeEl.textContent?.trim() || undefined
+    businessEntityTypeCodeListId = businessEntityTypeCodeEl.getAttribute('codeListId') || undefined
+  }
   const organizationalForm = getTextContent(supplyChainEl, 'BusinessEntityTypeName') || undefined
   const subjectIdentifier = getTextContent(supplyChainEl, 'BusinessEntityId') || undefined
   
@@ -860,6 +871,7 @@ function parseSupplyChainPartyDetails(supplyChainEl: Element): SupplyChainPartyD
     shortName,
     organizationalForm,
     businessEntityTypeCode,
+    businessEntityTypeCodeListId,
     subjectIdentifier,
     identificationMethod,
     customsNumber,

@@ -27,18 +27,28 @@ export function useMeasurementUnitOptions() {
    */
   const getUnitByCode = (code: string | undefined): MeasurementUnitOption | undefined => {
     if (!code) return undefined
-    return options.find(opt => opt.code === code)
+    return options.find((opt) => String(opt.code) === String(code))
+  }
+
+  /**
+   * Условное обозначение единицы измерения из справочника (briefName || name || code).
+   * Для отображения в полях «Количество товара», «Единица измерения» и т.д.
+   */
+  const getDisplayLabel = (code: string | undefined): string => {
+    const unit = getUnitByCode(code)
+    if (!unit) return code ?? ''
+    return (unit.briefName || unit.name || unit.code) ?? ''
   }
 
   /**
    * Преобразует список единиц измерения в опции для Select
-   * value - код, label - "код - название (краткое наименование)"
+   * value - код, label - "код - условное обозначение (наименование)"
    */
   const getSelectOptions = () => {
     return options.map((opt) => ({
       value: opt.code,
-      label: opt.briefName 
-        ? `${opt.code} - ${opt.name} (${opt.briefName})`
+      label: opt.briefName
+        ? `${opt.code} - ${opt.briefName}${opt.name ? ` (${opt.name})` : ''}`
         : `${opt.code} - ${opt.name}`,
     }))
   }
@@ -47,6 +57,7 @@ export function useMeasurementUnitOptions() {
     options,
     loading,
     getUnitByCode,
+    getDisplayLabel,
     getSelectOptions,
   }
 }

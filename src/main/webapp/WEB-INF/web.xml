@@ -134,6 +134,33 @@
     </servlet-mapping>
 
     <servlet>
+        <servlet-name>LegalFormOptionsServlet</servlet-name>
+        <servlet-class>com.eec.servlet.LegalFormOptionsServlet</servlet-class>
+    </servlet>
+    <servlet-mapping>
+        <servlet-name>LegalFormOptionsServlet</servlet-name>
+        <url-pattern>/api/legal-forms/options</url-pattern>
+    </servlet-mapping>
+
+    <servlet>
+        <servlet-name>IdentificationMethodOptionsServlet</servlet-name>
+        <servlet-class>com.eec.servlet.IdentificationMethodOptionsServlet</servlet-class>
+    </servlet>
+    <servlet-mapping>
+        <servlet-name>IdentificationMethodOptionsServlet</servlet-name>
+        <url-pattern>/api/identification-methods/options</url-pattern>
+    </servlet-mapping>
+
+    <servlet>
+        <servlet-name>ConformityDocKindOptionsServlet</servlet-name>
+        <servlet-class>com.eec.servlet.ConformityDocKindOptionsServlet</servlet-class>
+    </servlet>
+    <servlet-mapping>
+        <servlet-name>ConformityDocKindOptionsServlet</servlet-name>
+        <url-pattern>/api/conformity-doc-kinds/options</url-pattern>
+    </servlet-mapping>
+
+    <servlet>
         <servlet-name>SupplyChainPartyKindOptionsServlet</servlet-name>
         <servlet-class>com.eec.servlet.SupplyChainPartyKindOptionsServlet</servlet-class>
     </servlet>

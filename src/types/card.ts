@@ -103,8 +103,12 @@ export interface SupplyChainPartyDetails {
   country: string
   businessEntityName?: string
   shortName?: string
+  /** Наименование организационно-правовой формы (свободный текст или из справочника по code+codeListId) */
   organizationalForm?: string
+  /** Код организационно-правовой формы (справочник sesint.legalform, codeListId=2049) */
   businessEntityTypeCode?: string
+  /** Идентификатор справочника (2049 для организационно-правовых форм) */
+  businessEntityTypeCodeListId?: string
   subjectIdentifier?: string
   identificationMethod?: string
   customsNumber?: string

@@ -783,6 +783,29 @@ export async function getShipDocKindOptions(): Promise<ShipDocKindOption[]> {
   }
 }
 
+/** Опция справочника видов документов об оценке соответствия (SESINT.CONFDOCKIND, codeListId=2001) */
+export interface ConformityDocKindOption {
+  code: string   // CONFDOCKINDCODE
+  name: string  // CONFDOCKINDNAME
+  briefName?: string // CONFDOCKINDBRIEFNAME
+}
+
+/**
+ * Получить опции справочника видов документов об оценке соответствия (codeListId=2001)
+ */
+export async function getConformityDocKindOptions(): Promise<ConformityDocKindOption[]> {
+  try {
+    const response = await fetch(`${BASE_URL}api/conformity-doc-kinds/options`)
+    if (!response.ok) {
+      throw new Error(`Ошибка загрузки опций видов документов об оценке соответствия: ${response.statusText}`)
+    }
+    return await response.json()
+  } catch (error) {
+    console.error('Ошибка загрузки справочника видов документов об оценке соответствия:', error)
+    throw error
+  }
+}
+
 /**
  * Проверить существование вида товаросопроводительного документа по коду
  */
@@ -813,6 +836,74 @@ export async function getShipDocKindNameByCode(code: string): Promise<string | n
   } catch (error) {
     console.error('Ошибка получения названия вида товаросопроводительного документа:', error)
     return null
+  }
+}
+
+/** Опция справочника организационно-правовых форм (SESINT.LEGALFORM, codeListId=2049) */
+export interface LegalFormOption {
+  code: string   // LEGALFORMCODE
+  name: string   // LEGALFORMNAME
+}
+
+/**
+ * Получить опции справочника организационно-правовых форм (codeListId=2049).
+ * @param countryCode - код страны (COUNTRYCODE); при указании справочник фильтруется по стране
+ */
+export async function getLegalFormOptions(countryCode?: string): Promise<LegalFormOption[]> {
+  try {
+    const url = countryCode
+      ? `${BASE_URL}api/legal-forms/options?countryCode=${encodeURIComponent(countryCode)}`
+      : `${BASE_URL}api/legal-forms/options`
+    const response = await fetch(url)
+    if (!response.ok) {
+      throw new Error(`Ошибка загрузки опций организационно-правовых форм: ${response.statusText}`)
+    }
+    return await response.json()
+  } catch (error) {
+    console.error('Ошибка загрузки справочника организационно-правовых форм:', error)
+    throw error
+  }
+}
+
+/**
+ * Получить наименование организационно-правовой формы по коду (с опциональной фильтрацией по стране)
+ */
+export async function getLegalFormNameByCode(code: string, countryCode?: string): Promise<string | null> {
+  if (!code || !code.trim()) return null
+  try {
+    const options = await getLegalFormOptions(countryCode)
+    const option = options.find((opt) => String(opt.code).trim() === code.trim())
+    return option ? option.name : null
+  } catch (error) {
+    console.error('Ошибка получения названия организационно-правовой формы:', error)
+    return null
+  }
+}
+
+/** Опция справочника методов идентификации (SESINT.BUSENTKIND, kindId/codeListId=1033) */
+export interface IdentificationMethodOption {
+  code: string             // BUSENTKINDCODE (kindId)
+  letterCode?: string     // BUSENTKINDLETTERCODE — буквенное обозначение
+  description?: string    // BUSENTKINDDESC — описание
+}
+
+/**
+ * Получить опции справочника методов идентификации (SESINT.BUSENTKIND).
+ * @param countryCode - код страны (COUNTRYCODE); при указании справочник фильтруется по стране
+ */
+export async function getIdentificationMethodOptions(countryCode?: string): Promise<IdentificationMethodOption[]> {
+  try {
+    const url = countryCode
+      ? `${BASE_URL}api/identification-methods/options?countryCode=${encodeURIComponent(countryCode)}`
+      : `${BASE_URL}api/identification-methods/options`
+    const response = await fetch(url)
+    if (!response.ok) {
+      throw new Error(`Ошибка загрузки опций методов идентификации: ${response.statusText}`)
+    }
+    return await response.json()
+  } catch (error) {
+    console.error('Ошибка загрузки справочника методов идентификации:', error)
+    throw error
   }
 }
 

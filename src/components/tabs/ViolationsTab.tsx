@@ -2,6 +2,7 @@ import { Descriptions, Table, Collapse } from 'antd'
 import { format } from 'date-fns'
 import { ru } from 'date-fns/locale'
 import type { ViolationsData, ViolatedRequirement, ViolatedIndicator, TSDData } from '@/types/card'
+import { useMeasurementUnitOptions } from '@/hooks/useMeasurementUnitOptions'
 
 interface ViolationsTabProps {
   /** По XSD нарушения только в tsd.batches[].violations */
@@ -9,6 +10,7 @@ interface ViolationsTabProps {
 }
 
 const ViolationsTab: React.FC<ViolationsTabProps> = ({ tsd }) => {
+  const { getDisplayLabel: getMeasurementUnitDisplayLabel } = useMeasurementUnitOptions()
   const formatDate = (date: string | null | undefined) => {
     if (!date) return '-'
     const dateObj = new Date(date)
@@ -198,10 +200,12 @@ const ViolationsTab: React.FC<ViolationsTabProps> = ({ tsd }) => {
       key: 'unit',
       width: 150,
       render: (_: any, record: ViolatedIndicator) => {
-        const text = record.unitName || record.unitCode || '-'
+        const text = record.unitCode
+          ? (getMeasurementUnitDisplayLabel(record.unitCode) || record.unitName || record.unitCode)
+          : (record.unitName || record.unitCode || '-')
         return (
           <div style={{ wordWrap: 'break-word', whiteSpace: 'normal' }}>
-            {text}
+            {text || '-'}
           </div>
         )
       },

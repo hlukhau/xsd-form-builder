@@ -27,8 +27,17 @@ export function useShipDocKindOptions() {
    */
   const getNameByCode = (code: string | undefined): string | undefined => {
     if (!code) return undefined
-    const option = options.find(opt => opt.code === code)
+    const option = options.find((opt) => String(opt.code) === String(code))
     return option?.name
+  }
+
+  /**
+   * Для отображения: «код — наименование» из справочника (codeListId=2009), иначе пустая строка
+   */
+  const getDisplayLabel = (code: string | undefined): string => {
+    if (!code) return ''
+    const name = getNameByCode(code)
+    return name ? `${code} - ${name}` : code
   }
 
   /**
@@ -46,6 +55,7 @@ export function useShipDocKindOptions() {
     options,
     loading,
     getNameByCode,
+    getDisplayLabel,
     getSelectOptions,
   }
 }

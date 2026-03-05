@@ -14,6 +14,9 @@ import com.eec.util.DictionaryCache.SanitaryMeasureObjKindOption;
 import com.eec.util.DictionaryCache.SanitaryMeasureOption;
 import com.eec.util.DictionaryCache.MediaTypeOption;
 import com.eec.util.DictionaryCache.DepOption;
+import com.eec.util.DictionaryCache.LegalFormOption;
+import com.eec.util.DictionaryCache.IdentificationMethodOption;
+import com.eec.util.DictionaryCache.ConformityDocKindOption;
 
 import javax.servlet.ServletContextEvent;
 import javax.servlet.ServletContextListener;
@@ -52,6 +55,9 @@ public class DictionaryInitializerListener implements ServletContextListener {
                 loadWithRetries("sanitary measures", this::loadSanitaryMeasuresDictionary, DictionaryCache::isSanitaryMeasuresLoaded);
                 loadWithRetries("media types", this::loadMediaTypesDictionary, DictionaryCache::isMediaTypesLoaded);
                 loadWithRetries("dep options", this::loadDepOptionsDictionary, DictionaryCache::isDepOptionsLoaded);
+                loadWithRetries("legal forms", this::loadLegalFormsDictionary, DictionaryCache::isLegalFormsLoaded);
+                loadWithRetries("identification methods", this::loadIdentificationMethodsDictionary, DictionaryCache::isIdentificationMethodsLoaded);
+                loadWithRetries("conformity doc kinds", this::loadConformityDocKindsDictionary, DictionaryCache::isConformityDocKindsLoaded);
                 System.out.println("========================================");
                 System.out.println("[DictionaryInitializer] Dictionary loading completed");
                 System.out.println("========================================");
@@ -80,6 +86,9 @@ public class DictionaryInitializerListener implements ServletContextListener {
         DictionaryCache.clearSanitaryMeasuresCache();
         DictionaryCache.clearMediaTypesCache();
         DictionaryCache.clearDepOptionsCache();
+        DictionaryCache.clearLegalFormsCache();
+        DictionaryCache.clearIdentificationMethodsCache();
+        DictionaryCache.clearConformityDocKindsCache();
     }
     
     private static final int LOAD_MAX_ATTEMPTS = 3;
@@ -431,6 +440,118 @@ public class DictionaryInitializerListener implements ServletContextListener {
             
         } catch (SQLException e) {
             System.err.println("[DictionaryInitializer] ERROR loading supply chain party kinds dictionary: " + e.getMessage());
+            e.printStackTrace();
+        } finally {
+            DatabaseUtil.closeConnection(conn);
+        }
+    }
+    
+    /**
+     * Загружает справочник организационно-правовых форм (SESINT.LEGALFORM, codeListId=2049) в кеш
+     */
+    private void loadLegalFormsDictionary() {
+        Connection conn = null;
+        try {
+            System.out.println("[DictionaryInitializer] Loading legal forms dictionary...");
+            conn = DatabaseUtil.getConnection();
+            String sql = "SELECT LEGALFORMCODE, LEGALFORMNAME, COUNTRYCODE " +
+                        "FROM SESINT.LEGALFORM " +
+                        "WHERE (LEGALFORMSDATE IS NULL OR LEGALFORMSDATE <= SYSDATE) " +
+                        "AND (LEGALFORMEDATE IS NULL OR LEGALFORMEDATE >= SYSDATE) " +
+                        "ORDER BY COUNTRYCODE, LEGALFORMCODE";
+            PreparedStatement stmt = conn.prepareStatement(sql);
+            ResultSet rs = stmt.executeQuery();
+            List<LegalFormOption> list = new ArrayList<>();
+            int count = 0;
+            while (rs.next()) {
+                list.add(new LegalFormOption(
+                    rs.getString("LEGALFORMCODE"),
+                    rs.getString("LEGALFORMNAME"),
+                    rs.getString("COUNTRYCODE")
+                ));
+                count++;
+            }
+            DictionaryCache.setLegalFormsCache(list);
+            System.out.println("[DictionaryInitializer] Loaded " + count + " legal forms into cache");
+            rs.close();
+            stmt.close();
+        } catch (SQLException e) {
+            System.err.println("[DictionaryInitializer] ERROR loading legal forms dictionary: " + e.getMessage());
+            e.printStackTrace();
+        } finally {
+            DatabaseUtil.closeConnection(conn);
+        }
+    }
+    
+    /**
+     * Загружает справочник методов идентификации (SESINT.BUSENTKIND, codeListId=1033) в кеш
+     */
+    private void loadIdentificationMethodsDictionary() {
+        Connection conn = null;
+        try {
+            System.out.println("[DictionaryInitializer] Loading identification methods dictionary...");
+            conn = DatabaseUtil.getConnection();
+            String sql = "SELECT BUSENTKINDCODE, BUSENTKINDLETTERCODE, BUSENTKINDDESC, COUNTRYCODE " +
+                        "FROM SESINT.BUSENTKIND " +
+                        "WHERE (BUSENTKINDSDATE IS NULL OR BUSENTKINDSDATE <= SYSDATE) " +
+                        "AND (BUSENTKINDEDATE IS NULL OR BUSENTKINDEDATE >= SYSDATE) " +
+                        "ORDER BY COUNTRYCODE, BUSENTKINDCODE";
+            PreparedStatement stmt = conn.prepareStatement(sql);
+            ResultSet rs = stmt.executeQuery();
+            List<IdentificationMethodOption> list = new ArrayList<>();
+            int count = 0;
+            while (rs.next()) {
+                list.add(new IdentificationMethodOption(
+                    rs.getString("BUSENTKINDCODE"),
+                    rs.getString("BUSENTKINDLETTERCODE"),
+                    rs.getString("BUSENTKINDDESC"),
+                    rs.getString("COUNTRYCODE")
+                ));
+                count++;
+            }
+            DictionaryCache.setIdentificationMethodsCache(list);
+            System.out.println("[DictionaryInitializer] Loaded " + count + " identification methods into cache");
+            rs.close();
+            stmt.close();
+        } catch (SQLException e) {
+            System.err.println("[DictionaryInitializer] ERROR loading identification methods dictionary: " + e.getMessage());
+            e.printStackTrace();
+        } finally {
+            DatabaseUtil.closeConnection(conn);
+        }
+    }
+    
+    /**
+     * Загружает справочник видов документов об оценке соответствия (SESINT.CONFDOCKIND, codeListId=2001) в кеш
+     */
+    private void loadConformityDocKindsDictionary() {
+        Connection conn = null;
+        try {
+            System.out.println("[DictionaryInitializer] Loading conformity doc kinds dictionary...");
+            conn = DatabaseUtil.getConnection();
+            String sql = "SELECT CONFDOCKINDCODE, CONFDOCKINDNAME, CONFDOCKINDBRIEFNAME " +
+                        "FROM SESINT.CONFDOCKIND " +
+                        "WHERE (CONFDOCKINDSDATE IS NULL OR CONFDOCKINDSDATE <= SYSDATE) " +
+                        "AND CONFDOCKINDEDATE >= SYSDATE " +
+                        "ORDER BY CONFDOCKINDCODE";
+            PreparedStatement stmt = conn.prepareStatement(sql);
+            ResultSet rs = stmt.executeQuery();
+            List<ConformityDocKindOption> list = new ArrayList<>();
+            int count = 0;
+            while (rs.next()) {
+                list.add(new ConformityDocKindOption(
+                    rs.getString("CONFDOCKINDCODE"),
+                    rs.getString("CONFDOCKINDNAME"),
+                    rs.getString("CONFDOCKINDBRIEFNAME")
+                ));
+                count++;
+            }
+            DictionaryCache.setConformityDocKindsCache(list);
+            System.out.println("[DictionaryInitializer] Loaded " + count + " conformity doc kinds into cache");
+            rs.close();
+            stmt.close();
+        } catch (SQLException e) {
+            System.err.println("[DictionaryInitializer] ERROR loading conformity doc kinds dictionary: " + e.getMessage());
             e.printStackTrace();
         } finally {
             DatabaseUtil.closeConnection(conn);

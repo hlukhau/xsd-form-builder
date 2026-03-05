@@ -7,12 +7,14 @@ import {
   getDefaultAddressKindName,
   getDefaultCountryName,
 } from '@/utils/addressFormatUtils'
+import { useIdentificationMethodOptions } from '@/hooks/useIdentificationMethodOptions'
 
 interface DetectionPlaceTabProps {
   data: DetectionPlaceData
 }
 
 const DetectionPlaceTab: React.FC<DetectionPlaceTabProps> = ({ data }) => {
+  const { getDisplayLabel: getIdentificationMethodDisplayLabel } = useIdentificationMethodOptions(data.organization?.country ?? '')
   const getCountryName = (code?: string): string => {
     const countryMap: Record<string, string> = {
       'RU': 'Россия',
@@ -129,7 +131,7 @@ const DetectionPlaceTab: React.FC<DetectionPlaceTabProps> = ({ data }) => {
               {data.organization.businessEntityId || '-'}
             </Descriptions.Item>
             <Descriptions.Item label="Метод идентификации">
-              {data.organization.identificationMethod || '-'}
+              {data.organization.identificationMethod ? getIdentificationMethodDisplayLabel(data.organization.identificationMethod) : '-'}
             </Descriptions.Item>
             <Descriptions.Item label="Таможенный номер">
               {data.organization.taxpayerId || '-'}

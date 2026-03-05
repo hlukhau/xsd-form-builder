@@ -60,6 +60,13 @@ public class DictionaryCache {
     // Кеш подразделений (TB_DEP + TB_DEPKIND): список для «Определить доступ»
     private static final List<DepOption> depOptionsListCache = new ArrayList<>();
     
+    // Кеш организационно-правовых форм (SESINT.LEGALFORM, codeListId=2049)
+    private static final List<LegalFormOption> legalFormsListCache = new ArrayList<>();
+    // Кеш методов идентификации (SESINT.BUSENTKIND, codeListId=1033)
+    private static final List<IdentificationMethodOption> identificationMethodsListCache = new ArrayList<>();
+    // Кеш видов документов об оценке соответствия (SESINT.CONFDOCKIND, codeListId=2001)
+    private static final List<ConformityDocKindOption> conformityDocKindsListCache = new ArrayList<>();
+    
     // Флаги загрузки
     private static volatile boolean countriesLoaded = false;
     private static volatile boolean incidentAlertKindsLoaded = false;
@@ -72,6 +79,9 @@ public class DictionaryCache {
     private static volatile boolean sanitaryMeasuresLoaded = false;
     private static volatile boolean mediaTypesLoaded = false;
     private static volatile boolean depOptionsLoaded = false;
+    private static volatile boolean legalFormsLoaded = false;
+    private static volatile boolean identificationMethodsLoaded = false;
+    private static volatile boolean conformityDocKindsLoaded = false;
     
     /**
      * Класс для опции страны
@@ -236,6 +246,53 @@ public class DictionaryCache {
             this.id = id != null ? id : "";
             this.name = name != null ? name : "";
             this.depKindCode = depKindCode != null ? depKindCode : "";
+        }
+    }
+    
+    /**
+     * Опция справочника организационно-правовых форм (SESINT.LEGALFORM, codeListId=2049)
+     */
+    public static class LegalFormOption {
+        public String code;
+        public String name;
+        public String countryCode;
+        
+        public LegalFormOption(String code, String name, String countryCode) {
+            this.code = code != null ? code : "";
+            this.name = name != null ? name : "";
+            this.countryCode = countryCode != null ? countryCode : "";
+        }
+    }
+    
+    /**
+     * Опция справочника методов идентификации (SESINT.BUSENTKIND, codeListId=1033)
+     */
+    public static class IdentificationMethodOption {
+        public String code;
+        public String letterCode;
+        public String description;
+        public String countryCode;
+        
+        public IdentificationMethodOption(String code, String letterCode, String description, String countryCode) {
+            this.code = code != null ? code : "";
+            this.letterCode = letterCode != null ? letterCode : "";
+            this.description = description != null ? description : "";
+            this.countryCode = countryCode != null ? countryCode : "";
+        }
+    }
+    
+    /**
+     * Опция справочника видов документов об оценке соответствия (SESINT.CONFDOCKIND, codeListId=2001)
+     */
+    public static class ConformityDocKindOption {
+        public String code;
+        public String name;
+        public String briefName;
+        
+        public ConformityDocKindOption(String code, String name, String briefName) {
+            this.code = code != null ? code : "";
+            this.name = name != null ? name : "";
+            this.briefName = briefName != null ? briefName : "";
         }
     }
     
@@ -767,6 +824,119 @@ public class DictionaryCache {
     
     public static boolean isDepOptionsLoaded() {
         return depOptionsLoaded;
+    }
+    
+    // ========== Методы для организационно-правовых форм (LEGALFORM) ==========
+    
+    public static void clearLegalFormsCache() {
+        synchronized (legalFormsListCache) {
+            legalFormsListCache.clear();
+            legalFormsLoaded = false;
+        }
+    }
+    
+    public static void setLegalFormsCache(List<LegalFormOption> list) {
+        synchronized (legalFormsListCache) {
+            legalFormsListCache.clear();
+            legalFormsListCache.addAll(list);
+            legalFormsLoaded = true;
+        }
+    }
+    
+    public static List<LegalFormOption> getLegalFormsList() {
+        synchronized (legalFormsListCache) {
+            return new ArrayList<>(legalFormsListCache);
+        }
+    }
+    
+    public static List<LegalFormOption> getLegalFormsByCountry(String countryCode) {
+        if (countryCode == null || countryCode.trim().isEmpty()) {
+            return getLegalFormsList();
+        }
+        String norm = countryCode.trim().toUpperCase();
+        List<LegalFormOption> out = new ArrayList<>();
+        synchronized (legalFormsListCache) {
+            for (LegalFormOption o : legalFormsListCache) {
+                if (norm.equals(o.countryCode != null ? o.countryCode.toUpperCase() : "")) {
+                    out.add(o);
+                }
+            }
+        }
+        return out;
+    }
+    
+    public static boolean isLegalFormsLoaded() {
+        return legalFormsLoaded;
+    }
+    
+    // ========== Методы для методов идентификации (BUSENTKIND) ==========
+    
+    public static void clearIdentificationMethodsCache() {
+        synchronized (identificationMethodsListCache) {
+            identificationMethodsListCache.clear();
+            identificationMethodsLoaded = false;
+        }
+    }
+    
+    public static void setIdentificationMethodsCache(List<IdentificationMethodOption> list) {
+        synchronized (identificationMethodsListCache) {
+            identificationMethodsListCache.clear();
+            identificationMethodsListCache.addAll(list);
+            identificationMethodsLoaded = true;
+        }
+    }
+    
+    public static List<IdentificationMethodOption> getIdentificationMethodsList() {
+        synchronized (identificationMethodsListCache) {
+            return new ArrayList<>(identificationMethodsListCache);
+        }
+    }
+    
+    public static List<IdentificationMethodOption> getIdentificationMethodsByCountry(String countryCode) {
+        if (countryCode == null || countryCode.trim().isEmpty()) {
+            return getIdentificationMethodsList();
+        }
+        String norm = countryCode.trim().toUpperCase();
+        List<IdentificationMethodOption> out = new ArrayList<>();
+        synchronized (identificationMethodsListCache) {
+            for (IdentificationMethodOption o : identificationMethodsListCache) {
+                if (norm.equals(o.countryCode != null ? o.countryCode.toUpperCase() : "")) {
+                    out.add(o);
+                }
+            }
+        }
+        return out;
+    }
+    
+    public static boolean isIdentificationMethodsLoaded() {
+        return identificationMethodsLoaded;
+    }
+    
+    // ========== Методы для видов документов об оценке соответствия (CONFDOCKIND) ==========
+    
+    public static void clearConformityDocKindsCache() {
+        synchronized (conformityDocKindsListCache) {
+            conformityDocKindsListCache.clear();
+            conformityDocKindsLoaded = false;
+        }
+    }
+    
+    public static void setConformityDocKindsCache(List<ConformityDocKindOption> list) {
+        synchronized (conformityDocKindsListCache) {
+            conformityDocKindsListCache.clear();
+            conformityDocKindsListCache.addAll(list);
+            conformityDocKindsLoaded = true;
+        }
+    }
+    
+    public static List<ConformityDocKindOption> getConformityDocKindsList() {
+        synchronized (conformityDocKindsListCache) {
+            return new ArrayList<>(conformityDocKindsListCache);
+        }
+    }
+    
+    public static boolean isConformityDocKindsLoaded() {
+        return conformityDocKindsLoaded;
     }
 }
 

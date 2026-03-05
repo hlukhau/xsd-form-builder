@@ -7,7 +7,12 @@ import type { SupplyChainPartyDetails, AddressDetails, ContactDetails } from '@/
 import { useCountryOptions } from '@/hooks/useCountryOptions'
 import CountrySelect from '@/components/common/CountrySelect'
 import { useSupplyChainPartyKindOptions } from '@/hooks/useSupplyChainPartyKindOptions'
+import { useLegalFormOptions } from '@/hooks/useLegalFormOptions'
+import { useIdentificationMethodOptions } from '@/hooks/useIdentificationMethodOptions'
 import { checkSupplyChainPartyKindExists } from '@/utils/referenceDataApi'
+
+/** Идентификатор справочника организационно-правовых форм (SESINT.LEGALFORM) */
+const LEGAL_FORM_CODE_LIST_ID = '2049'
 
 interface ManufacturerDetailsEditProps {
   data: SupplyChainPartyDetails
@@ -27,7 +32,13 @@ const ManufacturerDetailsEdit: React.FC<ManufacturerDetailsEditProps> = ({
   const [form] = Form.useForm()
   const { countryOptions, loading, normalizeCountryCode } = useCountryOptions()
   const { options: supplyChainPartyKindOptions, loading: loadingSupplyChainPartyKinds, getSelectOptions: getSupplyChainPartyKindSelectOptions, getNameByCode: getSupplyChainPartyKindNameByCode } = useSupplyChainPartyKindOptions()
+  const countryForLegalForm = normalizeCountryCode(data.country)
+  const { getSelectOptions: getLegalFormSelectOptions, getNameByCode: getLegalFormNameByCode, loading: loadingLegalForms } = useLegalFormOptions(countryForLegalForm)
+  const { getSelectOptions: getIdentificationMethodSelectOptions, loading: loadingIdMethods } = useIdentificationMethodOptions(countryForLegalForm)
   const [kindCodeError, setKindCodeError] = useState<boolean>(false)
+
+  /** Значение из справочника (код + codeListId 2049): в Select показывается «код — наименование» */
+  const isLegalFormFromRef = !!(data.businessEntityTypeCode && data.businessEntityTypeCodeListId === LEGAL_FORM_CODE_LIST_ID)
 
   // Проверяем валидность кода вида участника при загрузке данных
   useEffect(() => {
@@ -60,12 +71,13 @@ const ManufacturerDetailsEdit: React.FC<ManufacturerDetailsEditProps> = ({
       businessEntityName: data.businessEntityName,
       shortName: data.shortName,
       organizationalForm: data.organizationalForm,
+      businessEntityTypeCode: isLegalFormFromRef ? data.businessEntityTypeCode : undefined,
       subjectIdentifier: data.subjectIdentifier,
       identificationMethod: data.identificationMethod,
       customsNumber: data.customsNumber,
       taxpayerId: data.taxpayerId,
     })
-  }, [data, form, normalizeCountryCode, effectiveKindCode])
+  }, [data, form, normalizeCountryCode, effectiveKindCode, isLegalFormFromRef])
 
   // Обработчик выбора вида участника цепи поставки
   const handleSupplyChainPartyKindSelect = (code: string) => {
@@ -77,14 +89,36 @@ const ManufacturerDetailsEdit: React.FC<ManufacturerDetailsEditProps> = ({
     })
   }
 
+  const handleLegalFormSelect = (code: string | null) => {
+    if (!code) {
+      onChange({
+        ...data,
+        businessEntityTypeCode: undefined,
+        businessEntityTypeCodeListId: undefined,
+      })
+      return
+    }
+    const name = getLegalFormNameByCode(code)
+    onChange({
+      ...data,
+      businessEntityTypeCode: code,
+      businessEntityTypeCodeListId: LEGAL_FORM_CODE_LIST_ID,
+      organizationalForm: name ?? data.organizationalForm ?? '',
+    })
+  }
+
   const handleValuesChange = (changedValues: any, allValues: any) => {
-    // Изменение вида участника обрабатывается отдельно (handleSupplyChainPartyKindSelect)
-    if (changedValues?.supplyChainPartyKindCode !== undefined) {
+    if (changedValues?.supplyChainPartyKindCode !== undefined) return
+    if (changedValues?.businessEntityTypeCode !== undefined) {
+      const code = allValues.businessEntityTypeCode
+      handleLegalFormSelect(code || null)
       return
     }
     onChange({
       ...data,
       ...allValues,
+      businessEntityTypeCode: data.businessEntityTypeCode,
+      businessEntityTypeCodeListId: data.businessEntityTypeCodeListId,
     })
   }
 
@@ -188,14 +222,48 @@ const ManufacturerDetailsEdit: React.FC<ManufacturerDetailsEditProps> = ({
                 <Form.Item label="Краткое наименование" name="shortName">
                   <Input />
                 </Form.Item>
-                <Form.Item label="Организационно-правовая форма" name="organizationalForm">
-                  <Input />
+                <Form.Item
+                  label="Организационно-правовая форма (из справочника)"
+                  name="businessEntityTypeCode"
+                >
+                  <Select
+                    showSearch
+                    placeholder={countryForLegalForm ? 'Выберите по справочнику (код — наименование)' : 'Сначала укажите страну'}
+                    allowClear
+                    loading={loadingLegalForms}
+                    onChange={handleLegalFormSelect}
+                    filterOption={(input, option) =>
+                      (option?.label ?? '').toLowerCase().includes(input.toLowerCase())
+                    }
+                    options={getLegalFormSelectOptions()}
+                    disabled={!countryForLegalForm}
+                    notFoundContent={loadingLegalForms ? 'Загрузка...' : 'Нет данных по выбранной стране'}
+                  />
                 </Form.Item>
+                {!isLegalFormFromRef && (
+                  <Form.Item
+                    label="Наименование организационно-правовой формы (вручную)"
+                    name="organizationalForm"
+                  >
+                    <Input placeholder="Если не выбрано из справочника" />
+                  </Form.Item>
+                )}
                 <Form.Item label="Идентификатор субъекта" name="subjectIdentifier">
                   <Input />
                 </Form.Item>
                 <Form.Item label="Метод идентификации" name="identificationMethod">
-                  <Input />
+                  <Select
+                    showSearch
+                    placeholder={countryForLegalForm ? 'Выберите из справочника (букв. обозначение — описание)' : 'Сначала укажите страну'}
+                    allowClear
+                    loading={loadingIdMethods}
+                    filterOption={(input, option) =>
+                      (option?.label ?? '').toLowerCase().includes(input.toLowerCase())
+                    }
+                    options={getIdentificationMethodSelectOptions()}
+                    disabled={!countryForLegalForm}
+                    notFoundContent={loadingIdMethods ? 'Загрузка...' : 'Нет данных по выбранной стране'}
+                  />
                 </Form.Item>
                 <Form.Item label="Таможенный номер" name="customsNumber">
                   <Input />

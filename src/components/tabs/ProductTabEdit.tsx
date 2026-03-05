@@ -6,6 +6,7 @@ import { labelWithHelp } from '@/components/common/FieldHelp'
 import { FIELD_HELP } from '@/constants/fieldDescriptions'
 import type { ProductData, TechnicalDocument } from '@/types/card'
 import { useSanitaryProdTypeOptions } from '@/hooks/useSanitaryProdTypeOptions'
+import { useShipDocKindOptions } from '@/hooks/useShipDocKindOptions'
 import { checkSanitaryProdTypeExists } from '@/utils/referenceDataApi'
 
 interface ProductTabEditProps {
@@ -16,6 +17,7 @@ interface ProductTabEditProps {
 const ProductTabEdit: React.FC<ProductTabEditProps> = ({ data, onChange }) => {
   const [form] = Form.useForm()
   const { options: sanitaryProdTypeOptions, loading: loadingSanitaryProdTypes, getSelectOptions: getSanitaryProdTypeSelectOptions, getNameByCode } = useSanitaryProdTypeOptions()
+  const { getSelectOptions: getShipDocKindSelectOptions, getNameByCode: getShipDocKindNameByCode, loading: loadingShipDocKinds } = useShipDocKindOptions()
   const [typeCodeError, setTypeCodeError] = useState<boolean>(false)
 
   // Проверяем валидность кода при загрузке данных
@@ -146,6 +148,16 @@ const ProductTabEdit: React.FC<ProductTabEditProps> = ({ data, onChange }) => {
     onChange(updatedData)
   }
 
+  const handleTechnicalDocKindSelect = (index: number, code: string) => {
+    const name = getShipDocKindNameByCode(code) || ''
+    const updatedDocs = [...(data.productDetails.technicalDocs || [])]
+    updatedDocs[index] = { ...updatedDocs[index], docKindCode: code, docKindName: name }
+    onChange({
+      ...data,
+      productDetails: { ...data.productDetails, technicalDocs: updatedDocs },
+    })
+  }
+
   return (
     <Form
       form={form}
@@ -211,11 +223,22 @@ const ProductTabEdit: React.FC<ProductTabEditProps> = ({ data, onChange }) => {
           {data.productDetails.technicalDocs?.map((doc, index) => (
             <div key={index} style={{ marginBottom: '16px', padding: '12px', border: '1px solid #d9d9d9', borderRadius: '4px' }}>
               <Space direction="vertical" style={{ width: '100%' }}>
-                <Input
-                  placeholder="Вид документа"
-                  value={doc.docKindName}
-                  onChange={(e) => handleTechnicalDocChange(index, 'docKindName', e.target.value)}
-                />
+                <Form.Item label="Вид документа" style={{ marginBottom: 8 }}>
+                  <Select
+                    showSearch
+                    placeholder="Код — наименование вида (справочник SHIPDOCKIND)"
+                    loading={loadingShipDocKinds}
+                    value={doc.docKindCode || undefined}
+                    onChange={(code) => handleTechnicalDocKindSelect(index, code ?? '')}
+                    onClear={() => handleTechnicalDocKindSelect(index, '')}
+                    filterOption={(input, option) =>
+                      (option?.label ?? '').toLowerCase().includes(input.toLowerCase())
+                    }
+                    options={getShipDocKindSelectOptions()}
+                    allowClear
+                    style={{ width: '100%' }}
+                  />
+                </Form.Item>
                 <Input
                   placeholder="Наименование документа"
                   value={doc.docName}

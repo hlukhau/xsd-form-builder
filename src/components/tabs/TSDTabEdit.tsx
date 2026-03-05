@@ -5,7 +5,7 @@ import dayjs from 'dayjs'
 import ManufacturerDetailsEdit from '../common/ManufacturerDetailsEdit'
 import { labelWithHelp } from '@/components/common/FieldHelp'
 import { FIELD_HELP } from '@/constants/fieldDescriptions'
-import type { TSDData, ProductBatchDetails, ShippingDocument, ProductDetails, SupplyChainPartyDetails, MeasureWithUnit } from '@/types/card'
+import type { TSDData, ProductBatchDetails, ShippingDocument, ProductDetails, SupplyChainPartyDetails, MeasureWithUnit, TechnicalDocument } from '@/types/card'
 import { useMeasurementUnitOptions } from '@/hooks/useMeasurementUnitOptions'
 import { useShipDocKindOptions } from '@/hooks/useShipDocKindOptions'
 import { checkShipDocKindExists } from '@/utils/referenceDataApi'
@@ -141,10 +141,68 @@ const TSDTabEdit: React.FC<TSDTabEditProps> = ({ data, onChange }) => {
   const handleAddProduct = (batchIndex: number, docIndex: number) => {
     const batch = batches[batchIndex] || { shippingDocuments: [] }
     const doc = batch.shippingDocuments[docIndex]
-    const newProduct: ProductDetails = { productId: '', productName: '' }
+    const newProduct: ProductDetails = { productId: '', productName: '', technicalDocs: [] }
     const updated = [...(batch.shippingDocuments || [])]
     updated[docIndex] = { ...doc, products: [...(doc.products || []), newProduct] }
     updateBatch(batchIndex, { ...batch, shippingDocuments: updated })
+  }
+
+  const updateProduct = (batchIndex: number, docIndex: number, pIndex: number, updatedProduct: ProductDetails) => {
+    const batch = batches[batchIndex] || { shippingDocuments: [] }
+    const doc = batch.shippingDocuments[docIndex]
+    const products = [...(doc.products || [])]
+    products[pIndex] = updatedProduct
+    const updated = [...(batch.shippingDocuments || [])]
+    updated[docIndex] = { ...doc, products }
+    updateBatch(batchIndex, { ...batch, shippingDocuments: updated })
+  }
+
+  const handleAddProductTechnicalDoc = (batchIndex: number, docIndex: number, pIndex: number) => {
+    const batch = batches[batchIndex] || { shippingDocuments: [] }
+    const doc = batch.shippingDocuments[docIndex]
+    const product = doc.products?.[pIndex]
+    if (!product) return
+    const newDoc: TechnicalDocument = {
+      docKindCode: '',
+      docKindName: '',
+      docName: '',
+      docId: '',
+      docCreationDate: '',
+      docStartDate: '',
+    }
+    const technicalDocs = [...(product.technicalDocs || []), newDoc]
+    updateProduct(batchIndex, docIndex, pIndex, { ...product, technicalDocs })
+  }
+
+  const handleRemoveProductTechnicalDoc = (batchIndex: number, docIndex: number, pIndex: number, tdIndex: number) => {
+    const batch = batches[batchIndex] || { shippingDocuments: [] }
+    const doc = batch.shippingDocuments[docIndex]
+    const product = doc.products?.[pIndex]
+    if (!product) return
+    const technicalDocs = [...(product.technicalDocs || [])]
+    technicalDocs.splice(tdIndex, 1)
+    updateProduct(batchIndex, docIndex, pIndex, { ...product, technicalDocs })
+  }
+
+  const handleProductTechnicalDocChange = (batchIndex: number, docIndex: number, pIndex: number, tdIndex: number, field: string, value: string) => {
+    const batch = batches[batchIndex] || { shippingDocuments: [] }
+    const doc = batch.shippingDocuments[docIndex]
+    const product = doc.products?.[pIndex]
+    if (!product) return
+    const technicalDocs = [...(product.technicalDocs || [])]
+    technicalDocs[tdIndex] = { ...technicalDocs[tdIndex], [field]: value }
+    updateProduct(batchIndex, docIndex, pIndex, { ...product, technicalDocs })
+  }
+
+  const handleProductTechnicalDocKindSelect = (batchIndex: number, docIndex: number, pIndex: number, tdIndex: number, code: string) => {
+    const batch = batches[batchIndex] || { shippingDocuments: [] }
+    const doc = batch.shippingDocuments[docIndex]
+    const product = doc.products?.[pIndex]
+    if (!product) return
+    const name = getShipDocKindNameByCode(code) || ''
+    const technicalDocs = [...(product.technicalDocs || [])]
+    technicalDocs[tdIndex] = { ...technicalDocs[tdIndex], docKindCode: code, docKindName: name }
+    updateProduct(batchIndex, docIndex, pIndex, { ...product, technicalDocs })
   }
 
   const handleAddParty = (batchIndex: number, docIndex: number) => {
@@ -456,6 +514,73 @@ const TSDTabEdit: React.FC<TSDTabEditProps> = ({ data, onChange }) => {
                                   handleDocumentChange(batchIndex, selDocIndex!, 'products', updated)
                                 }}
                               />
+                              <div style={{ marginTop: 8 }}>
+                                <div style={{ marginBottom: 8, fontWeight: 500 }}>Техническая документация</div>
+                                {(product.technicalDocs || []).map((td, tdIndex) => (
+                                  <div key={tdIndex} style={{ marginBottom: 12, padding: 8, border: '1px solid #f0f0f0', borderRadius: 4 }}>
+                                    <Space direction="vertical" style={{ width: '100%' }} size="small">
+                                      <Select
+                                        showSearch
+                                        placeholder="Вид документа (SHIPDOCKIND)"
+                                        loading={loadingShipDocKinds}
+                                        value={td.docKindCode || undefined}
+                                        onChange={(code) => handleProductTechnicalDocKindSelect(batchIndex, selDocIndex!, pIndex, tdIndex, code ?? '')}
+                                        onClear={() => handleProductTechnicalDocKindSelect(batchIndex, selDocIndex!, pIndex, tdIndex, '')}
+                                        filterOption={(input, option) =>
+                                          (option?.label ?? '').toLowerCase().includes(input.toLowerCase())
+                                        }
+                                        options={getShipDocKindSelectOptions()}
+                                        allowClear
+                                        style={{ width: '100%', minWidth: 200 }}
+                                        size="small"
+                                      />
+                                      <Input
+                                        placeholder="Наименование документа"
+                                        value={td.docName}
+                                        onChange={(e) => handleProductTechnicalDocChange(batchIndex, selDocIndex!, pIndex, tdIndex, 'docName', e.target.value)}
+                                        size="small"
+                                      />
+                                      <Input
+                                        placeholder="Номер документа"
+                                        value={td.docId}
+                                        onChange={(e) => handleProductTechnicalDocChange(batchIndex, selDocIndex!, pIndex, tdIndex, 'docId', e.target.value)}
+                                        size="small"
+                                      />
+                                      <Space wrap>
+                                        <DatePicker
+                                          placeholder="Дата документа"
+                                          value={td.docCreationDate ? dayjs(td.docCreationDate) : null}
+                                          onChange={(date) => handleProductTechnicalDocChange(batchIndex, selDocIndex!, pIndex, tdIndex, 'docCreationDate', date ? date.format('YYYY-MM-DD') : '')}
+                                          size="small"
+                                        />
+                                        <DatePicker
+                                          placeholder="Действует с"
+                                          value={td.docStartDate ? dayjs(td.docStartDate) : null}
+                                          onChange={(date) => handleProductTechnicalDocChange(batchIndex, selDocIndex!, pIndex, tdIndex, 'docStartDate', date ? date.format('YYYY-MM-DD') : '')}
+                                          size="small"
+                                        />
+                                      </Space>
+                                      <Button
+                                        type="link"
+                                        danger
+                                        size="small"
+                                        icon={<DeleteOutlined />}
+                                        onClick={() => handleRemoveProductTechnicalDoc(batchIndex, selDocIndex!, pIndex, tdIndex)}
+                                      >
+                                        Удалить документ
+                                      </Button>
+                                    </Space>
+                                  </div>
+                                ))}
+                                <Button
+                                  type="dashed"
+                                  size="small"
+                                  icon={<PlusOutlined />}
+                                  onClick={() => handleAddProductTechnicalDoc(batchIndex, selDocIndex!, pIndex)}
+                                >
+                                  Добавить технический документ
+                                </Button>
+                              </div>
                               <Button
                                 type="link"
                                 danger
