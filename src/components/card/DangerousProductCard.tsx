@@ -708,16 +708,17 @@ const DangerousProductCard: React.FC<DangerousProductCardProps> = ({
   })
 
   return (
-    <div style={{ padding: '0' }} className="fade-in">
+    <div style={{ padding: 0 }} className="fade-in">
       <Card
+        bordered={false}
         title={
-          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
             <span>Карта сведений об обнаружении опасной продукции</span>
           </div>
         }
         extra={
-          <Space size="middle" wrap>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <Space size="small" wrap>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
               <Switch
                 checked={isEditMode}
                 onChange={setIsEditMode}

@@ -23,7 +23,7 @@ const CardHeader: React.FC<CardHeaderProps> = ({ data, onStatusClick }) => {
       column={3}
       bordered
       size="small"
-      style={{ marginBottom: '16px' }}
+      style={{ marginBottom: '8px' }}
     >
       <Descriptions.Item label="Страна">{getCountryDisplayLabel(data.country)}</Descriptions.Item>
       <Descriptions.Item label="Регистрационный номер">

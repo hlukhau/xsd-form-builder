@@ -49,7 +49,7 @@ body {
     sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-  background: #f0f2f5;
+  background: #ffffff;
   color: var(--text-primary);
   line-height: 1.6;
 }
@@ -58,10 +58,11 @@ body {
   min-height: 100vh;
 }
 
+/* Без отступов от краёв окна, без серого фона */
 .app {
   min-height: 100vh;
-  padding: var(--spacing-lg);
-  background: var(--bg-primary);
+  padding: 0;
+  background: #ffffff;
 }
 
 /* Стили для таблиц с переносом текста */
@@ -76,33 +77,29 @@ body {
   white-space: normal !important;
 }
 
-/* Промышленный стиль для карточек */
+/* Карточка без рамки, тени и скруглений — на белом фоне */
 .ant-card {
-  border-radius: var(--radius-lg);
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
-  border: 1px solid #e8e8e8;
-  transition: box-shadow 0.2s ease;
+  border-radius: 0;
+  box-shadow: none;
+  border: none;
   background: #ffffff;
-}
-
-.ant-card:hover {
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.2);
 }
 
 .ant-card-head {
   background: #1890ff;
-  border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+  border-radius: 0;
   border-bottom: none;
-  padding: var(--spacing-lg) var(--spacing-xl);
-  min-height: 64px;
+  padding: var(--spacing-sm) var(--spacing-md);
+  min-height: 48px;
 }
 
 .ant-card-head-title {
   color: #ffffff;
   font-weight: 600;
-  font-size: 20px;
+  font-size: 16px;
   letter-spacing: 0.3px;
 }
+
 
 .ant-card-extra {
   color: #ffffff;
@@ -129,23 +126,23 @@ body {
 }
 
 .ant-card-body {
-  padding: var(--spacing-lg);
+  padding: var(--spacing-sm) var(--spacing-md);
   background: var(--bg-secondary);
 }
 
-/* Стили для вкладок - классический дизайн вкладок */
+/* Вкладки: без рамки и тени */
 .ant-tabs {
-  background: var(--bg-secondary);
-  border-radius: var(--radius-lg);
+  background: #ffffff;
+  border-radius: 0;
   padding: 0;
-  box-shadow: var(--shadow-md);
-  border: 1px solid #d9d9d9;
+  box-shadow: none;
+  border: none;
   overflow: visible;
 }
 
 .ant-tabs-nav {
   margin: 0;
-  padding: var(--spacing-md) var(--spacing-md) 0;
+  padding: var(--spacing-xs) var(--spacing-sm) 0;
   background: #f5f5f5;
   border: none !important;
   border-bottom: none !important;
@@ -197,8 +194,8 @@ body {
 
 .ant-tabs-tab {
   font-weight: 500;
-  font-size: 14px;
-  padding: 10px 16px !important;
+  font-size: 13px;
+  padding: 6px 12px !important;
   margin: 0 2px 0 0 !important;
   border-radius: var(--radius-md) var(--radius-md) 0 0;
   transition: all 0.2s ease;
@@ -207,7 +204,7 @@ body {
   border: 1px solid #d9d9d9 !important;
   border-bottom: none !important;
   background: #fafafa !important;
-  min-height: 40px;
+  min-height: 32px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -275,7 +272,7 @@ body {
 .ant-tabs-tab-active .ant-tabs-tab-btn {
   color: var(--primary-color) !important;
   font-weight: 600;
-  font-size: 14px;
+  font-size: 13px;
 }
 
 .ant-tabs-ink-bar {
@@ -283,10 +280,10 @@ body {
 }
 
 .ant-tabs-content-holder {
-  padding: var(--spacing-lg);
+  padding: var(--spacing-sm) var(--spacing-md);
   background: #ffffff;
   border-top: none;
-  border-radius: 0 0 var(--radius-lg) var(--radius-lg);
+  border-radius: 0;
   margin-top: 0;
 }
 

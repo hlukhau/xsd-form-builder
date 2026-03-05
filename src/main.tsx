@@ -25,15 +25,15 @@ const customTheme = {
     borderRadiusLG: 8,
     borderRadiusSM: 4,
     
-    // Отступы
-    padding: 16,
-    paddingLG: 24,
-    paddingSM: 12,
-    paddingXS: 8,
+    // Отступы (компактно для iframe)
+    padding: 12,
+    paddingLG: 16,
+    paddingSM: 8,
+    paddingXS: 4,
     
-    // Тени
-    boxShadow: '0 2px 8px rgba(0, 0, 0, 0.08)',
-    boxShadowSecondary: '0 4px 12px rgba(0, 0, 0, 0.12)',
+    // Без заметных теней для встраивания
+    boxShadow: 'none',
+    boxShadowSecondary: 'none',
     
     // Шрифты
     fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", "Roboto", "Oxygen", "Ubuntu", "Cantarell", "Fira Sans", "Droid Sans", "Helvetica Neue", sans-serif',
@@ -48,14 +48,14 @@ const customTheme = {
   },
   components: {
     Card: {
-      borderRadiusLG: 8,
-      boxShadow: '0 4px 12px rgba(0, 0, 0, 0.12)',
-      headerBg: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+      borderRadiusLG: 0,
+      boxShadow: 'none',
+      headerBg: '#1890ff',
     },
     Button: {
       borderRadius: 6,
       fontWeight: 500,
-      boxShadow: '0 2px 8px rgba(0, 0, 0, 0.08)',
+      boxShadow: 'none',
     },
     Input: {
       borderRadius: 6,

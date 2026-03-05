@@ -211,7 +211,7 @@ function AppContent() {
   return (
     <div className="app">
       {loadByDpaidState.loading && (
-        <div style={{ textAlign: 'center', padding: 24 }}>
+        <div style={{ textAlign: 'center', padding: 16 }}>
           <Spin size="large" tip="Загрузка XML по DPAID из БД..." />
         </div>
       )}
