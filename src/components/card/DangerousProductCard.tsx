@@ -564,6 +564,9 @@ const DangerousProductCard: React.FC<DangerousProductCardProps> = ({
               onChange={(notification) => setEditedData((prev) => ({ ...prev, notification }))}
               isNewCard={effectiveDpaid === '-'}
               cardCountry={currentData.country}
+              version={currentData.version ?? 1}
+              isDraft={(currentStatusId === 5) || /черновик/i.test(editedData.status ?? data.status ?? '')}
+              isOutgoing={isOutgoingSource}
             />
           )
           break

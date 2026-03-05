@@ -3,16 +3,17 @@ import { getAuthorityOptions, type AuthorityOption } from '@/utils/referenceData
 
 /**
  * Хук для загрузки и работы со справочником уполномоченных органов
+ * @param countryCode - код страны для фильтрации
+ * @param forOutgoingCreation - если true, запрашивать только УО, по которым у пользователя есть право создания исходящих сведений (в пределах ЦГЭ)
  */
-export function useAuthorityOptions(countryCode?: string) {
+export function useAuthorityOptions(countryCode?: string, forOutgoingCreation?: boolean) {
   const [options, setOptions] = useState<AuthorityOption[]>([])
   const [loading, setLoading] = useState(false)
 
   useEffect(() => {
     setLoading(true)
-    getAuthorityOptions(countryCode)
+    getAuthorityOptions(countryCode, forOutgoingCreation)
       .then((data) => {
-        console.log(`[useAuthorityOptions] Загружено ${data.length} уполномоченных органов для страны: ${countryCode || 'все'}`)
         setOptions(data)
       })
       .catch((error) => {
@@ -20,7 +21,7 @@ export function useAuthorityOptions(countryCode?: string) {
         setOptions([])
       })
       .finally(() => setLoading(false))
-  }, [countryCode])
+  }, [countryCode, forOutgoingCreation])
 
   /**
    * Получить уполномоченный орган по UID

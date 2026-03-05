@@ -4,63 +4,98 @@ import dayjs from 'dayjs'
 import { format } from 'date-fns'
 import { ru } from 'date-fns/locale'
 import type { Notification } from '@/types/card'
-import { useCountryOptions } from '@/hooks/useCountryOptions'
 import { useIncidentAlertKindOptions } from '@/hooks/useIncidentAlertKindOptions'
 import { useAuthorityOptions } from '@/hooks/useAuthorityOptions'
-import CountrySelect from '@/components/common/CountrySelect'
 import { labelWithHelp } from '@/components/common/FieldHelp'
 import { FIELD_HELP } from '@/constants/fieldDescriptions'
 
 export interface NotificationTabEditProps {
   data: Notification
   onChange: (data: Notification) => void
-  /** Режим новой карты: первые поля (код страны, рег. номер, вид, дата формирования) только для просмотра */
+  /** Режим новой карты: рег. номер, дата формирования только для просмотра; дата формирования и страна УО по умолчанию */
   isNewCard?: boolean
   /** Код страны карты (для отображения в режиме новой карты) */
   cardCountry?: string
+  /** Версия карты: 1 — вид только 7; иначе — 7 и 8 */
+  version?: number
+  /** Черновик: разрешён выбор уполномоченного органа */
+  isDraft?: boolean
+  /** Исходящие сведения: список УО ограничен ЦГЭ пользователя */
+  isOutgoing?: boolean
 }
 
-const NotificationTabEdit: React.FC<NotificationTabEditProps> = ({ data, onChange, isNewCard, cardCountry }) => {
+const VERSION_1_KIND_CODES = ['7']
+const OTHER_VERSIONS_KIND_CODES = ['7', '8']
+
+const NotificationTabEdit: React.FC<NotificationTabEditProps> = ({
+  data, onChange, isNewCard, cardCountry, version = 1, isDraft = false, isOutgoing = false,
+}) => {
   const [form] = Form.useForm()
-  const { countryOptions, loading, normalizeCountryCode, getSelectOptions } = useCountryOptions()
   const { options: incidentAlertKindOptions, loading: loadingIncidentAlertKinds, getSelectOptions: getIncidentAlertKindSelectOptions, getNameByCode: getIncidentAlertKindNameByCode } = useIncidentAlertKindOptions()
   
-  // Получаем код страны уполномоченного органа для фильтрации справочника
-  const authorizedBodyCountryCode = normalizeCountryCode(data.authorizedBody?.country)
-  const { options: authorityOptions, loading: loadingAuthorities, getSelectOptions: getAuthoritySelectOptions, getAuthorityByUid } = useAuthorityOptions(authorizedBodyCountryCode)
+  const authorizedBodyCountryCode = (data.authorizedBody?.country ?? '').trim() || undefined
+  const { options: authorityOptions, loading: loadingAuthorities, getSelectOptions: getAuthoritySelectOptions, getAuthorityByUid } = useAuthorityOptions(authorizedBodyCountryCode, isOutgoing && isDraft)
   
-  // Отслеживаем изменение страны уполномоченного органа
   const [selectedAuthorityUid, setSelectedAuthorityUid] = useState<string | undefined>(undefined)
 
+  // Ограничение видов уведомления по версии: 1 — только 7; иначе — 7 и 8
+  const allowedKindCodes = version === 1 ? VERSION_1_KIND_CODES : OTHER_VERSIONS_KIND_CODES
+  const incidentKindSelectOptions = getIncidentAlertKindSelectOptions().filter(
+    (opt) => allowedKindCodes.includes(String(opt.value))
+  )
+
   useEffect(() => {
-    // Ищем UID уполномоченного органа по идентификатору
     const authorityUid = data.authorizedBody?.identifier
     setSelectedAuthorityUid(authorityUid)
     
     form.setFieldsValue({
       registrationNumber: data.registrationNumber,
-      type: data.type, // Код вида уведомления
+      type: data.type,
       formationDate: data.formationDate ? dayjs(data.formationDate) : undefined,
       endDate: data.endDate ? dayjs(data.endDate) : undefined,
-      authorizedBodyCountry: normalizeCountryCode(data.authorizedBody?.country),
+      authorizedBodyCountry: data.authorizedBody?.country ?? '',
     })
-  }, [data, form, normalizeCountryCode])
+  }, [data, form])
 
-  
-  // Обработчик изменения страны уполномоченного органа
-  const handleAuthorizedBodyCountryChange = (countryCode: string | undefined) => {
-    // При изменении страны сбрасываем выбранный орган
-    setSelectedAuthorityUid(undefined)
-    onChange({
-      ...data,
-      authorizedBody: {
-        country: countryCode || '',
-        identifier: '',
-        name: '',
-        shortName: '',
-      },
-    })
-  }
+  // При создании новой карточки: дата формирования = сегодня, страна УО = BY
+  useEffect(() => {
+    if (!isNewCard) return
+    const today = format(new Date(), 'yyyy-MM-dd')
+    const updates: Partial<Notification> = {}
+    if (!data.formationDate) updates.formationDate = today
+    const country = (data.authorizedBody?.country ?? '').trim()
+    if (!country || country !== 'BY') {
+      updates.authorizedBody = {
+        ...data.authorizedBody,
+        country: 'BY',
+        identifier: data.authorizedBody?.identifier ?? '',
+        name: data.authorizedBody?.name ?? '',
+        shortName: data.authorizedBody?.shortName ?? '',
+      }
+    }
+    if (Object.keys(updates).length) {
+      onChange({ ...data, ...updates })
+    }
+  }, [isNewCard, data.formationDate, data.authorizedBody?.country])
+
+  // Заполнение наименования/краткого наименования УО по идентификатору (DPA.AUTHORITYID) из справочника
+  useEffect(() => {
+    const id = data.authorizedBody?.identifier
+    if (!id || (data.authorizedBody?.name && data.authorizedBody?.shortName)) return
+    const authority = getAuthorityByUid(id)
+    if (authority && (!data.authorizedBody?.name || !data.authorizedBody?.shortName)) {
+      onChange({
+        ...data,
+        authorizedBody: {
+          ...data.authorizedBody!,
+          name: data.authorizedBody?.name || authority.name,
+          shortName: data.authorizedBody?.shortName ?? authority.briefName ?? '',
+        },
+      })
+    }
+  }, [data.authorizedBody?.identifier, data.authorizedBody?.name, data.authorizedBody?.shortName, getAuthorityByUid, authorityOptions.length])
+
+  // Страна УО не редактируется (по умолчанию BY при создании)
   
   // Обработчик выбора уполномоченного органа из справочника
   const handleAuthoritySelect = (uid: string | null) => {
@@ -98,20 +133,17 @@ const NotificationTabEdit: React.FC<NotificationTabEditProps> = ({ data, onChang
   }
 
   const handleValuesChange = (changedValues: any, allValues: any) => {
-    // Игнорируем изменения в полях уполномоченного органа (они обрабатываются отдельно)
-    if (changedValues.authorizedBodyCountry || changedValues.authorizedBody || 
-        changedValues.authorizedBodyIdentifier || changedValues.authorizedBodyName || 
+    if (changedValues.authorizedBodyCountry || changedValues.authorizedBody ||
+        changedValues.authorizedBodyIdentifier || changedValues.authorizedBodyName ||
         changedValues.authorizedBodyShortName) {
       return
     }
-    
+    // Регистрационный номер и дата формирования не редактируются
     onChange({
       ...data,
-      registrationNumber: allValues.registrationNumber || data.registrationNumber,
-      type: allValues.type || data.type,
-      formationDate: allValues.formationDate ? allValues.formationDate.format('YYYY-MM-DD') : data.formationDate,
+      type: allValues.type ?? data.type,
       endDate: allValues.endDate ? allValues.endDate.format('YYYY-MM-DD') : (allValues.endDate === null ? null : data.endDate),
-      authorizedBody: data.authorizedBody, // Сохраняем текущее значение
+      authorizedBody: data.authorizedBody,
     })
   }
 
@@ -145,7 +177,7 @@ const NotificationTabEdit: React.FC<NotificationTabEditProps> = ({ data, onChang
       {!isNewCard && (
         <>
           <Form.Item label="Регистрационный номер" name="registrationNumber">
-            <Input />
+            <Input readOnly />
           </Form.Item>
           <Form.Item label="Вид" name="type">
             <Select
@@ -155,11 +187,11 @@ const NotificationTabEdit: React.FC<NotificationTabEditProps> = ({ data, onChang
               filterOption={(input, option) =>
                 (option?.label ?? '').toLowerCase().includes(input.toLowerCase())
               }
-              options={getIncidentAlertKindSelectOptions()}
+              options={incidentKindSelectOptions}
             />
           </Form.Item>
           <Form.Item label="Дата формирования" name="formationDate">
-            <DatePicker style={{ width: '100%' }} />
+            <Input readOnly value={data.formationDate ? format(new Date(data.formationDate), 'dd.MM.yyyy', { locale: ru }) : ''} />
           </Form.Item>
         </>
       )}
@@ -170,19 +202,14 @@ const NotificationTabEdit: React.FC<NotificationTabEditProps> = ({ data, onChang
       <div style={{ marginTop: '16px', padding: '12px', border: '1px solid #d9d9d9', borderRadius: '4px' }}>
         <h4>Уполномоченный орган</h4>
         <Form.Item label="Страна" name="authorizedBodyCountry">
-          <CountrySelect
-            loading={loading}
-            countryOptions={countryOptions}
-            normalizeCountryCode={normalizeCountryCode}
-            onChange={handleAuthorizedBodyCountryChange}
-          />
+          <Input readOnly value={authorizedBodyCountryCode || ''} />
         </Form.Item>
         <Form.Item label={labelWithHelp('Уполномоченный орган', FIELD_HELP.authority)}>
           <Select
             showSearch
-            placeholder={authorizedBodyCountryCode 
-              ? "Выберите уполномоченный орган" 
-              : "Сначала выберите страну"}
+            placeholder={authorizedBodyCountryCode
+              ? 'Выберите уполномоченный орган'
+              : 'Страна не указана'}
             loading={loadingAuthorities}
             value={selectedAuthorityUid}
             onChange={handleAuthoritySelect}
@@ -191,7 +218,7 @@ const NotificationTabEdit: React.FC<NotificationTabEditProps> = ({ data, onChang
               (option?.label ?? '').toLowerCase().includes(input.toLowerCase())
             }
             options={getAuthoritySelectOptions()}
-            disabled={!authorizedBodyCountryCode}
+            disabled={!authorizedBodyCountryCode || !isDraft}
             notFoundContent={loadingAuthorities ? 'Загрузка...' : authorityOptions.length === 0 ? 'Нет данных. Проверьте, что справочник загружен.' : 'Не найдено'}
           />
         </Form.Item>

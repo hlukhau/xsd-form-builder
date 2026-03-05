@@ -666,12 +666,15 @@ export async function fetchDepOptions(): Promise<DepOption[]> {
 /**
  * Получить опции для выпадающего списка уполномоченных органов
  * @param countryCode - код страны для фильтрации (опционально)
+ * @param forOutgoingCreation - если true, только УО в пределах ЦГЭ пользователя с правом создания исходящих сведений
  */
-export async function getAuthorityOptions(countryCode?: string): Promise<AuthorityOption[]> {
+export async function getAuthorityOptions(countryCode?: string, forOutgoingCreation?: boolean): Promise<AuthorityOption[]> {
   try {
-    const url = countryCode 
-      ? `${BASE_URL}api/authorities/options?countryCode=${encodeURIComponent(countryCode)}`
-      : `${BASE_URL}api/authorities/options`
+    const params = new URLSearchParams()
+    if (countryCode) params.set('countryCode', countryCode)
+    if (forOutgoingCreation) params.set('forOutgoingCreation', '1')
+    const qs = params.toString()
+    const url = qs ? `${BASE_URL}api/authorities/options?${qs}` : `${BASE_URL}api/authorities/options`
     const response = await fetch(url)
     if (!response.ok) {
       throw new Error(`Ошибка загрузки опций уполномоченных органов: ${response.statusText}`)
