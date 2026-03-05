@@ -4,15 +4,21 @@ import { getAuthorityOptions, type AuthorityOption } from '@/utils/referenceData
 /**
  * Хук для загрузки и работы со справочником уполномоченных органов
  * @param countryCode - код страны для фильтрации
- * @param forOutgoingCreation - если true, запрашивать только УО, по которым у пользователя есть право создания исходящих сведений (в пределах ЦГЭ)
+ * @param forOutgoingCreation - если true, запрашивать только УО из карты прав create (передаётся authorityIds)
+ * @param allowedAuthorityIds - список AUTHORITYID из dangerousProductOut.create; при forOutgoingCreation показываются только эти УО
  */
-export function useAuthorityOptions(countryCode?: string, forOutgoingCreation?: boolean) {
+export function useAuthorityOptions(
+  countryCode?: string,
+  forOutgoingCreation?: boolean,
+  allowedAuthorityIds?: string[]
+) {
   const [options, setOptions] = useState<AuthorityOption[]>([])
   const [loading, setLoading] = useState(false)
 
   useEffect(() => {
     setLoading(true)
-    getAuthorityOptions(countryCode, forOutgoingCreation)
+    const ids = forOutgoingCreation ? allowedAuthorityIds : undefined
+    getAuthorityOptions(countryCode, forOutgoingCreation, ids)
       .then((data) => {
         setOptions(data)
       })
@@ -21,7 +27,7 @@ export function useAuthorityOptions(countryCode?: string, forOutgoingCreation?: 
         setOptions([])
       })
       .finally(() => setLoading(false))
-  }, [countryCode, forOutgoingCreation])
+  }, [countryCode, forOutgoingCreation, allowedAuthorityIds?.join(',')])
 
   /**
    * Получить уполномоченный орган по UID

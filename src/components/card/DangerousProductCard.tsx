@@ -23,7 +23,7 @@ import MeasuresTab from '../tabs/MeasuresTab'
 import { exportCardDataToXML } from '@/utils/xmlExporter'
 import { parseXMLToCardData } from '@/utils/xmlParser'
 import { compareCardData, getCardDataReview } from '@/utils/cardDataComparator'
-import { fetchDpaStatusHistory, fetchDpaElectronicDocs, changeDpaStatus, checkAccessRight, fetchCurrentUser, fetchDpaResolutions, fetchRightsByGuid, fetchDepInfo, saveDpaCard, buildSaveMetadataFromCardData, deleteDpaCard, canCreateNewVersion, type DpaSaveMetadata } from '@/utils/referenceDataApi'
+import { fetchDpaStatusHistory, fetchDpaElectronicDocs, changeDpaStatus, checkAccessRight, fetchCurrentUser, fetchDpaResolutions, fetchRightsByGuid, getCreateAuthorityIdsFromRights, fetchDepInfo, saveDpaCard, buildSaveMetadataFromCardData, deleteDpaCard, canCreateNewVersion, type DpaSaveMetadata } from '@/utils/referenceDataApi'
 import { getStatusButtonConfig } from '@/utils/statusButtonConfig'
 import { parseElectronicDocContentBody } from '@/utils/xmlParser'
 import { openLegacyRegisterAllVersions, isLegacyRegisterConfigured } from '@/utils/legacyRegisterUrl'
@@ -94,6 +94,8 @@ const DangerousProductCard: React.FC<DangerousProductCardProps> = ({
   /** Уровень ЦГЭ по depid из карты прав (когда текущий пользователь не загружен) — для подсказки в черновике */
   const [rightsDepKindCode, setRightsDepKindCode] = useState<string | null>(null)
   const [rightsDepKindName, setRightsDepKindName] = useState<string | null>(null)
+  /** AUTHORITYID из dangerousProductOut.create — только эти УО показывать в выборе при исходящей карте */
+  const [createAuthorityIds, setCreateAuthorityIds] = useState<string[] | null>(null)
   const [dpaResolutionDepKindCodes, setDpaResolutionDepKindCodes] = useState<string[]>([])
   /** После успешного создания — dpaid сохранённой карты; до редиректа все сохранения идут как update по нему */
   const [savedDpaid, setSavedDpaid] = useState<number | null>(null)
@@ -143,15 +145,19 @@ const DangerousProductCard: React.FC<DangerousProductCardProps> = ({
       })
       if (guid) {
         fetchRightsByGuid(guid)
-          .then((r) => (r.department?.depid != null ? fetchDepInfo(r.department.depid) : Promise.resolve({ depKindCode: null, depKindName: null })))
+          .then((r) => {
+            setCreateAuthorityIds(getCreateAuthorityIdsFromRights(r))
+            return r.department?.depid != null ? fetchDepInfo(r.department.depid) : Promise.resolve({ depKindCode: null, depKindName: null })
+          })
           .then((level) => {
             setRightsDepKindCode(level.depKindCode ?? null)
             setRightsDepKindName(level.depKindName ?? null)
           })
-          .catch(() => { setRightsDepKindCode(null); setRightsDepKindName(null) })
+          .catch(() => { setRightsDepKindCode(null); setRightsDepKindName(null); setCreateAuthorityIds(null) })
       } else {
         setRightsDepKindCode(null)
         setRightsDepKindName(null)
+        setCreateAuthorityIds(null)
       }
       fetchDpaResolutions(effectiveDpaid).then((list) => {
         setDpaResolutionDepKindCodes(list.map((r) => r.depKindCode))
@@ -567,6 +573,7 @@ const DangerousProductCard: React.FC<DangerousProductCardProps> = ({
               version={currentData.version ?? 1}
               isDraft={(currentStatusId === 5) || /черновик/i.test(editedData.status ?? data.status ?? '')}
               isOutgoing={isOutgoingSource}
+              allowedAuthorityIds={isOutgoingSource ? createAuthorityIds ?? undefined : undefined}
             />
           )
           break
@@ -868,7 +875,7 @@ const DangerousProductCard: React.FC<DangerousProductCardProps> = ({
                     message.error(isOutgoingSource ? 'Нет права на управление статусом исходящих сведений.' : 'Нет права на управление статусом входящих сведений.')
                     return
                   }
-                  changeDpaStatus(effectiveDpaid, 'close', Object.keys(opts).length ? opts : undefined)
+                  changeDpaStatus(effectiveDpaid, 'close', Object.keys(opts || {}).length ? opts : undefined)
                     .then((res) => {
                       const newStatus = res.newStatus ?? currentData.status
                       const newStatusId = newStatus === 'Завершено' ? (isOutgoingSource ? 13 : 4) : (editedData.statusId ?? data.statusId)

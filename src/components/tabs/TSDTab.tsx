@@ -12,6 +12,7 @@ import {
 import { useIdentificationMethodOptions } from '@/hooks/useIdentificationMethodOptions'
 import { useMeasurementUnitOptions } from '@/hooks/useMeasurementUnitOptions'
 import { useShipDocKindOptions } from '@/hooks/useShipDocKindOptions'
+import { useCountryOptions } from '@/hooks/useCountryOptions'
 
 interface TSDTabProps {
   data: TSDData
@@ -55,15 +56,7 @@ const TSDTab: React.FC<TSDTabProps> = ({ data }) => {
     return code ? (kindMap[code] || `Вид участника (код: ${code})`) : '-'
   }
 
-  const getCountryName = (code?: string): string => {
-    // В реальном приложении здесь обращение к справочнику стран
-    const countryMap: Record<string, string> = {
-      'RU': 'Россия',
-      'BY': 'Беларусь',
-      'KZ': 'Казахстан',
-    }
-    return code ? (countryMap[code] || code) : '-'
-  }
+  const { getDisplayLabel: getCountryDisplayLabel } = useCountryOptions()
 
   if (!data || !data.batches || data.batches.length === 0) {
     return <div>Данные о партиях продукции не найдены</div>
@@ -139,14 +132,14 @@ const TSDTab: React.FC<TSDTabProps> = ({ data }) => {
                 dataSource={doc.supplyChainParties}
                 columns={[
                   { title: 'Вид', key: 'kind', render: (_: unknown, r: SupplyChainPartyDetails) => getSupplyChainPartyKindName(r.supplyChainPartyKindCode) || '-' },
-                  { title: 'Страна', dataIndex: 'country', key: 'country', render: (c: string) => getCountryName(c) },
+                  { title: 'Страна', dataIndex: 'country', key: 'country', render: (c: string) => getCountryDisplayLabel(c) },
                   { title: 'Наименование', dataIndex: 'businessEntityName', key: 'businessEntityName', render: (t: string) => t || '-' },
                   {
                     title: 'Адреса',
                     key: 'addresses',
                     render: (_: unknown, record: SupplyChainPartyDetails) => {
                       const list = getAddressListFromParty(record)
-                      const lines = formatAddressList(list, getDefaultAddressKindName, getCountryName)
+                      const lines = formatAddressList(list, getDefaultAddressKindName, getCountryDisplayLabel)
                       return lines.length > 0 ? (
                         <ul style={{ margin: 0, paddingLeft: '20px', fontSize: '12px' }}>
                           {lines.map((line, idx) => <li key={idx}>{line}</li>)}
@@ -325,7 +318,7 @@ const TSDTab: React.FC<TSDTabProps> = ({ data }) => {
               {getSupplyChainPartyKindName(selectedParty.supplyChainPartyKindCode)}
             </Descriptions.Item>
             <Descriptions.Item label="Страна">
-              {getCountryName(selectedParty.country)}
+              {getCountryDisplayLabel(selectedParty.country)}
             </Descriptions.Item>
             <Descriptions.Item label="Наименование субъекта">
               {selectedParty.businessEntityName || '-'}
@@ -350,7 +343,7 @@ const TSDTab: React.FC<TSDTabProps> = ({ data }) => {
             </Descriptions.Item>
             {(() => {
               const list = getAddressListFromParty(selectedParty)
-              const lines = formatAddressList(list, getDefaultAddressKindName, getCountryName)
+              const lines = formatAddressList(list, getDefaultAddressKindName, getCountryDisplayLabel)
               return lines.length > 0 ? (
                 <Descriptions.Item label="Адреса">
                   <ul style={{ margin: 0, paddingLeft: '20px' }}>

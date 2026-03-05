@@ -37,8 +37,8 @@ public class DpaSaveServlet extends HttpServlet {
     private static final String EDOCCODE_DEFAULT = "R.SM.SS.08.002";
     private static final String EDOCVERSION_DEFAULT = "1.0.0";
 
-    /** Получить следующий DPAID (последовательность или MAX+1) */
-    private static final String SQL_NEXT_DPAID = "SELECT SESINT.SEQ_DPA.NEXTVAL FROM DUAL";
+    /** Получить следующий DPAID (последовательность sqdpa или fallback) */
+    private static final String SQL_NEXT_DPAID = "SELECT SESINT.SQDPA.NEXTVAL FROM DUAL";
     private static final String SQL_NEXT_DPAID_FALLBACK = "SELECT NVL(MAX(DPAID),0)+1 AS NEXTVAL FROM SESINT.DPA";
 
     /** DPASTATUSID по названию «Черновик» для исходящих (в DPASTATUS у них DATASOURCEKINDCODE = 2) */
@@ -46,13 +46,15 @@ public class DpaSaveServlet extends HttpServlet {
 
     /** COUNTRYID по коду страны (COUNTRYCODE) */
     private static final String SQL_COUNTRY_ID = "SELECT COUNTRYID FROM SESINT.COUNTRY WHERE UPPER(TRIM(COUNTRYCODE)) = ? AND COUNTRYSDATE <= SYSDATE AND COUNTRYEDATE >= SYSDATE";
+    /** AUTHORITYID по AUTHORITYUID (или по числовому идентификатору из metadata) */
+    private static final String SQL_AUTHORITY_ID_BY_UID = "SELECT AUTHORITYID FROM SESINT.AUTHORITY WHERE TRIM(AUTHORITYUID) = ?";
 
     /** INSERT DPA (всегда версия 1 при создании) */
     private static final String SQL_INSERT_DPA = ""
             + "INSERT INTO SESINT.DPA (DPAID, DATASOURCEKINDCODE, ALERTCOUNTRYID, INCIDENTID, DPAVERSION, AUTHORITYID, "
             + "INCIDENTALERTKINDCODE, DOCCREATIONDATE, DPASTATUSID, COMMODITYCODE, SANITARYPRODTYPEID, SANITARYPRODNAME, "
             + "MANUFCOUNTRYID, MANUFBUSENTNAME, MANUFBUSENTBRIEFNAME, ENDDATE, CREATIONDATETIME, MODIFICATIONDATETIME, SANITARYPRODTYPENAME) "
-            + "VALUES (?, ?, ?, ?, 1, NULL, ?, ?, ?, ?, NULL, ?, ?, ?, ?, NULL, SYSDATE, NULL, ?)";
+            + "VALUES (?, ?, ?, ?, 1, ?, ?, ?, ?, ?, NULL, ?, ?, ?, ?, ?, SYSDATE, NULL, ?)";
 
     /** INSERT DPAXML */
     private static final String SQL_INSERT_DPAXML = "INSERT INTO SESINT.DPAXML (DPAID, DPAXMLBODY, EDOCCODE, EDOCVERSION) VALUES (?, ?, ?, ?)";
@@ -63,8 +65,8 @@ public class DpaSaveServlet extends HttpServlet {
     /** UPDATE DPAXML при обновлении существующей карты */
     private static final String SQL_UPDATE_DPAXML = "UPDATE SESINT.DPAXML SET DPAXMLBODY = ?, EDOCCODE = ?, EDOCVERSION = ? WHERE DPAID = ?";
 
-    /** Обновить MODIFICATIONDATETIME в DPA при обновлении XML */
-    private static final String SQL_UPDATE_DPA_MODIFIED = "UPDATE SESINT.DPA SET MODIFICATIONDATETIME = SYSDATE WHERE DPAID = ?";
+    /** Обновить MODIFICATIONDATETIME, ENDDATE, AUTHORITYID и производителя в DPA при обновлении XML (триггер TRDPAXMLARIUD требует MANUFBUSENTNAME NOT NULL в DPAMANUFBUSENTSEARCH) */
+    private static final String SQL_UPDATE_DPA_MODIFIED = "UPDATE SESINT.DPA SET MODIFICATIONDATETIME = SYSDATE, ENDDATE = ?, AUTHORITYID = ?, MANUFBUSENTNAME = ?, MANUFBUSENTBRIEFNAME = ? WHERE DPAID = ?";
     /** Текущий DPASTATUSID карты (для перехода в «Отредактировано» при сохранении из Новое/Отправка не удалась/Ошибка) */
     private static final String SQL_SELECT_DPASTATUSID = "SELECT DPASTATUSID FROM SESINT.DPA WHERE DPAID = ?";
     private static final int OUTGOING_NEW = 6, OUTGOING_FAILED = 9, OUTGOING_ERROR = 10, OUTGOING_EDITED = 12;
@@ -89,6 +91,8 @@ public class DpaSaveServlet extends HttpServlet {
         response.setHeader("Access-Control-Allow-Methods", "POST, OPTIONS");
         response.setHeader("Access-Control-Allow-Headers", "Content-Type");
 
+        // Обязательно UTF-8: иначе кириллица в xmlBody искажается при записи в CLOB (DPAXML)
+        request.setCharacterEncoding("UTF-8");
         String body = readBody(request);
         if (body == null || body.isEmpty()) {
             sendJsonError(response, HttpServletResponse.SC_BAD_REQUEST, "Тело запроса пусто");
@@ -131,6 +135,8 @@ public class DpaSaveServlet extends HttpServlet {
         if (edocVersion == null || edocVersion.isEmpty()) edocVersion = EDOCVERSION_DEFAULT;
 
         String manufCountryCode = extractJsonString(metaBlock, "manufCountryCode");
+        String endDate = extractJsonString(metaBlock, "endDate");
+        String authorityIdStr = extractJsonString(metaBlock, "authorityId");
 
         Connection conn = null;
         try {
@@ -170,20 +176,24 @@ public class DpaSaveServlet extends HttpServlet {
                 }
                 System.out.println("[DpaSaveServlet] Create: DPAID=" + dpaid + ", INCIDENTID=" + incId + ", DPASTATUSID(Черновик)=" + draftStatusId);
 
+                Integer authorityIdResolved = resolveAuthorityId(conn, authorityIdStr);
+
                 try (PreparedStatement ps = conn.prepareStatement(SQL_INSERT_DPA)) {
                     int i = 1;
                     ps.setLong(i++, dpaid);
                     ps.setString(i++, DATASOURCEKINDCODE_OUTGOING);
                     setIntOrNull(ps, i++, alertCountryId);
                     ps.setString(i++, incId);
+                    setIntOrNull(ps, i++, authorityIdResolved);
                     ps.setString(i++, incidentAlertKindCode != null ? incidentAlertKindCode : "");
                     setDateOrNull(ps, i++, docCreationDate);
                     setIntOrNull(ps, i++, draftStatusId);
                     ps.setString(i++, commodityCode != null ? commodityCode : "");
                     ps.setString(i++, sanitaryProdName != null ? sanitaryProdName : "");
                     setIntOrNull(ps, i++, manufCountryId);
-                    ps.setString(i++, manufBusEntName);
-                    ps.setString(i++, manufBusEntBriefName);
+                    ps.setString(i++, manufBusEntName != null ? manufBusEntName : "");
+                    ps.setString(i++, manufBusEntBriefName != null ? manufBusEntBriefName : "");
+                    setDateOrNull(ps, i++, endDate);
                     ps.setString(i++, sanitaryProdTypeName != null ? sanitaryProdTypeName : "");
                     ps.executeUpdate();
                 }
@@ -235,8 +245,13 @@ public class DpaSaveServlet extends HttpServlet {
                         return;
                     }
                 }
+                Integer authorityIdResolved = resolveAuthorityId(conn, authorityIdStr);
                 try (PreparedStatement ps = conn.prepareStatement(SQL_UPDATE_DPA_MODIFIED)) {
-                    ps.setLong(1, dpaid);
+                    setDateOrNull(ps, 1, endDate);
+                    setIntOrNull(ps, 2, authorityIdResolved);
+                    ps.setString(3, manufBusEntName != null ? manufBusEntName : "");
+                    ps.setString(4, manufBusEntBriefName != null ? manufBusEntBriefName : "");
+                    ps.setLong(5, dpaid);
                     ps.executeUpdate();
                 }
                 int currentStatusId = -1;
@@ -471,6 +486,22 @@ public class DpaSaveServlet extends HttpServlet {
             ps.setString(1, countryCode.toUpperCase());
             try (ResultSet rs = ps.executeQuery()) {
                 if (rs.next()) return rs.getInt("COUNTRYID");
+            }
+        }
+        return null;
+    }
+
+    /**
+     * Разрешает идентификатор УО из metadata (UID из справочника) в AUTHORITYID для DPA.
+     * Ищет только по AUTHORITYUID в SESINT.AUTHORITY, чтобы не нарушать DPA_FK7 (parent key must exist).
+     */
+    private Integer resolveAuthorityId(Connection conn, String authorityIdStr) throws SQLException {
+        if (authorityIdStr == null || authorityIdStr.trim().isEmpty()) return null;
+        String trimmed = authorityIdStr.trim();
+        try (PreparedStatement ps = conn.prepareStatement(SQL_AUTHORITY_ID_BY_UID)) {
+            ps.setString(1, trimmed);
+            try (ResultSet rs = ps.executeQuery()) {
+                if (rs.next()) return rs.getInt("AUTHORITYID");
             }
         }
         return null;

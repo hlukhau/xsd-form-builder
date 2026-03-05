@@ -24,10 +24,13 @@ public class DpaMetadataServlet extends HttpServlet {
 
     private static final String SQL = ""
             + "SELECT vw.INCIDENTID, vw.ALERTCOUNTRYNAME, vw.ALERTCOUNTRYID, vw.DPAVERSION, vw.DATASOURCEKINDCODE, t1.DATASOURCEKINDNAME, "
-            + "       vw.CREATIONDATETIME, vw.MODIFICATIONDATETIME, vw.DPASTATUSID, vw.DPASTATUSNAME, c.COUNTRYCODE AS ALERTCOUNTRYCODE "
+            + "       vw.CREATIONDATETIME, vw.MODIFICATIONDATETIME, vw.DPASTATUSID, vw.DPASTATUSNAME, c.COUNTRYCODE AS ALERTCOUNTRYCODE, "
+            + "       a.AUTHORITYUID AS AUTHORITY_UID, a.AUTHORITYNAME AS AUTHORITY_NAME, a.AUTHORITYBRIEFNAME AS AUTHORITY_BRIEFNAME, a.COUNTRYCODE AS AUTHORITY_COUNTRYCODE "
             + "FROM VW_DPA vw "
             + "LEFT JOIN DATASOURCEKIND t1 ON vw.DATASOURCEKINDCODE = t1.DATASOURCEKINDCODE "
             + "LEFT JOIN SESINT.COUNTRY c ON vw.ALERTCOUNTRYID = c.COUNTRYID AND c.COUNTRYSDATE <= SYSDATE AND c.COUNTRYEDATE >= SYSDATE "
+            + "LEFT JOIN SESINT.DPA d ON d.DPAID = vw.DPAID "
+            + "LEFT JOIN SESINT.AUTHORITY a ON a.AUTHORITYID = d.AUTHORITYID "
             + "WHERE vw.DPAID = ?";
 
     @Override
@@ -85,6 +88,10 @@ public class DpaMetadataServlet extends HttpServlet {
             String modificationDateTime = formatTimestamp(rs, "MODIFICATIONDATETIME");
             Integer dpaStatusId = getInt(rs, "DPASTATUSID");
             String dpaStatusName = getString(rs, "DPASTATUSNAME");
+            String authorityUid = getString(rs, "AUTHORITY_UID");
+            String authorityName = getString(rs, "AUTHORITY_NAME");
+            String authorityBriefName = getString(rs, "AUTHORITY_BRIEFNAME");
+            String authorityCountryCode = getString(rs, "AUTHORITY_COUNTRYCODE");
 
             StringBuilder json = new StringBuilder();
             json.append("{");
@@ -98,6 +105,10 @@ public class DpaMetadataServlet extends HttpServlet {
             json.append(",\"modificationDateTime\":").append(quote(modificationDateTime));
             json.append(",\"dpaStatusId\":").append(dpaStatusId != null ? dpaStatusId : "null");
             json.append(",\"dpaStatusName\":").append(quote(dpaStatusName));
+            json.append(",\"authorityUid\":").append(quote(authorityUid));
+            json.append(",\"authorityName\":").append(quote(authorityName));
+            json.append(",\"authorityBriefName\":").append(quote(authorityBriefName));
+            json.append(",\"authorityCountryCode\":").append(quote(authorityCountryCode));
             json.append("}");
 
             response.setStatus(HttpServletResponse.SC_OK);

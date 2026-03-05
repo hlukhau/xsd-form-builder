@@ -87,6 +87,10 @@ export interface DpaSaveMetadata {
   manufBusEntBriefName?: string | null
   edocCode?: string | null
   edocVersion?: string | null
+  /** Дата закрытия (архивации) — сохраняется в DPA.ENDDATE и в XML csdo:EndDate */
+  endDate?: string | null
+  /** Идентификатор УО (UID из справочника или числовой AUTHORITYID) — сохраняется в DPA.AUTHORITYID */
+  authorityId?: string | null
 }
 
 /** Ответ успешного сохранения новой карты */
@@ -124,7 +128,7 @@ export async function saveDpaCard(payload: {
   const url = `${BASE_URL}api/dpa/save`
   const response = await fetch(url, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: { 'Content-Type': 'application/json; charset=UTF-8' },
     body: JSON.stringify(body),
   })
   const text = await response.text()
@@ -209,6 +213,8 @@ export function buildSaveMetadataFromCardData(data: CardData): DpaSaveMetadata {
   const manufBusEntBriefName = manufacturer?.shortName ?? undefined
   const edocCode = data.electronicDocument?.documentCode ?? undefined
   const edocVersion = '1.0.0'
+  const endDate = notification?.endDate ?? undefined
+  const authorityId = notification?.authorizedBody?.identifier ?? undefined
   return {
     incidentId: incidentId || null,
     countryCode: countryCode || null,
@@ -222,6 +228,8 @@ export function buildSaveMetadataFromCardData(data: CardData): DpaSaveMetadata {
     manufBusEntBriefName: manufBusEntBriefName || null,
     edocCode: edocCode || null,
     edocVersion: edocVersion || null,
+    endDate: endDate || null,
+    authorityId: authorityId || null,
   }
 }
 
@@ -265,7 +273,7 @@ export async function fetchDpaXml(dpaid: string): Promise<string> {
   return response.text()
 }
 
-/** Метаданные шапки карты из VW_DPA (GET /api/dpa/metadata/{DPAID}) */
+/** Метаданные шапки карты из VW_DPA (GET /api/dpa/metadata/{DPAID}). УО — из БД (DPA.AUTHORITYID → SESINT.AUTHORITY). */
 export interface DpaMetadata {
   incidentId: string | null
   /** Код страны из справочника COUNTRY (BY, RU, ...) */
@@ -279,6 +287,11 @@ export interface DpaMetadata {
   modificationDateTime: string | null
   dpaStatusId: number | null
   dpaStatusName: string | null
+  /** Уполномоченный орган (Уведомление): из БД AUTHORITY */
+  authorityUid: string | null
+  authorityName: string | null
+  authorityBriefName: string | null
+  authorityCountryCode: string | null
 }
 
 export async function fetchDpaMetadata(dpaid: string): Promise<DpaMetadata> {
@@ -468,10 +481,24 @@ export async function getIncidentAlertKindNameByCode(code: string): Promise<stri
   }
 }
 
-/** JSON прав по GUID (для department.depid — ЦГЭ создателя карты при «Определить доступ»). GET /api/rights?guid= */
+/** JSON прав по GUID (для department.depid, dangerousProductOut.create и др.). GET /api/rights?guid= */
 export interface RightsJson {
   department?: { depid?: number }
+  /** Ключи create — AUTHORITYID УО, по которым разрешено создание исходящих сведений */
+  up?: {
+    dangerousProductOut?: {
+      create?: Record<string, unknown>
+    }
+  }
 }
+
+/** Извлечь список AUTHORITYID из up.dangerousProductOut.create (ключи объекта) для фильтра списка УО */
+export function getCreateAuthorityIdsFromRights(rights: RightsJson | null | undefined): string[] {
+  const create = rights?.up?.dangerousProductOut?.create
+  if (!create || typeof create !== 'object') return []
+  return Object.keys(create).filter((k) => k != null && String(k).trim() !== '')
+}
+
 export async function fetchRightsByGuid(guid: string): Promise<RightsJson> {
   const response = await fetch(`${BASE_URL}api/rights?guid=${encodeURIComponent(guid)}`)
   if (!response.ok) {
@@ -612,7 +639,7 @@ export async function checkAccessRight(id: string | null, right: string): Promis
   return data.allowed === true
 }
 
-/** Смена статуса карты. Входящие: complete_processing, close. Исходящие: mark_ready (передайте depKindCode), send, close. guid — для USERID и depKindCode из карты прав. POST /api/dpa/status */
+/** Смена статуса карты. Входящие: complete_processing, close. Исходящие: mark_ready (передайте depKindCode), send, close. guid — для USERID и depKindCode из карты прав. Дата закрытия (DPA.ENDDATE) записывается при сохранении карты, не при закрытии. POST /api/dpa/status */
 export async function changeDpaStatus(
   dpaid: string,
   action: string,
@@ -666,13 +693,21 @@ export async function fetchDepOptions(): Promise<DepOption[]> {
 /**
  * Получить опции для выпадающего списка уполномоченных органов
  * @param countryCode - код страны для фильтрации (опционально)
- * @param forOutgoingCreation - если true, только УО в пределах ЦГЭ пользователя с правом создания исходящих сведений
+ * @param forOutgoingCreation - если true, передаём authorityIds (только УО из карты прав create)
+ * @param authorityIds - список AUTHORITYID из dangerousProductOut.create; при указании возвращаются только эти УО
  */
-export async function getAuthorityOptions(countryCode?: string, forOutgoingCreation?: boolean): Promise<AuthorityOption[]> {
+export async function getAuthorityOptions(
+  countryCode?: string,
+  forOutgoingCreation?: boolean,
+  authorityIds?: string[]
+): Promise<AuthorityOption[]> {
   try {
     const params = new URLSearchParams()
     if (countryCode) params.set('countryCode', countryCode)
     if (forOutgoingCreation) params.set('forOutgoingCreation', '1')
+    if (forOutgoingCreation && authorityIds != null) {
+      params.set('authorityIds', authorityIds.join(','))
+    }
     const qs = params.toString()
     const url = qs ? `${BASE_URL}api/authorities/options?${qs}` : `${BASE_URL}api/authorities/options`
     const response = await fetch(url)
@@ -788,6 +823,30 @@ export interface ConformityDocKindOption {
   code: string   // CONFDOCKINDCODE
   name: string  // CONFDOCKINDNAME
   briefName?: string // CONFDOCKINDBRIEFNAME
+}
+
+/**
+ * Опция справочника видов документов, удостоверяющих личность (SESINT.IDENTITYDOCKIND, codeListId=2053)
+ */
+export interface IdentityDocKindOption {
+  code: string
+  name: string
+}
+
+/**
+ * Получить опции справочника видов документов, удостоверяющих личность (codeListId=2053)
+ */
+export async function getIdentityDocKindOptions(): Promise<IdentityDocKindOption[]> {
+  try {
+    const response = await fetch(`${BASE_URL}api/identity-doc-kinds/options`)
+    if (!response.ok) {
+      throw new Error(`Ошибка загрузки опций видов документов, удостоверяющих личность: ${response.statusText}`)
+    }
+    return await response.json()
+  } catch (error) {
+    console.error('Ошибка загрузки справочника видов документов, удостоверяющих личность:', error)
+    throw error
+  }
 }
 
 /**

@@ -43,7 +43,7 @@ public class DpaStatusChangeServlet extends HttpServlet {
             + "WHERE vw.DPAID = ?";
     /** DPASTATUSID по названию статуса */
     private static final String SQL_STATUS_ID = "SELECT DPASTATUSID FROM SESINT.DPASTATUS WHERE TRIM(DPASTATUSNAME) = ?";
-    private static final String SQL_UPDATE = "UPDATE SESINT.DPA SET DPASTATUSID = ? WHERE DPAID = ?";
+    private static final String SQL_UPDATE = "UPDATE SESINT.DPA SET DPASTATUSID = ?, MODIFICATIONDATETIME = SYSDATE WHERE DPAID = ?";
     private static final String SQL_INSERT_HIST = ""
             + "INSERT INTO SESINT.DPASTATUSHIST (DPAID, DPASTATUSID, DPASTATUSDATETIME, USERID) VALUES (?, ?, SYSDATE, ?)";
     /** DEPKINDID по DEPKINDCODE (SESDEV.TB_DEPKIND) */
@@ -66,6 +66,7 @@ public class DpaStatusChangeServlet extends HttpServlet {
         response.setCharacterEncoding("UTF-8");
         response.setHeader("Access-Control-Allow-Origin", "*");
 
+        request.setCharacterEncoding("UTF-8");
         String body = readBody(request);
         String dpaid = extractJsonString(body, "dpaid");
         String action = extractJsonString(body, "action");

@@ -9,7 +9,13 @@ import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
 import java.io.IOException;
 import java.io.PrintWriter;
+import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 /**
  * Сервлет для получения списка уполномоченных органов (AUTHORITY) для выпадающего списка
@@ -30,7 +36,8 @@ public class AuthorityOptionsServlet extends HttpServlet {
             throws ServletException, IOException {
         
         String countryCode = request.getParameter("countryCode");
-        System.out.println("[AuthorityOptionsServlet] Loading authorities from cache, countryCode: " + countryCode);
+        String authorityIdsParam = request.getParameter("authorityIds");
+        System.out.println("[AuthorityOptionsServlet] Loading authorities from cache, countryCode: " + countryCode + ", authorityIds: " + authorityIdsParam);
         
         response.setContentType("application/json;charset=UTF-8");
         response.setCharacterEncoding("UTF-8");
@@ -57,6 +64,26 @@ public class AuthorityOptionsServlet extends HttpServlet {
                 return;
             }
             
+            // Разрешённые AUTHORITYID из карты прав (dangerousProductOut.create) — только эти УО показывать в списке
+            Set<Integer> allowedAuthorityIds = null;
+            if (authorityIdsParam != null) {
+                String trimmed = authorityIdsParam.trim();
+                if (trimmed.isEmpty()) {
+                    allowedAuthorityIds = Collections.emptySet();
+                    System.out.println("[AuthorityOptionsServlet] Filter by create rights, allowedAuthorityIds: (empty)");
+                } else {
+                    allowedAuthorityIds = Arrays.stream(trimmed.split(","))
+                        .map(String::trim)
+                        .filter(s -> !s.isEmpty())
+                        .map(s -> {
+                            try { return Integer.valueOf(s); } catch (NumberFormatException e) { return null; }
+                        })
+                        .filter(id -> id != null)
+                        .collect(Collectors.toSet());
+                    System.out.println("[AuthorityOptionsServlet] Filter by create rights, allowedAuthorityIds: " + allowedAuthorityIds);
+                }
+            }
+            
             // Получаем данные из кеша
             List<AuthorityOption> authorities;
             
@@ -68,7 +95,7 @@ public class AuthorityOptionsServlet extends HttpServlet {
                 System.out.println("[AuthorityOptionsServlet] Filtering by countryCode: " + normalizedCountryCode + ", found: " + authorities.size());
             } else {
                 // Возвращаем все органы (из всех стран)
-                authorities = allAuthorities;
+                authorities = new ArrayList<>(allAuthorities);
                 // Сортируем по стране и названию
                 authorities.sort((a1, a2) -> {
                     int countryCompare = (a1.countryCode != null ? a1.countryCode : "").compareTo(a2.countryCode != null ? a2.countryCode : "");
@@ -76,6 +103,19 @@ public class AuthorityOptionsServlet extends HttpServlet {
                     return (a1.name != null ? a1.name : "").compareTo(a2.name != null ? a2.name : "");
                 });
                 System.out.println("[AuthorityOptionsServlet] Returning all authorities: " + authorities.size());
+            }
+            
+            // Ограничение по карте прав create: только УО с AUTHORITYID из списка
+            final Set<Integer> allowedIds = allowedAuthorityIds;
+            if (allowedIds != null) {
+                if (allowedIds.isEmpty()) {
+                    authorities = Collections.emptyList();
+                } else {
+                    authorities = authorities.stream()
+                        .filter(a -> a.authorityId != null && allowedIds.contains(a.authorityId))
+                        .collect(Collectors.toList());
+                }
+                System.out.println("[AuthorityOptionsServlet] After filter by create: " + authorities.size());
             }
             
             out.print("[");
@@ -90,8 +130,8 @@ public class AuthorityOptionsServlet extends HttpServlet {
                 count++;
                 
                 String uid = authority.uid != null ? authority.uid : "";
-                String name = authority.name != null ? authority.name : "";
-                String briefName = authority.briefName != null ? authority.briefName : "";
+                String name = fixUtf8MojibakeIfNeeded(authority.name != null ? authority.name : "");
+                String briefName = fixUtf8MojibakeIfNeeded(authority.briefName != null ? authority.briefName : "");
                 String code = authority.countryCode != null ? authority.countryCode : "";
                 
                 // Экранируем кавычки
@@ -140,6 +180,30 @@ public class AuthorityOptionsServlet extends HttpServlet {
             if (out != null) {
                 out.close();
             }
+        }
+    }
+
+    /**
+     * Исправляет искажение «UTF-8 прочитан как Latin-1» (например из Oracle) только если строка похожа на битую:
+     * содержит типичные байты (Ð 0xD0, Ñ 0xD1) и при этом не содержит кириллицы. Корректные строки не трогаем.
+     */
+    private static String fixUtf8MojibakeIfNeeded(String s) {
+        if (s == null || s.isEmpty()) return s;
+        boolean hasMojibakeBytes = false;
+        boolean hasCyrillic = false;
+        for (int i = 0; i < s.length(); i++) {
+            char c = s.charAt(i);
+            if (c >= 0x0400 && c <= 0x04FF) hasCyrillic = true;
+            if (c == 0xD0 || c == 0xD1) hasMojibakeBytes = true;
+        }
+        if (!hasMojibakeBytes || hasCyrillic) return s;
+        try {
+            byte[] asLatin1 = s.getBytes(StandardCharsets.ISO_8859_1);
+            String decoded = new String(asLatin1, StandardCharsets.UTF_8);
+            if (decoded.contains("\uFFFD")) return s;
+            return decoded;
+        } catch (Exception e) {
+            return s;
         }
     }
 }

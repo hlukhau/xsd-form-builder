@@ -302,6 +302,7 @@ export interface BusinessEntityDetails {
   businessEntityTypeName?: string // BusinessEntityTypeName
   businessEntityId?: string // BusinessEntityId
   identificationMethod?: string // из атрибута kindId
+  customsNumber?: string // CustomsNumber (таможенный номер)
   taxpayerId?: string // TaxpayerId
   addresses?: AddressDetails[] // SubjectAddressDetails (может быть несколько)
   contacts?: ContactDetails[] // CommunicationDetails

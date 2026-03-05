@@ -2,12 +2,12 @@ import { useState } from 'react'
 import { Form, Input, Button, Table, Space, DatePicker, Collapse, Select, Upload, message } from 'antd'
 import { PlusOutlined, DeleteOutlined, UploadOutlined } from '@ant-design/icons'
 import dayjs from 'dayjs'
-import ManufacturerDetailsEdit from '../common/ManufacturerDetailsEdit'
 import { useCountryOptions } from '@/hooks/useCountryOptions'
 import { useSanitaryMeasureObjKindOptions } from '@/hooks/useSanitaryMeasureObjKindOptions'
 import { useSanitaryMeasureOptions } from '@/hooks/useSanitaryMeasureOptions'
 import { useLanguageOptions } from '@/hooks/useLanguageOptions'
 import { useMediaTypeOptions } from '@/hooks/useMediaTypeOptions'
+import { useIdentityDocKindOptions } from '@/hooks/useIdentityDocKindOptions'
 import CountrySelect from '@/components/common/CountrySelect'
 import { labelWithHelp } from '@/components/common/FieldHelp'
 import { FIELD_HELP } from '@/constants/fieldDescriptions'
@@ -35,7 +35,6 @@ interface MeasuresTabEditProps {
 
 const MeasuresTabEdit: React.FC<MeasuresTabEditProps> = ({ data, onChange }) => {
   const [selectedMeasureIndex, setSelectedMeasureIndex] = useState<number | null>(null)
-  const [selectedImplementationIndex, setSelectedImplementationIndex] = useState<number | null>(null)
   const { countryOptions, loading: loadingCountries, normalizeCountryCode } = useCountryOptions()
   const { getSelectOptions: getSanitaryMeasureObjKindSelectOptions, getNameByCode: getSanitaryMeasureObjKindNameByCode } = useSanitaryMeasureObjKindOptions()
   const { getSelectOptions: getSanitaryMeasureSelectOptions, loading: loadingSanitaryMeasures } = useSanitaryMeasureOptions()
@@ -728,99 +727,39 @@ const MeasuresTabEdit: React.FC<MeasuresTabEditProps> = ({ data, onChange }) => 
                 label: labelWithHelp('Сведения о мероприятии, обеспечивающем соблюдение меры', FIELD_HELP.measureImplementation),
                 children: (
                   <div>
-                    <Table
-                      dataSource={selectedMeasure.measureImplementationDetails || []}
-                      columns={[
-                        {
-                          title: labelWithHelp('Код страны', FIELD_HELP.executorCountry),
-                          key: 'country',
-                          render: (_: any, record: MeasureImplementationItem, implIndex: number) => (
-                            <Input
-                              value={record.country}
-                              onChange={(e) => handleImplementationChange(selectedMeasureIndex, implIndex, 'country', e.target.value)}
-                            />
-                          ),
-                        },
-                        {
-                          title: labelWithHelp('Начальная дата', FIELD_HELP.measureStartDate),
-                          key: 'startDate',
-                          render: (_: any, record: MeasureImplementationItem, implIndex: number) => (
-                            <DatePicker
-                              value={record.startDate ? dayjs(record.startDate) : null}
-                              onChange={(date) => handleImplementationChange(selectedMeasureIndex, implIndex, 'startDate', date ? date.format('YYYY-MM-DD') : '')}
-                              style={{ width: '100%' }}
-                            />
-                          ),
-                        },
-                        {
-                          title: labelWithHelp('Конечная дата', FIELD_HELP.measureEndDate),
-                          key: 'endDate',
-                          render: (_: any, record: MeasureImplementationItem, implIndex: number) => (
-                            <DatePicker
-                              value={record.endDate ? dayjs(record.endDate) : null}
-                              onChange={(date) => handleImplementationChange(selectedMeasureIndex, implIndex, 'endDate', date ? date.format('YYYY-MM-DD') : '')}
-                              style={{ width: '100%' }}
-                            />
-                          ),
-                        },
-                        {
-                          title: 'Описание',
-                          key: 'description',
-                          render: (_: any, record: MeasureImplementationItem, implIndex: number) => (
-                            <Input.TextArea
-                              rows={2}
-                              value={record.description}
-                              onChange={(e) => handleImplementationChange(selectedMeasureIndex, implIndex, 'description', e.target.value)}
-                            />
-                          ),
-                        },
-                        {
-                          title: labelWithHelp('Вид объекта действия', FIELD_HELP.measureAffectedObjectKind),
-                          key: 'measureAffectedObjectKindCode',
-                          width: 200,
-                          render: (_: any, record: MeasureImplementationItem, implIndex: number) => {
-                            const hasError = record.measureAffectedObjectKindCode && !getSanitaryMeasureObjKindNameByCode(record.measureAffectedObjectKindCode)
-                            return (
-                              <Select
-                                value={record.measureAffectedObjectKindCode}
-                                onChange={(value) => handleImplementationChange(selectedMeasureIndex, implIndex, 'measureAffectedObjectKindCode', value)}
-                                options={getSanitaryMeasureObjKindSelectOptions()}
-                                placeholder="Выберите вид объекта действия"
-                                style={{ width: '100%', borderColor: hasError ? '#ff4d4f' : undefined }}
-                                showSearch
-                                filterOption={(input, option) =>
-                                  (option?.label ?? '').toLowerCase().includes(input.toLowerCase())
-                                }
-                              />
-                            )
-                          },
-                        },
-                        {
-                          title: 'Действия',
-                          key: 'actions',
-                          render: (_: any, record: MeasureImplementationItem, implIndex: number) => (
-                            <Space>
-                              <Button
-                                type="link"
-                                onClick={() => setSelectedImplementationIndex(selectedImplementationIndex === implIndex ? null : implIndex)}
-                              >
-                                {selectedImplementationIndex === implIndex ? 'Скрыть детали' : 'Детализация'}
-                              </Button>
-                              <Button
-                                type="link"
-                                danger
-                                icon={<DeleteOutlined />}
-                                onClick={() => handleRemoveImplementation(selectedMeasureIndex, implIndex)}
-                              >
-                                Удалить
-                              </Button>
-                            </Space>
-                          ),
-                        },
-                      ]}
-                      rowKey={(record, index) => `impl-${index}`}
-                      pagination={false}
-                      size="small"
+                    <Collapse
+                      accordion={false}
+                      items={(selectedMeasure.measureImplementationDetails || []).map((item, implIndex) => ({
+                        key: String(implIndex),
+                        label: `Сведения об исполнителе — ${implIndex + 1}`,
+                        extra: (
+                          <Button
+                            type="link"
+                            danger
+                            size="small"
+                            icon={<DeleteOutlined />}
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              handleRemoveImplementation(selectedMeasureIndex, implIndex)
+                            }}
+                          >
+                            Удалить
+                          </Button>
+                        ),
+                        children: (
+                          <MeasureImplementationDetailsEdit
+                            measureIndex={selectedMeasureIndex}
+                            implIndex={implIndex}
+                            item={item}
+                            onChange={(field, value) => handleImplementationChange(selectedMeasureIndex, implIndex, field, value)}
+                            countryOptions={countryOptions}
+                            loadingCountries={loadingCountries}
+                            normalizeCountryCode={normalizeCountryCode}
+                            getSanitaryMeasureObjKindSelectOptions={getSanitaryMeasureObjKindSelectOptions}
+                            getSanitaryMeasureObjKindNameByCode={getSanitaryMeasureObjKindNameByCode}
+                          />
+                        ),
+                      }))}
                     />
                     <Button
                       type="dashed"
@@ -830,21 +769,6 @@ const MeasuresTabEdit: React.FC<MeasuresTabEditProps> = ({ data, onChange }) => 
                     >
                       Добавить мероприятие
                     </Button>
-
-                    {/* Детализация мероприятия */}
-                    {selectedImplementationIndex !== null && selectedMeasure.measureImplementationDetails && selectedMeasure.measureImplementationDetails[selectedImplementationIndex] && (
-                      <MeasureImplementationDetailsEdit
-                        measureIndex={selectedMeasureIndex}
-                        implIndex={selectedImplementationIndex}
-                        item={selectedMeasure.measureImplementationDetails[selectedImplementationIndex]}
-                        onChange={(field, value) => handleImplementationChange(selectedMeasureIndex, selectedImplementationIndex, field, value)}
-                        countryOptions={countryOptions}
-                        loadingCountries={loadingCountries}
-                        normalizeCountryCode={normalizeCountryCode}
-                        getSanitaryMeasureObjKindSelectOptions={getSanitaryMeasureObjKindSelectOptions}
-                        getSanitaryMeasureObjKindNameByCode={getSanitaryMeasureObjKindNameByCode}
-                      />
-                    )}
                   </div>
                 ),
               },
@@ -975,24 +899,16 @@ const MeasureImplementationDetailsEdit: React.FC<{
           },
           {
             key: 'subject',
-            label: item.subjectDetails?.businessEntity ? 'Субъект-исполнитель (юрлицо ИП)' : 'Субъект-исполнитель (физлицо)',
+            label: 'Субъект-исполнитель',
             children: item.subjectDetails ? (
               <div>
-                {item.subjectDetails.businessEntity ? (
-                  <ManufacturerDetailsEdit
-                    data={item.subjectDetails.businessEntity as any}
-                    onChange={(entity) => onChange('subjectDetails', { ...item.subjectDetails, businessEntity: entity })}
-                    title="Субъект-исполнитель (юрлицо ИП)"
-                  />
-                ) : (
-                  <SubjectPersonEdit
-                    subject={item.subjectDetails}
-                    onChange={(subject) => onChange('subjectDetails', subject)}
-                    countryOptions={countryOptions}
-                    loadingCountries={loadingCountries}
-                    normalizeCountryCode={normalizeCountryCode}
-                  />
-                )}
+                <SubjectDetailsUnifiedEdit
+                  subject={item.subjectDetails}
+                  onChange={(subject) => onChange('subjectDetails', subject)}
+                  countryOptions={countryOptions}
+                  loadingCountries={loadingCountries}
+                  normalizeCountryCode={normalizeCountryCode}
+                />
                 <Button
                   type="link"
                   danger
@@ -1004,24 +920,14 @@ const MeasureImplementationDetailsEdit: React.FC<{
                 </Button>
               </div>
             ) : (
-              <div>
-                <Button
-                  type="dashed"
-                  icon={<PlusOutlined />}
-                  onClick={() => onChange('subjectDetails', { businessEntity: {} })}
-                  style={{ width: '100%', marginBottom: '8px' }}
-                >
-                  Добавить субъект-исполнитель (юрлицо ИП)
-                </Button>
-                <Button
-                  type="dashed"
-                  icon={<PlusOutlined />}
-                  onClick={() => onChange('subjectDetails', {})}
-                  style={{ width: '100%' }}
-                >
-                  Добавить субъект-исполнитель (физлицо)
-                </Button>
-              </div>
+              <Button
+                type="dashed"
+                icon={<PlusOutlined />}
+                onClick={() => onChange('subjectDetails', {})}
+                style={{ width: '100%' }}
+              >
+                Добавить субъект-исполнитель
+              </Button>
             ),
           },
           {
@@ -1130,93 +1036,184 @@ const MeasureImplementationDetailsEdit: React.FC<{
   )
 }
 
-// Компонент для редактирования физлица
-const SubjectPersonEdit: React.FC<{
+// Единая форма редактирования субъекта-исполнителя (без разделения на юрлицо/физлицо), порядок полей по ТЗ
+const SubjectDetailsUnifiedEdit: React.FC<{
   subject: SubjectDetails
   onChange: (subject: SubjectDetails) => void
   countryOptions: CountryOption[]
   loadingCountries: boolean
   normalizeCountryCode: (country: string | undefined) => string | undefined
 }> = ({ subject, onChange, countryOptions, loadingCountries, normalizeCountryCode }) => {
+  const { getSelectOptions: getIdentityDocKindSelectOptions, getNameByCode: getIdentityDocKindNameByCode, loading: loadingIdentityDocKinds } = useIdentityDocKindOptions()
+  const be = subject.businessEntity
+  const ensureBe = () => subject.businessEntity ?? {}
+
+  const upd = (patch: Partial<SubjectDetails>, bePatch?: Partial<BusinessEntityDetails>) => {
+    const nextBe = bePatch !== undefined ? { ...ensureBe(), ...bePatch } : subject.businessEntity
+    onChange({ ...subject, ...patch, ...(nextBe && Object.keys(nextBe).length > 0 ? { businessEntity: nextBe } : {}) })
+  }
+
+  const country = subject.country ?? be?.country
+  const subjectName = subject.subjectName ?? be?.businessEntityName
+  const briefName = be?.businessEntityBriefName
+  const orgForm = be?.businessEntityTypeName
+  const subjectId = be?.businessEntityId
+  const identificationMethod = be?.identificationMethod
+  const customsNumber = be?.customsNumber
+  const taxpayerId = be?.taxpayerId
+
   return (
     <Form layout="vertical">
-      <Form.Item label={labelWithHelp('Страна', FIELD_HELP.executorCountry)}>
-        <Input
-          value={subject.country}
-          onChange={(e) => onChange({ ...subject, country: e.target.value })}
+      <Form.Item label="Страна">
+        <CountrySelect
+          value={country}
+          onChange={(value) => {
+            const v = value || ''
+            upd({ country: v }, { country: v })
+          }}
+          loading={loadingCountries}
+          countryOptions={countryOptions}
+          normalizeCountryCode={normalizeCountryCode}
         />
       </Form.Item>
-      <Form.Item label="ФИО">
+      <Form.Item label="Наименование субъекта">
         <Input
-          value={subject.subjectName}
-          onChange={(e) => onChange({ ...subject, subjectName: e.target.value })}
+          value={subjectName}
+          onChange={(e) => {
+            const v = e.target.value
+            upd({ subjectName: v }, { businessEntityName: v })
+          }}
         />
       </Form.Item>
-      {subject.identityDoc && (
-        <div style={{ marginTop: '16px', padding: '12px', border: '1px solid #d9d9d9', borderRadius: '4px' }}>
-          <h5>{labelWithHelp('Удостоверение личности', FIELD_HELP.identityDoc)}</h5>
+      <Form.Item label="Краткое наименование">
+        <Input
+          value={briefName}
+          onChange={(e) => upd({}, { businessEntityBriefName: e.target.value })}
+        />
+      </Form.Item>
+      <Form.Item label="Организационно-правовая форма">
+        <Input
+          value={orgForm}
+          onChange={(e) => upd({}, { businessEntityTypeName: e.target.value })}
+        />
+      </Form.Item>
+      <Form.Item label="Идентификатор субъекта">
+        <Input
+          value={subjectId}
+          onChange={(e) => upd({}, { businessEntityId: e.target.value })}
+        />
+      </Form.Item>
+      <Form.Item label="Метод идентификации">
+        <Input
+          value={identificationMethod}
+          onChange={(e) => upd({}, { identificationMethod: e.target.value })}
+        />
+      </Form.Item>
+      <Form.Item label="Таможенный номер">
+        <Input
+          value={customsNumber}
+          onChange={(e) => upd({}, { customsNumber: e.target.value })}
+        />
+      </Form.Item>
+      <Form.Item label="Идентификатор налогоплательщика">
+        <Input
+          value={taxpayerId}
+          onChange={(e) => upd({}, { taxpayerId: e.target.value })}
+        />
+      </Form.Item>
+      {/* Удостоверение личности */}
+      {subject.identityDoc ? (
+        <div style={{ marginTop: 16, padding: 12, border: '1px solid #d9d9d9', borderRadius: 4 }}>
+          <h5>Удостоверение личности</h5>
           <Form layout="vertical">
-            <Form.Item label={labelWithHelp('Страна', FIELD_HELP.executorCountry)}>
+            <Form.Item label="Страна">
               <CountrySelect
                 value={subject.identityDoc.country}
-                onChange={(value) => onChange({ ...subject, identityDoc: { ...subject.identityDoc, country: value || '' } })}
+                onChange={(value) => onChange({ ...subject, identityDoc: { ...subject.identityDoc!, country: value || '' } })}
                 loading={loadingCountries}
                 countryOptions={countryOptions}
                 normalizeCountryCode={normalizeCountryCode}
               />
             </Form.Item>
             <Form.Item label="Вид документа">
-              <Input
-                value={subject.identityDoc.docKindName}
-                onChange={(e) => onChange({ ...subject, identityDoc: { ...subject.identityDoc, docKindName: e.target.value } })}
+              <Select
+                allowClear
+                placeholder="Выберите из справочника"
+                loading={loadingIdentityDocKinds}
+                options={getIdentityDocKindSelectOptions()}
+                value={subject.identityDoc.docKindCodeListId === '2053' ? subject.identityDoc.docKindCode : undefined}
+                onChange={(code) => {
+                  onChange({
+                    ...subject,
+                    identityDoc: {
+                      ...subject.identityDoc!,
+                      docKindCode: code ?? undefined,
+                      docKindCodeListId: code ? '2053' : undefined,
+                      docKindName: code ? (getIdentityDocKindNameByCode(code) ?? undefined) : undefined,
+                    },
+                  })
+                }}
+                style={{ width: '100%' }}
               />
             </Form.Item>
             <Form.Item label="Серия">
               <Input
                 value={subject.identityDoc.docSeriesId}
-                onChange={(e) => onChange({ ...subject, identityDoc: { ...subject.identityDoc, docSeriesId: e.target.value } })}
+                onChange={(e) => onChange({ ...subject, identityDoc: { ...subject.identityDoc!, docSeriesId: e.target.value } })}
               />
             </Form.Item>
-            <Form.Item label={labelWithHelp('Номер', FIELD_HELP.implDocId)}>
+            <Form.Item label="Номер">
               <Input
                 value={subject.identityDoc.docId}
-                onChange={(e) => onChange({ ...subject, identityDoc: { ...subject.identityDoc, docId: e.target.value } })}
+                onChange={(e) => onChange({ ...subject, identityDoc: { ...subject.identityDoc!, docId: e.target.value } })}
               />
             </Form.Item>
             <Form.Item label="Дата">
               <DatePicker
                 value={subject.identityDoc.docCreationDate ? dayjs(subject.identityDoc.docCreationDate) : null}
-                onChange={(date) => onChange({ ...subject, identityDoc: { ...subject.identityDoc, docCreationDate: date ? date.format('YYYY-MM-DD') : undefined } })}
+                onChange={(date) => onChange({ ...subject, identityDoc: { ...subject.identityDoc!, docCreationDate: date ? date.format('YYYY-MM-DD') : undefined } })}
                 style={{ width: '100%' }}
               />
             </Form.Item>
             <Form.Item label="Срок действия">
               <DatePicker
                 value={subject.identityDoc.docValidityDate ? dayjs(subject.identityDoc.docValidityDate) : null}
-                onChange={(date) => onChange({ ...subject, identityDoc: { ...subject.identityDoc, docValidityDate: date ? date.format('YYYY-MM-DD') : undefined } })}
+                onChange={(date) => onChange({ ...subject, identityDoc: { ...subject.identityDoc!, docValidityDate: date ? date.format('YYYY-MM-DD') : undefined } })}
                 style={{ width: '100%' }}
               />
             </Form.Item>
-            <Button
-              type="link"
-              danger
-              icon={<DeleteOutlined />}
-              onClick={() => onChange({ ...subject, identityDoc: undefined })}
-            >
+            <Form.Item label="Уполномоченный орган. Идентификатор">
+              <Input
+                value={subject.identityDoc.authorityId}
+                onChange={(e) => onChange({ ...subject, identityDoc: { ...subject.identityDoc!, authorityId: e.target.value } })}
+              />
+            </Form.Item>
+            <Form.Item label="Уполномоченный орган. Наименование">
+              <Input
+                value={subject.identityDoc.authorityName}
+                onChange={(e) => onChange({ ...subject, identityDoc: { ...subject.identityDoc!, authorityName: e.target.value } })}
+              />
+            </Form.Item>
+            <Button type="link" danger icon={<DeleteOutlined />} onClick={() => onChange({ ...subject, identityDoc: undefined })}>
               Удалить удостоверение личности
             </Button>
           </Form>
         </div>
-      )}
-      {!subject.identityDoc && (
-        <Button
-          type="dashed"
-          icon={<PlusOutlined />}
-          onClick={() => onChange({ ...subject, identityDoc: {} })}
-          style={{ width: '100%', marginTop: '8px' }}
-        >
+      ) : (
+        <Button type="dashed" icon={<PlusOutlined />} onClick={() => onChange({ ...subject, identityDoc: {} })} style={{ width: '100%', marginTop: 8 }}>
           Добавить удостоверение личности
         </Button>
+      )}
+      {/* Адреса и контакты — упрощённо: ссылка на то же subject */}
+      {(subject.registrationAddress || subject.actualAddress || subject.mailingAddress || (be?.addresses && be.addresses.length > 0)) && (
+        <Form.Item label="Адреса">
+          <div style={{ color: '#666', fontSize: 12 }}>Редактирование адресов поддерживается в полной форме субъекта.</div>
+        </Form.Item>
+      )}
+      {((subject.contacts && subject.contacts.length > 0) || (be?.contacts && be.contacts.length > 0)) && (
+        <Form.Item label="Контактный реквизит">
+          <div style={{ color: '#666', fontSize: 12 }}>Редактирование контактов поддерживается в полной форме субъекта.</div>
+        </Form.Item>
       )}
     </Form>
   )

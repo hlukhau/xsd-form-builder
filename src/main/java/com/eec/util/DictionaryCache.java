@@ -66,6 +66,8 @@ public class DictionaryCache {
     private static final List<IdentificationMethodOption> identificationMethodsListCache = new ArrayList<>();
     // Кеш видов документов об оценке соответствия (SESINT.CONFDOCKIND, codeListId=2001)
     private static final List<ConformityDocKindOption> conformityDocKindsListCache = new ArrayList<>();
+    // Кеш видов документов, удостоверяющих личность (SESINT.IDENTITYDOCKIND, codeListId=2053)
+    private static final List<IdentityDocKindOption> identityDocKindsListCache = new ArrayList<>();
     
     // Флаги загрузки
     private static volatile boolean countriesLoaded = false;
@@ -82,6 +84,7 @@ public class DictionaryCache {
     private static volatile boolean legalFormsLoaded = false;
     private static volatile boolean identificationMethodsLoaded = false;
     private static volatile boolean conformityDocKindsLoaded = false;
+    private static volatile boolean identityDocKindsLoaded = false;
     
     /**
      * Класс для опции страны
@@ -111,18 +114,26 @@ public class DictionaryCache {
     
     /**
      * Класс для опции уполномоченного органа
+     * authorityId — для фильтрации по карте прав (dangerousProductOut.create).
      */
     public static class AuthorityOption {
         public String uid;
         public String name;
         public String briefName;
         public String countryCode;
-        
+        /** AUTHORITYID из SESINT.AUTHORITY (для фильтра по правам create) */
+        public Integer authorityId;
+
         public AuthorityOption(String uid, String name, String briefName, String countryCode) {
+            this(uid, name, briefName, countryCode, null);
+        }
+
+        public AuthorityOption(String uid, String name, String briefName, String countryCode, Integer authorityId) {
             this.uid = uid;
             this.name = name;
             this.briefName = briefName;
             this.countryCode = countryCode;
+            this.authorityId = authorityId;
         }
     }
     
@@ -293,6 +304,19 @@ public class DictionaryCache {
             this.code = code != null ? code : "";
             this.name = name != null ? name : "";
             this.briefName = briefName != null ? briefName : "";
+        }
+    }
+    
+    /**
+     * Опция справочника видов документов, удостоверяющих личность (SESINT.IDENTITYDOCKIND, codeListId=2053)
+     */
+    public static class IdentityDocKindOption {
+        public String code;
+        public String name;
+        
+        public IdentityDocKindOption(String code, String name) {
+            this.code = code != null ? code : "";
+            this.name = name != null ? name : "";
         }
     }
     
@@ -937,6 +961,43 @@ public class DictionaryCache {
     
     public static boolean isConformityDocKindsLoaded() {
         return conformityDocKindsLoaded;
+    }
+    
+    // ========== Методы для видов документов, удостоверяющих личность (IDENTITYDOCKIND) ==========
+    
+    public static void clearIdentityDocKindsCache() {
+        synchronized (identityDocKindsListCache) {
+            identityDocKindsListCache.clear();
+            identityDocKindsLoaded = false;
+        }
+    }
+    
+    public static void setIdentityDocKindsCache(List<IdentityDocKindOption> list) {
+        synchronized (identityDocKindsListCache) {
+            identityDocKindsListCache.clear();
+            identityDocKindsListCache.addAll(list);
+            identityDocKindsLoaded = true;
+        }
+    }
+    
+    public static List<IdentityDocKindOption> getIdentityDocKindsList() {
+        synchronized (identityDocKindsListCache) {
+            return new ArrayList<>(identityDocKindsListCache);
+        }
+    }
+    
+    public static String getIdentityDocKindName(String code) {
+        if (code == null) return null;
+        synchronized (identityDocKindsListCache) {
+            for (IdentityDocKindOption o : identityDocKindsListCache) {
+                if (code.equals(o.code)) return o.name;
+            }
+        }
+        return null;
+    }
+    
+    public static boolean isIdentityDocKindsLoaded() {
+        return identityDocKindsLoaded;
     }
 }
 

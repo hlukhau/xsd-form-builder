@@ -63,28 +63,29 @@ const ProductTabEdit: React.FC<ProductTabEditProps> = ({ data, onChange }) => {
     })
   }
 
-  const handleValuesChange = (_: any, allValues: any) => {
-    // Игнорируем изменения в typeCode и typeName (они обрабатываются отдельно)
-    if (allValues.typeCode !== undefined || allValues.typeName !== undefined) {
+  const handleValuesChange = (changedValues: any, allValues: any) => {
+    // Пропускаем только когда пользователь изменил именно тип продукции (обрабатывается handleSanitaryProdTypeSelect)
+    if (changedValues.typeCode !== undefined || changedValues.typeName !== undefined) {
       return
     }
-    
+    // Берём значения из формы, при отсутствии — из текущих data, чтобы не затирать поля при частичном allValues
+    const pd = data.productDetails
     const updatedData: ProductData = {
       ...data,
       typeName: data.typeName,
       typeCode: data.typeCode,
       productDetails: {
-        ...data.productDetails,
-        productId: allValues.productId,
-        productName: allValues.productName,
-        tradeName: allValues.tradeName,
-        description: allValues.description,
-        commodityCode: allValues.commodityCode,
-        productPurpose: allValues.productPurpose,
-        applicationMethod: allValues.applicationMethod,
-        releaseForm: allValues.releaseForm,
-        storageCondition: allValues.storageCondition,
-        labelText: allValues.labelText,
+        ...pd,
+        productId: allValues.productId !== undefined ? allValues.productId : pd.productId,
+        productName: allValues.productName !== undefined ? allValues.productName : pd.productName,
+        tradeName: allValues.tradeName !== undefined ? allValues.tradeName : pd.tradeName,
+        description: allValues.description !== undefined ? allValues.description : pd.description,
+        commodityCode: allValues.commodityCode !== undefined ? allValues.commodityCode : pd.commodityCode,
+        productPurpose: allValues.productPurpose !== undefined ? allValues.productPurpose : pd.productPurpose,
+        applicationMethod: allValues.applicationMethod !== undefined ? allValues.applicationMethod : pd.applicationMethod,
+        releaseForm: allValues.releaseForm !== undefined ? allValues.releaseForm : pd.releaseForm,
+        storageCondition: allValues.storageCondition !== undefined ? allValues.storageCondition : pd.storageCondition,
+        labelText: allValues.labelText !== undefined ? allValues.labelText : pd.labelText,
       },
     }
     onChange(updatedData)

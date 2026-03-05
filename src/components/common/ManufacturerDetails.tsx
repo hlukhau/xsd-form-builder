@@ -9,6 +9,7 @@ import {
 } from '@/utils/addressFormatUtils'
 import { useLegalFormOptions } from '@/hooks/useLegalFormOptions'
 import { useIdentificationMethodOptions } from '@/hooks/useIdentificationMethodOptions'
+import { useCountryOptions } from '@/hooks/useCountryOptions'
 
 const LEGAL_FORM_CODE_LIST_ID = '2049'
 
@@ -24,6 +25,7 @@ const ManufacturerDetails: React.FC<ManufacturerDetailsProps> = ({
   const [isOpen, setIsOpen] = useState(false)
   const { getNameByCode: getLegalFormNameByCode } = useLegalFormOptions(data.country)
   const { getDisplayLabel: getIdentificationMethodDisplayLabel } = useIdentificationMethodOptions(data.country)
+  const { getDisplayLabel: getCountryDisplayLabel } = useCountryOptions()
   const isFromRef = !!(data.businessEntityTypeCode && data.businessEntityTypeCodeListId === LEGAL_FORM_CODE_LIST_ID)
   const organizationalFormDisplay = isFromRef && data.businessEntityTypeCode
     ? (getLegalFormNameByCode(data.businessEntityTypeCode) ? `${data.businessEntityTypeCode} - ${getLegalFormNameByCode(data.businessEntityTypeCode)}` : (data.organizationalForm || data.businessEntityTypeCode))
@@ -54,7 +56,7 @@ const ManufacturerDetails: React.FC<ManufacturerDetailsProps> = ({
   const addressLines = formatAddressList(
     addressList,
     getDefaultAddressKindName,
-    (code) => getDefaultCountryName(code) || code || '-'
+    (code) => getCountryDisplayLabel(code) || getDefaultCountryName(code) || '-'
   )
 
   const formatContact = (contact: ContactDetails): string => {
@@ -84,7 +86,7 @@ const ManufacturerDetails: React.FC<ManufacturerDetailsProps> = ({
             label: title,
             children: (
               <Descriptions column={1} bordered size="small">
-                <Descriptions.Item label="Страна">{data.country || '-'}</Descriptions.Item>
+                <Descriptions.Item label="Страна">{getCountryDisplayLabel(data.country)}</Descriptions.Item>
                 <Descriptions.Item label="Наименование субъекта">
                   {data.businessEntityName || '-'}
                 </Descriptions.Item>

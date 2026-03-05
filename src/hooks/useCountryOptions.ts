@@ -31,7 +31,18 @@ export function useCountryOptions() {
   }
 
   /**
-   * Преобразует список стран в опции для Select
+   * Стандартный вид для отображения: «код — наименование», например "BY - Беларусь".
+   * Если страна не найдена в справочнике, возвращает код.
+   */
+  const getDisplayLabel = (code: string | undefined): string => {
+    if (!code || !code.trim()) return '-'
+    const normalized = code.includes('-') ? code.split('-')[0].trim() : code.trim()
+    const opt = countryOptions.find((o) => (o.code || '').toUpperCase() === normalized.toUpperCase())
+    return opt ? `${opt.code} - ${opt.name}` : normalized
+  }
+
+  /**
+   * Преобразует список стран в опции для Select (label: "код — наименование")
    */
   const getSelectOptions = () => {
     return countryOptions.map((opt) => ({
@@ -44,6 +55,7 @@ export function useCountryOptions() {
     countryOptions,
     loading,
     normalizeCountryCode,
+    getDisplayLabel,
     getSelectOptions,
   }
 }

@@ -158,6 +158,15 @@ function AppContent() {
         let card = validationResult.cardData
         try {
           const meta = await fetchDpaMetadata(dpaid)
+          // УО: идентификатор и страна — из БД (DPA.AUTHORITYID → справочник); наименование и краткое наименование — всегда из XML (csdo:AuthorityName, csdo:AuthorityBriefName)
+          const authorityFromDb = (meta.authorityUid != null && meta.authorityUid.trim() !== '')
+            ? {
+                country: (meta.authorityCountryCode ?? card.notification?.authorizedBody?.country ?? '').trim() || (card.notification?.authorizedBody?.country ?? ''),
+                identifier: meta.authorityUid.trim(),
+                name: (card.notification?.authorizedBody?.name ?? '').trim() || '',
+                shortName: (card.notification?.authorizedBody?.shortName ?? '').trim() || '',
+              }
+            : undefined
           card = {
             ...card,
             registrationNumber: meta.incidentId ?? card.registrationNumber,
@@ -169,6 +178,12 @@ function AppContent() {
             modifiedAt: meta.modificationDateTime ?? card.modifiedAt,
             status: meta.dpaStatusName ?? card.status,
             statusId: meta.dpaStatusId ?? card.statusId,
+            notification: card.notification
+              ? {
+                  ...card.notification,
+                  authorizedBody: authorityFromDb ?? card.notification.authorizedBody,
+                }
+              : (authorityFromDb ? { authorizedBody: authorityFromDb } as typeof card.notification : card.notification),
           }
         } catch (e) {
           console.warn('Метаданные VW_DPA не загружены:', e)

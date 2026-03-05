@@ -17,6 +17,7 @@ import com.eec.util.DictionaryCache.DepOption;
 import com.eec.util.DictionaryCache.LegalFormOption;
 import com.eec.util.DictionaryCache.IdentificationMethodOption;
 import com.eec.util.DictionaryCache.ConformityDocKindOption;
+import com.eec.util.DictionaryCache.IdentityDocKindOption;
 
 import javax.servlet.ServletContextEvent;
 import javax.servlet.ServletContextListener;
@@ -58,6 +59,7 @@ public class DictionaryInitializerListener implements ServletContextListener {
                 loadWithRetries("legal forms", this::loadLegalFormsDictionary, DictionaryCache::isLegalFormsLoaded);
                 loadWithRetries("identification methods", this::loadIdentificationMethodsDictionary, DictionaryCache::isIdentificationMethodsLoaded);
                 loadWithRetries("conformity doc kinds", this::loadConformityDocKindsDictionary, DictionaryCache::isConformityDocKindsLoaded);
+                loadWithRetries("identity doc kinds", this::loadIdentityDocKindsDictionary, DictionaryCache::isIdentityDocKindsLoaded);
                 System.out.println("========================================");
                 System.out.println("[DictionaryInitializer] Dictionary loading completed");
                 System.out.println("========================================");
@@ -89,6 +91,7 @@ public class DictionaryInitializerListener implements ServletContextListener {
         DictionaryCache.clearLegalFormsCache();
         DictionaryCache.clearIdentificationMethodsCache();
         DictionaryCache.clearConformityDocKindsCache();
+        DictionaryCache.clearIdentityDocKindsCache();
     }
     
     private static final int LOAD_MAX_ATTEMPTS = 3;
@@ -221,7 +224,7 @@ public class DictionaryInitializerListener implements ServletContextListener {
             System.out.println("[DictionaryInitializer] Loading authorities dictionary...");
             conn = DatabaseUtil.getConnection();
             
-            String sql = "SELECT AUTHORITYUID, AUTHORITYNAME, AUTHORITYBRIEFNAME, COUNTRYCODE " +
+            String sql = "SELECT AUTHORITYID, AUTHORITYUID, AUTHORITYNAME, AUTHORITYBRIEFNAME, COUNTRYCODE " +
                         "FROM SESINT.AUTHORITY " +
                         "ORDER BY COUNTRYCODE, AUTHORITYNAME";
             
@@ -232,6 +235,8 @@ public class DictionaryInitializerListener implements ServletContextListener {
             int count = 0;
             
             while (rs.next()) {
+                int authId = rs.getInt("AUTHORITYID");
+                if (rs.wasNull()) continue;
                 String uid = rs.getString("AUTHORITYUID");
                 String name = rs.getString("AUTHORITYNAME");
                 String briefName = rs.getString("AUTHORITYBRIEFNAME");
@@ -241,7 +246,8 @@ public class DictionaryInitializerListener implements ServletContextListener {
                     uid != null ? uid : "",
                     name != null ? name : "",
                     briefName != null ? briefName : "",
-                    countryCode != null ? countryCode : ""
+                    countryCode != null ? countryCode : "",
+                    authId
                 ));
                 count++;
             }
@@ -552,6 +558,42 @@ public class DictionaryInitializerListener implements ServletContextListener {
             stmt.close();
         } catch (SQLException e) {
             System.err.println("[DictionaryInitializer] ERROR loading conformity doc kinds dictionary: " + e.getMessage());
+            e.printStackTrace();
+        } finally {
+            DatabaseUtil.closeConnection(conn);
+        }
+    }
+    
+    /**
+     * Загружает справочник видов документов, удостоверяющих личность (SESINT.IDENTITYDOCKIND, codeListId=2053) в кеш
+     */
+    private void loadIdentityDocKindsDictionary() {
+        Connection conn = null;
+        try {
+            System.out.println("[DictionaryInitializer] Loading identity doc kinds dictionary...");
+            conn = DatabaseUtil.getConnection();
+            String sql = "SELECT IDENTITYDOCKINDCODE, IDENTITYDOCKINDNAME " +
+                        "FROM SESINT.IDENTITYDOCKIND " +
+                        "WHERE IDENTITYDOCKINDSDATE <= SYSDATE " +
+                        "AND (IDENTITYDOCKINDEDATE IS NULL OR IDENTITYDOCKINDEDATE >= SYSDATE) " +
+                        "ORDER BY IDENTITYDOCKINDCODE";
+            PreparedStatement stmt = conn.prepareStatement(sql);
+            ResultSet rs = stmt.executeQuery();
+            List<IdentityDocKindOption> list = new ArrayList<>();
+            int count = 0;
+            while (rs.next()) {
+                list.add(new IdentityDocKindOption(
+                    rs.getString("IDENTITYDOCKINDCODE"),
+                    rs.getString("IDENTITYDOCKINDNAME")
+                ));
+                count++;
+            }
+            DictionaryCache.setIdentityDocKindsCache(list);
+            System.out.println("[DictionaryInitializer] Loaded " + count + " identity doc kinds into cache");
+            rs.close();
+            stmt.close();
+        } catch (SQLException e) {
+            System.err.println("[DictionaryInitializer] ERROR loading identity doc kinds dictionary: " + e.getMessage());
             e.printStackTrace();
         } finally {
             DatabaseUtil.closeConnection(conn);

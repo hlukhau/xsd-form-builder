@@ -8,6 +8,7 @@ import {
   getDefaultCountryName,
 } from '@/utils/addressFormatUtils'
 import { useIdentificationMethodOptions } from '@/hooks/useIdentificationMethodOptions'
+import { useCountryOptions } from '@/hooks/useCountryOptions'
 
 interface DetectionPlaceTabProps {
   data: DetectionPlaceData
@@ -15,16 +16,8 @@ interface DetectionPlaceTabProps {
 
 const DetectionPlaceTab: React.FC<DetectionPlaceTabProps> = ({ data }) => {
   const { getDisplayLabel: getIdentificationMethodDisplayLabel } = useIdentificationMethodOptions(data.organization?.country ?? '')
-  const getCountryName = (code?: string): string => {
-    const countryMap: Record<string, string> = {
-      'RU': 'Россия',
-      'BY': 'Беларусь',
-      'KZ': 'Казахстан',
-    }
-    return code ? (countryMap[code] || code) : '-'
-  }
-
-  const getCountryNameForAddress = (code?: string) => getCountryName(code) || getDefaultCountryName(code) || '-'
+  const { getDisplayLabel: getCountryDisplayLabel } = useCountryOptions()
+  const getCountryNameForAddress = (code?: string) => getCountryDisplayLabel(code) || getDefaultCountryName(code) || '-'
 
   const formatCheckpoint = (checkpoint?: { checkpointCode?: string; checkpointName?: string }): string => {
     if (!checkpoint) return '-'
@@ -116,7 +109,7 @@ const DetectionPlaceTab: React.FC<DetectionPlaceTabProps> = ({ data }) => {
           <h3 style={{ marginBottom: '16px' }}>Организация</h3>
           <Descriptions column={1} bordered>
             <Descriptions.Item label="Страна">
-              {getCountryName(data.organization.country)}
+              {getCountryDisplayLabel(data.organization.country)}
             </Descriptions.Item>
             <Descriptions.Item label="Наименование субъекта">
               {data.organization.businessEntityName || '-'}
@@ -134,7 +127,7 @@ const DetectionPlaceTab: React.FC<DetectionPlaceTabProps> = ({ data }) => {
               {data.organization.identificationMethod ? getIdentificationMethodDisplayLabel(data.organization.identificationMethod) : '-'}
             </Descriptions.Item>
             <Descriptions.Item label="Таможенный номер">
-              {data.organization.taxpayerId || '-'}
+              {data.organization.customsNumber || '-'}
             </Descriptions.Item>
             <Descriptions.Item label="Идентификатор налогоплательщика">
               {data.organization.taxpayerId || '-'}

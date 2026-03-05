@@ -265,12 +265,13 @@ export function parseXMLToCardData(xmlText: string): CardData {
   // Парсинг принятых мер
   const measuresData = parseMeasures(alertDetails, xmlDoc.documentElement)
 
-  // Сохраняем код вида уведомления в notification.type
+  // Сохраняем код вида уведомления в notification.type. Дата формирования — только дата (yyyy-MM-dd), без времени.
+  const formationDateOnly = docCreationDate?.trim().slice(0, 10) || ''
   const notification: Notification = {
     country,
     registrationNumber,
     type: incidentKindCode || '', // Сохраняем код
-    formationDate: docCreationDate,
+    formationDate: formationDateOnly,
     endDate: endDate || null,
     authorizedBody,
   }
@@ -2293,6 +2294,7 @@ function parseOrganizationDetails(placeElement: Element): BusinessEntityDetails 
   const businessEntityName = getTextContent(orgElement, 'BusinessEntityName') || undefined
   const businessEntityBriefName = getTextContent(orgElement, 'BusinessEntityBriefName') || undefined
   const businessEntityTypeName = getTextContent(orgElement, 'BusinessEntityTypeName') || undefined
+  const customsNumber = getTextContent(orgElement, 'CustomsNumber') || undefined
   const taxpayerId = getTextContent(orgElement, 'TaxpayerId') || undefined
   
   // BusinessEntityId с методом идентификации
@@ -2382,6 +2384,7 @@ function parseOrganizationDetails(placeElement: Element): BusinessEntityDetails 
     businessEntityTypeName,
     businessEntityId,
     identificationMethod,
+    customsNumber,
     taxpayerId,
     addresses: addresses.length > 0 ? addresses : undefined,
     contacts: contacts.length > 0 ? contacts : undefined,

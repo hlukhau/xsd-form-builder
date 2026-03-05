@@ -1,8 +1,9 @@
 import { Descriptions, Tag } from 'antd'
-import { format } from 'date-fns'
+import { format, parseISO } from 'date-fns'
 import { ru } from 'date-fns/locale'
 import { useState, useEffect } from 'react'
 import { checkCountryExists } from '@/utils/referenceDataApi'
+import { useCountryOptions } from '@/hooks/useCountryOptions'
 import type { Notification } from '@/types/card'
 
 interface NotificationTabProps {
@@ -10,6 +11,7 @@ interface NotificationTabProps {
 }
 
 const NotificationTab: React.FC<NotificationTabProps> = ({ data }) => {
+  const { getDisplayLabel: getCountryDisplayLabel } = useCountryOptions()
   const [countryValid, setCountryValid] = useState<boolean | null>(null)
   const [authorizedBodyCountryValid, setAuthorizedBodyCountryValid] = useState<boolean | null>(null)
 
@@ -25,23 +27,28 @@ const NotificationTab: React.FC<NotificationTabProps> = ({ data }) => {
 
   const formatDate = (date: string | null | undefined) => {
     if (!date) return '-'
-    const dateObj = new Date(date)
-    if (isNaN(dateObj.getTime())) return date // Возвращаем исходное значение, если дата невалидна
-    return format(dateObj, 'dd.MM.yyyy', { locale: ru })
+    const dateOnly = date.trim().slice(0, 10)
+    if (dateOnly.length !== 10) return date
+    try {
+      return format(parseISO(dateOnly), 'dd.MM.yyyy', { locale: ru })
+    } catch {
+      return date
+    }
   }
 
   const renderCountry = (countryCode: string, isValid: boolean | null) => {
+    const displayLabel = getCountryDisplayLabel(countryCode)
     if (isValid === false) {
       return (
         <span>
           <Tag color="red" style={{ marginRight: 8 }}>
             Не найдено в справочнике
           </Tag>
-          {countryCode}
+          {displayLabel}
         </span>
       )
     }
-    return countryCode
+    return displayLabel
   }
 
   return (

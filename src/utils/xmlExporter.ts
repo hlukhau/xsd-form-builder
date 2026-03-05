@@ -74,7 +74,8 @@ export function exportCardDataToXML(data: CardData): string {
       xmlParts.push(`        <smsdo:IncidentKindCode>${escapeXML(data.notification.type)}</smsdo:IncidentKindCode>`)
     }
     if (data.notification.formationDate) {
-      xmlParts.push(`        <csdo:DocCreationDate>${escapeXML(data.notification.formationDate)}</csdo:DocCreationDate>`)
+      const formationDateOnly = data.notification.formationDate.trim().slice(0, 10)
+      if (formationDateOnly) xmlParts.push(`        <csdo:DocCreationDate>${escapeXML(formationDateOnly)}</csdo:DocCreationDate>`)
     }
     // EndDate (IncidentAlertDetailsType) — дата закрытия уведомления
     if (data.notification.endDate) {
@@ -82,10 +83,13 @@ export function exportCardDataToXML(data: CardData): string {
     }
   }
   
-  // UnifiedAuthorityDetails (из Notification)
+  // UnifiedAuthorityDetails (из Notification) — обязательно экспортируем identifier (AuthorityId) для сохранения выбора УО
   if (data.notification && data.notification.authorizedBody) {
     console.log('[exportCardDataToXML] Экспортируем UnifiedAuthorityDetails:', data.notification.authorizedBody)
     xmlParts.push('        <ccdo:UnifiedAuthorityDetails>')
+    if (data.notification.authorizedBody.identifier) {
+      xmlParts.push(`            <csdo:AuthorityId>${escapeXML(data.notification.authorizedBody.identifier)}</csdo:AuthorityId>`)
+    }
     if (data.notification.authorizedBody.country) {
       xmlParts.push(`            <csdo:UnifiedCountryCode codeListId="2021">${escapeXML(data.notification.authorizedBody.country)}</csdo:UnifiedCountryCode>`)
     }
@@ -586,10 +590,27 @@ function exportMeasureImplementation(xmlParts: string[], impl: MeasureImplementa
       if (entity.country) xmlParts.push(`${indent}    <csdo:UnifiedCountryCode>${escapeXML(entity.country)}</csdo:UnifiedCountryCode>`)
       if (entity.businessEntityName) xmlParts.push(`${indent}    <csdo:BusinessEntityName>${escapeXML(entity.businessEntityName)}</csdo:BusinessEntityName>`)
       if (entity.businessEntityBriefName) xmlParts.push(`${indent}    <csdo:BusinessEntityBriefName>${escapeXML(entity.businessEntityBriefName)}</csdo:BusinessEntityBriefName>`)
-      if (entity.businessEntityId) xmlParts.push(`${indent}    <csdo:BusinessEntityId>${escapeXML(entity.businessEntityId)}</csdo:BusinessEntityId>`)
+      if (entity.businessEntityTypeName) xmlParts.push(`${indent}    <csdo:BusinessEntityTypeName>${escapeXML(entity.businessEntityTypeName)}</csdo:BusinessEntityTypeName>`)
+      if (entity.businessEntityId) {
+        const kindIdAttr = entity.identificationMethod ? ` kindId="${escapeXML(entity.identificationMethod)}"` : ''
+        xmlParts.push(`${indent}    <csdo:BusinessEntityId${kindIdAttr}>${escapeXML(entity.businessEntityId)}</csdo:BusinessEntityId>`)
+      }
+      if (entity.customsNumber) xmlParts.push(`${indent}    <csdo:CustomsNumber>${escapeXML(entity.customsNumber)}</csdo:CustomsNumber>`)
+      if (entity.taxpayerId) xmlParts.push(`${indent}    <csdo:TaxpayerId>${escapeXML(entity.taxpayerId)}</csdo:TaxpayerId>`)
       if (entity.addresses && entity.addresses.length > 0) {
         entity.addresses.forEach(addr => {
           exportAddress(xmlParts, addr, addr.addressKindCode || '1', `${indent}    `)
+        })
+      }
+      if (entity.contacts && entity.contacts.length > 0) {
+        entity.contacts.forEach(contact => {
+          xmlParts.push(`${indent}    <ccdo:CommunicationDetails>`)
+          if (contact.communicationChannelCode) xmlParts.push(`${indent}      <csdo:CommunicationChannelCode>${escapeXML(contact.communicationChannelCode)}</csdo:CommunicationChannelCode>`)
+          if (contact.communicationChannelName) xmlParts.push(`${indent}      <csdo:CommunicationChannelName>${escapeXML(contact.communicationChannelName)}</csdo:CommunicationChannelName>`)
+          if (contact.communicationChannelId) xmlParts.push(`${indent}      <csdo:CommunicationChannelId>${escapeXML(contact.communicationChannelId)}</csdo:CommunicationChannelId>`)
+          if (contact.contactKind) xmlParts.push(`${indent}      <csdo:ContactKind>${escapeXML(contact.contactKind)}</csdo:ContactKind>`)
+          if (contact.contactValue) xmlParts.push(`${indent}      <csdo:ContactValue>${escapeXML(contact.contactValue)}</csdo:ContactValue>`)
+          xmlParts.push(`${indent}    </ccdo:CommunicationDetails>`)
         })
       }
     } else {

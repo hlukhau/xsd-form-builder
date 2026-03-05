@@ -2,6 +2,7 @@ import { Descriptions } from 'antd'
 import { format } from 'date-fns'
 import { ru } from 'date-fns/locale'
 import type { CardData } from '@/types/card'
+import { useCountryOptions } from '@/hooks/useCountryOptions'
 
 interface CardHeaderProps {
   data: CardData
@@ -9,6 +10,7 @@ interface CardHeaderProps {
 }
 
 const CardHeader: React.FC<CardHeaderProps> = ({ data, onStatusClick }) => {
+  const { getDisplayLabel: getCountryDisplayLabel } = useCountryOptions()
   const formatDateTime = (dateTime: string | null | undefined) => {
     if (!dateTime) return '-'
     const date = new Date(dateTime)
@@ -23,7 +25,7 @@ const CardHeader: React.FC<CardHeaderProps> = ({ data, onStatusClick }) => {
       size="small"
       style={{ marginBottom: '16px' }}
     >
-      <Descriptions.Item label="Страна">{data.country}</Descriptions.Item>
+      <Descriptions.Item label="Страна">{getCountryDisplayLabel(data.country)}</Descriptions.Item>
       <Descriptions.Item label="Регистрационный номер">
         {data.registrationNumber}
       </Descriptions.Item>

@@ -6,6 +6,7 @@ import { ru } from 'date-fns/locale'
 import type { ComplianceDocument, TSDData } from '@/types/card'
 import { useIdentificationMethodOptions } from '@/hooks/useIdentificationMethodOptions'
 import { useConformityDocKindOptions } from '@/hooks/useConformityDocKindOptions'
+import { useCountryOptions } from '@/hooks/useCountryOptions'
 
 interface ComplianceDocumentsTabProps {
   /** По XSD документы соответствия только в tsd.batches[].complianceDocuments */
@@ -199,14 +200,7 @@ const ComplianceDocumentsTab: React.FC<ComplianceDocumentsTabProps> = ({
     },
   ]
 
-  const getCountryName = (code: string) => {
-    const countryMap: Record<string, string> = {
-      'RU': 'Россия',
-      'BY': 'Беларусь',
-      'KZ': 'Казахстан',
-    }
-    return countryMap[code] || code
-  }
+  const { getDisplayLabel: getCountryDisplayLabel } = useCountryOptions()
 
   const formatDateShort = (date: string | null | undefined) => {
     if (!date) return '-'
@@ -274,7 +268,7 @@ const ComplianceDocumentsTab: React.FC<ComplianceDocumentsTabProps> = ({
         {selectedDocument?.authority && (
           <Descriptions column={1} bordered>
             <Descriptions.Item label="Страна">
-              {getCountryName(selectedDocument.authority.country || '')}
+              {getCountryDisplayLabel(selectedDocument.authority.country || '')}
             </Descriptions.Item>
             <Descriptions.Item label="Наименование">
               {selectedDocument.authority.authorityName || '-'}

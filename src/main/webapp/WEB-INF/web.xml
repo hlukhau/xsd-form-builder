@@ -161,6 +161,15 @@
     </servlet-mapping>
 
     <servlet>
+        <servlet-name>IdentityDocKindOptionsServlet</servlet-name>
+        <servlet-class>com.eec.servlet.IdentityDocKindOptionsServlet</servlet-class>
+    </servlet>
+    <servlet-mapping>
+        <servlet-name>IdentityDocKindOptionsServlet</servlet-name>
+        <url-pattern>/api/identity-doc-kinds/options</url-pattern>
+    </servlet-mapping>
+
+    <servlet>
         <servlet-name>SupplyChainPartyKindOptionsServlet</servlet-name>
         <servlet-class>com.eec.servlet.SupplyChainPartyKindOptionsServlet</servlet-class>
     </servlet>
