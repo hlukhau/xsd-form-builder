@@ -83,13 +83,10 @@ export function exportCardDataToXML(data: CardData): string {
     }
   }
   
-  // UnifiedAuthorityDetails (из Notification) — обязательно экспортируем identifier (AuthorityId) для сохранения выбора УО
+  // UnifiedAuthorityDetails (из Notification). csdo:AuthorityId в XML не экспортируем.
   if (data.notification && data.notification.authorizedBody) {
     console.log('[exportCardDataToXML] Экспортируем UnifiedAuthorityDetails:', data.notification.authorizedBody)
     xmlParts.push('        <ccdo:UnifiedAuthorityDetails>')
-    if (data.notification.authorizedBody.identifier) {
-      xmlParts.push(`            <csdo:AuthorityId>${escapeXML(data.notification.authorizedBody.identifier)}</csdo:AuthorityId>`)
-    }
     if (data.notification.authorizedBody.country) {
       xmlParts.push(`            <csdo:UnifiedCountryCode codeListId="2021">${escapeXML(data.notification.authorizedBody.country)}</csdo:UnifiedCountryCode>`)
     }
@@ -552,7 +549,7 @@ function exportMeasureDocDetails(xmlParts: string[], doc: MeasureDocDetails, tag
   if (doc.docStartDate) xmlParts.push(`${inner}<csdo:DocStartDate>${escapeXML(doc.docStartDate)}</csdo:DocStartDate>`)
   if (doc.docValidityDate) xmlParts.push(`${inner}<csdo:DocValidityDate>${escapeXML(doc.docValidityDate)}</csdo:DocValidityDate>`)
   if (doc.docValidityDuration) xmlParts.push(`${inner}<csdo:DocValidityDuration>${escapeXML(doc.docValidityDuration)}</csdo:DocValidityDuration>`)
-  if (doc.authorityId) xmlParts.push(`${inner}<csdo:AuthorityId>${escapeXML(doc.authorityId)}</csdo:AuthorityId>`)
+  // csdo:AuthorityId в XML не экспортируем
   if (doc.authorityName) xmlParts.push(`${inner}<csdo:AuthorityName>${escapeXML(doc.authorityName)}</csdo:AuthorityName>`)
   if (doc.description) xmlParts.push(`${inner}<csdo:DescriptionText>${escapeXML(doc.description)}</csdo:DescriptionText>`)
   if (doc.pageQuantity) xmlParts.push(`${inner}<csdo:PageQuantity>${escapeXML(doc.pageQuantity)}</csdo:PageQuantity>`)
@@ -577,7 +574,7 @@ function exportMeasureImplementation(xmlParts: string[], impl: MeasureImplementa
   if (impl.authority) {
     xmlParts.push(`${indent}  <ccdo:UnifiedAuthorityDetails>`)
     if (impl.authority.country) xmlParts.push(`${indent}    <csdo:UnifiedCountryCode>${escapeXML(impl.authority.country)}</csdo:UnifiedCountryCode>`)
-    if (impl.authority.authorityId) xmlParts.push(`${indent}    <csdo:AuthorityId>${escapeXML(impl.authority.authorityId)}</csdo:AuthorityId>`)
+    // csdo:AuthorityId в XML не экспортируем
     if (impl.authority.authorityName) xmlParts.push(`${indent}    <csdo:AuthorityName>${escapeXML(impl.authority.authorityName)}</csdo:AuthorityName>`)
     if (impl.authority.authorityBriefName) xmlParts.push(`${indent}    <csdo:AuthorityBriefName>${escapeXML(impl.authority.authorityBriefName)}</csdo:AuthorityBriefName>`)
     xmlParts.push(`${indent}  </ccdo:UnifiedAuthorityDetails>`)
@@ -629,7 +626,7 @@ function exportMeasureImplementation(xmlParts: string[], impl: MeasureImplementa
         if (idDoc.docId) xmlParts.push(`${indent}      <csdo:DocId>${escapeXML(idDoc.docId)}</csdo:DocId>`)
         if (idDoc.docCreationDate) xmlParts.push(`${indent}      <csdo:DocCreationDate>${escapeXML(idDoc.docCreationDate)}</csdo:DocCreationDate>`)
         if (idDoc.docValidityDate) xmlParts.push(`${indent}      <csdo:DocValidityDate>${escapeXML(idDoc.docValidityDate)}</csdo:DocValidityDate>`)
-        if (idDoc.authorityId) xmlParts.push(`${indent}      <csdo:AuthorityId>${escapeXML(idDoc.authorityId)}</csdo:AuthorityId>`)
+        // csdo:AuthorityId в XML не экспортируем
         if (idDoc.authorityName) xmlParts.push(`${indent}      <csdo:AuthorityName>${escapeXML(idDoc.authorityName)}</csdo:AuthorityName>`)
         xmlParts.push(`${indent}    </ccdo:IdentityDocV3Details>`)
       }
