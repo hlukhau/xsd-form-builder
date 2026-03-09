@@ -221,7 +221,7 @@ const NotificationTabEdit: React.FC<NotificationTabEditProps> = ({
           <Input readOnly value={(data.authorizedBody?.name ?? '').trim() || '-'} />
         </Form.Item>
         <Form.Item label="Идентификатор">
-          <Input readOnly value={(data.authorizedBody?.identifier ?? '').trim() || '-'} />
+          <Input readOnly value="-" />
         </Form.Item>
         <Form.Item label="Краткое наименование">
           <Input readOnly value={data.authorizedBody?.shortName || ''} />

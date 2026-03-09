@@ -1232,6 +1232,9 @@ function parseBatchesDirectly(alertDetails: Element, rootElement?: Element): TSD
 function parseBatchDetails(batchElement: Element): ProductBatchDetails | null {
   console.log('Парсим детали партии:', batchElement.tagName)
   
+  // Дочерние элементы — используются для поиска BatchDetails и ShippingDocumentDetails по локальному имени (по XSD все опциональны)
+  const children = batchElement.getElementsByTagName('*')
+  
   // BatchDetails
   let batchDetailsEl: Element | null = null
   
@@ -1248,7 +1251,6 @@ function parseBatchDetails(batchElement: Element): ProductBatchDetails | null {
   
   // Если не нашли, ищем по локальному имени
   if (!batchDetailsEl) {
-    const children = batchElement.getElementsByTagName('*')
     console.log('Дочерние элементы партии:', children.length)
     
     for (let i = 0; i < children.length; i++) {

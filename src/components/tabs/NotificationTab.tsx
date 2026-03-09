@@ -72,7 +72,7 @@ const NotificationTab: React.FC<NotificationTabProps> = ({ data }) => {
             {renderCountry(data.authorizedBody.country, authorizedBodyCountryValid)}
           </Descriptions.Item>
           <Descriptions.Item label="Идентификатор">
-            {data.authorizedBody.identifier || '-'}
+            -
           </Descriptions.Item>
           <Descriptions.Item label="Наименование">
             {data.authorizedBody.name}
