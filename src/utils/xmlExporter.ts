@@ -30,6 +30,19 @@ import type {
 } from '@/types/card'
 
 /**
+ * Нормализует строку даты-времени к формату для XML: yyyy-MM-ddThh:mm:ss или с дробной частью секунд.
+ * Если значение уже в ISO-виде (содержит 'T'), возвращает как есть; иначе парсит и форматирует.
+ */
+function toISODateTimeForXml(dateTime: string | null | undefined): string {
+  if (!dateTime || !dateTime.trim()) return ''
+  const s = dateTime.trim()
+  if (s.includes('T')) return s
+  const d = new Date(s)
+  if (isNaN(d.getTime())) return s
+  return d.toISOString().replace('Z', '')
+}
+
+/**
  * Экспортирует CardData в XML формат с полной структурой
  */
 export function exportCardDataToXML(data: CardData): string {
@@ -57,7 +70,7 @@ export function exportCardDataToXML(data: CardData): string {
     xmlParts.push(`        <csdo:InfEnvelopeCode>${escapeXML(data.electronicDocument.messageCode)}</csdo:InfEnvelopeCode>`)
     xmlParts.push(`        <csdo:EDocCode>${escapeXML(data.electronicDocument.documentCode)}</csdo:EDocCode>`)
     xmlParts.push(`        <csdo:EDocId>${escapeXML(data.electronicDocument.documentId)}</csdo:EDocId>`)
-    xmlParts.push(`        <csdo:EDocDateTime>${escapeXML(data.electronicDocument.documentDate)}</csdo:EDocDateTime>`)
+    xmlParts.push(`        <csdo:EDocDateTime>${escapeXML(toISODateTimeForXml(data.electronicDocument.documentDate))}</csdo:EDocDateTime>`)
     xmlParts.push(`        <csdo:LanguageCode>${escapeXML(data.electronicDocument.language)}</csdo:LanguageCode>`)
   }
   xmlParts.push('    </ccdo:EDocHeader>')
@@ -199,7 +212,7 @@ export function exportCardDataToXML(data: CardData): string {
     xmlParts.push('        <ccdo:ResourceItemStatusDetails>')
     xmlParts.push('            <ccdo:ValidityPeriodDetails>')
     if (data.electronicDocument.validityPeriod.start) {
-      xmlParts.push(`                <csdo:StartDateTime>${escapeXML(data.electronicDocument.validityPeriod.start)}</csdo:StartDateTime>`)
+      xmlParts.push(`                <csdo:StartDateTime>${escapeXML(toISODateTimeForXml(data.electronicDocument.validityPeriod.start))}</csdo:StartDateTime>`)
     } else {
       console.warn('[exportCardDataToXML] StartDateTime отсутствует в validityPeriod')
     }
@@ -496,7 +509,10 @@ function exportSanitaryMeasure(xmlParts: string[], measure: SanitaryMeasure, ind
     xmlParts.push(`${indent}  <smsdo:MeasureCode${codeListId}>${escapeXML(measure.measureCode)}</smsdo:MeasureCode>`)
   }
   if (measure.measureName) xmlParts.push(`${indent}  <smsdo:MeasureName>${escapeXML(measure.measureName)}</smsdo:MeasureName>`)
-  if (measure.measureAffectedObjectKindCode) xmlParts.push(`${indent}  <smsdo:MeasureAffectedObjectKindCode>${escapeXML(measure.measureAffectedObjectKindCode)}</smsdo:MeasureAffectedObjectKindCode>`)
+  if (measure.measureAffectedObjectKindCode) {
+    const codes = measure.measureAffectedObjectKindCode.split(';').map((c) => c.trim()).filter(Boolean)
+    codes.forEach((code) => xmlParts.push(`${indent}  <smsdo:MeasureAffectedObjectKindCode>${escapeXML(code)}</smsdo:MeasureAffectedObjectKindCode>`))
+  }
   if (measure.startDate) xmlParts.push(`${indent}  <csdo:StartDate>${escapeXML(measure.startDate)}</csdo:StartDate>`)
   if (measure.endDate) xmlParts.push(`${indent}  <csdo:EndDate>${escapeXML(measure.endDate)}</csdo:EndDate>`)
   if (measure.measureJustificationText) xmlParts.push(`${indent}  <smsdo:MeasureJustificationText>${escapeXML(measure.measureJustificationText)}</smsdo:MeasureJustificationText>`)
@@ -569,7 +585,10 @@ function exportMeasureImplementation(xmlParts: string[], impl: MeasureImplementa
   if (impl.startDate) xmlParts.push(`${indent}  <csdo:StartDate>${escapeXML(impl.startDate)}</csdo:StartDate>`)
   if (impl.endDate) xmlParts.push(`${indent}  <csdo:EndDate>${escapeXML(impl.endDate)}</csdo:EndDate>`)
   if (impl.description) xmlParts.push(`${indent}  <csdo:DescriptionText>${escapeXML(impl.description)}</csdo:DescriptionText>`)
-  if (impl.measureAffectedObjectKindCode) xmlParts.push(`${indent}  <smsdo:MeasureAffectedObjectKindCode>${escapeXML(impl.measureAffectedObjectKindCode)}</smsdo:MeasureAffectedObjectKindCode>`)
+  if (impl.measureAffectedObjectKindCode) {
+    const codes = impl.measureAffectedObjectKindCode.split(';').map((c) => c.trim()).filter(Boolean)
+    codes.forEach((code) => xmlParts.push(`${indent}  <smsdo:MeasureAffectedObjectKindCode>${escapeXML(code)}</smsdo:MeasureAffectedObjectKindCode>`))
+  }
   
   if (impl.authority) {
     xmlParts.push(`${indent}  <ccdo:UnifiedAuthorityDetails>`)

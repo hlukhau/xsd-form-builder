@@ -2,6 +2,9 @@ import { useState, useEffect } from 'react'
 import { Form, Input, Button, Table, Space, DatePicker, Collapse, Select, Row, Col } from 'antd'
 import { PlusOutlined, DeleteOutlined } from '@ant-design/icons'
 import dayjs from 'dayjs'
+import { format } from 'date-fns'
+import { ru } from 'date-fns/locale'
+import { DATE_DISPLAY_FORMAT } from '@/constants/dateFormat'
 import ManufacturerDetailsEdit from '../common/ManufacturerDetailsEdit'
 import { labelWithHelp } from '@/components/common/FieldHelp'
 import { FIELD_HELP } from '@/constants/fieldDescriptions'
@@ -292,6 +295,7 @@ const TSDTabEdit: React.FC<TSDTabEditProps> = ({ data, onChange }) => {
       width: 120,
       render: (_: any, record: ShippingDocument, docIndex: number) => (
         <DatePicker
+          format={DATE_DISPLAY_FORMAT}
           value={record.docCreationDate ? dayjs(record.docCreationDate) : null}
           onChange={(date) => handleDocumentChange(batchIndex, docIndex, 'docCreationDate', date ? date.format('YYYY-MM-DD') : '')}
           style={{ width: '100%' }}
@@ -360,6 +364,7 @@ const TSDTabEdit: React.FC<TSDTabEditProps> = ({ data, onChange }) => {
           </Form.Item>
           <Form.Item label={labelWithHelp('Дата производства', FIELD_HELP.manufactureDate)}>
             <DatePicker
+              format={DATE_DISPLAY_FORMAT}
               value={batch.manufactureDate ? dayjs(batch.manufactureDate) : null}
               onChange={(date) => handleBatchChange(batchIndex, 'manufactureDate', date ? date.format('YYYY-MM-DD') : '')}
               style={{ width: '100%' }}
@@ -367,6 +372,7 @@ const TSDTabEdit: React.FC<TSDTabEditProps> = ({ data, onChange }) => {
           </Form.Item>
           <Form.Item label={labelWithHelp('Срок годности', FIELD_HELP.productShelfLifeEndDate)}>
             <DatePicker
+              format={DATE_DISPLAY_FORMAT}
               value={batch.productShelfLifeEndDate ? dayjs(batch.productShelfLifeEndDate) : null}
               onChange={(date) => handleBatchChange(batchIndex, 'productShelfLifeEndDate', date ? date.format('YYYY-MM-DD') : '')}
               style={{ width: '100%' }}
@@ -548,12 +554,14 @@ const TSDTabEdit: React.FC<TSDTabEditProps> = ({ data, onChange }) => {
                                       />
                                       <Space wrap>
                                         <DatePicker
+                                          format={DATE_DISPLAY_FORMAT}
                                           placeholder="Дата документа"
                                           value={td.docCreationDate ? dayjs(td.docCreationDate) : null}
                                           onChange={(date) => handleProductTechnicalDocChange(batchIndex, selDocIndex!, pIndex, tdIndex, 'docCreationDate', date ? date.format('YYYY-MM-DD') : '')}
                                           size="small"
                                         />
                                         <DatePicker
+                                          format={DATE_DISPLAY_FORMAT}
                                           placeholder="Действует с"
                                           value={td.docStartDate ? dayjs(td.docStartDate) : null}
                                           onChange={(date) => handleProductTechnicalDocChange(batchIndex, selDocIndex!, pIndex, tdIndex, 'docStartDate', date ? date.format('YYYY-MM-DD') : '')}
@@ -669,7 +677,7 @@ const TSDTabEdit: React.FC<TSDTabEditProps> = ({ data, onChange }) => {
         accordion={false}
         items={batches.map((batch, batchIndex) => ({
           key: String(batchIndex),
-          label: `Партия ${batchIndex + 1}${batch.batchId ? ` — № ${batch.batchId}` : ''}${batch.manufactureDate ? ` (производство: ${batch.manufactureDate})` : ''} (документов: ${(batch.shippingDocuments?.length ?? 0)})`,
+          label: `Партия ${batchIndex + 1}${batch.batchId ? ` — № ${batch.batchId}` : ''}${batch.manufactureDate ? ` (производство: ${format(new Date(batch.manufactureDate), 'dd.MM.yyyy', { locale: ru })})` : ''} (документов: ${(batch.shippingDocuments?.length ?? 0)})`,
           children: renderBatchPanel(batch, batchIndex),
         }))}
       />

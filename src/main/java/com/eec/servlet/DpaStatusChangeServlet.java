@@ -58,6 +58,15 @@ public class DpaStatusChangeServlet extends HttpServlet {
             + "SELECT 1 FROM SESINT.DPARESOLUTION r "
             + "JOIN SESDEV.TB_DEPKIND dk ON r.DEPKINDID = dk.DEPKINDID "
             + "WHERE r.DPAID = ? AND UPPER(TRIM(dk.DEPKINDCODE)) IN ('DEP0602','DEP0603') AND ROWNUM = 1";
+    /** PARENTDEPID по иерархии OS (Организационная структура) для подразделения — для отметки готовности районным ЦГЭ. */
+    private static final String SQL_PARENT_DEPID_OS = ""
+            + "SELECT dp.PARENTDEPID FROM SESDEV.TB_DEPLINK dp "
+            + "JOIN (SELECT CLASVALID FROM SESDEV.TB_CLASVAL WHERE CLASCODE = 'DEPLINKTYPE' AND CLASVALCODE = 'OS') dpl ON dpl.CLASVALID = dp.DEPLINKTYPEID "
+            + "WHERE dp.DEPID = ? AND dp.DEPLINKACTFL = 1 AND ROWNUM = 1";
+    /** DEPID республиканского ЦГЭ (006) — для отметки готовности областным ЦГЭ. */
+    private static final String SQL_DEPID_BY_DEPCODE_006 = "SELECT DEPID FROM SESDEV.TB_DEP WHERE TRIM(DEPCODE) = '006' AND ROWNUM = 1";
+    private static final String SQL_INSERT_DPADEPPERMIS = "INSERT INTO SESINT.DPADEPPERMIS (DPAID, DEPID, GRANTDATETIME) VALUES (?, ?, SYSDATE)";
+    private static final String SQL_EXISTS_DEP = "SELECT 1 FROM SESDEV.TB_DEP WHERE DEPID = ?";
 
     @Override
     protected void doPost(HttpServletRequest request, HttpServletResponse response)
@@ -220,6 +229,8 @@ public class DpaStatusChangeServlet extends HttpServlet {
                     ps.setInt(3, userId);
                     ps.executeUpdate();
                 }
+                // При отметке готовности из черновика: добавить в DPADEPPERMIS вышестоящее ЦГЭ по уровню
+                insertDpaDepPermisOnDraftMarkReady(conn, dpaid, depKindCode, guid);
             }
             try (PreparedStatement ps = conn.prepareStatement(SQL_INSERT_RESOLUTION)) {
                 ps.setLong(1, dpaid);
@@ -338,6 +349,91 @@ public class DpaStatusChangeServlet extends HttpServlet {
         }
         System.out.println("[DpaStatusChange] resolveDepKindCodeFromRights: no DEPKINDCODE in DB for depkindid=" + depkindid);
         return null;
+    }
+
+    /**
+     * При статусе «Черновик» и действии «Отметка готовности»: включить в состав ЦГЭ с доступом к карте
+     * — вышестоящее по иерархии OS при отметке районным ЦГЭ (DEP0601);
+     * — республиканский ЦГЭ (DEPCODE=006) при отметке областным ЦГЭ (DEP0602).
+     */
+    private static void insertDpaDepPermisOnDraftMarkReady(Connection conn, long dpaid, String depKindCode, String guid) throws SQLException {
+        String code = depKindCode == null ? null : depKindCode.trim().toUpperCase();
+        Integer userDepId = getDepartmentDepIdFromRights(guid);
+        if (code == null) return;
+        if ("DEP0601".equals(code)) {
+            // Районный уровень: добавить родительское подразделение по иерархии OS (областной ЦГЭ)
+            if (userDepId == null) {
+                System.out.println("[DpaStatusChange] mark_ready draft+DEP0601: no department.depid in rights, skip DPADEPPERMIS for parent");
+                return;
+            }
+            Integer parentDepId = getParentDepIdOs(conn, userDepId);
+            if (parentDepId != null && existsDepIdInTbDep(conn, parentDepId)) {
+                try (PreparedStatement ps = conn.prepareStatement(SQL_INSERT_DPADEPPERMIS)) {
+                    ps.setLong(1, dpaid);
+                    ps.setInt(2, parentDepId);
+                    ps.executeUpdate();
+                    System.out.println("[DpaStatusChange] mark_ready draft+DEP0601: inserted DPADEPPERMIS DPAID=" + dpaid + " DEPID=" + parentDepId + " (parent OS)");
+                }
+            } else {
+                System.out.println("[DpaStatusChange] mark_ready draft+DEP0601: no parent in TB_DEPLINK(OS) or DEPID not in TB_DEP, skip");
+            }
+            return;
+        }
+        if ("DEP0602".equals(code)) {
+            // Областной уровень: добавить республиканский ЦГЭ (006)
+            Integer depId006 = getDepIdByDepCode006(conn);
+            if (depId006 != null && existsDepIdInTbDep(conn, depId006)) {
+                try (PreparedStatement ps = conn.prepareStatement(SQL_INSERT_DPADEPPERMIS)) {
+                    ps.setLong(1, dpaid);
+                    ps.setInt(2, depId006);
+                    ps.executeUpdate();
+                    System.out.println("[DpaStatusChange] mark_ready draft+DEP0602: inserted DPADEPPERMIS DPAID=" + dpaid + " DEPID=" + depId006 + " (006)");
+                }
+            } else {
+                System.out.println("[DpaStatusChange] mark_ready draft+DEP0602: DEPCODE 006 not found or not in TB_DEP, skip");
+            }
+        }
+    }
+
+    private static Integer getDepartmentDepIdFromRights(String guid) {
+        if (guid == null || guid.trim().isEmpty()) return null;
+        String json = RightsJsonStore.guidMap.get(guid.trim());
+        if (json == null || json.isEmpty()) return null;
+        Matcher m = Pattern.compile("\"depid\"\\s*:\\s*(\\d+)").matcher(json);
+        if (m.find()) return parseIntOrNull(m.group(1));
+        m = Pattern.compile("\"depId\"\\s*:\\s*(\\d+)").matcher(json);
+        if (m.find()) return parseIntOrNull(m.group(1));
+        return null;
+    }
+
+    private static Integer getParentDepIdOs(Connection conn, int depId) throws SQLException {
+        try (PreparedStatement ps = conn.prepareStatement(SQL_PARENT_DEPID_OS)) {
+            ps.setInt(1, depId);
+            try (ResultSet rs = ps.executeQuery()) {
+                if (!rs.next()) return null;
+                Object v = rs.getObject(1);
+                return (v != null && v instanceof Number) ? ((Number) v).intValue() : null;
+            }
+        }
+    }
+
+    private static Integer getDepIdByDepCode006(Connection conn) throws SQLException {
+        try (PreparedStatement ps = conn.prepareStatement(SQL_DEPID_BY_DEPCODE_006)) {
+            try (ResultSet rs = ps.executeQuery()) {
+                if (!rs.next()) return null;
+                Object v = rs.getObject(1);
+                return (v != null && v instanceof Number) ? ((Number) v).intValue() : null;
+            }
+        }
+    }
+
+    private static boolean existsDepIdInTbDep(Connection conn, int depId) throws SQLException {
+        try (PreparedStatement ps = conn.prepareStatement(SQL_EXISTS_DEP)) {
+            ps.setInt(1, depId);
+            try (ResultSet rs = ps.executeQuery()) {
+                return rs.next();
+            }
+        }
     }
 
     /** Извлекает department.depkindid из JSON прав: "depkindid": 73 или "depKindId": 73 или "depkindid": "73". */

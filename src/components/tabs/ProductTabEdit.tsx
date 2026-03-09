@@ -1,6 +1,8 @@
 import { useState, useEffect } from 'react'
-import { Form, Input, Button, Space, Select } from 'antd'
+import { Form, Input, Button, Space, Select, DatePicker } from 'antd'
 import { PlusOutlined, DeleteOutlined } from '@ant-design/icons'
+import dayjs from 'dayjs'
+import { DATE_DISPLAY_FORMAT } from '@/constants/dateFormat'
 import ManufacturerDetailsEdit from '../common/ManufacturerDetailsEdit'
 import { labelWithHelp } from '@/components/common/FieldHelp'
 import { FIELD_HELP } from '@/constants/fieldDescriptions'
@@ -250,15 +252,19 @@ const ProductTabEdit: React.FC<ProductTabEditProps> = ({ data, onChange }) => {
                   value={doc.docId}
                   onChange={(e) => handleTechnicalDocChange(index, 'docId', e.target.value)}
                 />
-                <Input
-                  placeholder="Дата документа (YYYY-MM-DD)"
-                  value={doc.docCreationDate}
-                  onChange={(e) => handleTechnicalDocChange(index, 'docCreationDate', e.target.value)}
+                <DatePicker
+                  format={DATE_DISPLAY_FORMAT}
+                  placeholder="Дата документа"
+                  value={doc.docCreationDate ? dayjs(doc.docCreationDate) : null}
+                  onChange={(date) => handleTechnicalDocChange(index, 'docCreationDate', date ? date.format('YYYY-MM-DD') : '')}
+                  style={{ minWidth: 140 }}
                 />
-                <Input
-                  placeholder="Дата начала действия (YYYY-MM-DD)"
-                  value={doc.docStartDate}
-                  onChange={(e) => handleTechnicalDocChange(index, 'docStartDate', e.target.value)}
+                <DatePicker
+                  format={DATE_DISPLAY_FORMAT}
+                  placeholder="Дата начала действия"
+                  value={doc.docStartDate ? dayjs(doc.docStartDate) : null}
+                  onChange={(date) => handleTechnicalDocChange(index, 'docStartDate', date ? date.format('YYYY-MM-DD') : '')}
+                  style={{ minWidth: 140 }}
                 />
                 <Button
                   type="link"

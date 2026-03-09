@@ -2,6 +2,7 @@ import { Modal, Table, Button, Spin } from 'antd'
 import { format } from 'date-fns'
 import { ru } from 'date-fns/locale'
 import type { StatusHistoryItem } from '@/types/card'
+import { DATE_TIME_DISPLAY_FORMAT_DATEFNS } from '@/constants/dateFormat'
 
 interface StatusHistoryModalProps {
   visible: boolean
@@ -39,7 +40,7 @@ const StatusHistoryModal: React.FC<StatusHistoryModalProps> = ({
         if (!dateTime) return '-'
         const date = new Date(dateTime)
         if (isNaN(date.getTime())) return dateTime // Возвращаем исходное значение, если дата невалидна
-        return format(date, 'dd.MM.yyyy HH:mm:ss', { locale: ru })
+        return format(date, DATE_TIME_DISPLAY_FORMAT_DATEFNS, { locale: ru })
       },
     },
     {

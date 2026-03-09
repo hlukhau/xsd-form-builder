@@ -1,5 +1,6 @@
 package com.eec.servlet;
 
+import com.eec.util.DatabaseUtil;
 import com.eec.util.DictionaryCache;
 import com.eec.util.DictionaryCache.AuthorityOption;
 
@@ -10,9 +11,14 @@ import javax.servlet.http.HttpServletResponse;
 import java.io.IOException;
 import java.io.PrintWriter;
 import java.nio.charset.StandardCharsets;
+import java.sql.Connection;
+import java.sql.PreparedStatement;
+import java.sql.ResultSet;
+import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -20,9 +26,17 @@ import java.util.stream.Collectors;
 /**
  * Сервлет для получения списка уполномоченных органов (AUTHORITY) для выпадающего списка
  * GET /api/authorities/options?countryCode=RU
+ * Параметр authorityIds — список AUTHORITYID (из карты прав create).
+ * Параметр depIds — список DEPID (подразделения из карты прав); УО резолвятся через AUTHORITY a JOIN TB_DEP d ON a.AUTHORITYUID = d.DEPCODE.
  * Регистрируется в web.xml
  */
 public class AuthorityOptionsServlet extends HttpServlet {
+
+    /** AUTHORITYID по списку DEPID: AUTHORITY.AUTHORITYUID = TB_DEP.DEPCODE */
+    private static final String SQL_AUTHORITY_IDS_BY_DEP_IDS = ""
+            + "SELECT a.AUTHORITYID FROM SESINT.AUTHORITY a "
+            + "JOIN SESDEV.TB_DEP d ON TRIM(a.AUTHORITYUID) = TRIM(d.DEPCODE) "
+            + "WHERE d.DEPID IN (";
     
     @Override
     public void init() throws ServletException {
@@ -37,7 +51,8 @@ public class AuthorityOptionsServlet extends HttpServlet {
         
         String countryCode = request.getParameter("countryCode");
         String authorityIdsParam = request.getParameter("authorityIds");
-        System.out.println("[AuthorityOptionsServlet] Loading authorities from cache, countryCode: " + countryCode + ", authorityIds: " + authorityIdsParam);
+        String depIdsParam = request.getParameter("depIds");
+        System.out.println("[AuthorityOptionsServlet] Loading authorities from cache, countryCode: " + countryCode + ", authorityIds: " + authorityIdsParam + ", depIds: " + depIdsParam);
         
         response.setContentType("application/json;charset=UTF-8");
         response.setCharacterEncoding("UTF-8");
@@ -65,8 +80,34 @@ public class AuthorityOptionsServlet extends HttpServlet {
             }
             
             // Разрешённые AUTHORITYID из карты прав (dangerousProductOut.create) — только эти УО показывать в списке
+            // Приоритет: depIds (ключи в JSON = DEPID) → authorityIds (ключи в JSON = AUTHORITYID)
             Set<Integer> allowedAuthorityIds = null;
-            if (authorityIdsParam != null) {
+            if (depIdsParam != null && !depIdsParam.trim().isEmpty()) {
+                List<Integer> depIds = Arrays.stream(depIdsParam.trim().split(","))
+                    .map(String::trim)
+                    .filter(s -> !s.isEmpty())
+                    .map(s -> {
+                        try { return Integer.valueOf(s); } catch (NumberFormatException e) { return null; }
+                    })
+                    .filter(id -> id != null)
+                    .collect(Collectors.toList());
+                if (depIds.isEmpty()) {
+                    allowedAuthorityIds = Collections.emptySet();
+                    System.out.println("[AuthorityOptionsServlet] Filter by create rights (depIds), allowedAuthorityIds: (empty)");
+                } else {
+                    Connection conn = null;
+                    try {
+                        conn = DatabaseUtil.getConnection();
+                        allowedAuthorityIds = resolveAuthorityIdsByDepIds(conn, depIds);
+                        System.out.println("[AuthorityOptionsServlet] Filter by create rights (depIds=" + depIds + "), resolved AUTHORITYIDs: " + allowedAuthorityIds);
+                    } catch (SQLException e) {
+                        System.err.println("[AuthorityOptionsServlet] resolveAuthorityIdsByDepIds: " + e.getMessage());
+                        allowedAuthorityIds = Collections.emptySet();
+                    } finally {
+                        DatabaseUtil.closeConnection(conn);
+                    }
+                }
+            } else if (authorityIdsParam != null) {
                 String trimmed = authorityIdsParam.trim();
                 if (trimmed.isEmpty()) {
                     allowedAuthorityIds = Collections.emptySet();
@@ -181,6 +222,27 @@ public class AuthorityOptionsServlet extends HttpServlet {
                 out.close();
             }
         }
+    }
+
+    /**
+     * Резолвит список DEPID (подразделения из карты прав) в множество AUTHORITYID по связи AUTHORITY.AUTHORITYUID = TB_DEP.DEPCODE.
+     */
+    private static Set<Integer> resolveAuthorityIdsByDepIds(Connection conn, List<Integer> depIds) throws SQLException {
+        if (depIds == null || depIds.isEmpty()) return Collections.emptySet();
+        String placeholders = depIds.stream().map(id -> "?").collect(Collectors.joining(","));
+        String sql = SQL_AUTHORITY_IDS_BY_DEP_IDS + placeholders + ")";
+        Set<Integer> authorityIds = new HashSet<>();
+        try (PreparedStatement ps = conn.prepareStatement(sql)) {
+            for (int i = 0; i < depIds.size(); i++) {
+                ps.setInt(i + 1, depIds.get(i));
+            }
+            try (ResultSet rs = ps.executeQuery()) {
+                while (rs.next()) {
+                    authorityIds.add(rs.getInt("AUTHORITYID"));
+                }
+            }
+        }
+        return authorityIds;
     }
 
     /**

@@ -80,6 +80,8 @@ public class DpaSaveServlet extends HttpServlet {
     private static final String SQL_MAX_VERSION_BY_INCIDENT = "SELECT NVL(MAX(DPAVERSION), 0) FROM SESINT.DPA WHERE INCIDENTID = ? AND ALERTCOUNTRYID = ?";
     private static final String SQL_INSERT_DPADEPPERMIS = "INSERT INTO SESINT.DPADEPPERMIS (DPAID, DEPID, GRANTDATETIME) VALUES (?, ?, SYSDATE)";
     private static final String SQL_DEPS_FOR_COPY = "SELECT DEPID FROM SESINT.DPADEPPERMIS WHERE DPAID = ?";
+    /** Проверка существования подразделения (FK DPADEPPERMIS_FK2 → родительская таблица, обычно SESDEV.TB_DEP) */
+    private static final String SQL_EXISTS_DEP = "SELECT 1 FROM SESDEV.TB_DEP WHERE DEPID = ?";
 
     @Override
     protected void doPost(HttpServletRequest request, HttpServletResponse response)
@@ -217,6 +219,22 @@ public class DpaSaveServlet extends HttpServlet {
                     ps.setInt(2, draftStatusId);
                     ps.setInt(3, userId);
                     ps.executeUpdate();
+                }
+
+                // Запись в DPADEPPERMIS: подразделение пользователя, выполнившего сохранение (department.depid из карты прав)
+                String rightsJson = (guid != null && !guid.trim().isEmpty()) ? RightsJsonStore.guidMap.get(guid.trim()) : null;
+                Integer creatorDepId = getDepartmentDepIdFromRights(rightsJson);
+                if (creatorDepId != null && existsDepIdInTbDep(conn, creatorDepId)) {
+                    try (PreparedStatement psDep = conn.prepareStatement(SQL_INSERT_DPADEPPERMIS)) {
+                        psDep.setLong(1, dpaid);
+                        psDep.setInt(2, creatorDepId);
+                        psDep.executeUpdate();
+                    }
+                    System.out.println("[DpaSaveServlet] Created DPADEPPERMIS: DPAID=" + dpaid + ", DEPID=" + creatorDepId);
+                } else if (creatorDepId != null) {
+                    System.out.println("[DpaSaveServlet] DEPID=" + creatorDepId + " not found in SESDEV.TB_DEP, DPADEPPERMIS not inserted");
+                } else {
+                    System.out.println("[DpaSaveServlet] No department.depid in rights for guid=" + guid + ", DPADEPPERMIS not inserted");
                 }
 
                 conn.commit();
@@ -591,12 +609,6 @@ public class DpaSaveServlet extends HttpServlet {
                 return;
             }
 
-            Integer userDepId = getDepartmentDepIdFromRights(rightsJson);
-            if (userDepId == null) {
-                sendJsonError(response, HttpServletResponse.SC_FORBIDDEN, "В контексте прав не указано подразделение пользователя (department.depid).");
-                return;
-            }
-
             long newDpaid = getNextDpaid(conn);
             Integer draftStatusId = getDraftStatusId(conn, DATASOURCEKINDCODE_OUTGOING);
             if (draftStatusId == null) {
@@ -652,11 +664,23 @@ public class DpaSaveServlet extends HttpServlet {
                 ps2.executeUpdate();
             }
 
+            // Копируем все записи доступа из исходной карты (DPADEPPERMIS) в новую версию; вставляем только те DEPID, что есть в TB_DEP (FK)
+            int copiedCount = 0;
             try (PreparedStatement ps2 = conn.prepareStatement(SQL_INSERT_DPADEPPERMIS)) {
-                ps2.setLong(1, newDpaid);
-                ps2.setInt(2, userDepId);
-                ps2.executeUpdate();
+                for (String depIdStr : cardDepIds) {
+                    try {
+                        int depId = Integer.parseInt(depIdStr);
+                        if (!existsDepIdInTbDep(conn, depId)) continue;
+                        ps2.setLong(1, newDpaid);
+                        ps2.setInt(2, depId);
+                        ps2.executeUpdate();
+                        copiedCount++;
+                    } catch (NumberFormatException e) {
+                        // пропускаем некорректный DEPID
+                    }
+                }
             }
+            System.out.println("[DpaSaveServlet] Copied DPADEPPERMIS from DPAID=" + sourceDpaid + " to new DPAID=" + newDpaid + ", count=" + copiedCount);
 
             conn.commit();
             response.setStatus(HttpServletResponse.SC_OK);
@@ -717,6 +741,19 @@ public class DpaSaveServlet extends HttpServlet {
             return Integer.parseInt(m.group(1));
         } catch (NumberFormatException e) {
             return null;
+        }
+    }
+
+    /**
+     * Проверяет, что подразделение с данным DEPID есть в SESDEV.TB_DEP (родительская таблица для FK DPADEPPERMIS_FK2).
+     * Поддерживает DEPID как NUMBER и как VARCHAR2.
+     */
+    private static boolean existsDepIdInTbDep(Connection conn, int depId) throws SQLException {
+        try (PreparedStatement ps = conn.prepareStatement(SQL_EXISTS_DEP)) {
+            ps.setString(1, String.valueOf(depId));
+            try (ResultSet rs = ps.executeQuery()) {
+                return rs.next();
+            }
         }
     }
 }

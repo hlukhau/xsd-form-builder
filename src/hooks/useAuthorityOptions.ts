@@ -5,7 +5,7 @@ import { getAuthorityOptions, type AuthorityOption } from '@/utils/referenceData
  * Хук для загрузки и работы со справочником уполномоченных органов
  * @param countryCode - код страны для фильтрации
  * @param forOutgoingCreation - если true, запрашивать только УО из карты прав create (передаётся authorityIds)
- * @param allowedAuthorityIds - список AUTHORITYID из dangerousProductOut.create; при forOutgoingCreation показываются только эти УО
+ * @param allowedAuthorityIds - ключи из dangerousProductOut.create (DEPID); при forOutgoingCreation передаются как depIds в API
  */
 export function useAuthorityOptions(
   countryCode?: string,
@@ -17,8 +17,8 @@ export function useAuthorityOptions(
 
   useEffect(() => {
     setLoading(true)
-    const ids = forOutgoingCreation ? allowedAuthorityIds : undefined
-    getAuthorityOptions(countryCode, forOutgoingCreation, ids)
+    const createKeys = forOutgoingCreation ? allowedAuthorityIds : undefined
+    getAuthorityOptions(countryCode, forOutgoingCreation, createKeys)
       .then((data) => {
         setOptions(data)
       })

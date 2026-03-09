@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from 'react'
-import { Card, Tabs, Button, Space, Switch, message, Modal } from 'antd'
+import { Card, Tabs, Button, Space, Switch, message, Modal, Spin } from 'antd'
 import { EditOutlined, EyeOutlined, DownloadOutlined, PlusOutlined } from '@ant-design/icons'
 import ProductTabEdit from '../tabs/ProductTabEdit'
 import ViolationsTabEdit from '../tabs/ViolationsTabEdit'
@@ -23,7 +23,7 @@ import MeasuresTab from '../tabs/MeasuresTab'
 import { exportCardDataToXML } from '@/utils/xmlExporter'
 import { parseXMLToCardData } from '@/utils/xmlParser'
 import { compareCardData, getCardDataReview } from '@/utils/cardDataComparator'
-import { fetchDpaStatusHistory, fetchDpaElectronicDocs, changeDpaStatus, checkAccessRight, fetchCurrentUser, fetchDpaResolutions, fetchRightsByGuid, getCreateAuthorityIdsFromRights, fetchDepInfo, saveDpaCard, buildSaveMetadataFromCardData, deleteDpaCard, canCreateNewVersion, type DpaSaveMetadata } from '@/utils/referenceDataApi'
+import { fetchDpaStatusHistory, fetchDpaElectronicDocs, changeDpaStatus, checkAccessRight, fetchCurrentUser, fetchDpaResolutions, fetchRightsByGuid, fetchRightsByGuidRaw, getCreateAuthorityIdsFromRights, fetchDepInfo, saveDpaCard, buildSaveMetadataFromCardData, deleteDpaCard, canCreateNewVersion, type DpaSaveMetadata, type RightsJson } from '@/utils/referenceDataApi'
 import { getStatusButtonConfig } from '@/utils/statusButtonConfig'
 import { parseElectronicDocContentBody } from '@/utils/xmlParser'
 import { openLegacyRegisterAllVersions, isLegacyRegisterConfigured } from '@/utils/legacyRegisterUrl'
@@ -85,7 +85,7 @@ const DangerousProductCard: React.FC<DangerousProductCardProps> = ({
   const [validationResult, setValidationResult] = useState<ValidationResult | null>(null)
   const [saving, setSaving] = useState(false)
   const [pendingSavePayload, setPendingSavePayload] = useState<{ xmlBody: string; metadata: DpaSaveMetadata } | null>(null)
-  const [hasStatusRight, setHasStatusRight] = useState(true)
+  const [hasStatusRight, setHasStatusRight] = useState(false)
   const [hasSendRight, setHasSendRight] = useState(false)
   const [hasSaveRight, setHasSaveRight] = useState(false)
   const [hasResolution, setHasResolution] = useState(false)
@@ -99,6 +99,12 @@ const DangerousProductCard: React.FC<DangerousProductCardProps> = ({
   const [dpaResolutionDepKindCodes, setDpaResolutionDepKindCodes] = useState<string[]>([])
   /** После успешного создания — dpaid сохранённой карты; до редиректа все сохранения идут как update по нему */
   const [savedDpaid, setSavedDpaid] = useState<number | null>(null)
+  /** Отладка: просмотр карты прав по GUID */
+  const [rightsDebugVisible, setRightsDebugVisible] = useState(false)
+  const [rightsDebugData, setRightsDebugData] = useState<RightsJson | null>(null)
+  const [rightsDebugLoading, setRightsDebugLoading] = useState(false)
+  const [rightsDebugError, setRightsDebugError] = useState<string | null>(null)
+  const [rightsDebugRawText, setRightsDebugRawText] = useState<string | null>(null)
 
   const effectiveDpaid = (dpaid !== '-' && dpaid) ? dpaid : (savedDpaid != null ? String(savedDpaid) : '-')
 
@@ -125,7 +131,9 @@ const DangerousProductCard: React.FC<DangerousProductCardProps> = ({
     if (!isOutgoingSource) {
       const src = (data?.source ?? '').toLowerCase()
       if (src.includes('входящ')) {
-        checkAccessRight(effectiveDpaid, 'dangerousProductIn:status').then(setHasStatusRight)
+        checkAccessRight(effectiveDpaid, 'dangerousProductIn:status')
+          .then(setHasStatusRight)
+          .catch(() => setHasStatusRight(false))
       }
       return
     }
@@ -134,11 +142,17 @@ const DangerousProductCard: React.FC<DangerousProductCardProps> = ({
         checkAccessRight(effectiveDpaid, 'dangerousProductOut:status'),
         checkAccessRight(effectiveDpaid, 'dangerousProductOut:send'),
         checkAccessRight(effectiveDpaid, 'dangerousProductOut:edit'),
-      ]).then(([status, send, edit]) => {
-        setHasStatusRight(status)
-        setHasSendRight(send)
-        setHasSaveRight(edit)
-      })
+      ])
+        .then(([status, send, edit]) => {
+          setHasStatusRight(status)
+          setHasSendRight(send)
+          setHasSaveRight(edit)
+        })
+        .catch(() => {
+          setHasStatusRight(false)
+          setHasSendRight(false)
+          setHasSaveRight(false)
+        })
       fetchCurrentUser().then((u) => {
         setCurrentUserDepKindCode(u.depKindCode ?? null)
         setCurrentUserDepKindName(u.depKindName ?? null)
@@ -571,9 +585,9 @@ const DangerousProductCard: React.FC<DangerousProductCardProps> = ({
               isNewCard={effectiveDpaid === '-'}
               cardCountry={currentData.country}
               version={currentData.version ?? 1}
-              isDraft={(currentStatusId === 5) || /черновик/i.test(editedData.status ?? data.status ?? '')}
+              isDraft={effectiveDpaid === '-' || (currentStatusId === 5) || /черновик/i.test(editedData.status ?? data.status ?? '')}
               isOutgoing={isOutgoingSource}
-              allowedAuthorityIds={isOutgoingSource ? createAuthorityIds ?? undefined : undefined}
+              allowedAuthorityIds={isOutgoingSource && (effectiveDpaid === '-' || isDraftStatus) ? createAuthorityIds ?? undefined : undefined}
             />
           )
           break
@@ -861,6 +875,36 @@ const DangerousProductCard: React.FC<DangerousProductCardProps> = ({
               return
             }
 
+            if (action === 'mark_ready') {
+              const regNumber = currentData.registrationNumber ?? currentData.notification?.registrationNumber ?? effectiveDpaid ?? ''
+              const levelName = currentUserDepKindName ?? rightsDepKindName ?? (() => {
+                const c = (depKindForAction ?? '').trim().toLowerCase()
+                if (c === 'dep0601') return 'районный ЦГЭ'
+                if (c === 'dep0602') return 'областной ЦГЭ'
+                if (c === 'dep0603') return 'республиканский ЦГЭ'
+                return 'подразделения пользователя'
+              })()
+              Modal.confirm({
+                title: 'Отметка о готовности',
+                content: `Внимание! После подтверждения по карте ${regNumber} будет зафиксирована отметка о готовности на уровне ${levelName}. Отменить данное действие будет невозможно. Продолжить?`,
+                okText: 'Продолжить',
+                cancelText: 'Отмена',
+                onOk: () => {
+                  changeDpaStatus(effectiveDpaid, action, Object.keys(opts).length ? opts : undefined)
+                    .then((res) => {
+                      const newStatus = res.newStatus ?? currentData.status
+                      const newStatusId = newStatus === 'Новое' ? 6 : newStatus === 'Ожидает отправки' ? 7 : newStatus === 'Завершено' ? 13 : (editedData.statusId ?? data.statusId)
+                      onUpdate({ ...currentData, status: newStatus, statusId: newStatusId })
+                      setEditedData((prev) => ({ ...prev, status: newStatus, statusId: newStatusId }))
+                      message.success('Статус обновлён')
+                      fetchDpaResolutions(effectiveDpaid).then((list) => setDpaResolutionDepKindCodes(list.map((r) => r.depKindCode)))
+                    })
+                    .catch((e) => message.error(e instanceof Error ? e.message : 'Ошибка смены статуса'))
+                },
+              })
+              return
+            }
+
             if (action === 'close') {
               const regNumber = currentData.registrationNumber ?? currentData.notification?.registrationNumber ?? effectiveDpaid ?? ''
               Modal.confirm({
@@ -964,6 +1008,80 @@ const DangerousProductCard: React.FC<DangerousProductCardProps> = ({
           countryCode={currentData.country}
           guid={guid}
         />
+
+        <Modal
+          title="Карта прав доступа (отладка)"
+          open={rightsDebugVisible}
+          onCancel={() => {
+            setRightsDebugVisible(false)
+            setRightsDebugData(null)
+            setRightsDebugError(null)
+            setRightsDebugRawText(null)
+          }}
+          footer={[
+            <Button
+              key="close"
+              onClick={() => {
+                setRightsDebugVisible(false)
+                setRightsDebugData(null)
+                setRightsDebugError(null)
+                setRightsDebugRawText(null)
+              }}
+            >
+              Закрыть
+            </Button>,
+            rightsDebugData != null && (
+              <Button
+                key="copy"
+                type="primary"
+                onClick={() => {
+                  navigator.clipboard.writeText(JSON.stringify(rightsDebugData, null, 2)).then(
+                    () => message.success('Скопировано в буфер обмена'),
+                    () => message.error('Не удалось скопировать')
+                  )
+                }}
+              >
+                Копировать JSON
+              </Button>
+            ),
+            rightsDebugRawText != null && (
+              <Button
+                key="copyRaw"
+                onClick={() => {
+                  navigator.clipboard.writeText(rightsDebugRawText).then(
+                    () => message.success('Сырой ответ скопирован'),
+                    () => message.error('Не удалось скопировать')
+                  )
+                }}
+              >
+                Копировать сырой ответ
+              </Button>
+            ),
+          ].filter(Boolean)}
+          width={640}
+          destroyOnClose
+        >
+          {rightsDebugLoading ? (
+            <div style={{ padding: 24, textAlign: 'center' }}>
+              <Spin tip="Загрузка карты прав..." />
+            </div>
+          ) : rightsDebugError != null ? (
+            <div>
+              <div style={{ color: '#ff4d4f', marginBottom: 8 }}>{rightsDebugError}</div>
+              {rightsDebugRawText != null && (
+                <pre style={{ margin: 0, padding: 12, background: '#fff2f0', borderRadius: 4, maxHeight: 360, overflow: 'auto', fontSize: 11 }}>
+                  {rightsDebugRawText}
+                </pre>
+              )}
+            </div>
+          ) : rightsDebugData != null ? (
+            <pre style={{ margin: 0, padding: 12, background: '#f5f5f5', borderRadius: 4, maxHeight: 400, overflow: 'auto', fontSize: 12 }}>
+              {JSON.stringify(rightsDebugData, null, 2)}
+            </pre>
+          ) : (
+            <span>Нет данных</span>
+          )}
+        </Modal>
 
         {comparisonResult && (
           <XMLComparisonModal

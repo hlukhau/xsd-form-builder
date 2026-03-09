@@ -403,6 +403,27 @@ export function getTextContent(
 }
 
 /**
+ * Извлекает текстовое содержимое всех прямых дочерних элементов с заданным именем тега (для maxOccurs="unbounded").
+ * Сравнение по локальному имени тега (без namespace). Возвращает массив в порядке появления в XML.
+ */
+export function getAllTextContents(parent: Element | null, tagName: string): string[] {
+  if (!parent) return []
+  const result: string[] = []
+  const tagNameLower = tagName.toLowerCase()
+  const childNodes = parent.childNodes
+  for (let i = 0; i < childNodes.length; i++) {
+    const node = childNodes[i]
+    if (node.nodeType !== 1) continue // 1 = ELEMENT_NODE
+    const el = node as Element
+    const localName = (el.localName || (el.tagName || '').split(':').pop() || '').toLowerCase()
+    if (localName !== tagNameLower) continue
+    const text = (el.textContent || '').trim()
+    if (text) result.push(text)
+  }
+  return result
+}
+
+/**
  * Парсит данные о продукции из XML
  */
 function parseProductData(alertDetails: Element, rootElement?: Element): ProductData | undefined {
@@ -2628,7 +2649,8 @@ function parseSanitaryMeasure(measureElement: Element): SanitaryMeasure | null {
   const description = getTextContent(measureElement, 'DescriptionText') || undefined
   const startDate = getTextContent(measureElement, 'StartDate') || undefined
   const endDate = getTextContent(measureElement, 'EndDate') || undefined
-  const measureAffectedObjectKindCode = getTextContent(measureElement, 'MeasureAffectedObjectKindCode') || undefined
+  const measureAffectedObjectKindCodes = getAllTextContents(measureElement, 'MeasureAffectedObjectKindCode')
+  const measureAffectedObjectKindCode = measureAffectedObjectKindCodes.length > 0 ? measureAffectedObjectKindCodes.join(';') : undefined
   
   // MeasureCode с атрибутом codeListId
   let measureCode: string | undefined = undefined
@@ -2900,8 +2922,9 @@ function parseMeasureImplementationItem(implElement: Element): MeasureImplementa
   const startDate = getTextContent(implElement, 'StartDate') || undefined
   const endDate = getTextContent(implElement, 'EndDate') || undefined
   const description = getTextContent(implElement, 'DescriptionText') || undefined
-  const measureAffectedObjectKindCode = getTextContent(implElement, 'MeasureAffectedObjectKindCode') || undefined
-  
+  const measureAffectedObjectKindCodesImpl = getAllTextContents(implElement, 'MeasureAffectedObjectKindCode')
+  const measureAffectedObjectKindCode = measureAffectedObjectKindCodesImpl.length > 0 ? measureAffectedObjectKindCodesImpl.join(';') : undefined
+
   // UnifiedAuthorityDetails
   const authority = parseUnifiedAuthorityDetails(implElement)
   
@@ -3369,37 +3392,39 @@ export async function validateAndEnrichCardData(cardData: CardData, incidentKind
   // Валидация видов объектов действия мер в мероприятиях
   if (cardData.measures?.measures) {
     for (const measure of cardData.measures.measures) {
-      // Валидация для основного measureAffectedObjectKindCode
+      // Валидация для основного measureAffectedObjectKindCode (может быть несколько через ";")
       if (measure.measureAffectedObjectKindCode) {
-        try {
-          const exists = await checkSanitaryMeasureObjKindExists(measure.measureAffectedObjectKindCode)
-          if (exists === false) {
-            console.warn(`Код вида объекта действия мер "${measure.measureAffectedObjectKindCode}" не найден в справочнике SANITARYMEASUREOBJKIND`)
-            // Не добавляем предупреждение - визуальная индикация будет в форме
-          } else {
-            console.log(`Код вида объекта действия мер "${measure.measureAffectedObjectKindCode}" успешно найден в справочнике`)
+        const codes = measure.measureAffectedObjectKindCode.split(';').map((c) => c.trim()).filter(Boolean)
+        for (const code of codes) {
+          try {
+            const exists = await checkSanitaryMeasureObjKindExists(code)
+            if (exists === false) {
+              console.warn(`Код вида объекта действия мер "${code}" не найден в справочнике SANITARYMEASUREOBJKIND`)
+            } else {
+              console.log(`Код вида объекта действия мер "${code}" успешно найден в справочнике`)
+            }
+          } catch (error) {
+            console.error('Ошибка при валидации вида объекта действия мер:', error)
           }
-        } catch (error) {
-          console.error('Ошибка при валидации вида объекта действия мер:', error)
-          // Не добавляем предупреждение - визуальная индикация будет в форме
         }
       }
-      
-      // Валидация для measureAffectedObjectKindCode в мероприятиях
+
+      // Валидация для measureAffectedObjectKindCode в мероприятиях (может быть несколько через ";")
       if (measure.measureImplementationDetails) {
         for (const impl of measure.measureImplementationDetails) {
           if (impl.measureAffectedObjectKindCode) {
-            try {
-              const exists = await checkSanitaryMeasureObjKindExists(impl.measureAffectedObjectKindCode)
-              if (exists === false) {
-                console.warn(`Код вида объекта действия мер "${impl.measureAffectedObjectKindCode}" не найден в справочнике SANITARYMEASUREOBJKIND`)
-                // Не добавляем предупреждение - визуальная индикация будет в форме
-              } else {
-                console.log(`Код вида объекта действия мер "${impl.measureAffectedObjectKindCode}" успешно найден в справочнике`)
+            const codes = impl.measureAffectedObjectKindCode.split(';').map((c) => c.trim()).filter(Boolean)
+            for (const code of codes) {
+              try {
+                const exists = await checkSanitaryMeasureObjKindExists(code)
+                if (exists === false) {
+                  console.warn(`Код вида объекта действия мер "${code}" не найден в справочнике SANITARYMEASUREOBJKIND`)
+                } else {
+                  console.log(`Код вида объекта действия мер "${code}" успешно найден в справочнике`)
+                }
+              } catch (error) {
+                console.error('Ошибка при валидации вида объекта действия мер:', error)
               }
-            } catch (error) {
-              console.error('Ошибка при валидации вида объекта действия мер:', error)
-              // Не добавляем предупреждение - визуальная индикация будет в форме
             }
           }
         }

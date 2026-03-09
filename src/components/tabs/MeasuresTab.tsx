@@ -41,10 +41,12 @@ const MeasuresTab: React.FC<MeasuresTabProps> = ({ data }) => {
     return format(dateObj, 'dd.MM.yyyy', { locale: ru })
   }
 
-  const getMeasureAffectedObjectKindName = (code?: string): string => {
-    if (!code) return '-'
-    const name = getSanitaryMeasureObjKindNameByCode(code)
-    return name || `Вид объекта (код: ${code})`
+  const getMeasureAffectedObjectKindName = (codeOrCodes?: string): string => {
+    if (!codeOrCodes) return '-'
+    const codes = codeOrCodes.split(';').map((c) => c.trim()).filter(Boolean)
+    if (codes.length === 0) return '-'
+    const names = codes.map((code) => getSanitaryMeasureObjKindNameByCode(code) || `Вид объекта (код: ${code})`)
+    return names.join(';')
   }
 
   const getMeasureName = (measure: SanitaryMeasure): string => {

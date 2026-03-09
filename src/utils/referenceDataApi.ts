@@ -492,7 +492,11 @@ export interface RightsJson {
   }
 }
 
-/** Извлечь список AUTHORITYID из up.dangerousProductOut.create (ключи объекта) для фильтра списка УО */
+/**
+ * Извлечь список ключей из up.dangerousProductOut.create для фильтра списка УО.
+ * В JSON ключи — DEPID (подразделения); бэкенд резолвит их в AUTHORITYID через AUTHORITY.AUTHORITYUID = TB_DEP.DEPCODE.
+ * При создании/редактировании черновика список УО ограничивается только этими органами.
+ */
 export function getCreateAuthorityIdsFromRights(rights: RightsJson | null | undefined): string[] {
   const create = rights?.up?.dangerousProductOut?.create
   if (!create || typeof create !== 'object') return []
@@ -506,6 +510,13 @@ export async function fetchRightsByGuid(guid: string): Promise<RightsJson> {
     throw new Error(response.status === 404 ? 'GUID не найден' : (text || response.statusText))
   }
   return response.json()
+}
+
+/** Ответ API прав сырым текстом (для отладки при ошибке разбора JSON). */
+export async function fetchRightsByGuidRaw(guid: string): Promise<{ ok: boolean; status: number; text: string }> {
+  const response = await fetch(`${BASE_URL}api/rights?guid=${encodeURIComponent(guid)}`)
+  const text = await response.text()
+  return { ok: response.ok, status: response.status, text }
 }
 
 /** Список доступа по DPAID (SESINT.DPADEPPERMIS + TB_DEP + TB_DEPKIND) — GET /api/dpa/access?dpaid=...&source=incoming|outgoing|eec&creatorDepId=... */
@@ -693,20 +704,20 @@ export async function fetchDepOptions(): Promise<DepOption[]> {
 /**
  * Получить опции для выпадающего списка уполномоченных органов
  * @param countryCode - код страны для фильтрации (опционально)
- * @param forOutgoingCreation - если true, передаём authorityIds (только УО из карты прав create)
- * @param authorityIds - список AUTHORITYID из dangerousProductOut.create; при указании возвращаются только эти УО
+ * @param forOutgoingCreation - если true, передаём depIds (только УО из карты прав create)
+ * @param createKeys - ключи из dangerousProductOut.create (в JSON это DEPID); при указании возвращаются только эти УО
  */
 export async function getAuthorityOptions(
   countryCode?: string,
   forOutgoingCreation?: boolean,
-  authorityIds?: string[]
+  createKeys?: string[]
 ): Promise<AuthorityOption[]> {
   try {
     const params = new URLSearchParams()
     if (countryCode) params.set('countryCode', countryCode)
     if (forOutgoingCreation) params.set('forOutgoingCreation', '1')
-    if (forOutgoingCreation && authorityIds != null) {
-      params.set('authorityIds', authorityIds.join(','))
+    if (forOutgoingCreation && createKeys != null) {
+      params.set('depIds', createKeys.join(','))
     }
     const qs = params.toString()
     const url = qs ? `${BASE_URL}api/authorities/options?${qs}` : `${BASE_URL}api/authorities/options`

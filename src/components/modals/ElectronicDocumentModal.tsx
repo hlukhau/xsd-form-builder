@@ -3,6 +3,7 @@ import { Modal, Descriptions, Button, Select, Spin } from 'antd'
 import { format } from 'date-fns'
 import { ru } from 'date-fns/locale'
 import type { ElectronicDocument } from '@/types/card'
+import { DATE_TIME_DISPLAY_FORMAT_DATEFNS } from '@/constants/dateFormat'
 
 interface ElectronicDocumentModalProps {
   visible: boolean
@@ -26,7 +27,7 @@ const ElectronicDocumentModal: React.FC<ElectronicDocumentModalProps> = ({
     if (!dateTime) return '-'
     const date = new Date(dateTime)
     if (isNaN(date.getTime())) return dateTime
-    return format(date, 'dd.MM.yyyy HH:mm:ss', { locale: ru })
+    return format(date, DATE_TIME_DISPLAY_FORMAT_DATEFNS, { locale: ru })
   }
 
   const formatDate = (dateTime: string | null | undefined) => {

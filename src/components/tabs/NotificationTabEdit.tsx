@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Form, Input, DatePicker, Select, Descriptions } from 'antd'
+import { DATE_DISPLAY_FORMAT } from '@/constants/dateFormat'
 import dayjs from 'dayjs'
 import { format, parseISO } from 'date-fns'
 import { ru } from 'date-fns/locale'
@@ -191,7 +192,7 @@ const NotificationTabEdit: React.FC<NotificationTabEditProps> = ({
         </>
       )}
       <Form.Item label="Дата закрытия" name="endDate">
-        <DatePicker style={{ width: '100%' }} allowClear />
+        <DatePicker format={DATE_DISPLAY_FORMAT} style={{ width: '100%' }} allowClear />
       </Form.Item>
       
       <div style={{ marginTop: '16px', padding: '12px', border: '1px solid #d9d9d9', borderRadius: '4px' }}>
@@ -200,22 +201,35 @@ const NotificationTabEdit: React.FC<NotificationTabEditProps> = ({
           <Input readOnly value={authorizedBodyCountryCode ? getCountryDisplayLabel(authorizedBodyCountryCode) : '-'} />
         </Form.Item>
         <Form.Item label={labelWithHelp('Выбор уполномоченного органа', FIELD_HELP.authority)}>
-          <Select
-            showSearch
-            placeholder={authorizedBodyCountryCode
-              ? 'Выберите уполномоченный орган'
-              : 'Страна не указана'}
-            loading={loadingAuthorities}
-            value={selectedAuthorityUid}
-            onChange={handleAuthoritySelect}
-            allowClear
-            filterOption={(input, option) =>
-              (option?.label ?? '').toLowerCase().includes(input.toLowerCase())
-            }
-            options={getAuthoritySelectOptions()}
-            disabled={!authorizedBodyCountryCode || !isDraft}
-            notFoundContent={loadingAuthorities ? 'Загрузка...' : authorityOptions.length === 0 ? 'Нет данных. Проверьте, что справочник загружен.' : 'Не найдено'}
-          />
+          {(() => {
+            const allowedOptions = getAuthoritySelectOptions()
+            const currentId = data.authorizedBody?.identifier?.trim()
+            const currentName = (data.authorizedBody?.name ?? '').trim()
+            const currentInList = currentId && allowedOptions.some((o: { value: string }) => String(o.value) === currentId)
+            // Если выбранный УО не в списке доступных — добавляем его в опции для отображения наименования; в выпадающем списке при этом остаются только доступные + текущий
+            const selectOptions =
+              currentId && currentName && !currentInList
+                ? [{ value: currentId, label: currentName }, ...allowedOptions]
+                : allowedOptions
+            return (
+              <Select
+                showSearch
+                placeholder={authorizedBodyCountryCode
+                  ? 'Выберите уполномоченный орган'
+                  : 'Страна не указана'}
+                loading={loadingAuthorities}
+                value={selectedAuthorityUid}
+                onChange={handleAuthoritySelect}
+                allowClear
+                filterOption={(input, option) =>
+                  (option?.label ?? '').toLowerCase().includes(input.toLowerCase())
+                }
+                options={selectOptions}
+                disabled={!authorizedBodyCountryCode || !isDraft}
+                notFoundContent={loadingAuthorities ? 'Загрузка...' : authorityOptions.length === 0 ? 'Нет данных. Проверьте, что справочник загружен.' : 'Не найдено'}
+              />
+            )
+          })()}
         </Form.Item>
         <Form.Item label="Наименование">
           <Input readOnly value={(data.authorizedBody?.name ?? '').trim() || '-'} />

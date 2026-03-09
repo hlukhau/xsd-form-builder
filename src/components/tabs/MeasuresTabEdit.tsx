@@ -11,6 +11,7 @@ import { useIdentityDocKindOptions } from '@/hooks/useIdentityDocKindOptions'
 import CountrySelect from '@/components/common/CountrySelect'
 import { labelWithHelp } from '@/components/common/FieldHelp'
 import { FIELD_HELP } from '@/constants/fieldDescriptions'
+import { DATE_DISPLAY_FORMAT } from '@/constants/dateFormat'
 import type { CountryOption } from '@/utils/referenceDataApi'
 import type {
   MeasuresData,
@@ -233,6 +234,7 @@ const MeasuresTabEdit: React.FC<MeasuresTabEditProps> = ({ data, onChange }) => 
         </Form.Item>
         <Form.Item label="Дата документа">
           <DatePicker
+            format={DATE_DISPLAY_FORMAT}
             value={doc.docCreationDate ? dayjs(doc.docCreationDate) : null}
             onChange={(date) => onChange({ ...doc, docCreationDate: date ? date.format('YYYY-MM-DD') : undefined })}
             style={{ width: '100%' }}
@@ -240,6 +242,7 @@ const MeasuresTabEdit: React.FC<MeasuresTabEditProps> = ({ data, onChange }) => 
         </Form.Item>
         <Form.Item label="Срок действия. Начало">
           <DatePicker
+            format={DATE_DISPLAY_FORMAT}
             value={doc.docStartDate ? dayjs(doc.docStartDate) : null}
             onChange={(date) => onChange({ ...doc, docStartDate: date ? date.format('YYYY-MM-DD') : undefined })}
             style={{ width: '100%' }}
@@ -247,6 +250,7 @@ const MeasuresTabEdit: React.FC<MeasuresTabEditProps> = ({ data, onChange }) => 
         </Form.Item>
         <Form.Item label="Срок действия. Окончание">
           <DatePicker
+            format={DATE_DISPLAY_FORMAT}
             value={doc.docValidityDate ? dayjs(doc.docValidityDate) : null}
             onChange={(date) => onChange({ ...doc, docValidityDate: date ? date.format('YYYY-MM-DD') : undefined })}
             style={{ width: '100%' }}
@@ -482,10 +486,11 @@ const MeasuresTabEdit: React.FC<MeasuresTabEditProps> = ({ data, onChange }) => 
       width: 200,
       render: (_: any, record: SanitaryMeasure, index: number) => (
         <Select
+          mode="multiple"
           showSearch
           placeholder="Выберите вид объекта"
-          value={record.measureAffectedObjectKindCode}
-          onChange={(value) => handleMeasureChange(index, 'measureAffectedObjectKindCode', value)}
+          value={record.measureAffectedObjectKindCode ? record.measureAffectedObjectKindCode.split(';').map((c) => c.trim()).filter(Boolean) : undefined}
+          onChange={(value) => handleMeasureChange(index, 'measureAffectedObjectKindCode', Array.isArray(value) ? value.join(';') : '')}
           filterOption={(input, option) =>
             (option?.label ?? '').toLowerCase().includes(input.toLowerCase())
           }
@@ -501,6 +506,7 @@ const MeasuresTabEdit: React.FC<MeasuresTabEditProps> = ({ data, onChange }) => 
       width: 120,
       render: (_: any, record: SanitaryMeasure, index: number) => (
         <DatePicker
+          format={DATE_DISPLAY_FORMAT}
           value={record.startDate ? dayjs(record.startDate) : null}
           onChange={(date) => handleMeasureChange(index, 'startDate', date ? date.format('YYYY-MM-DD') : '')}
           style={{ width: '100%' }}
@@ -513,6 +519,7 @@ const MeasuresTabEdit: React.FC<MeasuresTabEditProps> = ({ data, onChange }) => 
       width: 120,
       render: (_: any, record: SanitaryMeasure, index: number) => (
         <DatePicker
+          format={DATE_DISPLAY_FORMAT}
           value={record.endDate ? dayjs(record.endDate) : null}
           onChange={(date) => handleMeasureChange(index, 'endDate', date ? date.format('YYYY-MM-DD') : '')}
           style={{ width: '100%' }}
@@ -686,6 +693,7 @@ const MeasuresTabEdit: React.FC<MeasuresTabEditProps> = ({ data, onChange }) => 
                           key: 'docCreationDate',
                           render: (_: any, record: MeasureInitiationBasisItem, basisIndex: number) => (
                             <DatePicker
+                              format={DATE_DISPLAY_FORMAT}
                               value={record.docCreationDate ? dayjs(record.docCreationDate) : null}
                               onChange={(date) => handleBasisChange(selectedMeasureIndex, basisIndex, 'docCreationDate', date ? date.format('YYYY-MM-DD') : '')}
                               style={{ width: '100%' }}
@@ -807,6 +815,7 @@ const MeasureImplementationDetailsEdit: React.FC<{
         </Form.Item>
         <Form.Item label={labelWithHelp('Начальная дата', FIELD_HELP.measureStartDate)}>
           <DatePicker
+            format={DATE_DISPLAY_FORMAT}
             value={item.startDate ? dayjs(item.startDate) : null}
             onChange={(date) => onChange('startDate', date ? date.format('YYYY-MM-DD') : undefined)}
             style={{ width: '100%' }}
@@ -814,6 +823,7 @@ const MeasureImplementationDetailsEdit: React.FC<{
         </Form.Item>
         <Form.Item label={labelWithHelp('Конечная дата', FIELD_HELP.measureEndDate)}>
           <DatePicker
+            format={DATE_DISPLAY_FORMAT}
             value={item.endDate ? dayjs(item.endDate) : null}
             onChange={(date) => onChange('endDate', date ? date.format('YYYY-MM-DD') : undefined)}
             style={{ width: '100%' }}
@@ -821,10 +831,11 @@ const MeasureImplementationDetailsEdit: React.FC<{
         </Form.Item>
         <Form.Item label={labelWithHelp('Вид объекта действия', FIELD_HELP.measureAffectedObjectKind)}>
           <Select
+            mode="multiple"
             showSearch
             placeholder="Выберите вид объекта действия"
-            value={item.measureAffectedObjectKindCode}
-            onChange={(value) => onChange('measureAffectedObjectKindCode', value)}
+            value={item.measureAffectedObjectKindCode ? item.measureAffectedObjectKindCode.split(';').map((c) => c.trim()).filter(Boolean) : undefined}
+            onChange={(value) => onChange('measureAffectedObjectKindCode', Array.isArray(value) ? value.join(';') : '')}
             filterOption={(input, option) =>
               (option?.label ?? '').toLowerCase().includes(input.toLowerCase())
             }
@@ -955,6 +966,7 @@ const MeasureImplementationDetailsEdit: React.FC<{
                 </Form.Item>
                 <Form.Item label={labelWithHelp('Дата', FIELD_HELP.implDocCreationDate)}>
                   <DatePicker
+                    format={DATE_DISPLAY_FORMAT}
                     value={item.documentDetails.docCreationDate ? dayjs(item.documentDetails.docCreationDate) : null}
                     onChange={(date) => onChange('documentDetails', { ...item.documentDetails, docCreationDate: date ? date.format('YYYY-MM-DD') : undefined })}
                     style={{ width: '100%' }}
@@ -962,6 +974,7 @@ const MeasureImplementationDetailsEdit: React.FC<{
                 </Form.Item>
                 <Form.Item label={labelWithHelp('Дата начала срока действия', FIELD_HELP.implDocStartDate)}>
                   <DatePicker
+                    format={DATE_DISPLAY_FORMAT}
                     value={item.documentDetails.docStartDate ? dayjs(item.documentDetails.docStartDate) : null}
                     onChange={(date) => onChange('documentDetails', { ...item.documentDetails, docStartDate: date ? date.format('YYYY-MM-DD') : undefined })}
                     style={{ width: '100%' }}
@@ -1170,6 +1183,7 @@ const SubjectDetailsUnifiedEdit: React.FC<{
             </Form.Item>
             <Form.Item label="Дата">
               <DatePicker
+                format={DATE_DISPLAY_FORMAT}
                 value={subject.identityDoc.docCreationDate ? dayjs(subject.identityDoc.docCreationDate) : null}
                 onChange={(date) => onChange({ ...subject, identityDoc: { ...subject.identityDoc!, docCreationDate: date ? date.format('YYYY-MM-DD') : undefined } })}
                 style={{ width: '100%' }}
@@ -1177,6 +1191,7 @@ const SubjectDetailsUnifiedEdit: React.FC<{
             </Form.Item>
             <Form.Item label="Срок действия">
               <DatePicker
+                format={DATE_DISPLAY_FORMAT}
                 value={subject.identityDoc.docValidityDate ? dayjs(subject.identityDoc.docValidityDate) : null}
                 onChange={(date) => onChange({ ...subject, identityDoc: { ...subject.identityDoc!, docValidityDate: date ? date.format('YYYY-MM-DD') : undefined } })}
                 style={{ width: '100%' }}

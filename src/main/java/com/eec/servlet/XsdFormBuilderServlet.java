@@ -20,7 +20,7 @@ public class XsdFormBuilderServlet extends HttpServlet {
     /** Инженерный GUID "1" — всегда в карте, не требует предварительного POST. */
     private static final String ENGINEERING_GUID = "1";
     private static final String ENGINEERING_GUID_JSON =
-            "{\"GUID\":\"4c5a50f1-a7b7-494c-93a6-85f8f0b16998\",\"dbConnectString\":\"jdbc:oracle:thin:@192.168.203.212:1521/ses\",\"userId\":\"1\",\"dbUsername\":\"sesdev\",\"dbPassword\":\"sesdev\",\"department\":{\"depid\":541,\"depkindid\":73},\"up\":{\"dangerousProductOut\":{\"view\":{\"1\":{}},\"access\":{\"1\":{}},\"edit\":{\"1\":{}},\"send\":{\"1\":{}},\"status\":{\"1\":{}},\"create\":{\"522\": {},\"132\": {}}},\"dangerousProductDB\":{\"view\":{\"1\":{}}},\"dangerousProductIn\":{\"view\":{\"1\":{}},\"access\":{\"1\":{}},\"status\":{\"1\":{}}}}}";
+            "{\"GUID\":\"4c5a50f1-a7b7-494c-93a6-85f8f0b16998\",\"dbConnectString\":\"jdbc:oracle:thin:@192.168.203.212:1521/ses\",\"userId\":\"1\",\"dbUsername\":\"sesdev\",\"dbPassword\":\"sesdev\",\"department\":{\"depid\":522,\"depkindid\":73},\"up\":{\"dangerousProductOut\":{\"view\":{\"1\":{}},\"access\":{\"1\":{}},\"edit\":{\"1\":{}},\"send\":{\"1\":{}},\"status\":{\"1\":{}},\"create\":{\"522\": {},\"132\": {}}},\"dangerousProductDB\":{\"view\":{\"1\":{}}},\"dangerousProductIn\":{\"view\":{\"1\":{}},\"access\":{\"1\":{}},\"status\":{\"1\":{}}}}}";
 
     @Override
     public void init() throws ServletException {
