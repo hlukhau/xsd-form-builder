@@ -78,6 +78,9 @@ export interface DpaSaveMetadata {
   docCreationDate?: string | null
   incidentAlertKindCode?: string | null
   commodityCode?: string | null
+  /** Код вида продукции (при выборе по коду → DPA.SANITARYPRODTYPEID, SANITARYPRODTYPENAME = NULL) */
+  sanitaryProdTypeCode?: string | null
+  /** Наименование вида продукции (при вводе текстом → DPA.SANITARYPRODTYPENAME, SANITARYPRODTYPEID = NULL) */
   sanitaryProdTypeName?: string | null
   sanitaryProdName?: string | null
   alertCountryId?: number | null
@@ -205,8 +208,10 @@ export function buildSaveMetadataFromCardData(data: CardData): DpaSaveMetadata {
   const typeRaw = notification?.type
   const incidentAlertKindCode = typeof typeRaw === 'string' && /^\d+$/.test(typeRaw) ? typeRaw : undefined
   const commodityCode = product?.productDetails?.commodityCode ?? undefined
-  const sanitaryProdTypeName = product?.typeName ?? undefined
   const sanitaryProdName = product?.productDetails?.productName ?? undefined
+  // Вид продукции: либо код (→ SANITARYPRODTYPEID), либо наименование (→ SANITARYPRODTYPENAME), не оба
+  const sanitaryProdTypeCode = product?.typeCode?.trim() ? product.typeCode.trim() : undefined
+  const sanitaryProdTypeName = !sanitaryProdTypeCode && product?.typeName?.trim() ? product.typeName.trim() : undefined
   const manufacturer = product?.manufacturer
   const manufCountryCode = manufacturer?.country || undefined
   const manufBusEntName = manufacturer?.businessEntityName ?? undefined
@@ -221,6 +226,7 @@ export function buildSaveMetadataFromCardData(data: CardData): DpaSaveMetadata {
     docCreationDate: docCreationDate || null,
     incidentAlertKindCode: incidentAlertKindCode || null,
     commodityCode: commodityCode || null,
+    sanitaryProdTypeCode: sanitaryProdTypeCode || null,
     sanitaryProdTypeName: sanitaryProdTypeName || null,
     sanitaryProdName: sanitaryProdName || null,
     manufCountryCode: manufCountryCode || null,

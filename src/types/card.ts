@@ -79,7 +79,10 @@ export interface ProductData {
 export interface ProductDetails {
   productId?: string // ProductId (штрихкод)
   productName?: string // ProductName
+  /** Одно значение (устаревшее, при парсинге заполняется из tradeNames[0]) */
   tradeName?: string // ProductTradeName
+  /** Название продукции (smsdo:ProductTradeName) — может быть несколько значений */
+  tradeNames?: string[]
   description?: string // DescriptionText
   commodityCode?: string // CommodityCode (Код ТН ВЭД ЕАЭС)
   productPurpose?: string // ProductPurposeText

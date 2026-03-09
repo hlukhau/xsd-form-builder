@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { Form, Input, Button, Space, Select, DatePicker } from 'antd'
+import { Form, Input, Button, Space, Select, DatePicker, Radio } from 'antd'
 import { PlusOutlined, DeleteOutlined } from '@ant-design/icons'
 import dayjs from 'dayjs'
 import { DATE_DISPLAY_FORMAT } from '@/constants/dateFormat'
@@ -18,9 +18,23 @@ interface ProductTabEditProps {
 
 const ProductTabEdit: React.FC<ProductTabEditProps> = ({ data, onChange }) => {
   const [form] = Form.useForm()
-  const { options: sanitaryProdTypeOptions, loading: loadingSanitaryProdTypes, getSelectOptions: getSanitaryProdTypeSelectOptions, getNameByCode } = useSanitaryProdTypeOptions()
+  const { options: sanitaryProdTypeOptions, loading: loadingSanitaryProdTypes, getSelectOptions: getSanitaryProdTypeSelectOptions } = useSanitaryProdTypeOptions()
   const { getSelectOptions: getShipDocKindSelectOptions, getNameByCode: getShipDocKindNameByCode, loading: loadingShipDocKinds } = useShipDocKindOptions()
   const [typeCodeError, setTypeCodeError] = useState<boolean>(false)
+  // Режим переключателя «Код / Наименование» храним в state, чтобы при переключении на «Код» не откатываться обратно (когда оба поля пусты)
+  const [productTypeMode, setProductTypeMode] = useState<'code' | 'name'>(() =>
+    data.typeCode?.trim() ? 'code' : 'name'
+  )
+
+  const tradeNamesList = data.productDetails.tradeNames?.length
+    ? data.productDetails.tradeNames
+    : (data.productDetails.tradeName ? [data.productDetails.tradeName] : [''])
+
+  // Синхронизируем режим переключателя с данными при загрузке карты (когда пришли typeCode или typeName)
+  useEffect(() => {
+    if (data.typeCode?.trim()) setProductTypeMode('code')
+    else if (data.typeName?.trim()) setProductTypeMode('name')
+  }, [data.typeCode, data.typeName])
 
   // Проверяем валидность кода при загрузке данных
   useEffect(() => {
@@ -29,7 +43,6 @@ const ProductTabEdit: React.FC<ProductTabEditProps> = ({ data, onChange }) => {
       typeCode: data.typeCode,
       productId: data.productDetails.productId,
       productName: data.productDetails.productName,
-      tradeName: data.productDetails.tradeName,
       description: data.productDetails.description,
       commodityCode: data.productDetails.commodityCode,
       productPurpose: data.productDetails.productPurpose,
@@ -46,7 +59,6 @@ const ProductTabEdit: React.FC<ProductTabEditProps> = ({ data, onChange }) => {
           setTypeCodeError(!exists)
         })
         .catch(() => {
-          // Если справочник недоступен, не показываем ошибку
           setTypeCodeError(false)
         })
     } else {
@@ -54,19 +66,58 @@ const ProductTabEdit: React.FC<ProductTabEditProps> = ({ data, onChange }) => {
     }
   }, [data, form])
 
-  // Обработчик выбора типа санитарной продукции
+  // Обработчик выбора типа санитарной продукции (только код → SANITARYPRODTYPEID, наименование не сохраняем)
   const handleSanitaryProdTypeSelect = (code: string) => {
-    const typeName = getNameByCode(code) || ''
-    setTypeCodeError(false) // Сбрасываем ошибку при выборе из справочника
+    setTypeCodeError(false)
     onChange({
       ...data,
-      typeCode: code,
-      typeName: typeName,
+      typeCode: code || '',
+      typeName: '',
+    })
+  }
+
+  const handleProductTypeNameChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    onChange({
+      ...data,
+      typeCode: '',
+      typeName: e.target.value ?? '',
+    })
+  }
+
+  const handleTradeNamesChange = (index: number, value: string) => {
+    const next = [...tradeNamesList]
+    next[index] = value
+    onChange({
+      ...data,
+      productDetails: { ...data.productDetails, tradeNames: next, tradeName: next[0] || undefined },
+    })
+  }
+
+  const handleAddTradeName = () => {
+    onChange({
+      ...data,
+      productDetails: {
+        ...data.productDetails,
+        tradeNames: [...tradeNamesList, ''],
+        tradeName: tradeNamesList[0] || undefined,
+      },
+    })
+  }
+
+  const handleRemoveTradeName = (index: number) => {
+    const next = tradeNamesList.filter((_, i) => i !== index)
+    onChange({
+      ...data,
+      productDetails: {
+        ...data.productDetails,
+        tradeNames: next.length ? next : undefined,
+        tradeName: next[0] || undefined,
+      },
     })
   }
 
   const handleValuesChange = (changedValues: any, allValues: any) => {
-    // Пропускаем только когда пользователь изменил именно тип продукции (обрабатывается handleSanitaryProdTypeSelect)
+    // Пропускаем когда пользователь изменил тип продукции (обрабатывается переключателем код/наименование)
     if (changedValues.typeCode !== undefined || changedValues.typeName !== undefined) {
       return
     }
@@ -80,7 +131,8 @@ const ProductTabEdit: React.FC<ProductTabEditProps> = ({ data, onChange }) => {
         ...pd,
         productId: allValues.productId !== undefined ? allValues.productId : pd.productId,
         productName: allValues.productName !== undefined ? allValues.productName : pd.productName,
-        tradeName: allValues.tradeName !== undefined ? allValues.tradeName : pd.tradeName,
+        tradeName: pd.tradeNames?.[0] ?? pd.tradeName,
+        tradeNames: pd.tradeNames,
         description: allValues.description !== undefined ? allValues.description : pd.description,
         commodityCode: allValues.commodityCode !== undefined ? allValues.commodityCode : pd.commodityCode,
         productPurpose: allValues.productPurpose !== undefined ? allValues.productPurpose : pd.productPurpose,
@@ -167,37 +219,84 @@ const ProductTabEdit: React.FC<ProductTabEditProps> = ({ data, onChange }) => {
       layout="vertical"
       onValuesChange={handleValuesChange}
     >
-      <Form.Item 
-        label={labelWithHelp('Код вида продукции', FIELD_HELP.productTypeCode)}
-        name="typeCode"
-        validateStatus={typeCodeError ? 'error' : ''}
-        help={typeCodeError ? 'Код не найден в справочнике' : ''}
-      >
-        <Select
-          showSearch
-          placeholder="Выберите вид продукции"
-          loading={loadingSanitaryProdTypes}
-          value={data.typeCode}
-          onChange={handleSanitaryProdTypeSelect}
-          filterOption={(input, option) =>
-            (option?.label ?? '').toLowerCase().includes(input.toLowerCase())
-          }
-          options={getSanitaryProdTypeSelectOptions()}
-          allowClear
-          status={typeCodeError ? 'error' : undefined}
-        />
+      <Form.Item label={labelWithHelp('Вид продукции', FIELD_HELP.productTypeCode)}>
+        <Radio.Group
+          value={productTypeMode}
+          onChange={(e) => {
+            const mode = e.target.value as 'code' | 'name'
+            setProductTypeMode(mode)
+            if (mode === 'code') {
+              onChange({ ...data, typeCode: data.typeCode || '', typeName: '' })
+            } else {
+              onChange({ ...data, typeCode: '', typeName: data.typeName || '' })
+            }
+          }}
+          style={{ marginBottom: 8 }}
+        >
+          <Radio value="code">Код вида продукции</Radio>
+          <Radio value="name">Наименование вида продукции</Radio>
+        </Radio.Group>
       </Form.Item>
-      <Form.Item label={labelWithHelp('Наименование вида продукции', FIELD_HELP.productTypeName)}>
-        <Input readOnly value={data.typeName || ''} />
-      </Form.Item>
+      {productTypeMode === 'code' && (
+        <Form.Item
+          label="Код вида продукции"
+          name="typeCode"
+          validateStatus={typeCodeError ? 'error' : ''}
+          help={typeCodeError ? 'Код не найден в справочнике' : ''}
+        >
+          <Select
+            showSearch
+            placeholder="Выберите вид продукции"
+            loading={loadingSanitaryProdTypes}
+            value={data.typeCode || undefined}
+            onChange={handleSanitaryProdTypeSelect}
+            filterOption={(input, option) =>
+              (option?.label ?? '').toLowerCase().includes(input.toLowerCase())
+            }
+            options={getSanitaryProdTypeSelectOptions()}
+            allowClear
+            status={typeCodeError ? 'error' : undefined}
+          />
+        </Form.Item>
+      )}
+      {productTypeMode === 'name' && (
+        <Form.Item label="Наименование вида продукции" name="typeName">
+          <Input
+            placeholder="Введите наименование вида продукции"
+            value={data.typeName ?? ''}
+            onChange={handleProductTypeNameChange}
+          />
+        </Form.Item>
+      )}
       <Form.Item label="Идентификатор" name="productId">
         <Input placeholder="штрихкод" />
       </Form.Item>
       <Form.Item label="Наименование" name="productName">
         <Input />
       </Form.Item>
-      <Form.Item label="Название" name="tradeName">
-        <Input />
+      <Form.Item label={labelWithHelp('Название продукции', FIELD_HELP.tradeName)}>
+        <div>
+          {tradeNamesList.map((value, index) => (
+            <Space key={index} style={{ display: 'flex', marginBottom: 8 }} align="baseline">
+              <Input
+                placeholder="Название продукции (торговое наименование)"
+                value={value}
+                onChange={(e) => handleTradeNamesChange(index, e.target.value)}
+                style={{ flex: 1 }}
+              />
+              <Button
+                type="text"
+                danger
+                icon={<DeleteOutlined />}
+                onClick={() => handleRemoveTradeName(index)}
+                disabled={tradeNamesList.length <= 1}
+              />
+            </Space>
+          ))}
+          <Button type="dashed" icon={<PlusOutlined />} onClick={handleAddTradeName} style={{ width: '100%' }}>
+            Добавить название
+          </Button>
+        </div>
       </Form.Item>
       <Form.Item label="Описание" name="description">
         <Input.TextArea rows={3} />

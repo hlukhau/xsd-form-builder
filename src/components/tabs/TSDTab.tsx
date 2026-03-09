@@ -247,8 +247,8 @@ const TSDTab: React.FC<TSDTabProps> = ({ data }) => {
             <Descriptions.Item label="Наименование">
               {selectedProduct.productName || '-'}
             </Descriptions.Item>
-            <Descriptions.Item label="Название">
-              {selectedProduct.tradeName || '-'}
+            <Descriptions.Item label="Название продукции">
+              {(selectedProduct.tradeNames?.length ? selectedProduct.tradeNames : selectedProduct.tradeName ? [selectedProduct.tradeName] : []).filter(Boolean).join(' ') || '-'}
             </Descriptions.Item>
             <Descriptions.Item label="Описание">
               {selectedProduct.description || '-'}

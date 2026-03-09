@@ -4,6 +4,7 @@ import { ru } from 'date-fns/locale'
 import ManufacturerDetails from '../common/ManufacturerDetails'
 import type { ProductData, TechnicalDocument } from '@/types/card'
 import { useShipDocKindOptions } from '@/hooks/useShipDocKindOptions'
+import { useSanitaryProdTypeOptions } from '@/hooks/useSanitaryProdTypeOptions'
 
 interface ProductTabProps {
   data: ProductData
@@ -11,6 +12,18 @@ interface ProductTabProps {
 
 const ProductTab: React.FC<ProductTabProps> = ({ data }) => {
   const { getNameByCode: getShipDocKindNameByCode } = useShipDocKindOptions()
+  const { getNameByCode: getSanitaryProdTypeNameByCode } = useSanitaryProdTypeOptions()
+  const productTypeNameDisplay = data.typeCode?.trim()
+    ? (getSanitaryProdTypeNameByCode(data.typeCode) || data.typeName || '-')
+    : (data.typeName || '-')
+  const tradeNamesDisplay = (data.productDetails.tradeNames?.length
+    ? data.productDetails.tradeNames
+    : data.productDetails.tradeName
+      ? [data.productDetails.tradeName]
+      : []
+  )
+    .filter(Boolean)
+    .join(' ')
 
   if (!data) {
     return <div>Данные о продукции не найдены</div>
@@ -37,11 +50,11 @@ const ProductTab: React.FC<ProductTabProps> = ({ data }) => {
   return (
     <div>
       <Descriptions column={1} bordered>
-        <Descriptions.Item label="Наименование вида">
-          {data.typeName || '-'}
-        </Descriptions.Item>
         <Descriptions.Item label="Код вида">
           {data.typeCode || '-'}
+        </Descriptions.Item>
+        <Descriptions.Item label="Наименование вида">
+          {productTypeNameDisplay}
         </Descriptions.Item>
         <Descriptions.Item label="Идентификатор">
           {data.productDetails.productId || '-'}
@@ -49,8 +62,8 @@ const ProductTab: React.FC<ProductTabProps> = ({ data }) => {
         <Descriptions.Item label="Наименование">
           {data.productDetails.productName || '-'}
         </Descriptions.Item>
-        <Descriptions.Item label="Название">
-          {data.productDetails.tradeName || '-'}
+        <Descriptions.Item label="Название продукции">
+          {tradeNamesDisplay || '-'}
         </Descriptions.Item>
         <Descriptions.Item label="Описание">
           {data.productDetails.description || '-'}

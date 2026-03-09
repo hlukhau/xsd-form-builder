@@ -117,9 +117,11 @@ export function exportCardDataToXML(data: CardData): string {
   // Product
   if (data.product) {
     xmlParts.push('        <smcdo:NonCompliantSanitaryProductDetails>')
-    xmlParts.push(`            <smsdo:SanitaryProductTypeCode codeListId="1025">${escapeXML(data.product.typeCode)}</smsdo:SanitaryProductTypeCode>`)
-    if (data.product.typeName) {
-      xmlParts.push(`            <smsdo:SanitaryProductTypeName>${escapeXML(data.product.typeName)}</smsdo:SanitaryProductTypeName>`)
+    // Вид продукции: либо код (→ SanitaryProductTypeCode), либо наименование (→ SanitaryProductTypeName), не оба
+    if (data.product.typeCode?.trim()) {
+      xmlParts.push(`            <smsdo:SanitaryProductTypeCode codeListId="1025">${escapeXML(data.product.typeCode.trim())}</smsdo:SanitaryProductTypeCode>`)
+    } else if (data.product.typeName?.trim()) {
+      xmlParts.push(`            <smsdo:SanitaryProductTypeName>${escapeXML(data.product.typeName.trim())}</smsdo:SanitaryProductTypeName>`)
     }
     
     // ProductDetails
@@ -234,7 +236,10 @@ function exportProductDetails(xmlParts: string[], details: ProductDetails, inden
   
   if (details.productId) xmlParts.push(`${indent}<csdo:ProductId>${escapeXML(details.productId)}</csdo:ProductId>`)
   if (details.productName) xmlParts.push(`${indent}<csdo:ProductName>${escapeXML(details.productName)}</csdo:ProductName>`)
-  if (details.tradeName) xmlParts.push(`${indent}<smsdo:ProductTradeName>${escapeXML(details.tradeName)}</smsdo:ProductTradeName>`)
+  const tradeNames = details.tradeNames?.length ? details.tradeNames : (details.tradeName ? [details.tradeName] : [])
+  tradeNames.filter(Boolean).forEach((name) => {
+    xmlParts.push(`${indent}<smsdo:ProductTradeName>${escapeXML(name)}</smsdo:ProductTradeName>`)
+  })
   if (details.description) xmlParts.push(`${indent}<csdo:DescriptionText>${escapeXML(details.description)}</csdo:DescriptionText>`)
   if (details.commodityCode) xmlParts.push(`${indent}<csdo:CommodityCode>${escapeXML(details.commodityCode)}</csdo:CommodityCode>`)
   if (details.productPurpose) xmlParts.push(`${indent}<smsdo:ProductPurposeText>${escapeXML(details.productPurpose)}</smsdo:ProductPurposeText>`)

@@ -537,16 +537,9 @@ function parseProductData(alertDetails: Element, rootElement?: Element): Product
   
   console.log('Найден NonCompliantSanitaryProductDetails:', productDetailsElement.tagName)
 
-  // Извлекаем данные о типе продукции
+  // Извлекаем данные о типе продукции: либо код (→ SANITARYPRODTYPEID), либо наименование (→ SANITARYPRODTYPENAME)
   const typeCode = getTextContent(productDetailsElement, 'SanitaryProductTypeCode') || ''
-  let typeName = getTextContent(productDetailsElement, 'SanitaryProductTypeName') || ''
-  
-  // Если название не указано, но есть код, можно использовать код
-  // В реальном приложении здесь можно обратиться к справочнику
-  if (!typeName && typeCode) {
-    // Заглушка - в реальном приложении нужно обращаться к справочнику
-    typeName = `Вид продукции (код: ${typeCode})`
-  }
+  const typeName = getTextContent(productDetailsElement, 'SanitaryProductTypeName') || ''
 
   // Извлекаем ProductDetails
   let productDetailsEl: Element | null = null
@@ -591,10 +584,12 @@ function parseProductData(alertDetails: Element, rootElement?: Element): Product
     console.log('ProductDetails найден:', productDetailsEl.tagName)
   }
 
+  const tradeNamesArr = getAllTextContents(productDetailsEl, 'ProductTradeName')
   const productDetails: ProductDetails = {
     productId: getTextContent(productDetailsEl, 'ProductId') || undefined,
     productName: getTextContent(productDetailsEl, 'ProductName') || undefined,
-    tradeName: getTextContent(productDetailsEl, 'ProductTradeName') || undefined,
+    tradeName: tradeNamesArr.length > 0 ? tradeNamesArr[0] : undefined,
+    tradeNames: tradeNamesArr.length > 0 ? tradeNamesArr : undefined,
     description: getTextContent(productDetailsEl, 'DescriptionText') || undefined,
     commodityCode: getTextContent(productDetailsEl, 'CommodityCode') || undefined,
     productPurpose: getTextContent(productDetailsEl, 'ProductPurposeText') || undefined,
@@ -1397,10 +1392,12 @@ function parseProductsFromElement(parent: Element): ProductDetails[] {
     for (let i = 0; i < productElements.length; i++) {
       const el = productElements[i]
       console.log('Найден ProductDetails в документе:', el.tagName)
+      const tradeNamesArr = getAllTextContents(el, 'ProductTradeName')
       const product: ProductDetails = {
         productId: getTextContent(el, 'ProductId') || undefined,
         productName: getTextContent(el, 'ProductName') || undefined,
-        tradeName: getTextContent(el, 'ProductTradeName') || undefined,
+        tradeName: tradeNamesArr.length > 0 ? tradeNamesArr[0] : undefined,
+        tradeNames: tradeNamesArr.length > 0 ? tradeNamesArr : undefined,
         description: getTextContent(el, 'DescriptionText') || undefined,
         commodityCode: getTextContent(el, 'CommodityCode') || undefined,
         productPurpose: getTextContent(el, 'ProductPurposeText') || undefined,
@@ -1431,10 +1428,12 @@ function parseProductsFromElement(parent: Element): ProductDetails[] {
           tagName.toLowerCase().includes('productdetails') ||
           tagName === 'smcdo:ProductDetails') {
         console.log('Найден ProductDetails по локальному имени:', tagName)
+        const tradeNamesArr = getAllTextContents(el, 'ProductTradeName')
         const product: ProductDetails = {
           productId: getTextContent(el, 'ProductId') || undefined,
           productName: getTextContent(el, 'ProductName') || undefined,
-          tradeName: getTextContent(el, 'ProductTradeName') || undefined,
+          tradeName: tradeNamesArr.length > 0 ? tradeNamesArr[0] : undefined,
+          tradeNames: tradeNamesArr.length > 0 ? tradeNamesArr : undefined,
           description: getTextContent(el, 'DescriptionText') || undefined,
           commodityCode: getTextContent(el, 'CommodityCode') || undefined,
           productPurpose: getTextContent(el, 'ProductPurposeText') || undefined,

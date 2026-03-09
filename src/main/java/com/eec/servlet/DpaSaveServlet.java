@@ -48,13 +48,15 @@ public class DpaSaveServlet extends HttpServlet {
     private static final String SQL_COUNTRY_ID = "SELECT COUNTRYID FROM SESINT.COUNTRY WHERE UPPER(TRIM(COUNTRYCODE)) = ? AND COUNTRYSDATE <= SYSDATE AND COUNTRYEDATE >= SYSDATE";
     /** AUTHORITYID по AUTHORITYUID (или по числовому идентификатору из metadata) */
     private static final String SQL_AUTHORITY_ID_BY_UID = "SELECT AUTHORITYID FROM SESINT.AUTHORITY WHERE TRIM(AUTHORITYUID) = ?";
+    /** SANITARYPRODTYPEID по коду вида продукции (для DPA при выборе по коду) */
+    private static final String SQL_SANITARYPRODTYPE_ID_BY_CODE = "SELECT SANITARYPRODTYPEID FROM SESINT.SANITARYPRODTYPE WHERE TRIM(SANITARYPRODTYPECODE) = ? AND ROWNUM = 1";
 
     /** INSERT DPA (всегда версия 1 при создании) */
     private static final String SQL_INSERT_DPA = ""
             + "INSERT INTO SESINT.DPA (DPAID, DATASOURCEKINDCODE, ALERTCOUNTRYID, INCIDENTID, DPAVERSION, AUTHORITYID, "
             + "INCIDENTALERTKINDCODE, DOCCREATIONDATE, DPASTATUSID, COMMODITYCODE, SANITARYPRODTYPEID, SANITARYPRODNAME, "
             + "MANUFCOUNTRYID, MANUFBUSENTNAME, MANUFBUSENTBRIEFNAME, ENDDATE, CREATIONDATETIME, MODIFICATIONDATETIME, SANITARYPRODTYPENAME) "
-            + "VALUES (?, ?, ?, ?, 1, ?, ?, ?, ?, ?, NULL, ?, ?, ?, ?, ?, SYSDATE, NULL, ?)";
+            + "VALUES (?, ?, ?, ?, 1, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, SYSDATE, NULL, ?)";
 
     /** INSERT DPAXML */
     private static final String SQL_INSERT_DPAXML = "INSERT INTO SESINT.DPAXML (DPAID, DPAXMLBODY, EDOCCODE, EDOCVERSION) VALUES (?, ?, ?, ?)";
@@ -65,8 +67,8 @@ public class DpaSaveServlet extends HttpServlet {
     /** UPDATE DPAXML при обновлении существующей карты */
     private static final String SQL_UPDATE_DPAXML = "UPDATE SESINT.DPAXML SET DPAXMLBODY = ?, EDOCCODE = ?, EDOCVERSION = ? WHERE DPAID = ?";
 
-    /** Обновить MODIFICATIONDATETIME, ENDDATE, AUTHORITYID и производителя в DPA при обновлении XML (триггер TRDPAXMLARIUD требует MANUFBUSENTNAME NOT NULL в DPAMANUFBUSENTSEARCH) */
-    private static final String SQL_UPDATE_DPA_MODIFIED = "UPDATE SESINT.DPA SET MODIFICATIONDATETIME = SYSDATE, ENDDATE = ?, AUTHORITYID = ?, MANUFBUSENTNAME = ?, MANUFBUSENTBRIEFNAME = ? WHERE DPAID = ?";
+    /** Обновить MODIFICATIONDATETIME, ENDDATE, AUTHORITYID, производителя и вид/наименование продукции в DPA при обновлении */
+    private static final String SQL_UPDATE_DPA_MODIFIED = "UPDATE SESINT.DPA SET MODIFICATIONDATETIME = SYSDATE, ENDDATE = ?, AUTHORITYID = ?, MANUFBUSENTNAME = ?, MANUFBUSENTBRIEFNAME = ?, SANITARYPRODNAME = ?, SANITARYPRODTYPEID = ?, SANITARYPRODTYPENAME = ? WHERE DPAID = ?";
     /** Текущий DPASTATUSID карты (для перехода в «Отредактировано» при сохранении из Новое/Отправка не удалась/Ошибка) */
     private static final String SQL_SELECT_DPASTATUSID = "SELECT DPASTATUSID FROM SESINT.DPA WHERE DPAID = ?";
     private static final int OUTGOING_NEW = 6, OUTGOING_FAILED = 9, OUTGOING_ERROR = 10, OUTGOING_EDITED = 12;
@@ -125,6 +127,7 @@ public class DpaSaveServlet extends HttpServlet {
         String docCreationDate = extractJsonString(metaBlock, "docCreationDate");
         String incidentAlertKindCode = extractJsonString(metaBlock, "incidentAlertKindCode");
         String commodityCode = extractJsonString(metaBlock, "commodityCode");
+        String sanitaryProdTypeCode = extractJsonString(metaBlock, "sanitaryProdTypeCode");
         String sanitaryProdTypeName = extractJsonString(metaBlock, "sanitaryProdTypeName");
         String sanitaryProdName = extractJsonString(metaBlock, "sanitaryProdName");
         Integer alertCountryId = extractJsonInt(metaBlock, "alertCountryId");
@@ -180,6 +183,17 @@ public class DpaSaveServlet extends HttpServlet {
 
                 Integer authorityIdResolved = resolveAuthorityId(conn, authorityIdStr);
 
+                // Вид продукции: либо код (→ SANITARYPRODTYPEID), либо наименование (→ SANITARYPRODTYPENAME)
+                Integer sanitaryProdTypeId = null;
+                String sanitaryProdTypeNameVal = null;
+                if (sanitaryProdTypeCode != null && !sanitaryProdTypeCode.trim().isEmpty()) {
+                    sanitaryProdTypeId = resolveSanitaryProdTypeId(conn, sanitaryProdTypeCode.trim());
+                    sanitaryProdTypeNameVal = null;
+                } else if (sanitaryProdTypeName != null && !sanitaryProdTypeName.trim().isEmpty()) {
+                    sanitaryProdTypeId = null;
+                    sanitaryProdTypeNameVal = sanitaryProdTypeName.trim();
+                }
+
                 try (PreparedStatement ps = conn.prepareStatement(SQL_INSERT_DPA)) {
                     int i = 1;
                     ps.setLong(i++, dpaid);
@@ -191,12 +205,13 @@ public class DpaSaveServlet extends HttpServlet {
                     setDateOrNull(ps, i++, docCreationDate);
                     setIntOrNull(ps, i++, draftStatusId);
                     ps.setString(i++, commodityCode != null ? commodityCode : "");
+                    setIntOrNull(ps, i++, sanitaryProdTypeId);
                     ps.setString(i++, sanitaryProdName != null ? sanitaryProdName : "");
                     setIntOrNull(ps, i++, manufCountryId);
                     ps.setString(i++, manufBusEntName != null ? manufBusEntName : "");
                     ps.setString(i++, manufBusEntBriefName != null ? manufBusEntBriefName : "");
                     setDateOrNull(ps, i++, endDate);
-                    ps.setString(i++, sanitaryProdTypeName != null ? sanitaryProdTypeName : "");
+                    ps.setString(i++, sanitaryProdTypeNameVal != null ? sanitaryProdTypeNameVal : "");
                     ps.executeUpdate();
                 }
 
@@ -264,12 +279,23 @@ public class DpaSaveServlet extends HttpServlet {
                     }
                 }
                 Integer authorityIdResolved = resolveAuthorityId(conn, authorityIdStr);
+                Integer sanitaryProdTypeIdUpdate = null;
+                String sanitaryProdTypeNameValUpdate = null;
+                if (sanitaryProdTypeCode != null && !sanitaryProdTypeCode.trim().isEmpty()) {
+                    sanitaryProdTypeIdUpdate = resolveSanitaryProdTypeId(conn, sanitaryProdTypeCode.trim());
+                } else if (sanitaryProdTypeName != null && !sanitaryProdTypeName.trim().isEmpty()) {
+                    sanitaryProdTypeNameValUpdate = sanitaryProdTypeName.trim();
+                }
                 try (PreparedStatement ps = conn.prepareStatement(SQL_UPDATE_DPA_MODIFIED)) {
-                    setDateOrNull(ps, 1, endDate);
-                    setIntOrNull(ps, 2, authorityIdResolved);
-                    ps.setString(3, manufBusEntName != null ? manufBusEntName : "");
-                    ps.setString(4, manufBusEntBriefName != null ? manufBusEntBriefName : "");
-                    ps.setLong(5, dpaid);
+                    int idx = 1;
+                    setDateOrNull(ps, idx++, endDate);
+                    setIntOrNull(ps, idx++, authorityIdResolved);
+                    ps.setString(idx++, manufBusEntName != null ? manufBusEntName : "");
+                    ps.setString(idx++, manufBusEntBriefName != null ? manufBusEntBriefName : "");
+                    ps.setString(idx++, sanitaryProdName != null ? sanitaryProdName : "");
+                    setIntOrNull(ps, idx++, sanitaryProdTypeIdUpdate);
+                    ps.setString(idx++, sanitaryProdTypeNameValUpdate != null ? sanitaryProdTypeNameValUpdate : "");
+                    ps.setLong(idx++, dpaid);
                     ps.executeUpdate();
                 }
                 int currentStatusId = -1;
@@ -753,6 +779,17 @@ public class DpaSaveServlet extends HttpServlet {
             ps.setString(1, String.valueOf(depId));
             try (ResultSet rs = ps.executeQuery()) {
                 return rs.next();
+            }
+        }
+    }
+
+    /** SANITARYPRODTYPEID по коду вида продукции (SANITARYPRODTYPECODE). */
+    private static Integer resolveSanitaryProdTypeId(Connection conn, String code) throws SQLException {
+        if (code == null || code.trim().isEmpty()) return null;
+        try (PreparedStatement ps = conn.prepareStatement(SQL_SANITARYPRODTYPE_ID_BY_CODE)) {
+            ps.setString(1, code.trim());
+            try (ResultSet rs = ps.executeQuery()) {
+                return rs.next() ? rs.getInt("SANITARYPRODTYPEID") : null;
             }
         }
     }
