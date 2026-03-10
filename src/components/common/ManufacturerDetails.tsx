@@ -7,9 +7,11 @@ import {
   getDefaultAddressKindName,
   getDefaultCountryName,
 } from '@/utils/addressFormatUtils'
+import { getCommunicationChannelNameByCode } from '@/constants/communicationChannel'
 import { useLegalFormOptions } from '@/hooks/useLegalFormOptions'
 import { useIdentificationMethodOptions } from '@/hooks/useIdentificationMethodOptions'
 import { useCountryOptions } from '@/hooks/useCountryOptions'
+import { useSupplyChainPartyKindOptions } from '@/hooks/useSupplyChainPartyKindOptions'
 
 const LEGAL_FORM_CODE_LIST_ID = '2049'
 
@@ -26,7 +28,11 @@ const ManufacturerDetails: React.FC<ManufacturerDetailsProps> = ({
   const { getNameByCode: getLegalFormNameByCode } = useLegalFormOptions(data.country)
   const { getDisplayLabel: getIdentificationMethodDisplayLabel } = useIdentificationMethodOptions(data.country)
   const { getDisplayLabel: getCountryDisplayLabel } = useCountryOptions()
+  const { getNameByCode: getSupplyChainPartyKindNameByCode } = useSupplyChainPartyKindOptions()
   const isFromRef = !!(data.businessEntityTypeCode && data.businessEntityTypeCodeListId === LEGAL_FORM_CODE_LIST_ID)
+  const kindDisplay = data.supplyChainPartyKindCode
+    ? `${data.supplyChainPartyKindCode} - ${getSupplyChainPartyKindNameByCode(data.supplyChainPartyKindCode) || data.supplyChainPartyKindCode}`
+    : '-'
   const organizationalFormDisplay = isFromRef && data.businessEntityTypeCode
     ? (getLegalFormNameByCode(data.businessEntityTypeCode) ? `${data.businessEntityTypeCode} - ${getLegalFormNameByCode(data.businessEntityTypeCode)}` : (data.organizationalForm || data.businessEntityTypeCode))
     : (data.organizationalForm || '-')
@@ -59,21 +65,35 @@ const ManufacturerDetails: React.FC<ManufacturerDetailsProps> = ({
     (code) => getCountryDisplayLabel(code) || getDefaultCountryName(code) || '-'
   )
 
-  const formatContact = (contact: ContactDetails): string => {
-    if (!contact) return '-'
-    const kind = contact.contactKind || ''
-    const value = contact.contactValue || ''
-    
-    // Определяем тип контакта по значению или коду
-    let contactType = kind
-    if (!contactType && value) {
-      if (value.includes('@')) contactType = 'электронная почта'
-      else if (value.includes('+') || /^\d/.test(value)) contactType = 'телефон'
-      else if (value.toLowerCase().includes('fax')) contactType = 'факс'
+  const formatContactLabel = (contact: ContactDetails): string => {
+    if (!contact) return ''
+    if (contact.communicationChannelCode) {
+      const name = getCommunicationChannelNameByCode(contact.communicationChannelCode)
+      return name ? `${contact.communicationChannelCode} - ${name}` : contact.communicationChannelCode
     }
-    
-    return contactType && value ? `${contactType}: ${value}` : value || contactType || '-'
+    if (contact.communicationChannelName) return contact.communicationChannelName
+    if (contact.contactKind) return contact.contactKind
+    return ''
   }
+
+  const contactValue = (contact: ContactDetails): string =>
+    (contact.communicationChannelId ?? contact.contactValue ?? '').trim()
+
+  // Группируем контакты по виду (код/наименование); при нескольких значениях одного вида — через пробел
+  const contactGroups = (data.contacts || []).reduce(
+    (acc, contact) => {
+      const label = formatContactLabel(contact) || 'Контакт'
+      const value = contactValue(contact)
+      if (!value) return acc
+      if (!acc[label]) acc[label] = []
+      acc[label].push(value)
+      return acc
+    },
+    {} as Record<string, string[]>
+  )
+  const contactDisplayLines = Object.entries(contactGroups).map(
+    ([label, values]) => `${label}: ${values.join(' ')}`
+  )
 
   return (
     <div style={{ marginTop: '16px' }}>
@@ -87,6 +107,7 @@ const ManufacturerDetails: React.FC<ManufacturerDetailsProps> = ({
             children: (
               <Descriptions column={1} bordered size="small">
                 <Descriptions.Item label="Страна">{getCountryDisplayLabel(data.country)}</Descriptions.Item>
+                <Descriptions.Item label="Вид">{kindDisplay}</Descriptions.Item>
                 <Descriptions.Item label="Наименование субъекта">
                   {data.businessEntityName || '-'}
                 </Descriptions.Item>
@@ -117,13 +138,11 @@ const ManufacturerDetails: React.FC<ManufacturerDetailsProps> = ({
                     </ul>
                   </Descriptions.Item>
                 )}
-                {data.contacts && data.contacts.length > 0 && (
+                {contactDisplayLines.length > 0 && (
                   <Descriptions.Item label="Контактный реквизит">
                     <div>
-                      {data.contacts.map((contact, index) => (
-                        <div key={index} style={{ marginBottom: '4px' }}>
-                          {formatContact(contact)}
-                        </div>
+                      {contactDisplayLines.map((line, index) => (
+                        <div key={index} style={{ marginBottom: '4px' }}>{line}</div>
                       ))}
                     </div>
                   </Descriptions.Item>

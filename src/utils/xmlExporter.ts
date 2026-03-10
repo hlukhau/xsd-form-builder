@@ -271,7 +271,7 @@ function exportProductDetails(xmlParts: string[], details: ProductDetails, inden
 function exportSupplyChainParty(xmlParts: string[], party: SupplyChainPartyDetails, kindCode: string, indent: string) {
   xmlParts.push(`${indent}<ccdo:SupplyChainPartyDetails>`)
   xmlParts.push(`${indent}  <csdo:SupplyChainPartyKindCode>${escapeXML(kindCode)}</csdo:SupplyChainPartyKindCode>`)
-  if (party.country) xmlParts.push(`${indent}  <csdo:UnifiedCountryCode>${escapeXML(party.country)}</csdo:UnifiedCountryCode>`)
+  if (party.country) xmlParts.push(`${indent}  <csdo:UnifiedCountryCode codeListId="2021">${escapeXML(party.country)}</csdo:UnifiedCountryCode>`)
   if (party.businessEntityName) xmlParts.push(`${indent}  <csdo:BusinessEntityName>${escapeXML(party.businessEntityName)}</csdo:BusinessEntityName>`)
   if (party.shortName) xmlParts.push(`${indent}  <csdo:BusinessEntityBriefName>${escapeXML(party.shortName)}</csdo:BusinessEntityBriefName>`)
   // Организационно-правовая форма: при наличии кода и codeListId — вывод с атрибутом; наименование из справочника или свободный текст

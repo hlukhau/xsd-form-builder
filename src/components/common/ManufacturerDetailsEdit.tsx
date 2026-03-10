@@ -11,6 +11,7 @@ import { useLegalFormOptions } from '@/hooks/useLegalFormOptions'
 import { useIdentificationMethodOptions } from '@/hooks/useIdentificationMethodOptions'
 import { checkSupplyChainPartyKindExists } from '@/utils/referenceDataApi'
 import { getAddressListFromParty, getDefaultAddressKindName } from '@/utils/addressFormatUtils'
+import { getCommunicationChannelSelectOptions } from '@/constants/communicationChannel'
 
 /** Идентификатор справочника организационно-правовых форм (SESINT.LEGALFORM) */
 const LEGAL_FORM_CODE_LIST_ID = '2049'
@@ -34,12 +35,18 @@ const ManufacturerDetailsEdit: React.FC<ManufacturerDetailsEditProps> = ({
   const { countryOptions, loading, normalizeCountryCode } = useCountryOptions()
   const { options: supplyChainPartyKindOptions, loading: loadingSupplyChainPartyKinds, getSelectOptions: getSupplyChainPartyKindSelectOptions, getNameByCode: getSupplyChainPartyKindNameByCode } = useSupplyChainPartyKindOptions()
   const countryForLegalForm = normalizeCountryCode(data.country)
-  const { getSelectOptions: getLegalFormSelectOptions, getNameByCode: getLegalFormNameByCode, loading: loadingLegalForms } = useLegalFormOptions(countryForLegalForm)
-  const { getSelectOptions: getIdentificationMethodSelectOptions, loading: loadingIdMethods } = useIdentificationMethodOptions(countryForLegalForm)
-  const [kindCodeError, setKindCodeError] = useState<boolean>(false)
-
+  const { options: legalFormOptionsList, getSelectOptions: getLegalFormSelectOptions, getNameByCode: getLegalFormNameByCode, loading: loadingLegalForms } = useLegalFormOptions(countryForLegalForm)
   /** Значение из справочника (код + codeListId 2049): в Select показывается «код — наименование» */
   const isLegalFormFromRef = !!(data.businessEntityTypeCode && data.businessEntityTypeCodeListId === LEGAL_FORM_CODE_LIST_ID)
+  const legalFormCodeFromRef = isLegalFormFromRef ? data.businessEntityTypeCode : undefined
+  const legalFormCodeNotInOptions =
+    legalFormCodeFromRef &&
+    countryForLegalForm &&
+    !loadingLegalForms &&
+    legalFormOptionsList.length >= 0 &&
+    !legalFormOptionsList.some((o) => String(o.code) === String(legalFormCodeFromRef))
+  const { getSelectOptions: getIdentificationMethodSelectOptions, loading: loadingIdMethods } = useIdentificationMethodOptions(countryForLegalForm)
+  const [kindCodeError, setKindCodeError] = useState<boolean>(false)
 
   // Проверяем валидность кода вида участника при загрузке данных
   useEffect(() => {
@@ -79,6 +86,13 @@ const ManufacturerDetailsEdit: React.FC<ManufacturerDetailsEditProps> = ({
       taxpayerId: data.taxpayerId,
     })
   }, [data, form, normalizeCountryCode, effectiveKindCode, isLegalFormFromRef])
+
+  // Подтягивание значения организационно-правовой формы из XML при загрузке опций по стране
+  useEffect(() => {
+    if (!countryForLegalForm || !data.businessEntityTypeCode || !data.businessEntityTypeCodeListId) return
+    if (data.businessEntityTypeCodeListId !== LEGAL_FORM_CODE_LIST_ID) return
+    form.setFieldValue('businessEntityTypeCode', data.businessEntityTypeCode)
+  }, [countryForLegalForm, data.businessEntityTypeCode, data.businessEntityTypeCodeListId, form])
 
   // Обработчик выбора вида участника цепи поставки
   const handleSupplyChainPartyKindSelect = (code: string) => {
@@ -153,6 +167,9 @@ const ManufacturerDetailsEdit: React.FC<ManufacturerDetailsEditProps> = ({
 
   const handleContactAdd = () => {
     const newContact: ContactDetails = {
+      communicationChannelCode: undefined,
+      communicationChannelName: undefined,
+      communicationChannelId: '',
       contactKind: '',
       contactValue: '',
     }
@@ -173,14 +190,13 @@ const ManufacturerDetailsEdit: React.FC<ManufacturerDetailsEditProps> = ({
 
   const handleContactChange = (index: number, field: string, value: string) => {
     const updatedContacts = [...(data.contacts || [])]
-    updatedContacts[index] = {
-      ...updatedContacts[index],
-      [field]: value,
+    const next = { ...updatedContacts[index], [field]: value }
+    if (field === 'communicationChannelId' || field === 'contactValue') {
+      next.communicationChannelId = value
+      next.contactValue = value
     }
-    onChange({
-      ...data,
-      contacts: updatedContacts,
-    })
+    updatedContacts[index] = next
+    onChange({ ...data, contacts: updatedContacts })
   }
 
   return (
@@ -205,18 +221,24 @@ const ManufacturerDetailsEdit: React.FC<ManufacturerDetailsEditProps> = ({
                     normalizeCountryCode={normalizeCountryCode}
                   />
                 </Form.Item>
-                <Form.Item 
-                  label={labelWithHelp('Вид', FIELD_HELP.supplyChainPartyKind)}
-                  name="supplyChainPartyKindCode"
-                  validateStatus={kindCodeError ? 'error' : ''}
-                  help={kindCodeError ? 'Код не найден в справочнике' : ''}
-                >
-                  {fixedSupplyChainPartyKindCode ? (
+                {fixedSupplyChainPartyKindCode ? (
+                  <Form.Item
+                    label={labelWithHelp('Вид', FIELD_HELP.supplyChainPartyKind)}
+                    validateStatus={kindCodeError ? 'error' : ''}
+                    help={kindCodeError ? 'Код не найден в справочнике' : ''}
+                  >
                     <Input
                       readOnly
-                      value={getSupplyChainPartyKindNameByCode(fixedSupplyChainPartyKindCode) || `Код ${fixedSupplyChainPartyKindCode}`}
+                      value={`${fixedSupplyChainPartyKindCode} - ${getSupplyChainPartyKindNameByCode(fixedSupplyChainPartyKindCode) || 'загрузка…'}`}
                     />
-                  ) : (
+                  </Form.Item>
+                ) : (
+                  <Form.Item
+                    label={labelWithHelp('Вид', FIELD_HELP.supplyChainPartyKind)}
+                    name="supplyChainPartyKindCode"
+                    validateStatus={kindCodeError ? 'error' : ''}
+                    help={kindCodeError ? 'Код не найден в справочнике' : ''}
+                  >
                     <Select
                       showSearch
                       placeholder="Выберите вид участника"
@@ -230,8 +252,8 @@ const ManufacturerDetailsEdit: React.FC<ManufacturerDetailsEditProps> = ({
                       allowClear
                       status={kindCodeError ? 'error' : undefined}
                     />
-                  )}
-                </Form.Item>
+                  </Form.Item>
+                )}
                 <Form.Item label="Наименование субъекта" name="businessEntityName">
                   <Input />
                 </Form.Item>
@@ -241,6 +263,12 @@ const ManufacturerDetailsEdit: React.FC<ManufacturerDetailsEditProps> = ({
                 <Form.Item
                   label="Организационно-правовая форма (из справочника)"
                   name="businessEntityTypeCode"
+                  validateStatus={legalFormCodeNotInOptions ? 'warning' : undefined}
+                  help={
+                    legalFormCodeNotInOptions
+                      ? `Значение из документа (${legalFormCodeFromRef}) отсутствует в справочнике для страны ${countryForLegalForm}. Возможные причины: период действия записи в справочнике не включает текущую дату; не совпала страна; запись удалена.`
+                      : undefined
+                  }
                 >
                   <Select
                     showSearch
@@ -253,7 +281,7 @@ const ManufacturerDetailsEdit: React.FC<ManufacturerDetailsEditProps> = ({
                     }
                     options={getLegalFormSelectOptions()}
                     disabled={!countryForLegalForm}
-                    notFoundContent={loadingLegalForms ? 'Загрузка...' : 'Нет данных по выбранной стране'}
+                    notFoundContent={loadingLegalForms ? 'Загрузка...' : 'Нет данных по выбранной стране. Проверьте период действия записей (LEGALFORMSDATE–LEGALFORMEDATE) и страну.'}
                   />
                 </Form.Item>
                 {!isLegalFormFromRef && (
@@ -343,21 +371,29 @@ const ManufacturerDetailsEdit: React.FC<ManufacturerDetailsEditProps> = ({
                   </Button>
                 </div>
 
-                {/* Контакты */}
+                {/* Контакты: вид из справочника (код → CommunicationChannelCode) или наименование (→ CommunicationChannelName), значение → CommunicationChannelId */}
                 <div style={{ marginTop: '16px' }}>
                   <h4>Контактные реквизиты</h4>
                   {data.contacts?.map((contact, index) => (
                     <div key={index} style={{ marginBottom: '8px', padding: '8px', border: '1px solid #d9d9d9', borderRadius: '4px' }}>
                       <Space direction="vertical" style={{ width: '100%' }}>
-                        <Input
-                          placeholder="Вид контакта (телефон, email, факс)"
-                          value={contact.contactKind}
-                          onChange={(e) => handleContactChange(index, 'contactKind', e.target.value)}
+                        <Select
+                          placeholder="Вид контакта (код — наименование)"
+                          allowClear
+                          style={{ width: '100%' }}
+                          value={contact.communicationChannelCode || undefined}
+                          onChange={(value) => handleContactChange(index, 'communicationChannelCode', value ?? '')}
+                          options={getCommunicationChannelSelectOptions()}
                         />
                         <Input
-                          placeholder="Значение контакта"
-                          value={contact.contactValue}
-                          onChange={(e) => handleContactChange(index, 'contactValue', e.target.value)}
+                          placeholder="Наименование вида связи (если не из справочника)"
+                          value={contact.communicationChannelName ?? ''}
+                          onChange={(e) => handleContactChange(index, 'communicationChannelName', e.target.value)}
+                        />
+                        <Input
+                          placeholder="Значение (номер, адрес и т.д.)"
+                          value={contact.communicationChannelId ?? contact.contactValue ?? ''}
+                          onChange={(e) => handleContactChange(index, 'communicationChannelId', e.target.value)}
                         />
                         <Button
                           type="link"
