@@ -312,9 +312,16 @@ function outgoingStatusButton(
     }
   }
   if (statusId === OUTGOING_PENDING) {
+    const comment =
+      'Ожидает отправки в ЕЭК; следующее изменение статуса (Отправлено / Отправка не удалась / Ошибка обработки / Доставлено) выполняется системой.'
     return {
-      config: null,
-      comment: 'Ожидает отправки в ЕЭК; следующее изменение статуса (Отправлено / Отправка не удалась / Ошибка обработки / Доставлено) выполняется системой.',
+      config: {
+        label: 'Смена статуса',
+        action: 'pending_system',
+        disabled: true,
+        hint: comment,
+      },
+      comment,
     }
   }
   if (statusId === OUTGOING_FAILED || statusId === OUTGOING_ERROR || statusId === OUTGOING_EDITED) {
@@ -357,12 +364,18 @@ function outgoingStatusButton(
     }
   }
   if (statusId === OUTGOING_SENT || statusId === 13) {
+    const comment =
+      statusId === OUTGOING_SENT
+        ? 'Карта уже в состоянии «Отправлено», дальнейшие переходы выполняются системой.'
+        : 'Карта в состоянии «Завершено», дальнейшие переходы не предусмотрены.'
     return {
-      config: null,
-      comment:
-        statusId === OUTGOING_SENT
-          ? 'Кнопка смены статуса не отображается: карта уже в состоянии «Отправлено», дальнейшие переходы не предусмотрены.'
-          : 'Кнопка смены статуса не отображается: карта в состоянии «Завершено».',
+      config: {
+        label: 'Смена статуса',
+        action: statusId === OUTGOING_SENT ? 'sent_system' : 'completed_no_transitions',
+        disabled: true,
+        hint: comment,
+      },
+      comment,
     }
   }
 
@@ -466,9 +479,15 @@ function outgoingStatusButton(
     }
   }
   if (s.includes('ожидает отправки')) {
+    const comment = 'Ожидает отправки в ЕЭК; следующее изменение статуса выполняется системой.'
     return {
-      config: null,
-      comment: 'Ожидает отправки в ЕЭК; следующее изменение статуса выполняется системой.',
+      config: {
+        label: 'Смена статуса',
+        action: 'pending_system',
+        disabled: true,
+        hint: comment,
+      },
+      comment,
     }
   }
   if (s.includes('отправка не удалась') || s.includes('ошибка обработки') || s.includes('отредактировано')) {

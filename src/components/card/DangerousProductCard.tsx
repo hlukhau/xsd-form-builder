@@ -161,7 +161,33 @@ const DangerousProductCard: React.FC<DangerousProductCardProps> = ({
         fetchRightsByGuid(guid)
           .then((r) => {
             setCreateAuthorityIds(getCreateAuthorityIdsFromRights(r))
-            return r.department?.depid != null ? fetchDepInfo(r.department.depid) : Promise.resolve({ depKindCode: null, depKindName: null })
+
+            const depid = r.department?.depid != null ? String(r.department.depid) : null
+            const hasRightInMap = (map: Record<string, unknown> | undefined | null): boolean => {
+              if (!depid || !map || typeof map !== 'object') return false
+              return Object.prototype.hasOwnProperty.call(map, depid)
+            }
+
+            // Уточняем права по исходящим сведениям на основе JSON прав
+            const upOut = r.up?.dangerousProductOut
+            const hasStatusByGuid = hasRightInMap(upOut?.status)
+            const hasSendByGuid = hasRightInMap(upOut?.send)
+            const hasEditByGuid = hasRightInMap(upOut?.edit)
+
+            // Для UI‑кнопок требуем И право с сервера, И наличие соответствующего ключа в JSON прав
+            if (hasStatusByGuid === false) {
+              setHasStatusRight((prev) => prev && false)
+            }
+            if (hasSendByGuid === false) {
+              setHasSendRight((prev) => prev && false)
+            }
+            if (hasEditByGuid === false) {
+              setHasSaveRight((prev) => prev && false)
+            }
+
+            return r.department?.depid != null
+              ? fetchDepInfo(r.department.depid)
+              : Promise.resolve({ depKindCode: null, depKindName: null })
           })
           .then((level) => {
             setRightsDepKindCode(level.depKindCode ?? null)
@@ -810,6 +836,35 @@ const DangerousProductCard: React.FC<DangerousProductCardProps> = ({
         <CardActions
           data={currentData}
           onDefineAccess={() => setAccessModalVisible(true)}
+          onShowRightsDebug={() => {
+            setRightsDebugVisible(true)
+            setRightsDebugError(null)
+            setRightsDebugRawText(null)
+            setRightsDebugData(null)
+            if (guid) {
+              setRightsDebugLoading(true)
+              fetchRightsByGuid(guid)
+                .then((data) => {
+                  setRightsDebugData(data)
+                  setRightsDebugError(null)
+                  setRightsDebugRawText(null)
+                })
+                .catch(async (e) => {
+                  setRightsDebugError(e instanceof Error ? e.message : 'Ошибка загрузки')
+                  setRightsDebugData(null)
+                  try {
+                    const raw = await fetchRightsByGuidRaw(guid)
+                    setRightsDebugRawText(raw.text)
+                  } catch {
+                    setRightsDebugRawText(null)
+                  }
+                })
+                .finally(() => setRightsDebugLoading(false))
+            } else {
+              setRightsDebugError('GUID не задан (выполните «Определить доступ»)')
+              setRightsDebugLoading(false)
+            }
+          }}
           showDeleteButton={showDeleteButton}
           onDelete={handleDelete}
           showCopyButton={showCopyButton}

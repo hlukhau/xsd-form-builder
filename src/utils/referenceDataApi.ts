@@ -487,13 +487,27 @@ export async function getIncidentAlertKindNameByCode(code: string): Promise<stri
   }
 }
 
-/** JSON прав по GUID (для department.depid, dangerousProductOut.create и др.). GET /api/rights?guid= */
+/** JSON прав по GUID (для department.depid, dangerousProductOut.create/edit/status/send и др.). GET /api/rights?guid= */
 export interface RightsJson {
-  department?: { depid?: number }
-  /** Ключи create — AUTHORITYID УО, по которым разрешено создание исходящих сведений */
+  department?: { depid?: number; depkindid?: number }
+  /**
+   * up.* — права пользователя по подсистеме опасной продукции.
+   * Ключи во вложенных объектах — DEPID подразделений, для которых разрешено соответствующее действие.
+   */
   up?: {
+    dangerousProductDB?: {
+      view?: Record<string, unknown>
+    }
+    dangerousProductIn?: {
+      view?: Record<string, unknown>
+      status?: Record<string, unknown>
+    }
     dangerousProductOut?: {
+      view?: Record<string, unknown>
       create?: Record<string, unknown>
+      edit?: Record<string, unknown>
+      status?: Record<string, unknown>
+      send?: Record<string, unknown>
     }
   }
 }
