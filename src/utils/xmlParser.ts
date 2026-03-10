@@ -347,58 +347,92 @@ export function parseXMLToCardData(xmlText: string): CardData {
  * Извлекает текстовое содержимое элемента по имени тега
  * Поддерживает поиск с учетом namespace
  */
+/** URI пространств имён из XSD (для поиска по NS без зависимости от префикса) */
+const NS_CSDO = 'urn:EEC:M:SimpleDataObjects:v0.4.12'
+const NS_CCDO = 'urn:EEC:M:ComplexDataObjects:v0.4.12'
+const NS_SMSDO = 'urn:EEC:M:SM:SimpleDataObjects:v0.3.9'
+const NS_SMCDO = 'urn:EEC:M:SM:ComplexDataObjects:v0.3.9'
+
 export function getTextContent(
   parent: Element | null,
   tagName: string
 ): string | null {
   if (!parent) return null
 
-  // Сначала пробуем найти с namespace (более точный поиск)
-  const namespaces = [
-    'ccdo',
-    'csdo',
-    'smsdo',
-    'smcdo',
-    'doc',
-  ]
+  // 1) Поиск по namespace URI + localName (не зависит от префикса в документе)
+  try {
+    const byLocal = parent.getElementsByTagNameNS('*', tagName)
+    if (byLocal.length > 0) {
+      const text = byLocal[0].textContent?.trim() || null
+      if (text) return text
+    }
+  } catch (_) {}
 
+  // 2) Поиск по известным namespace URI (csdo и др. — теги из SimpleDataObjects)
+  const nsUris = [NS_CSDO, NS_SMSDO, NS_CCDO, NS_SMCDO]
+  for (const ns of nsUris) {
+    try {
+      const elements = parent.getElementsByTagNameNS(ns, tagName)
+      if (elements.length > 0) {
+        const text = elements[0].textContent?.trim() || null
+        if (text) return text
+      }
+    } catch (_) {}
+  }
+
+  // 3) Поиск по префиксу:csdo:TagName (на случай если парсер сохраняет префикс)
+  const namespaces = ['ccdo', 'csdo', 'smsdo', 'smcdo', 'doc']
   for (const ns of namespaces) {
     try {
-      // Пробуем через getElementsByTagName с namespace
       const elements = parent.getElementsByTagName(`${ns}:${tagName}`)
       if (elements.length > 0) {
         const text = elements[0].textContent?.trim() || null
-        if (text) {
-          console.log(`getTextContent: найдено ${ns}:${tagName} = "${text}"`)
-        }
-        return text
+        if (text) return text
       }
-    } catch (e) {
-      // Игнорируем ошибку и продолжаем
-    }
+    } catch (_) {}
   }
 
-  // Ищем по локальному имени (без namespace) - самый надежный способ
+  // 4) По локальному имени среди всех потомков (без учёта регистра)
+  const tagNameLower = tagName.toLowerCase()
   const allElements = parent.getElementsByTagName('*')
   for (let i = 0; i < allElements.length; i++) {
     const element = allElements[i]
-    const localName = element.localName || element.tagName.split(':').pop()?.toLowerCase()
-    const tagNameLower = tagName.toLowerCase()
-    if (localName === tagNameLower) {
-      return element.textContent?.trim() || null
+    const rawLocal = element.localName || element.tagName.split(':').pop() || ''
+    if (rawLocal.toLowerCase() === tagNameLower) {
+      const text = element.textContent?.trim() || null
+      if (text) return text
     }
   }
 
-  // Последняя попытка - ищем элемент без учета namespace
+  // 5) Элемент без префикса (тег как есть)
   try {
     const elements = parent.getElementsByTagName(tagName)
     if (elements.length > 0) {
-      return elements[0].textContent?.trim() || null
+      const text = elements[0].textContent?.trim() || null
+      if (text) return text
     }
-  } catch (e) {
-    // Игнорируем ошибку
-  }
+  } catch (_) {}
 
+  return null
+}
+
+/**
+ * Извлекает текст из первого прямого дочернего элемента с заданным локальным именем (без учёта регистра).
+ * Используется как запасной способ, когда getTextContent не срабатывает (например, в части браузеров).
+ */
+function getTextFromDirectChildByLocalName(parent: Element | null, tagLocalName: string): string | null {
+  if (!parent || !parent.childNodes) return null
+  const want = tagLocalName.toLowerCase()
+  for (let i = 0; i < parent.childNodes.length; i++) {
+    const node = parent.childNodes[i]
+    if (node.nodeType !== 1) continue
+    const el = node as Element
+    const local = (el.localName || (el.tagName || '').split(':').pop() || '').toLowerCase()
+    if (local === want) {
+      const text = (el.textContent || '').trim()
+      return text || null
+    }
+  }
   return null
 }
 
@@ -869,7 +903,11 @@ function parseSupplyChainPartyDetails(supplyChainEl: Element): SupplyChainPartyD
     }
   }
   
-  const customsNumber = getTextContent(supplyChainEl, 'CustomsNumber') || undefined
+  let customsNumber = getTextContent(supplyChainEl, 'UniqueCustomsNumberId') || getTextContent(supplyChainEl, 'CustomsNumber') || undefined
+  if (!customsNumber) {
+    const raw = getTextFromDirectChildByLocalName(supplyChainEl, 'UniqueCustomsNumberId')
+    if (raw) customsNumber = raw
+  }
   const taxpayerId = getTextContent(supplyChainEl, 'TaxpayerId') || undefined
   const taxRegistrationReasonCode = getTextContent(supplyChainEl, 'TaxRegistrationReasonCode') || undefined
   const supplyChainPartyKindCode = getTextContent(supplyChainEl, 'SupplyChainPartyKindCode') || undefined
@@ -2316,7 +2354,7 @@ function parseOrganizationDetails(placeElement: Element): BusinessEntityDetails 
   const businessEntityName = getTextContent(orgElement, 'BusinessEntityName') || undefined
   const businessEntityBriefName = getTextContent(orgElement, 'BusinessEntityBriefName') || undefined
   const businessEntityTypeName = getTextContent(orgElement, 'BusinessEntityTypeName') || undefined
-  const customsNumber = getTextContent(orgElement, 'CustomsNumber') || undefined
+  const customsNumber = getTextContent(orgElement, 'UniqueCustomsNumberId') || getTextContent(orgElement, 'CustomsNumber') || undefined
   const taxpayerId = getTextContent(orgElement, 'TaxpayerId') || undefined
   
   // BusinessEntityId с методом идентификации
