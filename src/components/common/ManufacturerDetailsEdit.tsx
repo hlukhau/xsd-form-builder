@@ -10,6 +10,7 @@ import { useSupplyChainPartyKindOptions } from '@/hooks/useSupplyChainPartyKindO
 import { useLegalFormOptions } from '@/hooks/useLegalFormOptions'
 import { useIdentificationMethodOptions } from '@/hooks/useIdentificationMethodOptions'
 import { checkSupplyChainPartyKindExists } from '@/utils/referenceDataApi'
+import { getAddressListFromParty, getDefaultAddressKindName } from '@/utils/addressFormatUtils'
 
 /** Идентификатор справочника организационно-правовых форм (SESINT.LEGALFORM) */
 const LEGAL_FORM_CODE_LIST_ID = '2049'
@@ -122,17 +123,32 @@ const ManufacturerDetailsEdit: React.FC<ManufacturerDetailsEditProps> = ({
     })
   }
 
-  const handleAddressChange = (kindCode: string, field: string, value: string) => {
-    const addressField = kindCode === '1' ? 'registrationAddress' :
-                        kindCode === '2' ? 'actualAddress' : 'mailingAddress'
+  const addressList = getAddressListFromParty(data)
+
+  const syncAddressesToParty = (list: AddressDetails[]) => {
     onChange({
       ...data,
-      [addressField]: {
-        ...(data[addressField as keyof SupplyChainPartyDetails] as AddressDetails || {}),
-        addressKindCode: kindCode,
-        [field]: value,
-      },
+      addresses: list,
+      registrationAddress: list.find((a) => (a.addressKindCode || '') === '1'),
+      actualAddress: list.find((a) => (a.addressKindCode || '') === '2'),
+      mailingAddress: list.find((a) => (a.addressKindCode || '') === '3'),
     })
+  }
+
+  const handleAddressChange = (index: number, field: keyof AddressDetails, value: string | undefined) => {
+    const list = [...addressList]
+    if (!list[index]) return
+    list[index] = { ...list[index], [field]: value }
+    syncAddressesToParty(list)
+  }
+
+  const handleAddressAdd = () => {
+    syncAddressesToParty([...addressList, { addressKindCode: '1' }])
+  }
+
+  const handleAddressRemove = (index: number) => {
+    const list = addressList.filter((_, i) => i !== index)
+    syncAddressesToParty(list)
   }
 
   const handleContactAdd = () => {
@@ -272,92 +288,59 @@ const ManufacturerDetailsEdit: React.FC<ManufacturerDetailsEditProps> = ({
                   <Input />
                 </Form.Item>
 
-                {/* Адреса */}
+                {/* Адреса — список с добавлением */}
                 <div style={{ marginTop: '16px' }}>
-                  <h4>Адрес регистрации</h4>
-                  <Space direction="vertical" style={{ width: '100%' }}>
-                    <CountrySelect
-                      placeholder="Страна"
-                      loading={loading}
-                      value={data.registrationAddress?.country}
-                      onChange={(value) => handleAddressChange('1', 'country', value || '')}
-                      countryOptions={countryOptions}
-                      normalizeCountryCode={normalizeCountryCode}
-                    />
-                    <Input
-                      placeholder="Город"
-                      value={data.registrationAddress?.cityName}
-                      onChange={(e) => handleAddressChange('1', 'cityName', e.target.value)}
-                    />
-                    <Input
-                      placeholder="Улица"
-                      value={data.registrationAddress?.streetName}
-                      onChange={(e) => handleAddressChange('1', 'streetName', e.target.value)}
-                    />
-                    <Input
-                      placeholder="Номер здания"
-                      value={data.registrationAddress?.buildingNumberId}
-                      onChange={(e) => handleAddressChange('1', 'buildingNumberId', e.target.value)}
-                    />
-                  </Space>
-                </div>
-
-                <div style={{ marginTop: '16px' }}>
-                  <h4>Фактический адрес</h4>
-                  <Space direction="vertical" style={{ width: '100%' }}>
-                    <CountrySelect
-                      placeholder="Страна"
-                      loading={loading}
-                      value={data.actualAddress?.country}
-                      onChange={(value) => handleAddressChange('2', 'country', value || '')}
-                      countryOptions={countryOptions}
-                      normalizeCountryCode={normalizeCountryCode}
-                    />
-                    <Input
-                      placeholder="Город"
-                      value={data.actualAddress?.cityName}
-                      onChange={(e) => handleAddressChange('2', 'cityName', e.target.value)}
-                    />
-                    <Input
-                      placeholder="Улица"
-                      value={data.actualAddress?.streetName}
-                      onChange={(e) => handleAddressChange('2', 'streetName', e.target.value)}
-                    />
-                    <Input
-                      placeholder="Номер здания"
-                      value={data.actualAddress?.buildingNumberId}
-                      onChange={(e) => handleAddressChange('2', 'buildingNumberId', e.target.value)}
-                    />
-                  </Space>
-                </div>
-
-                <div style={{ marginTop: '16px' }}>
-                  <h4>Почтовый адрес</h4>
-                  <Space direction="vertical" style={{ width: '100%' }}>
-                    <CountrySelect
-                      placeholder="Страна"
-                      loading={loading}
-                      value={data.mailingAddress?.country}
-                      onChange={(value) => handleAddressChange('3', 'country', value || '')}
-                      countryOptions={countryOptions}
-                      normalizeCountryCode={normalizeCountryCode}
-                    />
-                    <Input
-                      placeholder="Город"
-                      value={data.mailingAddress?.cityName}
-                      onChange={(e) => handleAddressChange('3', 'cityName', e.target.value)}
-                    />
-                    <Input
-                      placeholder="Улица"
-                      value={data.mailingAddress?.streetName}
-                      onChange={(e) => handleAddressChange('3', 'streetName', e.target.value)}
-                    />
-                    <Input
-                      placeholder="Номер здания"
-                      value={data.mailingAddress?.buildingNumberId}
-                      onChange={(e) => handleAddressChange('3', 'buildingNumberId', e.target.value)}
-                    />
-                  </Space>
+                  <h4>Адреса</h4>
+                  {addressList.map((addr, index) => (
+                    <div key={index} style={{ marginBottom: '16px', padding: '12px', border: '1px solid #d9d9d9', borderRadius: '4px' }}>
+                      <Space direction="vertical" style={{ width: '100%' }} size="small">
+                        <Space wrap style={{ width: '100%', justifyContent: 'space-between' }}>
+                          <Select
+                            placeholder="Вид адреса"
+                            value={addr.addressKindCode || undefined}
+                            onChange={(value) => handleAddressChange(index, 'addressKindCode', value ?? undefined)}
+                            style={{ minWidth: 200 }}
+                            options={[
+                              { value: '1', label: getDefaultAddressKindName('1') },
+                              { value: '2', label: getDefaultAddressKindName('2') },
+                              { value: '3', label: getDefaultAddressKindName('3') },
+                            ]}
+                            allowClear
+                          />
+                          <Button type="link" danger size="small" icon={<DeleteOutlined />} onClick={() => handleAddressRemove(index)}>
+                            Удалить адрес
+                          </Button>
+                        </Space>
+                        <CountrySelect
+                          placeholder="Страна"
+                          loading={loading}
+                          value={addr.country}
+                          onChange={(value) => handleAddressChange(index, 'country', value || undefined)}
+                          countryOptions={countryOptions}
+                          normalizeCountryCode={normalizeCountryCode}
+                        />
+                        <Input
+                          placeholder="Почтовый индекс"
+                          value={addr.postCode}
+                          onChange={(e) => handleAddressChange(index, 'postCode', e.target.value || undefined)}
+                        />
+                        <Input placeholder="Код территории" value={addr.territoryCode} onChange={(e) => handleAddressChange(index, 'territoryCode', e.target.value || undefined)} />
+                        <Input placeholder="Регион" value={addr.regionName} onChange={(e) => handleAddressChange(index, 'regionName', e.target.value || undefined)} />
+                        <Input placeholder="Район" value={addr.districtName} onChange={(e) => handleAddressChange(index, 'districtName', e.target.value || undefined)} />
+                        <Input placeholder="Город" value={addr.cityName} onChange={(e) => handleAddressChange(index, 'cityName', e.target.value || undefined)} />
+                        <Input placeholder="Населённый пункт" value={addr.settlementName} onChange={(e) => handleAddressChange(index, 'settlementName', e.target.value || undefined)} />
+                        <Input placeholder="Улица" value={addr.streetName} onChange={(e) => handleAddressChange(index, 'streetName', e.target.value || undefined)} />
+                        <Space wrap>
+                          <Input placeholder="Номер дома" value={addr.buildingNumberId} onChange={(e) => handleAddressChange(index, 'buildingNumberId', e.target.value || undefined)} style={{ width: 120 }} />
+                          <Input placeholder="Номер помещения" value={addr.roomNumberId} onChange={(e) => handleAddressChange(index, 'roomNumberId', e.target.value || undefined)} style={{ width: 120 }} />
+                        </Space>
+                        <Input placeholder="Номер абонентского ящика" value={addr.postOfficeBoxId} onChange={(e) => handleAddressChange(index, 'postOfficeBoxId', e.target.value || undefined)} />
+                      </Space>
+                    </div>
+                  ))}
+                  <Button type="dashed" icon={<PlusOutlined />} onClick={handleAddressAdd} style={{ width: '100%' }}>
+                    Добавить адрес
+                  </Button>
                 </div>
 
                 {/* Контакты */}

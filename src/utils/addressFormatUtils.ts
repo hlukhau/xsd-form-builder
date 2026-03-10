@@ -69,12 +69,16 @@ export function getDefaultCountryName(code?: string): string {
   return map[code] || code
 }
 
-/** Список адресов из SupplyChainPartyDetails (регистрационный, фактический, почтовый). */
+/** Список адресов из SupplyChainPartyDetails. Если задан addresses — возвращаем его; иначе собираем из регистрационный/фактический/почтовый. */
 export function getAddressListFromParty(party: {
+  addresses?: AddressDetails[]
   registrationAddress?: AddressDetails
   actualAddress?: AddressDetails
   mailingAddress?: AddressDetails
 }): AddressDetails[] {
+  if (party.addresses && party.addresses.length > 0) {
+    return party.addresses.map((a) => ({ ...a, addressKindCode: a.addressKindCode || undefined }))
+  }
   const list: AddressDetails[] = []
   if (party.registrationAddress) list.push({ ...party.registrationAddress, addressKindCode: party.registrationAddress.addressKindCode || '1' })
   if (party.actualAddress) list.push({ ...party.actualAddress, addressKindCode: party.actualAddress.addressKindCode || '2' })
@@ -87,12 +91,14 @@ export function getAddressListFromOrganization(org: { addresses?: AddressDetails
   return org.addresses && org.addresses.length > 0 ? [...org.addresses] : []
 }
 
-/** Список адресов из SubjectDetails (физлицо/юрлицо — регистрационный, фактический, почтовый). */
+/** Список адресов из SubjectDetails (физлицо/юрлицо — addresses или регистрационный, фактический, почтовый). */
 export function getAddressListFromSubject(subject: {
+  addresses?: AddressDetails[]
   registrationAddress?: AddressDetails
   actualAddress?: AddressDetails
   mailingAddress?: AddressDetails
 }): AddressDetails[] {
+  if (subject.addresses && subject.addresses.length > 0) return [...subject.addresses]
   return getAddressListFromParty(subject)
 }
 

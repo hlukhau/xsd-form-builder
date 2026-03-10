@@ -292,9 +292,13 @@ function exportSupplyChainParty(xmlParts: string[], party: SupplyChainPartyDetai
   if (party.taxpayerId) xmlParts.push(`${indent}  <csdo:TaxpayerId>${escapeXML(party.taxpayerId)}</csdo:TaxpayerId>`)
   if (party.taxRegistrationReasonCode) xmlParts.push(`${indent}  <csdo:TaxRegistrationReasonCode>${escapeXML(party.taxRegistrationReasonCode)}</csdo:TaxRegistrationReasonCode>`)
   
-  if (party.registrationAddress) exportAddress(xmlParts, party.registrationAddress, '1', `${indent}  `)
-  if (party.actualAddress) exportAddress(xmlParts, party.actualAddress, '2', `${indent}  `)
-  if (party.mailingAddress) exportAddress(xmlParts, party.mailingAddress, '3', `${indent}  `)
+  if (party.addresses && party.addresses.length > 0) {
+    party.addresses.forEach((addr) => exportAddress(xmlParts, addr, addr.addressKindCode || '1', `${indent}  `))
+  } else {
+    if (party.registrationAddress) exportAddress(xmlParts, party.registrationAddress, '1', `${indent}  `)
+    if (party.actualAddress) exportAddress(xmlParts, party.actualAddress, '2', `${indent}  `)
+    if (party.mailingAddress) exportAddress(xmlParts, party.mailingAddress, '3', `${indent}  `)
+  }
   
   if (party.contacts && party.contacts.length > 0) {
     party.contacts.forEach(contact => {

@@ -1,4 +1,5 @@
 import type { CardData } from '@/types/card'
+import { getAddressListFromParty, getDefaultAddressKindName } from '@/utils/addressFormatUtils'
 
 /** Код страны и варианты названия — для нормализации при сравнении (country в XML = код, в метаданных БД = название) */
 const COUNTRY_NORMALIZE: Record<string, string[]> = {
@@ -18,6 +19,29 @@ const IGNORE_MISSING_IN_EXPORT = [
 
 function shouldIgnoreMissingExport(path: string): boolean {
   return IGNORE_MISSING_IN_EXPORT.some((s) => path.endsWith(s) || path.includes('.authorityId'))
+}
+
+/** Краткое описание адреса для отчёта сравнения (вид, страна, город, улица, дом и т.д.) */
+function formatAddressShort(addr: unknown): string {
+  if (addr == null || typeof addr !== 'object') return ''
+  const a = addr as Record<string, unknown>
+  const kind = getDefaultAddressKindName(a.addressKindCode as string) || 'адрес'
+  const parts: string[] = []
+  if (a.country) parts.push(String(a.country))
+  if (a.postCode) parts.push(String(a.postCode))
+  if (a.regionName) parts.push(String(a.regionName))
+  if (a.districtName) parts.push(String(a.districtName))
+  if (a.cityName) parts.push(String(a.cityName))
+  if (a.settlementName) parts.push(String(a.settlementName))
+  if (a.streetName) parts.push(String(a.streetName))
+  if (a.buildingNumberId) {
+    const b = String(a.buildingNumberId)
+    const r = a.roomNumberId ? `${b} - ${a.roomNumberId}` : b
+    parts.push(r)
+  } else if (a.roomNumberId) parts.push(String(a.roomNumberId))
+  if (a.postOfficeBoxId) parts.push(String(a.postOfficeBoxId))
+  const rest = parts.filter(Boolean).join(', ')
+  return rest ? `${kind} — ${rest}` : kind
 }
 
 function isEmptyValue(val: unknown): boolean {
@@ -86,14 +110,11 @@ export function compareCardData(original: CardData, exported: CardData): {
     if (Array.isArray(originalVal) && Array.isArray(exportedVal)) {
       if (originalVal.length !== exportedVal.length) {
         differences.push(`Разная длина массива на пути ${path}: ${originalVal.length} vs ${exportedVal.length}`)
-        return false
       }
       
-      // Если массив объектов, сравниваем по содержимому, а не по порядку
+      // Если массив объектов, сравниваем по содержимому (сопоставление по отпечаткам)
       if (originalVal.length > 0 && typeof originalVal[0] === 'object' && originalVal[0] !== null) {
-        // Создаем набор "отпечатков" для каждого элемента
         const originalFingerprints = originalVal.map((item, idx) => {
-          // Создаем простой отпечаток на основе ключевых полей
           const keyFields = Object.keys(item).filter(k => {
             const val = item[k]
             return val != null && typeof val !== 'object' && !Array.isArray(val)
@@ -111,38 +132,45 @@ export function compareCardData(original: CardData, exported: CardData): {
           return { fingerprint, index: idx, item }
         })
         
-        // Сопоставляем элементы по отпечаткам
         const usedExported = new Set<number>()
         for (const orig of originalFingerprints) {
-          const match = exportedFingerprints.find((exp, idx) => 
+          const match = exportedFingerprints.find((exp, idx) =>
             !usedExported.has(idx) && exp.fingerprint === orig.fingerprint
           )
-          
           if (match) {
             usedExported.add(match.index)
             compareValue(`${path}[${orig.index}]`, orig.item, match.item)
           } else {
-            // Ищем наиболее похожий элемент
             const bestMatch = exportedFingerprints.find((exp, idx) => !usedExported.has(idx))
             if (bestMatch) {
               usedExported.add(bestMatch.index)
               compareValue(`${path}[${orig.index}]`, orig.item, bestMatch.item)
             } else {
-              warnings.push(`Не найден соответствующий элемент в экспортированных данных: ${path}[${orig.index}]`)
+              const desc = formatAddressShort(orig.item)
+              warnings.push(`Отсутствует в экспорте: ${path}[${orig.index}]${desc ? ` (${desc})` : ''}`)
             }
           }
         }
         
-        // Проверяем неиспользованные элементы в экспортированном массиве
         for (let i = 0; i < exportedFingerprints.length; i++) {
           if (!usedExported.has(i)) {
-            warnings.push(`Лишний элемент в экспортированных данных: ${path}[${i}]`)
+            const desc = formatAddressShort(exportedFingerprints[i].item)
+            added.push(`${path}[${i}]${desc ? ` — добавлен: ${desc}` : ` — добавлен`}`)
           }
         }
       } else {
-        // Для примитивных массивов сравниваем по порядку
-        for (let i = 0; i < originalVal.length; i++) {
+        for (let i = 0; i < Math.min(originalVal.length, exportedVal.length); i++) {
           compareValue(`${path}[${i}]`, originalVal[i], exportedVal[i])
+        }
+        if (exportedVal.length > originalVal.length) {
+          for (let i = originalVal.length; i < exportedVal.length; i++) {
+            added.push(`${path}[${i}] = ${typeof exportedVal[i] === 'string' ? `"${exportedVal[i]}"` : JSON.stringify(exportedVal[i])}`)
+          }
+        }
+        if (originalVal.length > exportedVal.length) {
+          for (let i = exportedVal.length; i < originalVal.length; i++) {
+            warnings.push(`Отсутствует в экспорте: ${path}[${i}]`)
+          }
         }
       }
       return true
@@ -152,9 +180,24 @@ export function compareCardData(original: CardData, exported: CardData): {
     if (typeof originalVal === 'object' && typeof exportedVal === 'object') {
       const originalKeys = new Set(Object.keys(originalVal))
       const exportedKeys = new Set(Object.keys(exportedVal))
-      
-      // Проверяем отсутствующие ключи: только предупреждаем, если в исходных было поле, а в экспорте его нет (потеря данных)
+      const ADDRESS_KEYS = ['registrationAddress', 'actualAddress', 'mailingAddress', 'addresses']
+      const isPartyLike = (o: unknown) =>
+        o != null &&
+        typeof o === 'object' &&
+        (Object.prototype.hasOwnProperty.call(o, 'registrationAddress') ||
+          Object.prototype.hasOwnProperty.call(o, 'actualAddress') ||
+          Object.prototype.hasOwnProperty.call(o, 'mailingAddress') ||
+          (Object.prototype.hasOwnProperty.call(o, 'addresses') && Array.isArray((o as { addresses?: unknown[] }).addresses) && (o as { addresses: unknown[] }).addresses.length > 0))
+      // Для контрагентов (manufacturer, organization, supplyChainParties): сравниваем по единому списку адресов, не по полям reg/actual/mail
+      if (isPartyLike(originalVal) || isPartyLike(exportedVal)) {
+        const origList = getAddressListFromParty(originalVal as Parameters<typeof getAddressListFromParty>[0])
+        const expList = getAddressListFromParty(exportedVal as Parameters<typeof getAddressListFromParty>[0])
+        const addrPath = path ? `${path}.addresses` : 'addresses'
+        compareValue(addrPath, origList, expList)
+      }
+      // Проверяем отсутствующие ключи (кроме адресов — уже сравнили списком)
       for (const key of originalKeys) {
+        if (ADDRESS_KEYS.includes(key)) continue
         if (!exportedKeys.has(key)) {
           const subPath = path ? `${path}.${key}` : key
           if (shouldIgnoreMissingExport(subPath)) continue
@@ -162,14 +205,16 @@ export function compareCardData(original: CardData, exported: CardData): {
           warnings.push(`Отсутствует поле в экспортированных данных: ${subPath}`)
         }
       }
-      // Сравниваем общие ключи
+      // Сравниваем общие ключи (кроме адресов)
       for (const key of originalKeys) {
+        if (ADDRESS_KEYS.includes(key)) continue
         if (exportedKeys.has(key)) {
           compareValue(`${path}.${key}`, originalVal[key], exportedVal[key])
         }
       }
-      // Ключи только в экспорте — пользователь добавил поля; сравниваем с undefined, чтобы попасть в "Добавлено значение"
+      // Ключи только в экспорте (кроме адресов)
       for (const key of exportedKeys) {
+        if (ADDRESS_KEYS.includes(key)) continue
         if (!originalKeys.has(key)) {
           compareValue(`${path}.${key}`, undefined, exportedVal[key])
         }

@@ -904,10 +904,11 @@ function parseSupplyChainPartyDetails(supplyChainEl: Element): SupplyChainPartyD
   const taxRegistrationReasonCode = getTextContent(supplyChainEl, 'TaxRegistrationReasonCode') || undefined
   const supplyChainPartyKindCode = getTextContent(supplyChainEl, 'SupplyChainPartyKindCode') || undefined
 
-  // Парсим адреса - находим все адреса
-  const registrationAddress = parseAddress(supplyChainEl, '1') // AddressKindCode = 1
-  const actualAddress = parseAddress(supplyChainEl, '2') // AddressKindCode = 2
-  const mailingAddress = parseAddress(supplyChainEl, '3') // AddressKindCode = 3
+  // Парсим все адреса (SubjectAddressDetails может быть несколько)
+  const addresses = parseAllAddresses(supplyChainEl)
+  const registrationAddress = addresses.find((a) => (a.addressKindCode || '').trim() === '1')
+  const actualAddress = addresses.find((a) => (a.addressKindCode || '').trim() === '2')
+  const mailingAddress = addresses.find((a) => (a.addressKindCode || '').trim() === '3')
 
   // Парсим контакты
   const contacts = parseContacts(supplyChainEl)
@@ -924,6 +925,7 @@ function parseSupplyChainPartyDetails(supplyChainEl: Element): SupplyChainPartyD
     customsNumber,
     taxpayerId,
     taxRegistrationReasonCode,
+    addresses: addresses.length > 0 ? addresses : undefined,
     registrationAddress,
     actualAddress,
     mailingAddress,
@@ -933,39 +935,36 @@ function parseSupplyChainPartyDetails(supplyChainEl: Element): SupplyChainPartyD
 }
 
 /**
- * Парсит адрес по коду вида адреса
+ * Собирает все элементы SubjectAddressDetails в массив (порядок сохранён).
  */
-function parseAddress(parent: Element, addressKindCode: string): AddressDetails | undefined {
-  // Пробуем найти через getElementsByTagName
+function parseAllAddresses(parent: Element): AddressDetails[] {
+  const result: AddressDetails[] = []
   try {
     const addressElements = parent.getElementsByTagName('ccdo:SubjectAddressDetails')
     for (let i = 0; i < addressElements.length; i++) {
-      const el = addressElements[i]
-      const kindCode = getTextContent(el, 'AddressKindCode')
-      if (kindCode === addressKindCode) {
-        return parseAddressDetails(el)
-      }
+      result.push(parseAddressDetails(addressElements[i]))
     }
-  } catch (e) {
-    // Игнорируем ошибку
+  } catch {
+    // ignore
   }
-  
-  // Если не нашли, ищем по локальному имени
+  if (result.length > 0) return result
   const allElements = parent.getElementsByTagName('*')
-  
   for (let i = 0; i < allElements.length; i++) {
     const el = allElements[i]
-    const localName = el.localName || el.tagName.split(':').pop()?.toLowerCase()
-    
+    const localName = (el.localName || el.tagName.split(':').pop() || '').toLowerCase()
     if (localName === 'subjectaddressdetails' || localName === 'objectaddressdetails') {
-      const kindCode = getTextContent(el, 'AddressKindCode')
-      if (kindCode === addressKindCode) {
-        return parseAddressDetails(el)
-      }
+      result.push(parseAddressDetails(el))
     }
   }
-  
-  return undefined
+  return result
+}
+
+/**
+ * Парсит адрес по коду вида адреса (первый с таким кодом)
+ */
+function parseAddress(parent: Element, addressKindCode: string): AddressDetails | undefined {
+  const all = parseAllAddresses(parent)
+  return all.find((a) => (a.addressKindCode || '').trim() === addressKindCode)
 }
 
 /**
@@ -3166,15 +3165,17 @@ function parseSubjectDetails(parent: Element): SubjectDetails | undefined {
   const country = getTextContent(subjectElement, 'UnifiedCountryCode') || undefined
   const subjectName = getTextContent(subjectElement, 'SubjectName') || undefined
   const identityDoc = parseIdentityDocDetails(subjectElement)
-  const registrationAddress = parseAddress(subjectElement, '1')
-  const actualAddress = parseAddress(subjectElement, '2')
-  const mailingAddress = parseAddress(subjectElement, '3')
+  const addresses = parseAllAddresses(subjectElement)
+  const registrationAddress = addresses.find((a) => (a.addressKindCode || '').trim() === '1')
+  const actualAddress = addresses.find((a) => (a.addressKindCode || '').trim() === '2')
+  const mailingAddress = addresses.find((a) => (a.addressKindCode || '').trim() === '3')
   const contacts = parseContacts(subjectElement)
   
   return {
     country,
     subjectName,
     identityDoc,
+    addresses: addresses.length > 0 ? addresses : undefined,
     registrationAddress,
     actualAddress,
     mailingAddress,

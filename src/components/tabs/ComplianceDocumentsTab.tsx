@@ -4,6 +4,12 @@ import { EyeOutlined } from '@ant-design/icons'
 import { format } from 'date-fns'
 import { ru } from 'date-fns/locale'
 import type { ComplianceDocument, TSDData } from '@/types/card'
+import {
+  getAddressListFromParty,
+  formatAddressList,
+  getDefaultAddressKindName,
+  getDefaultCountryName,
+} from '@/utils/addressFormatUtils'
 import { useIdentificationMethodOptions } from '@/hooks/useIdentificationMethodOptions'
 import { useConformityDocKindOptions } from '@/hooks/useConformityDocKindOptions'
 import { useCountryOptions } from '@/hooks/useCountryOptions'
@@ -28,7 +34,9 @@ const ComplianceDocumentsTab: React.FC<ComplianceDocumentsTabProps> = ({
   const [laboratoryModalVisible, setLaboratoryModalVisible] = useState(false)
   const labCountry = selectedLaboratory?.registrationAddress?.country ?? selectedLaboratory?.actualAddress?.country ?? selectedLaboratory?.mailingAddress?.country ?? ''
   const { getDisplayLabel: getIdentificationMethodDisplayLabel } = useIdentificationMethodOptions(labCountry)
+  const { getDisplayLabel: getCountryDisplayLabel } = useCountryOptions()
   const { getDisplayLabel: getConformityDocKindDisplayLabel } = useConformityDocKindOptions()
+  const getCountryNameForAddress = (code?: string) => getCountryDisplayLabel(code) || getDefaultCountryName(code) || '-'
 
   const formatDate = (date: string | null | undefined) => {
     if (!date) return '-'
@@ -199,8 +207,6 @@ const ComplianceDocumentsTab: React.FC<ComplianceDocumentsTabProps> = ({
       ),
     },
   ]
-
-  const { getDisplayLabel: getCountryDisplayLabel } = useCountryOptions()
 
   const formatDateShort = (date: string | null | undefined) => {
     if (!date) return '-'
@@ -424,33 +430,19 @@ const ComplianceDocumentsTab: React.FC<ComplianceDocumentsTabProps> = ({
             <Descriptions.Item label="Наименование субъекта">
               {selectedLaboratory.businessEntityName || '-'}
             </Descriptions.Item>
-            <Descriptions.Item label="Адрес регистрации">
-              {selectedLaboratory.registrationAddress?.fullAddress || 
-               (selectedLaboratory.registrationAddress ? 
-                 [selectedLaboratory.registrationAddress.country, 
-                  selectedLaboratory.registrationAddress.cityName, 
-                  selectedLaboratory.registrationAddress.streetName, 
-                  selectedLaboratory.registrationAddress.buildingNumberId].filter(Boolean).join(', ') 
-                : '-')}
-            </Descriptions.Item>
-            <Descriptions.Item label="Фактический адрес">
-              {selectedLaboratory.actualAddress?.fullAddress || 
-               (selectedLaboratory.actualAddress ? 
-                 [selectedLaboratory.actualAddress.country, 
-                  selectedLaboratory.actualAddress.cityName, 
-                  selectedLaboratory.actualAddress.streetName, 
-                  selectedLaboratory.actualAddress.buildingNumberId].filter(Boolean).join(', ') 
-                : '-')}
-            </Descriptions.Item>
-            <Descriptions.Item label="Почтовый адрес">
-              {selectedLaboratory.mailingAddress?.fullAddress || 
-               (selectedLaboratory.mailingAddress ? 
-                 [selectedLaboratory.mailingAddress.country, 
-                  selectedLaboratory.mailingAddress.cityName, 
-                  selectedLaboratory.mailingAddress.streetName, 
-                  selectedLaboratory.mailingAddress.buildingNumberId].filter(Boolean).join(', ') 
-                : '-')}
-            </Descriptions.Item>
+            {(() => {
+              const addressList = getAddressListFromParty(selectedLaboratory)
+              const addressLines = formatAddressList(addressList, getDefaultAddressKindName, getCountryNameForAddress)
+              return addressLines.length > 0 ? (
+                <Descriptions.Item label="Адреса">
+                  <ul style={{ margin: 0, paddingLeft: '20px' }}>
+                    {addressLines.map((line, idx) => (
+                      <li key={idx} style={{ marginBottom: '4px' }}>{line}</li>
+                    ))}
+                  </ul>
+                </Descriptions.Item>
+              ) : null
+            })()}
             {selectedLaboratory.accreditationCertificate && (
               <>
                 <Descriptions.Item label="Наименование аттестата аккредитации">

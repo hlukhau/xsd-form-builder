@@ -117,6 +117,8 @@ export interface SupplyChainPartyDetails {
   customsNumber?: string
   taxpayerId?: string
   taxRegistrationReasonCode?: string
+  /** Список адресов (при редактировании — единый список с добавлением; при отсутствии используется регистрационный/фактический/почтовый). */
+  addresses?: AddressDetails[]
   registrationAddress?: AddressDetails
   actualAddress?: AddressDetails
   mailingAddress?: AddressDetails
@@ -394,6 +396,7 @@ export interface SubjectDetails {
   country?: string // UnifiedCountryCode
   subjectName?: string // SubjectName
   identityDoc?: IdentityDocDetails // IdentityDocV3Details
+  addresses?: AddressDetails[] // все SubjectAddressDetails
   registrationAddress?: AddressDetails // AddressKindCode = 1
   actualAddress?: AddressDetails // AddressKindCode = 2
   mailingAddress?: AddressDetails // AddressKindCode = 3
