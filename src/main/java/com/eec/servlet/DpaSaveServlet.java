@@ -69,7 +69,7 @@ public class DpaSaveServlet extends HttpServlet {
 
     /** Обновить MODIFICATIONDATETIME, ENDDATE, AUTHORITYID, производителя и вид/наименование продукции в DPA при обновлении */
     private static final String SQL_UPDATE_DPA_MODIFIED = "UPDATE SESINT.DPA SET MODIFICATIONDATETIME = SYSDATE, ENDDATE = ?, AUTHORITYID = ?, MANUFBUSENTNAME = ?, MANUFBUSENTBRIEFNAME = ?, SANITARYPRODNAME = ?, SANITARYPRODTYPEID = ?, SANITARYPRODTYPENAME = ? WHERE DPAID = ?";
-    /** Текущий DPASTATUSID карты (для перехода в «Отредактировано» при сохранении из Новое/Отправка не удалась/Ошибка) */
+    /** Текущий DPASTATUSID карты (при сохранении: только Отредактировано (12) → переход в «Новое»; остальные статусы не меняются) */
     private static final String SQL_SELECT_DPASTATUSID = "SELECT DPASTATUSID FROM SESINT.DPA WHERE DPAID = ?";
     private static final int OUTGOING_NEW = 6, OUTGOING_FAILED = 9, OUTGOING_ERROR = 10, OUTGOING_EDITED = 12;
     private static final int OUTGOING_DELIVERED = 11;
@@ -305,9 +305,10 @@ public class DpaSaveServlet extends HttpServlet {
                         if (rs.next()) currentStatusId = rs.getInt(1);
                     }
                 }
-                if (currentStatusId == OUTGOING_NEW || currentStatusId == OUTGOING_FAILED || currentStatusId == OUTGOING_ERROR) {
+                // Только устаревший статус «Отредактировано» (12) при сохранении переводим в «Новое» (6). Отправка не удалась / Ошибка обработки не меняются при сохранении — переход в «Новое» только по кнопке.
+                if (currentStatusId == OUTGOING_EDITED) {
                     try (PreparedStatement ps = conn.prepareStatement("UPDATE SESINT.DPA SET DPASTATUSID = ? WHERE DPAID = ?")) {
-                        ps.setInt(1, OUTGOING_EDITED);
+                        ps.setInt(1, OUTGOING_NEW);
                         ps.setLong(2, dpaid);
                         ps.executeUpdate();
                     }
@@ -317,7 +318,7 @@ public class DpaSaveServlet extends HttpServlet {
                     }
                     try (PreparedStatement ps = conn.prepareStatement(SQL_INSERT_DPASTATUSHIST)) {
                         ps.setLong(1, dpaid);
-                        ps.setInt(2, OUTGOING_EDITED);
+                        ps.setInt(2, OUTGOING_NEW);
                         ps.setInt(3, userId);
                         ps.executeUpdate();
                     }

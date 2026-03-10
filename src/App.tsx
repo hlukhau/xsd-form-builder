@@ -215,11 +215,34 @@ function AppContent() {
           <Spin size="large" tip="Загрузка XML по DPAID из БД..." />
         </div>
       )}
-      {!loadByDpaidState.loading && loadByDpaidState.error && (
-        <div className="empty-state">
-          <div style={{ color: '#ff4d4f', marginBottom: 8 }}>Ошибка загрузки по DPAID: {loadByDpaidState.error}</div>
-        </div>
-      )}
+      {!loadByDpaidState.loading && loadByDpaidState.error && (() => {
+        const err = loadByDpaidState.error ?? ''
+        const isNotFound = /не найден|404|нет доступа/i.test(err) || err.includes('DPAID')
+        if (isNotFound) {
+          return (
+            <div className="empty-state">
+              <div style={{ fontSize: '48px', marginBottom: '16px', opacity: 0.3 }}>📄</div>
+              <div style={{ fontSize: '18px', fontWeight: 500, color: '#595959', marginBottom: '8px' }}>
+                Карта не найдена
+              </div>
+              <div style={{ fontSize: '14px', color: '#8c8c8c' }}>
+                Запрошенная карта не существует или к ней нет доступа.
+              </div>
+            </div>
+          )
+        }
+        return (
+          <div className="empty-state" style={{ textAlign: 'center' }}>
+            <div style={{ fontSize: '48px', marginBottom: '16px', opacity: 0.3 }}>⚠️</div>
+            <div style={{ fontSize: '18px', fontWeight: 500, color: '#595959', marginBottom: '8px' }}>
+              Не удалось установить соединение с сервером
+            </div>
+            <div style={{ fontSize: '14px', color: '#8c8c8c', maxWidth: 400, margin: '0 auto', textAlign: 'center' }}>
+              Проверьте подключение к сети и доступность сервера. Повторите попытку позже или обратитесь к администратору.
+            </div>
+          </div>
+        )
+      })()}
       {!loadByDpaidState.loading && !loadByDpaidState.error && cardData && (
         <DangerousProductCard
           data={cardData}
@@ -238,7 +261,8 @@ function AppContent() {
           onCardDeleted={() => {
             setCardData(null)
             setOriginalXML(null)
-            navigate('/', { replace: true })
+            setLoadByDpaidState({ loading: false, error: null })
+            navigate('/', { replace: true, state: { cardDeleted: true } })
           }}
           onMakeCopy={(initialCardData, sourceDpaid) => {
             navigate(`/-/${guid ?? ''}`, { state: { newVersionFrom: sourceDpaid, initialCardData } })
@@ -249,10 +273,14 @@ function AppContent() {
         <div className="empty-state">
           <div style={{ fontSize: '48px', marginBottom: '16px', opacity: 0.3 }}>📄</div>
           <div style={{ fontSize: '18px', fontWeight: 500, color: '#595959', marginBottom: '8px' }}>
-            Нет данных для отображения
+            {(location.state as { cardDeleted?: boolean } | null)?.cardDeleted
+              ? 'Карта успешно удалена'
+              : 'Нет данных для отображения'}
           </div>
           <div style={{ fontSize: '14px', color: '#8c8c8c' }}>
-            Откройте карту по адресу с DPAID (например /-/1 — новая карта, /25 — из БД).
+            {(location.state as { cardDeleted?: boolean } | null)?.cardDeleted
+              ? 'Вы можете открыть другую карту или создать новую.'
+              : 'Выберите карту для просмотра или создайте новую.'}
           </div>
         </div>
       )}

@@ -247,7 +247,7 @@ const DangerousProductCard: React.FC<DangerousProductCardProps> = ({
   const effectiveStatusButtonComment =
     effectiveDpaid === '-' && statusButton ? 'Сохраните изменения' : statusButtonComment
   const CLOSE_BUTTON_DISABLED_HINT =
-    'Закрытие карты доступно при статусе «Новое», «Отправка не удалась», «Ошибка обработки», «Отредактировано» или «Доставлено».'
+    'Закрытие карты доступно при статусе «Новое», «Отправка не удалась», «Ошибка обработки» или «Доставлено».'
   const effectiveCloseButton =
     effectiveDpaid === '-' && closeConfig
       ? { ...closeConfig, disabled: true, hint: 'Сохраните изменения' }
@@ -932,6 +932,19 @@ const DangerousProductCard: React.FC<DangerousProductCardProps> = ({
                     .catch((e) => message.error(e instanceof Error ? e.message : 'Ошибка смены статуса'))
                 },
               })
+              return
+            }
+
+            if (action === 'to_new') {
+              changeDpaStatus(effectiveDpaid, 'to_new', Object.keys(opts).length ? opts : undefined)
+                .then((res) => {
+                  const newStatus = res.newStatus ?? currentData.status
+                  const newStatusId = newStatus === 'Новое' ? 6 : (editedData.statusId ?? data.statusId)
+                  onUpdate({ ...currentData, status: newStatus, statusId: newStatusId })
+                  setEditedData((prev) => ({ ...prev, status: newStatus, statusId: newStatusId }))
+                  message.success('Карта переведена в статус «Новое».')
+                })
+                .catch((e) => message.error(e instanceof Error ? e.message : 'Ошибка смены статуса'))
               return
             }
 

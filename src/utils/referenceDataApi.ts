@@ -670,7 +670,7 @@ export async function checkAccessRight(id: string | null, right: string): Promis
   return data.allowed === true
 }
 
-/** Смена статуса карты. Входящие: complete_processing, close. Исходящие: mark_ready (передайте depKindCode), send, close. guid — для USERID и depKindCode из карты прав. Дата закрытия (DPA.ENDDATE) записывается при сохранении карты, не при закрытии. POST /api/dpa/status */
+/** Смена статуса карты. Входящие: complete_processing, close. Исходящие: mark_ready (передайте depKindCode), to_new (Отправка не удалась/Ошибка обработки → Новое), send, close. guid — для USERID и depKindCode из карты прав. POST /api/dpa/status */
 export async function changeDpaStatus(
   dpaid: string,
   action: string,

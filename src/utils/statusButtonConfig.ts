@@ -2,7 +2,7 @@
  * Конфигурация кнопки смены статуса по источнику карты и текущему статусу.
  * Логика по DPASTATUSID (таблица DPASTATUS). При отсутствии statusId — запасная проверка по названию.
  * Входящие (1–4): PROCESSING→Завершение обработки, PROCESSED→Закрытие карты.
- * Исходящие (5–13): DRAFT/NEW→резолюция, NEW/PENDING/FAILED/ERROR/EDITED→Направление/Закрытие, DELIVERED→Закрытие.
+ * Исходящие (5–13): DRAFT/NEW→резолюция, NEW/PENDING/FAILED/ERROR→Направление/Закрытие, DELIVERED→Закрытие; EDITED (12) — устарел, не используется.
  */
 export interface StatusButtonConfig {
   label: string
@@ -115,9 +115,9 @@ const NO_RESOLUTION_HINT =
 function getResolutionButtonLabel(depKindCode: string | null | undefined): string {
   if (!depKindCode) return 'Отметка готовности'
   const c = depKindCode.trim().toLowerCase()
-  if (c === 'dep0601') return 'Резолюция районного ЦГЭ'
-  if (c === 'dep0602') return 'Резолюция областного ЦГЭ'
-  if (c === 'dep0603') return 'Резолюция республиканского ЦГЭ'
+  if (c === 'dep0601') return 'Согласование районного ЦГЭ'
+  if (c === 'dep0602') return 'Согласование областного ЦГЭ'
+  if (c === 'dep0603') return 'Согласование республиканского ЦГЭ'
   return 'Отметка готовности'
 }
 
@@ -312,11 +312,10 @@ function outgoingStatusButton(
     }
   }
   if (statusId === OUTGOING_PENDING) {
-    const comment =
-      'Ожидает отправки в ЕЭК; следующее изменение статуса (Отправлено / Отправка не удалась / Ошибка обработки / Доставлено) выполняется системой.'
+    const comment = 'Ожидает отправки в ЕЭК'
     return {
       config: {
-        label: 'Смена статуса',
+        label: comment,
         action: 'pending_system',
         disabled: true,
         hint: comment,
@@ -324,25 +323,33 @@ function outgoingStatusButton(
       comment,
     }
   }
-  if (statusId === OUTGOING_FAILED || statusId === OUTGOING_ERROR || statusId === OUTGOING_EDITED) {
-    if (hasSendRight) {
-      return {
-        config: { label: 'Направление сведений', action: 'send', hint: hintSend },
-        comment: hintSend,
-        closeConfig: hasStatusRight
-          ? { label: 'Закрытие карты', action: 'close', hint: hintClose }
-          : { label: 'Закрытие карты', action: 'close', disabled: true, hint: HINT_NO_STATUS_RIGHT_OUT },
-      }
+  // Статус «Отредактировано» (12) более не используется: переходы из него отключены; сохраните карту — статус изменится на «Новое».
+  if (statusId === OUTGOING_EDITED) {
+    const obsoleteHint = 'Статус «Отредактировано» более не используется. Сохраните карту — статус изменится на «Новое».'
+    return {
+      config: {
+        label: 'Направление сведений',
+        action: 'send',
+        disabled: true,
+        hint: obsoleteHint,
+      },
+      comment: obsoleteHint,
+      closeConfig: { label: 'Закрытие карты', action: 'close', disabled: true, hint: obsoleteHint },
     }
+  }
+  if (statusId === OUTGOING_FAILED || statusId === OUTGOING_ERROR) {
+    const toNewHint = 'Перевод карты в статус «Новое»; после этого станет доступно направление сведений при наличии резолюции областного или республиканского ЦГЭ.'
     if (hasStatusRight) {
       return {
-        config: { label: 'Закрытие карты', action: 'close', hint: hintClose },
-        comment: hintClose,
+        config: { label: 'Перевести в Новое', action: 'to_new', hint: toNewHint },
+        comment: toNewHint,
+        closeConfig: { label: 'Закрытие карты', action: 'close', hint: hintClose },
       }
     }
     return {
-      config: { label: 'Закрытие карты', action: 'close', disabled: true, hint: HINT_NO_STATUS_RIGHT_OUT },
+      config: { label: 'Перевести в Новое', action: 'to_new', disabled: true, hint: HINT_NO_STATUS_RIGHT_OUT },
       comment: HINT_NO_STATUS_RIGHT_OUT,
+      closeConfig: { label: 'Закрытие карты', action: 'close', disabled: true, hint: HINT_NO_STATUS_RIGHT_OUT },
     }
   }
   if (statusId === OUTGOING_DELIVERED) {
@@ -479,10 +486,10 @@ function outgoingStatusButton(
     }
   }
   if (s.includes('ожидает отправки')) {
-    const comment = 'Ожидает отправки в ЕЭК; следующее изменение статуса выполняется системой.'
+    const comment = 'Ожидает отправки в ЕЭК'
     return {
       config: {
-        label: 'Смена статуса',
+        label: comment,
         action: 'pending_system',
         disabled: true,
         hint: comment,
@@ -490,22 +497,32 @@ function outgoingStatusButton(
       comment,
     }
   }
-  if (s.includes('отправка не удалась') || s.includes('ошибка обработки') || s.includes('отредактировано')) {
-    if (hasSendRight) {
-      return {
-        config: { label: 'Направление сведений', action: 'send', hint: hintSend },
-        comment: hintSend,
-      }
+  if (s.includes('отредактировано')) {
+    const obsoleteHint = 'Статус «Отредактировано» более не используется. Сохраните карту — статус изменится на «Новое».'
+    return {
+      config: {
+        label: 'Направление сведений',
+        action: 'send',
+        disabled: true,
+        hint: obsoleteHint,
+      },
+      comment: obsoleteHint,
+      closeConfig: { label: 'Закрытие карты', action: 'close', disabled: true, hint: obsoleteHint },
     }
+  }
+  if (s.includes('отправка не удалась') || s.includes('ошибка обработки')) {
+    const toNewHint = 'Перевод карты в статус «Новое»; после этого станет доступно направление сведений при наличии резолюции областного или республиканского ЦГЭ.'
     if (hasStatusRight) {
       return {
-        config: { label: 'Закрытие карты', action: 'close', hint: hintClose },
-        comment: hintClose,
+        config: { label: 'Перевести в Новое', action: 'to_new', hint: toNewHint },
+        comment: toNewHint,
+        closeConfig: { label: 'Закрытие карты', action: 'close', hint: hintClose },
       }
     }
     return {
-      config: { label: 'Закрытие карты', action: 'close', disabled: true, hint: HINT_NO_STATUS_RIGHT_OUT },
+      config: { label: 'Перевести в Новое', action: 'to_new', disabled: true, hint: HINT_NO_STATUS_RIGHT_OUT },
       comment: HINT_NO_STATUS_RIGHT_OUT,
+      closeConfig: { label: 'Закрытие карты', action: 'close', disabled: true, hint: HINT_NO_STATUS_RIGHT_OUT },
     }
   }
   if (s.includes('доставлено')) {

@@ -249,16 +249,39 @@ public class DpaStatusChangeServlet extends HttpServlet {
             response.getWriter().print("{\"ok\":true,\"newStatus\":\"Новое\"}");
             return;
         }
+        if ("to_new".equals(action)) {
+            if (!AccessRightService.hasDangerousProductOutStatus(String.valueOf(dpaid))) {
+                sendJsonError(response, HttpServletResponse.SC_FORBIDDEN, "Нет права управления статусом исходящих сведений (dangerousProductOut:status)");
+                return;
+            }
+            if (currentStatusId != OUTGOING_FAILED && currentStatusId != OUTGOING_ERROR) {
+                sendJsonError(response, HttpServletResponse.SC_BAD_REQUEST, "Действие «Перевести в Новое» возможно только при статусе «Отправка не удалась» или «Ошибка обработки»");
+                return;
+            }
+            try (PreparedStatement ps = conn.prepareStatement(SQL_UPDATE)) {
+                ps.setInt(1, OUTGOING_NEW);
+                ps.setLong(2, dpaid);
+                ps.executeUpdate();
+            }
+            try (PreparedStatement ps = conn.prepareStatement(SQL_INSERT_HIST)) {
+                ps.setLong(1, dpaid);
+                ps.setInt(2, OUTGOING_NEW);
+                ps.setInt(3, userId);
+                ps.executeUpdate();
+            }
+            response.getWriter().print("{\"ok\":true,\"newStatus\":\"Новое\"}");
+            return;
+        }
         if ("send".equals(action)) {
             if (!AccessRightService.hasDangerousProductOutSend(String.valueOf(dpaid))) {
                 sendJsonError(response, HttpServletResponse.SC_FORBIDDEN, "Нет права на направление исходящих сведений (dangerousProductOut:send)");
                 return;
             }
-            if (currentStatusId != OUTGOING_NEW && currentStatusId != OUTGOING_FAILED && currentStatusId != OUTGOING_ERROR && currentStatusId != OUTGOING_EDITED) {
-                sendJsonError(response, HttpServletResponse.SC_BAD_REQUEST, "Действие «Направление сведений» возможно только при статусе «Новое», «Отправка не удалась», «Ошибка обработки» или «Отредактировано»");
+            if (currentStatusId != OUTGOING_NEW) {
+                sendJsonError(response, HttpServletResponse.SC_BAD_REQUEST, "Действие «Направление сведений» возможно только при статусе «Новое» (при наличии резолюции областного или республиканского ЦГЭ)");
                 return;
             }
-            if (currentStatusId == OUTGOING_NEW) {
+            {
                 try (PreparedStatement ps = conn.prepareStatement(SQL_HAS_REGIONAL_OR_REPUBLICAN_RESOLUTION)) {
                     ps.setLong(1, dpaid);
                     try (ResultSet rs = ps.executeQuery()) {
@@ -289,8 +312,8 @@ public class DpaStatusChangeServlet extends HttpServlet {
                 sendJsonError(response, HttpServletResponse.SC_FORBIDDEN, "Нет права управления статусом исходящих сведений (dangerousProductOut:status)");
                 return;
             }
-            if (currentStatusId != OUTGOING_NEW && currentStatusId != OUTGOING_FAILED && currentStatusId != OUTGOING_ERROR && currentStatusId != OUTGOING_EDITED && currentStatusId != OUTGOING_DELIVERED) {
-                sendJsonError(response, HttpServletResponse.SC_BAD_REQUEST, "Действие «Закрытие карты» возможно только при статусе «Новое», «Отправка не удалась», «Ошибка обработки», «Отредактировано» или «Доставлено»");
+            if (currentStatusId != OUTGOING_NEW && currentStatusId != OUTGOING_FAILED && currentStatusId != OUTGOING_ERROR && currentStatusId != OUTGOING_DELIVERED) {
+                sendJsonError(response, HttpServletResponse.SC_BAD_REQUEST, "Действие «Закрытие карты» возможно только при статусе «Новое», «Отправка не удалась», «Ошибка обработки» или «Доставлено»");
                 return;
             }
             try (PreparedStatement ps = conn.prepareStatement(SQL_UPDATE)) {
