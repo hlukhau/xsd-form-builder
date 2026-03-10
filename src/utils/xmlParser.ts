@@ -1861,8 +1861,7 @@ function parseViolations(alertDetails: Element, rootElement?: Element): Violatio
           const localName = descEl.localName || descEl.tagName.split(':').pop()?.toLowerCase()
           // Проверяем, что это DescriptionText и он не внутри RequirementsDocDetails
           if (localName === 'descriptiontext') {
-            const parentLocalName = descEl.parentElement?.localName || descEl.parentElement?.tagName.split(':').pop()?.toLowerCase()
-            // Если DescriptionText на уровне RequirementViolationDetails (не внутри RequirementsDocDetails)
+            const parentLocalName = (descEl.parentElement?.localName || descEl.parentElement?.tagName.split(':').pop() || '').toLowerCase()
             if (parentLocalName === 'requirementviolationdetails') {
               const text = descEl.textContent?.trim()
               if (text) {
@@ -1871,7 +1870,11 @@ function parseViolations(alertDetails: Element, rootElement?: Element): Violatio
             }
           }
         }
-        
+        // Прямой потомок csdo:DescriptionText (на случай если цикл выше не сработал из-за регистра/namespace)
+        const directDesc = (getTextFromDirectChildByLocalName(el, 'DescriptionText') || getTextContent(el, 'DescriptionText') || '').trim()
+        if (directDesc && !descs.includes(directDesc)) {
+          descs.push(directDesc)
+        }
         // Объединяем все описания
         if (descs.length > 0) {
           const combinedDesc = descs.join(' ')
@@ -1892,30 +1895,18 @@ function parseViolations(alertDetails: Element, rootElement?: Element): Violatio
         const allChildren = Array.from(el.children)
         let foundRequirementsDocDetails = false
         for (const child of allChildren) {
-          const localName = child.localName || child.tagName.split(':').pop()?.toLowerCase()
-          
-          // Отслеживаем, когда мы прошли RequirementsDocDetails
+          const localName = (child.localName || child.tagName.split(':').pop() || '').toLowerCase()
           if (localName === 'requirementsdocdetails') {
             foundRequirementsDocDetails = true
             continue
           }
-          
-          // Если мы уже прошли RequirementsDocDetails, ищем DescriptionText
           if (foundRequirementsDocDetails && localName === 'descriptiontext') {
-            // Проверяем, что это прямой потомок RequirementViolationDetails
-            const parentLocalName = child.parentElement?.localName || child.parentElement?.tagName.split(':').pop()?.toLowerCase()
-            if (parentLocalName === 'requirementviolationdetails') {
-              requirementLevelDesc = child.textContent?.trim() || undefined
-              console.log('[parseViolations] Найден DescriptionText на уровне RequirementViolationDetails:', requirementLevelDesc)
-              break
-            }
+            requirementLevelDesc = (child as Element).textContent?.trim() || undefined
+            break
           }
         }
-        
         if (requirementLevelDesc && requirementsDocs.length > 0) {
-          // Сохраняем в последнем требовании из этого RequirementViolationDetails
           requirementsDocs[requirementsDocs.length - 1].requirementLevelDescription = requirementLevelDesc
-          console.log('[parseViolations] Сохранен requirementLevelDescription в последнем требовании')
         }
         
         violatedRequirements.push(...requirementsDocs)
@@ -1950,7 +1941,7 @@ function parseViolations(alertDetails: Element, rootElement?: Element): Violatio
             const descEl = allDescElements[j]
             const descLocalName = descEl.localName || descEl.tagName.split(':').pop()?.toLowerCase()
             if (descLocalName === 'descriptiontext') {
-              const parentLocalName = descEl.parentElement?.localName || descEl.parentElement?.tagName.split(':').pop()?.toLowerCase()
+              const parentLocalName = (descEl.parentElement?.localName || descEl.parentElement?.tagName.split(':').pop() || '').toLowerCase()
               if (parentLocalName === 'requirementviolationdetails') {
                 const text = descEl.textContent?.trim()
                 if (text) {
@@ -1959,7 +1950,10 @@ function parseViolations(alertDetails: Element, rootElement?: Element): Violatio
               }
             }
           }
-          
+          const directDescFallback = (getTextFromDirectChildByLocalName(el, 'DescriptionText') || getTextContent(el, 'DescriptionText') || '').trim()
+          if (directDescFallback && !descs.includes(directDescFallback)) {
+            descs.push(directDescFallback)
+          }
           if (descs.length > 0) {
             const combinedDesc = descs.join(' ')
             if (!generalDescription) {
@@ -1970,38 +1964,22 @@ function parseViolations(alertDetails: Element, rootElement?: Element): Violatio
           }
           
           const requirementsDocs = parseRequirementsDocDetails(el)
-          
-          // DescriptionText на уровне RequirementViolationDetails (после RequirementsDocDetails)
-          // Ищем DescriptionText, который является прямым потомком RequirementViolationDetails
-          // и идет ПОСЛЕ RequirementsDocDetails (не внутри него)
           let requirementLevelDesc: string | undefined = undefined
           const allChildren = Array.from(el.children)
           let foundRequirementsDocDetails = false
           for (const child of allChildren) {
-            const localName = child.localName || child.tagName.split(':').pop()?.toLowerCase()
-            
-            // Отслеживаем, когда мы прошли RequirementsDocDetails
+            const localName = (child.localName || child.tagName.split(':').pop() || '').toLowerCase()
             if (localName === 'requirementsdocdetails') {
               foundRequirementsDocDetails = true
               continue
             }
-            
-            // Если мы уже прошли RequirementsDocDetails, ищем DescriptionText
             if (foundRequirementsDocDetails && localName === 'descriptiontext') {
-              // Проверяем, что это прямой потомок RequirementViolationDetails
-              const parentLocalName = child.parentElement?.localName || child.parentElement?.tagName.split(':').pop()?.toLowerCase()
-              if (parentLocalName === 'requirementviolationdetails') {
-                requirementLevelDesc = child.textContent?.trim() || undefined
-                console.log('[parseViolations] Найден DescriptionText на уровне RequirementViolationDetails:', requirementLevelDesc)
-                break
-              }
+              requirementLevelDesc = (child as Element).textContent?.trim() || undefined
+              break
             }
           }
-          
           if (requirementLevelDesc && requirementsDocs.length > 0) {
-            // Сохраняем в последнем требовании из этого RequirementViolationDetails
             requirementsDocs[requirementsDocs.length - 1].requirementLevelDescription = requirementLevelDesc
-            console.log('[parseViolations] Сохранен requirementLevelDescription в последнем требовании')
           }
           
           violatedRequirements.push(...requirementsDocs)
