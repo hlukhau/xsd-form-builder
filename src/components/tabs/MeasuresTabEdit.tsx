@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { Form, Input, Button, Table, Space, DatePicker, Collapse, Select, Upload, message } from 'antd'
-import { PlusOutlined, DeleteOutlined, UploadOutlined } from '@ant-design/icons'
+import { PlusOutlined, DeleteOutlined, UploadOutlined, CaretRightOutlined, CaretDownOutlined } from '@ant-design/icons'
 import dayjs from 'dayjs'
 import { useCountryOptions } from '@/hooks/useCountryOptions'
 import { useSanitaryMeasureObjKindOptions } from '@/hooks/useSanitaryMeasureObjKindOptions'
@@ -387,6 +387,18 @@ const MeasuresTabEdit: React.FC<MeasuresTabEditProps> = ({ data, onChange }) => 
 
   const columns = [
     {
+      title: '',
+      key: 'expand',
+      width: 40,
+      align: 'center' as const,
+      render: (_: any, __: SanitaryMeasure, index: number) =>
+        selectedMeasureIndex === index ? (
+          <CaretDownOutlined aria-label="Свернуть" />
+        ) : (
+          <CaretRightOutlined aria-label="Развернуть" />
+        ),
+    },
+    {
       title: labelWithHelp('Код языка', FIELD_HELP.languageCode),
       key: 'language',
       width: 100,
@@ -577,7 +589,189 @@ const MeasuresTabEdit: React.FC<MeasuresTabEditProps> = ({ data, onChange }) => 
     },
   ]
 
-  const selectedMeasure = selectedMeasureIndex !== null ? data.measures[selectedMeasureIndex] : null
+  const renderMeasureDetailContent = (measureIndex: number) => {
+    const measure = data.measures?.[measureIndex]
+    if (!measure) return null
+    return (
+      <div style={{ padding: '16px', background: '#fafafa', borderRadius: '4px' }}>
+        <h4>Детализация меры</h4>
+        <Form layout="vertical">
+          <Form.Item label={labelWithHelp('Обоснование', FIELD_HELP.measureJustification)}>
+            <Input.TextArea
+              rows={3}
+              value={measure.measureJustificationText}
+              onChange={(e) => handleMeasureChange(measureIndex, 'measureJustificationText', e.target.value)}
+            />
+          </Form.Item>
+          <Form.Item label="Описание">
+            <Input.TextArea
+              rows={3}
+              value={measure.description}
+              onChange={(e) => handleMeasureChange(measureIndex, 'description', e.target.value)}
+            />
+          </Form.Item>
+        </Form>
+
+        <Collapse
+          defaultActiveKey={['measureDoc', 'initialMeasureDoc', 'basis', 'implementation']}
+          items={[
+            {
+              key: 'measureDoc',
+              label: labelWithHelp('Документ, регламентирующий введение (отмену) меры', FIELD_HELP.measureDocDetails),
+              children: (
+                <MeasureDocDetailsEdit
+                  doc={measure.measureDocDetails}
+                  onChange={(doc) => handleMeasureChange(measureIndex, 'measureDocDetails', doc)}
+                  title="документ"
+                />
+              ),
+            },
+            {
+              key: 'initialMeasureDoc',
+              label: labelWithHelp('Документ, регламентирующий введение исходной меры', FIELD_HELP.initialMeasureDocDetails),
+              children: (
+                <MeasureDocDetailsEdit
+                  doc={measure.initialMeasureDocDetails}
+                  onChange={(doc) => handleMeasureChange(measureIndex, 'initialMeasureDocDetails', doc)}
+                  title="исходный документ"
+                />
+              ),
+            },
+            {
+              key: 'basis',
+              label: labelWithHelp('Основание для введения меры', FIELD_HELP.measureInitiationBasis),
+              children: (
+                <div>
+                  <Table
+                    dataSource={measure.measureInitiationBasisDetails || []}
+                    columns={[
+                      {
+                        title: 'Вид',
+                        key: 'docKindName',
+                        render: (_: any, record: MeasureInitiationBasisItem, basisIndex: number) => (
+                          <Input
+                            value={record.docKindName}
+                            onChange={(e) => handleBasisChange(measureIndex, basisIndex, 'docKindName', e.target.value)}
+                          />
+                        ),
+                      },
+                      {
+                        title: 'Наименование',
+                        key: 'docName',
+                        render: (_: any, record: MeasureInitiationBasisItem, basisIndex: number) => (
+                          <Input
+                            value={record.docName}
+                            onChange={(e) => handleBasisChange(measureIndex, basisIndex, 'docName', e.target.value)}
+                          />
+                        ),
+                      },
+                      {
+                        title: 'Номер',
+                        key: 'docId',
+                        render: (_: any, record: MeasureInitiationBasisItem, basisIndex: number) => (
+                          <Input
+                            value={record.docId}
+                            onChange={(e) => handleBasisChange(measureIndex, basisIndex, 'docId', e.target.value)}
+                          />
+                        ),
+                      },
+                      {
+                        title: 'Дата',
+                        key: 'docCreationDate',
+                        render: (_: any, record: MeasureInitiationBasisItem, basisIndex: number) => (
+                          <DatePicker
+                            format={DATE_DISPLAY_FORMAT}
+                            value={record.docCreationDate ? dayjs(record.docCreationDate) : null}
+                            onChange={(date) => handleBasisChange(measureIndex, basisIndex, 'docCreationDate', date ? date.format('YYYY-MM-DD') : '')}
+                            style={{ width: '100%' }}
+                          />
+                        ),
+                      },
+                      {
+                        title: 'Действия',
+                        key: 'actions',
+                        render: (_: any, record: MeasureInitiationBasisItem, basisIndex: number) => (
+                          <Button
+                            type="link"
+                            danger
+                            icon={<DeleteOutlined />}
+                            onClick={() => handleRemoveBasis(measureIndex, basisIndex)}
+                          >
+                            Удалить
+                          </Button>
+                        ),
+                      },
+                    ]}
+                    rowKey={(record, index) => `basis-${index}`}
+                    pagination={false}
+                    size="small"
+                  />
+                  <Button
+                    type="dashed"
+                    icon={<PlusOutlined />}
+                    onClick={() => handleAddBasis(measureIndex)}
+                    style={{ width: '100%', marginTop: '8px' }}
+                  >
+                    Добавить НПА-основание
+                  </Button>
+                </div>
+              ),
+            },
+            {
+              key: 'implementation',
+              label: labelWithHelp('Сведения о мероприятии, обеспечивающем соблюдение меры', FIELD_HELP.measureImplementation),
+              children: (
+                <div>
+                  <Collapse
+                    accordion={false}
+                    items={(measure.measureImplementationDetails || []).map((item, implIndex) => ({
+                      key: String(implIndex),
+                      label: `Сведения об исполнителе — ${implIndex + 1}`,
+                      extra: (
+                        <Button
+                          type="link"
+                          danger
+                          size="small"
+                          icon={<DeleteOutlined />}
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            handleRemoveImplementation(measureIndex, implIndex)
+                          }}
+                        >
+                          Удалить
+                        </Button>
+                      ),
+                      children: (
+                        <MeasureImplementationDetailsEdit
+                          measureIndex={measureIndex}
+                          implIndex={implIndex}
+                          item={item}
+                          onChange={(field, value) => handleImplementationChange(measureIndex, implIndex, field, value)}
+                          countryOptions={countryOptions}
+                          loadingCountries={loadingCountries}
+                          normalizeCountryCode={normalizeCountryCode}
+                          getSanitaryMeasureObjKindSelectOptions={getSanitaryMeasureObjKindSelectOptions}
+                          getSanitaryMeasureObjKindNameByCode={getSanitaryMeasureObjKindNameByCode}
+                        />
+                      ),
+                    }))}
+                  />
+                  <Button
+                    type="dashed"
+                    icon={<PlusOutlined />}
+                    onClick={() => handleAddImplementation(measureIndex)}
+                    style={{ width: '100%', marginTop: '8px' }}
+                  >
+                    Добавить мероприятие
+                  </Button>
+                </div>
+              ),
+            },
+          ]}
+        />
+      </div>
+    )
+  }
 
   return (
     <div>
@@ -602,188 +796,13 @@ const MeasuresTabEdit: React.FC<MeasuresTabEditProps> = ({ data, onChange }) => 
           style: { cursor: 'pointer' },
         })}
         rowClassName={(record, index) => selectedMeasureIndex === index ? 'ant-table-row-selected' : ''}
+        expandable={{
+          expandedRowKeys: selectedMeasureIndex !== null ? [`measure-${selectedMeasureIndex}`] : [],
+          expandedRowRender: (record) => renderMeasureDetailContent((data.measures || []).indexOf(record)),
+          expandIcon: () => null,
+          expandIconColumnIndex: -1,
+        }}
       />
-
-      {/* Детализация меры */}
-      {selectedMeasure && selectedMeasureIndex !== null && (
-        <div style={{ marginTop: '16px', padding: '16px', border: '1px solid #d9d9d9', borderRadius: '4px' }}>
-          <h4>Детализация меры</h4>
-          <Form layout="vertical">
-            <Form.Item label={labelWithHelp('Обоснование', FIELD_HELP.measureJustification)}>
-              <Input.TextArea
-                rows={3}
-                value={selectedMeasure.measureJustificationText}
-                onChange={(e) => handleMeasureChange(selectedMeasureIndex, 'measureJustificationText', e.target.value)}
-              />
-            </Form.Item>
-            <Form.Item label="Описание">
-              <Input.TextArea
-                rows={3}
-                value={selectedMeasure.description}
-                onChange={(e) => handleMeasureChange(selectedMeasureIndex, 'description', e.target.value)}
-              />
-            </Form.Item>
-          </Form>
-
-          <Collapse
-            defaultActiveKey={['measureDoc', 'initialMeasureDoc', 'basis', 'implementation']}
-            items={[
-              {
-                key: 'measureDoc',
-                label: labelWithHelp('Документ, регламентирующий введение (отмену) меры', FIELD_HELP.measureDocDetails),
-                children: (
-                  <MeasureDocDetailsEdit
-                    doc={selectedMeasure.measureDocDetails}
-                    onChange={(doc) => handleMeasureChange(selectedMeasureIndex, 'measureDocDetails', doc)}
-                    title="документ"
-                  />
-                ),
-              },
-              {
-                key: 'initialMeasureDoc',
-                label: labelWithHelp('Документ, регламентирующий введение исходной меры', FIELD_HELP.initialMeasureDocDetails),
-                children: (
-                  <MeasureDocDetailsEdit
-                    doc={selectedMeasure.initialMeasureDocDetails}
-                    onChange={(doc) => handleMeasureChange(selectedMeasureIndex, 'initialMeasureDocDetails', doc)}
-                    title="исходный документ"
-                  />
-                ),
-              },
-              {
-                key: 'basis',
-                label: labelWithHelp('Основание для введения меры', FIELD_HELP.measureInitiationBasis),
-                children: (
-                  <div>
-                    <Table
-                      dataSource={selectedMeasure.measureInitiationBasisDetails || []}
-                      columns={[
-                        {
-                          title: 'Вид',
-                          key: 'docKindName',
-                          render: (_: any, record: MeasureInitiationBasisItem, basisIndex: number) => (
-                            <Input
-                              value={record.docKindName}
-                              onChange={(e) => handleBasisChange(selectedMeasureIndex, basisIndex, 'docKindName', e.target.value)}
-                            />
-                          ),
-                        },
-                        {
-                          title: 'Наименование',
-                          key: 'docName',
-                          render: (_: any, record: MeasureInitiationBasisItem, basisIndex: number) => (
-                            <Input
-                              value={record.docName}
-                              onChange={(e) => handleBasisChange(selectedMeasureIndex, basisIndex, 'docName', e.target.value)}
-                            />
-                          ),
-                        },
-                        {
-                          title: 'Номер',
-                          key: 'docId',
-                          render: (_: any, record: MeasureInitiationBasisItem, basisIndex: number) => (
-                            <Input
-                              value={record.docId}
-                              onChange={(e) => handleBasisChange(selectedMeasureIndex, basisIndex, 'docId', e.target.value)}
-                            />
-                          ),
-                        },
-                        {
-                          title: 'Дата',
-                          key: 'docCreationDate',
-                          render: (_: any, record: MeasureInitiationBasisItem, basisIndex: number) => (
-                            <DatePicker
-                              format={DATE_DISPLAY_FORMAT}
-                              value={record.docCreationDate ? dayjs(record.docCreationDate) : null}
-                              onChange={(date) => handleBasisChange(selectedMeasureIndex, basisIndex, 'docCreationDate', date ? date.format('YYYY-MM-DD') : '')}
-                              style={{ width: '100%' }}
-                            />
-                          ),
-                        },
-                        {
-                          title: 'Действия',
-                          key: 'actions',
-                          render: (_: any, record: MeasureInitiationBasisItem, basisIndex: number) => (
-                            <Button
-                              type="link"
-                              danger
-                              icon={<DeleteOutlined />}
-                              onClick={() => handleRemoveBasis(selectedMeasureIndex, basisIndex)}
-                            >
-                              Удалить
-                            </Button>
-                          ),
-                        },
-                      ]}
-                      rowKey={(record, index) => `basis-${index}`}
-                      pagination={false}
-                      size="small"
-                    />
-                    <Button
-                      type="dashed"
-                      icon={<PlusOutlined />}
-                      onClick={() => handleAddBasis(selectedMeasureIndex)}
-                      style={{ width: '100%', marginTop: '8px' }}
-                    >
-                      Добавить НПА-основание
-                    </Button>
-                  </div>
-                ),
-              },
-              {
-                key: 'implementation',
-                label: labelWithHelp('Сведения о мероприятии, обеспечивающем соблюдение меры', FIELD_HELP.measureImplementation),
-                children: (
-                  <div>
-                    <Collapse
-                      accordion={false}
-                      items={(selectedMeasure.measureImplementationDetails || []).map((item, implIndex) => ({
-                        key: String(implIndex),
-                        label: `Сведения об исполнителе — ${implIndex + 1}`,
-                        extra: (
-                          <Button
-                            type="link"
-                            danger
-                            size="small"
-                            icon={<DeleteOutlined />}
-                            onClick={(e) => {
-                              e.stopPropagation()
-                              handleRemoveImplementation(selectedMeasureIndex, implIndex)
-                            }}
-                          >
-                            Удалить
-                          </Button>
-                        ),
-                        children: (
-                          <MeasureImplementationDetailsEdit
-                            measureIndex={selectedMeasureIndex}
-                            implIndex={implIndex}
-                            item={item}
-                            onChange={(field, value) => handleImplementationChange(selectedMeasureIndex, implIndex, field, value)}
-                            countryOptions={countryOptions}
-                            loadingCountries={loadingCountries}
-                            normalizeCountryCode={normalizeCountryCode}
-                            getSanitaryMeasureObjKindSelectOptions={getSanitaryMeasureObjKindSelectOptions}
-                            getSanitaryMeasureObjKindNameByCode={getSanitaryMeasureObjKindNameByCode}
-                          />
-                        ),
-                      }))}
-                    />
-                    <Button
-                      type="dashed"
-                      icon={<PlusOutlined />}
-                      onClick={() => handleAddImplementation(selectedMeasureIndex)}
-                      style={{ width: '100%', marginTop: '8px' }}
-                    >
-                      Добавить мероприятие
-                    </Button>
-                  </div>
-                ),
-              },
-            ]}
-          />
-        </div>
-      )}
     </div>
   )
 }

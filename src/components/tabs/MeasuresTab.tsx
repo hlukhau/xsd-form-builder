@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { Table, Button, Descriptions, Collapse } from 'antd'
-import { DownloadOutlined } from '@ant-design/icons'
+import { DownloadOutlined, CaretRightOutlined, CaretDownOutlined } from '@ant-design/icons'
 import { format } from 'date-fns'
 import { ru } from 'date-fns/locale'
 import { getLanguageName } from '@/hooks/useLanguageOptions'
@@ -62,6 +62,18 @@ const MeasuresTab: React.FC<MeasuresTabProps> = ({ data }) => {
   }
 
   const columns = [
+    {
+      title: '',
+      key: 'expand',
+      width: 40,
+      align: 'center' as const,
+      render: (_: any, __: SanitaryMeasure, index: number) =>
+        selectedMeasureIndex === index ? (
+          <CaretDownOutlined aria-label="Свернуть детализацию" />
+        ) : (
+          <CaretRightOutlined aria-label="Развернуть детализацию" />
+        ),
+    },
     {
       title: 'Язык',
       key: 'language',
@@ -138,10 +150,44 @@ const MeasuresTab: React.FC<MeasuresTabProps> = ({ data }) => {
     return <div>Данные о принятых мерах не найдены</div>
   }
 
-  const selectedMeasure = selectedMeasureIndex !== null ? data.measures[selectedMeasureIndex] : null
+  const renderMeasureDetail = (measure: SanitaryMeasure) => (
+    <div style={{ padding: '12px 24px 12px 0', background: '#fafafa' }}>
+      <Collapse
+        defaultActiveKey={['measureDoc', 'initialMeasureDoc', 'basis', 'implementation']}
+        expandIconPosition="end"
+        items={[
+          measure.measureDocDetails && {
+            key: 'measureDoc',
+            label: 'Документ, регламентирующий введение (отмену) меры',
+            children: <MeasureDocDetailsView doc={measure.measureDocDetails} />,
+          },
+          measure.initialMeasureDocDetails && {
+            key: 'initialMeasureDoc',
+            label: 'Документ, регламентирующий введение исходной меры',
+            children: <MeasureDocDetailsView doc={measure.initialMeasureDocDetails} />,
+          },
+          measure.measureInitiationBasisDetails && measure.measureInitiationBasisDetails.length > 0 && {
+            key: 'basis',
+            label: 'НПА-основание для введения меры',
+            children: <MeasureInitiationBasisView items={measure.measureInitiationBasisDetails} />,
+          },
+          {
+            key: 'implementation',
+            label: 'Мероприятия, обеспечивающие соблюдение меры',
+            children: measure.measureImplementationDetails && measure.measureImplementationDetails.length > 0 ? (
+              <MeasureImplementationView items={measure.measureImplementationDetails} />
+            ) : (
+              <div style={{ color: '#999', fontStyle: 'italic' }}>Мероприятия не указаны</div>
+            ),
+          },
+        ].filter(Boolean)}
+      />
+    </div>
+  )
 
   return (
     <div>
+      <p style={{ marginBottom: 8, color: '#666', fontSize: '12px' }}>Нажмите на строку меры для просмотра детализации (документы, мероприятия).</p>
       <Table
         dataSource={data.measures}
         columns={columns}
@@ -151,55 +197,17 @@ const MeasuresTab: React.FC<MeasuresTabProps> = ({ data }) => {
         onRow={(record, index) => ({
           onClick: () => {
             setSelectedMeasureIndex(selectedMeasureIndex === index ? null : index)
-            setSelectedImplementationIndex(null)
           },
           style: { cursor: 'pointer' },
         })}
         rowClassName={(record, index) => selectedMeasureIndex === index ? 'ant-table-row-selected' : ''}
+        expandable={{
+          expandedRowKeys: selectedMeasureIndex !== null ? [`measure-${selectedMeasureIndex}`] : [],
+          expandedRowRender: (record) => renderMeasureDetail(record),
+          expandIcon: () => null,
+          expandIconColumnIndex: -1,
+        }}
       />
-
-      {/* Детализация выбранной меры */}
-      {selectedMeasure && (
-        <div style={{ marginTop: '24px' }}>
-          <Collapse
-            defaultActiveKey={['measureDoc', 'initialMeasureDoc', 'basis', 'implementation']}
-            expandIconPosition="end"
-            items={[
-              // Документ, регламентирующий введение (отмену) меры
-              selectedMeasure.measureDocDetails && {
-                key: 'measureDoc',
-                label: 'Документ, регламентирующий введение (отмену) меры',
-                children: <MeasureDocDetailsView doc={selectedMeasure.measureDocDetails} />,
-              },
-              // Документ, регламентирующий введение исходной меры
-              selectedMeasure.initialMeasureDocDetails && {
-                key: 'initialMeasureDoc',
-                label: 'Документ, регламентирующий введение исходной меры',
-                children: <MeasureDocDetailsView doc={selectedMeasure.initialMeasureDocDetails} />,
-              },
-              // НПА-основание для введения меры
-              selectedMeasure.measureInitiationBasisDetails && selectedMeasure.measureInitiationBasisDetails.length > 0 && {
-                key: 'basis',
-                label: 'НПА-основание для введения меры',
-                children: <MeasureInitiationBasisView items={selectedMeasure.measureInitiationBasisDetails} />,
-              },
-              // Мероприятия, обеспечивающие соблюдение меры (все записи в аккордеоне)
-              {
-                key: 'implementation',
-                label: 'Мероприятия, обеспечивающие соблюдение меры',
-                children: selectedMeasure.measureImplementationDetails && selectedMeasure.measureImplementationDetails.length > 0 ? (
-                  <MeasureImplementationView items={selectedMeasure.measureImplementationDetails} />
-                ) : (
-                  <div style={{ color: '#999', fontStyle: 'italic' }}>
-                    Мероприятия не указаны
-                  </div>
-                ),
-              },
-            ].filter(Boolean)}
-          />
-
-        </div>
-      )}
     </div>
   )
 }

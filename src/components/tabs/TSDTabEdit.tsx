@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { Form, Input, Button, Table, Space, DatePicker, Collapse, Select, Row, Col } from 'antd'
-import { PlusOutlined, DeleteOutlined } from '@ant-design/icons'
+import { PlusOutlined, DeleteOutlined, CaretRightOutlined, CaretDownOutlined } from '@ant-design/icons'
 import dayjs from 'dayjs'
 import { format } from 'date-fns'
 import { ru } from 'date-fns/locale'
@@ -242,6 +242,16 @@ const TSDTabEdit: React.FC<TSDTabEditProps> = ({ data, onChange }) => {
 
   const getDocumentColumns = (batchIndex: number) => [
     {
+      title: '',
+      key: 'expand',
+      width: 40,
+      align: 'center' as const,
+      render: (_: any, record: ShippingDocument, docIndex: number) => {
+        const isExpanded = selectedDocumentIndex === docIndex && selectedBatchIndex === batchIndex
+        return isExpanded ? <CaretDownOutlined aria-label="Свернуть" /> : <CaretRightOutlined aria-label="Развернуть" />
+      },
+    },
+    {
       title: labelWithHelp('Код вида документа', FIELD_HELP.tsdDocKindCode),
       key: 'docKindCode',
       width: 120,
@@ -347,11 +357,188 @@ const TSDTabEdit: React.FC<TSDTabEditProps> = ({ data, onChange }) => {
     },
   ]
 
+  const renderDocumentDetailContent = (batchIndex: number, docIndex: number, doc: ShippingDocument) => (
+    <div style={{ padding: '16px', background: '#fafafa', borderRadius: '4px' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+        <h4 style={{ margin: 0 }}>
+          Детализация документа: {doc.docName || doc.docId || `Документ ${docIndex + 1}`}
+        </h4>
+        <Button type="link" onClick={() => { setSelectedDocumentIndex(null); setSelectedBatchIndex(null) }}>
+          Закрыть
+        </Button>
+      </div>
+      <Collapse
+        defaultActiveKey={['products', 'parties']}
+        items={[
+          {
+            key: 'products',
+            label: labelWithHelp('Продукция', FIELD_HELP.tsdProducts),
+            children: (
+              <div>
+                {doc.products?.map((product, pIndex) => (
+                  <div key={pIndex} style={{ marginBottom: '16px', padding: '12px', border: '1px solid #d9d9d9', borderRadius: '4px' }}>
+                    <Space direction="vertical" style={{ width: '100%' }}>
+                      <Input
+                        placeholder="Идентификатор"
+                        value={product.productId}
+                        onChange={(e) => {
+                          const updated = [...(doc.products || [])]
+                          updated[pIndex] = { ...updated[pIndex], productId: e.target.value }
+                          handleDocumentChange(batchIndex, docIndex, 'products', updated)
+                        }}
+                      />
+                      <Input
+                        placeholder="Наименование"
+                        value={product.productName}
+                        onChange={(e) => {
+                          const updated = [...(doc.products || [])]
+                          updated[pIndex] = { ...updated[pIndex], productName: e.target.value }
+                          handleDocumentChange(batchIndex, docIndex, 'products', updated)
+                        }}
+                      />
+                      <div style={{ marginTop: 8 }}>
+                        <div style={{ marginBottom: 8, fontWeight: 500 }}>Техническая документация</div>
+                        {(product.technicalDocs || []).map((td, tdIndex) => (
+                          <div key={tdIndex} style={{ marginBottom: 12, padding: 8, border: '1px solid #f0f0f0', borderRadius: 4 }}>
+                            <Space direction="vertical" style={{ width: '100%' }} size="small">
+                              <Select
+                                showSearch
+                                placeholder="Вид документа (SHIPDOCKIND)"
+                                loading={loadingShipDocKinds}
+                                value={td.docKindCode || undefined}
+                                onChange={(code) => handleProductTechnicalDocKindSelect(batchIndex, docIndex, pIndex, tdIndex, code ?? '')}
+                                onClear={() => handleProductTechnicalDocKindSelect(batchIndex, docIndex, pIndex, tdIndex, '')}
+                                filterOption={(input, option) =>
+                                  (option?.label ?? '').toLowerCase().includes(input.toLowerCase())
+                                }
+                                options={getShipDocKindSelectOptions()}
+                                allowClear
+                                style={{ width: '100%', minWidth: 200 }}
+                                size="small"
+                              />
+                              <Input
+                                placeholder="Наименование документа"
+                                value={td.docName}
+                                onChange={(e) => handleProductTechnicalDocChange(batchIndex, docIndex, pIndex, tdIndex, 'docName', e.target.value)}
+                                size="small"
+                              />
+                              <Input
+                                placeholder="Номер документа"
+                                value={td.docId}
+                                onChange={(e) => handleProductTechnicalDocChange(batchIndex, docIndex, pIndex, tdIndex, 'docId', e.target.value)}
+                                size="small"
+                              />
+                              <Space wrap>
+                                <DatePicker
+                                  format={DATE_DISPLAY_FORMAT}
+                                  placeholder="Дата документа"
+                                  value={td.docCreationDate ? dayjs(td.docCreationDate) : null}
+                                  onChange={(date) => handleProductTechnicalDocChange(batchIndex, docIndex, pIndex, tdIndex, 'docCreationDate', date ? date.format('YYYY-MM-DD') : '')}
+                                  size="small"
+                                />
+                                <DatePicker
+                                  format={DATE_DISPLAY_FORMAT}
+                                  placeholder="Действует с"
+                                  value={td.docStartDate ? dayjs(td.docStartDate) : null}
+                                  onChange={(date) => handleProductTechnicalDocChange(batchIndex, docIndex, pIndex, tdIndex, 'docStartDate', date ? date.format('YYYY-MM-DD') : '')}
+                                  size="small"
+                                />
+                              </Space>
+                              <Button
+                                type="link"
+                                danger
+                                size="small"
+                                icon={<DeleteOutlined />}
+                                onClick={() => handleRemoveProductTechnicalDoc(batchIndex, docIndex, pIndex, tdIndex)}
+                              >
+                                Удалить документ
+                              </Button>
+                            </Space>
+                          </div>
+                        ))}
+                        <Button
+                          type="dashed"
+                          size="small"
+                          icon={<PlusOutlined />}
+                          onClick={() => handleAddProductTechnicalDoc(batchIndex, docIndex, pIndex)}
+                        >
+                          Добавить технический документ
+                        </Button>
+                      </div>
+                      <Button
+                        type="link"
+                        danger
+                        icon={<DeleteOutlined />}
+                        onClick={() => {
+                          const updated = [...(doc.products || [])]
+                          updated.splice(pIndex, 1)
+                          handleDocumentChange(batchIndex, docIndex, 'products', updated)
+                        }}
+                      >
+                        Удалить продукт
+                      </Button>
+                    </Space>
+                  </div>
+                ))}
+                <Button
+                  type="dashed"
+                  icon={<PlusOutlined />}
+                  onClick={() => handleAddProduct(batchIndex, docIndex)}
+                  style={{ width: '100%' }}
+                >
+                  Добавить продукт
+                </Button>
+              </div>
+            ),
+          },
+          {
+            key: 'parties',
+            label: labelWithHelp('Участник цепи поставки', FIELD_HELP.tsdSupplyChainParty),
+            children: (
+              <div>
+                {doc.supplyChainParties?.map((party, pIndex) => (
+                  <div key={pIndex} style={{ marginBottom: '16px' }}>
+                    <ManufacturerDetailsEdit
+                      data={party}
+                      onChange={(updatedParty) => {
+                        const updated = [...(doc.supplyChainParties || [])]
+                        updated[pIndex] = updatedParty
+                        handleDocumentChange(batchIndex, docIndex, 'supplyChainParties', updated)
+                      }}
+                      title={`Участник ${pIndex + 1}`}
+                    />
+                    <Button
+                      type="link"
+                      danger
+                      icon={<DeleteOutlined />}
+                      onClick={() => {
+                        const updated = [...(doc.supplyChainParties || [])]
+                        updated.splice(pIndex, 1)
+                        handleDocumentChange(batchIndex, docIndex, 'supplyChainParties', updated)
+                      }}
+                    >
+                      Удалить участника
+                    </Button>
+                  </div>
+                ))}
+                <Button
+                  type="dashed"
+                  icon={<PlusOutlined />}
+                  onClick={() => handleAddParty(batchIndex, docIndex)}
+                  style={{ width: '100%' }}
+                >
+                  Добавить участника цепи поставки
+                </Button>
+              </div>
+            ),
+          },
+        ]}
+      />
+    </div>
+  )
+
   const renderBatchPanel = (batch: ProductBatchDetails, batchIndex: number) => {
     const docs = batch.shippingDocuments || []
-    const isSelectedBatch = selectedBatchIndex === batchIndex
-    const selDocIndex = isSelectedBatch ? selectedDocumentIndex : null
-    const selectedDoc = selDocIndex !== null && docs[selDocIndex]
 
     return (
       <div key={batchIndex}>
@@ -478,188 +665,16 @@ const TSDTabEdit: React.FC<TSDTabEditProps> = ({ data, onChange }) => {
             rowClassName={(record, docIndex) =>
               selectedBatchIndex === batchIndex && selectedDocumentIndex === docIndex ? 'ant-table-row-selected' : ''
             }
+            expandable={{
+              expandedRowKeys:
+                selectedBatchIndex === batchIndex && selectedDocumentIndex !== null
+                  ? [`batch-${batchIndex}-doc-${selectedDocumentIndex}`]
+                  : [],
+              expandedRowRender: (record) => renderDocumentDetailContent(batchIndex, docs.indexOf(record), record),
+              expandIcon: () => null,
+              expandIconColumnIndex: -1,
+            }}
           />
-
-          {/* Детализация документа — сразу под таблицей выбранной партии */}
-          {selectedDoc && (
-            <div style={{ marginTop: '16px', padding: '16px', border: '1px solid #d9d9d9', borderRadius: '4px' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
-                <h4 style={{ margin: 0 }}>
-                  Детализация документа: {selectedDoc.docName || selectedDoc.docId || `Документ ${(selDocIndex ?? 0) + 1}`}
-                </h4>
-                <Button type="link" onClick={() => { setSelectedDocumentIndex(null); setSelectedBatchIndex(null) }}>
-                  Закрыть
-                </Button>
-              </div>
-              <Collapse
-                defaultActiveKey={['products', 'parties']}
-                items={[
-                  {
-                    key: 'products',
-                    label: labelWithHelp('Продукция', FIELD_HELP.tsdProducts),
-                    children: (
-                      <div>
-                        {selectedDoc.products?.map((product, pIndex) => (
-                          <div key={pIndex} style={{ marginBottom: '16px', padding: '12px', border: '1px solid #d9d9d9', borderRadius: '4px' }}>
-                            <Space direction="vertical" style={{ width: '100%' }}>
-                              <Input
-                                placeholder="Идентификатор"
-                                value={product.productId}
-                                onChange={(e) => {
-                                  const updated = [...(selectedDoc.products || [])]
-                                  updated[pIndex] = { ...updated[pIndex], productId: e.target.value }
-                                  handleDocumentChange(batchIndex, selDocIndex!, 'products', updated)
-                                }}
-                              />
-                              <Input
-                                placeholder="Наименование"
-                                value={product.productName}
-                                onChange={(e) => {
-                                  const updated = [...(selectedDoc.products || [])]
-                                  updated[pIndex] = { ...updated[pIndex], productName: e.target.value }
-                                  handleDocumentChange(batchIndex, selDocIndex!, 'products', updated)
-                                }}
-                              />
-                              <div style={{ marginTop: 8 }}>
-                                <div style={{ marginBottom: 8, fontWeight: 500 }}>Техническая документация</div>
-                                {(product.technicalDocs || []).map((td, tdIndex) => (
-                                  <div key={tdIndex} style={{ marginBottom: 12, padding: 8, border: '1px solid #f0f0f0', borderRadius: 4 }}>
-                                    <Space direction="vertical" style={{ width: '100%' }} size="small">
-                                      <Select
-                                        showSearch
-                                        placeholder="Вид документа (SHIPDOCKIND)"
-                                        loading={loadingShipDocKinds}
-                                        value={td.docKindCode || undefined}
-                                        onChange={(code) => handleProductTechnicalDocKindSelect(batchIndex, selDocIndex!, pIndex, tdIndex, code ?? '')}
-                                        onClear={() => handleProductTechnicalDocKindSelect(batchIndex, selDocIndex!, pIndex, tdIndex, '')}
-                                        filterOption={(input, option) =>
-                                          (option?.label ?? '').toLowerCase().includes(input.toLowerCase())
-                                        }
-                                        options={getShipDocKindSelectOptions()}
-                                        allowClear
-                                        style={{ width: '100%', minWidth: 200 }}
-                                        size="small"
-                                      />
-                                      <Input
-                                        placeholder="Наименование документа"
-                                        value={td.docName}
-                                        onChange={(e) => handleProductTechnicalDocChange(batchIndex, selDocIndex!, pIndex, tdIndex, 'docName', e.target.value)}
-                                        size="small"
-                                      />
-                                      <Input
-                                        placeholder="Номер документа"
-                                        value={td.docId}
-                                        onChange={(e) => handleProductTechnicalDocChange(batchIndex, selDocIndex!, pIndex, tdIndex, 'docId', e.target.value)}
-                                        size="small"
-                                      />
-                                      <Space wrap>
-                                        <DatePicker
-                                          format={DATE_DISPLAY_FORMAT}
-                                          placeholder="Дата документа"
-                                          value={td.docCreationDate ? dayjs(td.docCreationDate) : null}
-                                          onChange={(date) => handleProductTechnicalDocChange(batchIndex, selDocIndex!, pIndex, tdIndex, 'docCreationDate', date ? date.format('YYYY-MM-DD') : '')}
-                                          size="small"
-                                        />
-                                        <DatePicker
-                                          format={DATE_DISPLAY_FORMAT}
-                                          placeholder="Действует с"
-                                          value={td.docStartDate ? dayjs(td.docStartDate) : null}
-                                          onChange={(date) => handleProductTechnicalDocChange(batchIndex, selDocIndex!, pIndex, tdIndex, 'docStartDate', date ? date.format('YYYY-MM-DD') : '')}
-                                          size="small"
-                                        />
-                                      </Space>
-                                      <Button
-                                        type="link"
-                                        danger
-                                        size="small"
-                                        icon={<DeleteOutlined />}
-                                        onClick={() => handleRemoveProductTechnicalDoc(batchIndex, selDocIndex!, pIndex, tdIndex)}
-                                      >
-                                        Удалить документ
-                                      </Button>
-                                    </Space>
-                                  </div>
-                                ))}
-                                <Button
-                                  type="dashed"
-                                  size="small"
-                                  icon={<PlusOutlined />}
-                                  onClick={() => handleAddProductTechnicalDoc(batchIndex, selDocIndex!, pIndex)}
-                                >
-                                  Добавить технический документ
-                                </Button>
-                              </div>
-                              <Button
-                                type="link"
-                                danger
-                                icon={<DeleteOutlined />}
-                                onClick={() => {
-                                  const updated = [...(selectedDoc.products || [])]
-                                  updated.splice(pIndex, 1)
-                                  handleDocumentChange(batchIndex, selDocIndex!, 'products', updated)
-                                }}
-                              >
-                                Удалить продукт
-                              </Button>
-                            </Space>
-                          </div>
-                        ))}
-                        <Button
-                          type="dashed"
-                          icon={<PlusOutlined />}
-                          onClick={() => handleAddProduct(batchIndex, selDocIndex!)}
-                          style={{ width: '100%' }}
-                        >
-                          Добавить продукт
-                        </Button>
-                      </div>
-                    ),
-                  },
-                  {
-                    key: 'parties',
-                    label: labelWithHelp('Участник цепи поставки', FIELD_HELP.tsdSupplyChainParty),
-                    children: (
-                      <div>
-                        {selectedDoc.supplyChainParties?.map((party, pIndex) => (
-                          <div key={pIndex} style={{ marginBottom: '16px' }}>
-                            <ManufacturerDetailsEdit
-                              data={party}
-                              onChange={(updatedParty) => {
-                                const updated = [...(selectedDoc.supplyChainParties || [])]
-                                updated[pIndex] = updatedParty
-                                handleDocumentChange(batchIndex, selDocIndex!, 'supplyChainParties', updated)
-                              }}
-                              title={`Участник ${pIndex + 1}`}
-                            />
-                            <Button
-                              type="link"
-                              danger
-                              icon={<DeleteOutlined />}
-                              onClick={() => {
-                                const updated = [...(selectedDoc.supplyChainParties || [])]
-                                updated.splice(pIndex, 1)
-                                handleDocumentChange(batchIndex, selDocIndex!, 'supplyChainParties', updated)
-                              }}
-                            >
-                              Удалить участника
-                            </Button>
-                          </div>
-                        ))}
-                        <Button
-                          type="dashed"
-                          icon={<PlusOutlined />}
-                          onClick={() => handleAddParty(batchIndex, selDocIndex!)}
-                          style={{ width: '100%' }}
-                        >
-                          Добавить участника цепи поставки
-                        </Button>
-                      </div>
-                    ),
-                  },
-                ]}
-              />
-            </div>
-          )}
         </div>
       </div>
     )

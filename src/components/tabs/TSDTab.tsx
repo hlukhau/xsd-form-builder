@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { Descriptions, Table, Collapse, Button, Modal } from 'antd'
+import { CaretRightOutlined, CaretDownOutlined } from '@ant-design/icons'
 import { format } from 'date-fns'
 import { ru } from 'date-fns/locale'
 import ProductTab from './ProductTab'
@@ -64,7 +65,7 @@ const TSDTab: React.FC<TSDTabProps> = ({ data }) => {
 
   const batches = data.batches
 
-  const shippingDocsColumns = [
+  const shippingDocsColumnDefs = [
     {
       title: 'Вид',
       dataIndex: 'docKindName',
@@ -90,9 +91,9 @@ const TSDTab: React.FC<TSDTabProps> = ({ data }) => {
     },
   ]
 
-  const renderDocumentDetailBlock = (doc: ShippingDocument) => (
-    <div style={{ marginTop: '16px', padding: 12, background: '#fafafa', borderRadius: 8 }}>
-      <h3>
+  const renderDocumentDetailBlock = (doc: ShippingDocument, inline = false) => (
+    <div style={{ padding: 12, background: '#fafafa', borderRadius: 8, ...(inline ? {} : { marginTop: '16px' }) }}>
+      <h3 style={{ marginTop: inline ? 0 : undefined }}>
         Детализация документа: {doc.docName || 'Документ'}
         {doc.docId && ` (№ ${doc.docId})`}
       </h3>
@@ -180,9 +181,22 @@ const TSDTab: React.FC<TSDTabProps> = ({ data }) => {
         <Descriptions.Item label="Количество товара в партии">{formatMeasure(batch.batchCommodityMeasure)}</Descriptions.Item>
       </Descriptions>
       <h4 style={{ marginTop: 12, marginBottom: 8 }}>Товаросопроводительные документы</h4>
+      <p style={{ marginBottom: 8, color: '#666', fontSize: '12px' }}>Нажмите на строку документа для просмотра детализации (продукция, участники цепи поставки).</p>
       <Table
         dataSource={batch.shippingDocuments}
-        columns={shippingDocsColumns}
+        columns={[
+          {
+            title: '',
+            key: 'expand',
+            width: 40,
+            align: 'center' as const,
+            render: (_: unknown, record: ShippingDocument) => {
+              const isExpanded = selectedDocument === record && selectedBatchIndex === batchIndex
+              return isExpanded ? <CaretDownOutlined aria-label="Свернуть детализацию" /> : <CaretRightOutlined aria-label="Развернуть детализацию" />
+            },
+          },
+          ...shippingDocsColumnDefs,
+        ]}
         rowKey={(_, index) => `batch-${batchIndex}-doc-${index}`}
         pagination={false}
         size="small"
@@ -201,9 +215,16 @@ const TSDTab: React.FC<TSDTabProps> = ({ data }) => {
         rowClassName={(record) =>
           selectedDocument === record && selectedBatchIndex === batchIndex ? 'ant-table-row-selected' : ''
         }
+        expandable={{
+          expandedRowKeys:
+            selectedBatchIndex === batchIndex && selectedDocument
+              ? [`batch-${batchIndex}-doc-${batch.shippingDocuments.indexOf(selectedDocument)}`]
+              : [],
+          expandedRowRender: (record) => renderDocumentDetailBlock(record, true),
+          expandIcon: () => null,
+          expandIconColumnIndex: -1,
+        }}
       />
-      {/* Детализация документа — сразу под таблицей этой партии */}
-      {selectedDocument && selectedBatchIndex === batchIndex && renderDocumentDetailBlock(selectedDocument)}
     </div>
   )
 
