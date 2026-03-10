@@ -970,7 +970,7 @@ const DangerousProductCard: React.FC<DangerousProductCardProps> = ({
                 .catch(() => setElectronicDocList([]))
                 .finally(() => setElectronicDocLoading(false))
             } else {
-              setElectronicDocList(currentData.electronicDocument ? [currentData.electronicDocument] : [])
+              setElectronicDocList([])
               setElectronicDocumentVisible(true)
             }
           }}
@@ -987,7 +987,23 @@ const DangerousProductCard: React.FC<DangerousProductCardProps> = ({
 
         <ElectronicDocumentModal
           visible={electronicDocumentVisible}
-          data={electronicDocList.length > 0 ? electronicDocList : (currentData.electronicDocument ? [currentData.electronicDocument] : [])}
+          data={
+            electronicDocList.length > 0
+              ? electronicDocList
+              : data.electronicDocument
+                ? [
+                    {
+                      ...data.electronicDocument,
+                      validityPeriod: {
+                        start: data.electronicDocument.validityPeriod?.start || data.createdAt || '',
+                        end: data.electronicDocument.validityPeriod?.end || '',
+                        // «По» — только ccdo:ValidityPeriodDetails → csdo:EndDateTime
+                      },
+                      updateDateTime: data.electronicDocument.updateDateTime || data.modifiedAt || '',
+                    },
+                  ]
+                : []
+          }
           onClose={() => setElectronicDocumentVisible(false)}
           loading={electronicDocLoading}
         />

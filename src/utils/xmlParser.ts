@@ -186,45 +186,37 @@ export function parseXMLToCardData(xmlText: string): CardData {
   
   console.log('[parseXMLToCardData] authorizedBody:', authorizedBody)
 
-  // ResourceItemStatusDetails - ищем по локальному имени
-  let resourceStatus: Element | null = null
-  const allElementsForResource = alertDetails.getElementsByTagName('*')
-  for (let i = 0; i < allElementsForResource.length; i++) {
-    const el = allElementsForResource[i]
-    const localName = el.localName || el.tagName.split(':').pop()?.toLowerCase()
-    if (localName === 'resourceitemstatusdetails') {
-      resourceStatus = el
-      break
+  // ResourceItemStatusDetails → ValidityPeriodDetails (StartDateTime, EndDateTime), UpdateDateTime
+  const findByName = (parent: Element, localNameAnyCase: string): Element | null => {
+    const wantLower = localNameAnyCase.toLowerCase()
+    try {
+      const byNs = parent.getElementsByTagNameNS('*', localNameAnyCase)
+      if (byNs.length > 0) return byNs[0]
+    } catch (_) {}
+    const all = parent.getElementsByTagName('*')
+    for (let i = 0; i < all.length; i++) {
+      const el = all[i]
+      const localName = (el.localName || el.tagName.split(':').pop() || '').toLowerCase()
+      if (localName === wantLower) return el
     }
+    return null
   }
-  
-  // ValidityPeriodDetails
+  const tryFind = (parent: Element | null, name: string): Element | null => parent ? findByName(parent, name) : null
+  let resourceStatus = tryFind(alertDetails, 'ResourceItemStatusDetails') ?? tryFind(alertDetails, 'resourceitemstatusdetails')
+  if (!resourceStatus) {
+    resourceStatus = tryFind(xmlDoc.documentElement, 'ResourceItemStatusDetails') ?? tryFind(xmlDoc.documentElement, 'resourceitemstatusdetails')
+  }
   let validityPeriod: Element | null = null
   if (resourceStatus) {
-    const resourceChildren = resourceStatus.getElementsByTagName('*')
-    for (let i = 0; i < resourceChildren.length; i++) {
-      const el = resourceChildren[i]
-      const localName = el.localName || el.tagName.split(':').pop()?.toLowerCase()
-      if (localName === 'validityperioddetails') {
-        validityPeriod = el
-        break
-      }
-    }
+    validityPeriod = tryFind(resourceStatus, 'ValidityPeriodDetails') ?? tryFind(resourceStatus, 'validityperioddetails')
   }
-  const startDateTime = getTextContent(validityPeriod, 'StartDateTime') || ''
-  const endDateTime = getTextContent(validityPeriod, 'EndDateTime') || ''
-  const updateDateTime = getTextContent(resourceStatus, 'UpdateDateTime') || ''
+  const startDateTime = (getTextContent(validityPeriod, 'StartDateTime') || getTextFromDirectChildByLocalName(validityPeriod, 'StartDateTime') || '').trim()
+  const endDateTime = (getTextContent(validityPeriod, 'EndDateTime') || getTextFromDirectChildByLocalName(validityPeriod, 'EndDateTime') || '').trim()
+  const updateDateTime = (getTextContent(resourceStatus, 'UpdateDateTime') || getTextFromDirectChildByLocalName(resourceStatus, 'UpdateDateTime') || '').trim()
 
-  // Устанавливаем даты только если они не пустые
-  if (startDateTime && startDateTime.trim()) {
-    electronicDocument.validityPeriod.start = startDateTime.trim()
-  }
-  if (endDateTime && endDateTime.trim()) {
-    electronicDocument.validityPeriod.end = endDateTime.trim()
-  }
-  if (updateDateTime && updateDateTime.trim()) {
-    electronicDocument.updateDateTime = updateDateTime.trim()
-  }
+  if (startDateTime) electronicDocument.validityPeriod.start = startDateTime
+  if (endDateTime) electronicDocument.validityPeriod.end = endDateTime
+  if (updateDateTime) electronicDocument.updateDateTime = updateDateTime
 
   // EndDate
   const endDate = getTextContent(alertDetails, 'EndDate')
@@ -3376,7 +3368,7 @@ export function parseElectronicDocContentBody(xmlText: string): {
   const all = root.getElementsByTagName('*')
   for (let i = 0; i < all.length; i++) {
     const el = all[i]
-    const local = el.localName || el.tagName.split(':').pop()?.toLowerCase()
+    const local = (el.localName || el.tagName.split(':').pop() || '').toLowerCase()
     if (local === 'resourceitemstatusdetails') {
       resourceStatus = el
       break
@@ -3388,15 +3380,15 @@ export function parseElectronicDocContentBody(xmlText: string): {
   const resourceChildren = resourceStatus.getElementsByTagName('*')
   for (let i = 0; i < resourceChildren.length; i++) {
     const el = resourceChildren[i]
-    const local = el.localName || el.tagName.split(':').pop()?.toLowerCase()
+    const local = (el.localName || el.tagName.split(':').pop() || '').toLowerCase()
     if (local === 'validityperioddetails') {
       validityPeriod = el
       break
     }
   }
-  result.validityPeriod.start = getTextContent(validityPeriod, 'StartDateTime') || ''
-  result.validityPeriod.end = getTextContent(validityPeriod, 'EndDateTime') || ''
-  result.updateDateTime = getTextContent(resourceStatus, 'UpdateDateTime') || ''
+  result.validityPeriod.start = (getTextContent(validityPeriod, 'StartDateTime') || getTextFromDirectChildByLocalName(validityPeriod, 'StartDateTime') || '').trim()
+  result.validityPeriod.end = (getTextContent(validityPeriod, 'EndDateTime') || getTextFromDirectChildByLocalName(validityPeriod, 'EndDateTime') || '').trim()
+  result.updateDateTime = (getTextContent(resourceStatus, 'UpdateDateTime') || getTextFromDirectChildByLocalName(resourceStatus, 'UpdateDateTime') || '').trim()
   return result
 }
 

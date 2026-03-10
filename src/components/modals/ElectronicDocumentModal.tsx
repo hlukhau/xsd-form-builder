@@ -79,15 +79,15 @@ const ElectronicDocumentModal: React.FC<ElectronicDocumentModalProps> = ({
               <Descriptions.Item label="Дата электронного документа">{formatDate(current.documentDate)}</Descriptions.Item>
               <Descriptions.Item label="Язык">{current.language ?? '-'}</Descriptions.Item>
               <Descriptions.Item label="Исходный электронный документ">{current.sourceDocumentId ?? '-'}</Descriptions.Item>
+              {/* ccdo:ValidityPeriodDetails → csdo:StartDateTime */}
               <Descriptions.Item label="Действие записи общего ресурса. С">
-                {current.validityPeriod?.start || current.validityPeriod?.end ? (
-                  <>
-                    {formatDateTime(current.validityPeriod.start)} по {formatDateTime(current.validityPeriod.end)}
-                  </>
-                ) : (
-                  '-'
-                )}
+                {formatDateTime(current.validityPeriod?.start)}
               </Descriptions.Item>
+              {/* ccdo:ValidityPeriodDetails → csdo:EndDateTime */}
+              <Descriptions.Item label="Действие записи общего ресурса. По">
+                {formatDateTime(current.validityPeriod?.end)}
+              </Descriptions.Item>
+              {/* csdo:UpdateDateTime (ResourceItemStatusDetails) */}
               <Descriptions.Item label="Дата обновления записи общего ресурса">
                 {formatDateTime(current.updateDateTime)}
               </Descriptions.Item>
