@@ -409,6 +409,62 @@ export function getTextContent(
 }
 
 /**
+ * Извлекает внутренний XML первого элемента с заданным именем (все дочерние узлы сериализованы в строку).
+ * Используется для ccdo:AnyDetails -> ccdo:DocDetails и вложенной структуры (сохраняются теги).
+ */
+function getInnerXmlContent(parent: Element | null, tagName: string): string | undefined {
+  if (!parent) return undefined
+  let element: Element | null = null
+  const tagNameLower = tagName.toLowerCase()
+  const nsUris = [NS_CSDO, NS_SMSDO, NS_CCDO, NS_SMCDO]
+  for (const ns of nsUris) {
+    try {
+      const elements = parent.getElementsByTagNameNS(ns, tagName)
+      if (elements.length > 0) {
+        element = elements[0]
+        break
+      }
+    } catch (_) {}
+  }
+  if (!element) {
+    const namespaces = ['ccdo', 'csdo', 'smsdo', 'smcdo', 'doc']
+    for (const ns of namespaces) {
+      try {
+        const elements = parent.getElementsByTagName(`${ns}:${tagName}`)
+        if (elements.length > 0) {
+          element = elements[0]
+          break
+        }
+      } catch (_) {}
+    }
+  }
+  if (!element) {
+    const allElements = parent.getElementsByTagName('*')
+    for (let i = 0; i < allElements.length; i++) {
+      const el = allElements[i]
+      const rawLocal = (el.localName || el.tagName.split(':').pop() || '').toLowerCase()
+      if (rawLocal === tagNameLower) {
+        element = el
+        break
+      }
+    }
+  }
+  if (!element || !element.childNodes || element.childNodes.length === 0) return undefined
+  try {
+    const serializer = new XMLSerializer()
+    const parts: string[] = []
+    for (let i = 0; i < element.childNodes.length; i++) {
+      const node = element.childNodes[i]
+      if (node.nodeType === 1) parts.push(serializer.serializeToString(node))
+    }
+    const inner = parts.join('').trim()
+    return inner || undefined
+  } catch (_) {
+    return undefined
+  }
+}
+
+/**
  * Извлекает текст из первого прямого дочернего элемента с заданным локальным именем (без учёта регистра).
  * Используется как запасной способ, когда getTextContent не срабатывает (например, в части браузеров).
  */
@@ -2829,9 +2885,9 @@ function parseMeasureDocDetailsContent(docElement: Element): MeasureDocDetails {
     }
   }
   
-  // AnyDetails (XML)
-  const xmlDocument = getTextContent(docElement, 'AnyDetails') || undefined
-  
+  // AnyDetails: внутренний XML (ccdo:DocDetails и вложенная структура) — сохраняем теги
+  const xmlDocument = getInnerXmlContent(docElement, 'AnyDetails') ?? getTextContent(docElement, 'AnyDetails') ?? undefined
+
   return {
     country,
     languageCode,

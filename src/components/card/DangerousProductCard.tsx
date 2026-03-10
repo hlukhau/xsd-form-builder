@@ -246,10 +246,15 @@ const DangerousProductCard: React.FC<DangerousProductCardProps> = ({
       : statusButton
   const effectiveStatusButtonComment =
     effectiveDpaid === '-' && statusButton ? 'Сохраните изменения' : statusButtonComment
+  const CLOSE_BUTTON_DISABLED_HINT =
+    'Закрытие карты доступно при статусе «Новое», «Отправка не удалась», «Ошибка обработки», «Отредактировано» или «Доставлено».'
   const effectiveCloseButton =
     effectiveDpaid === '-' && closeConfig
       ? { ...closeConfig, disabled: true, hint: 'Сохраните изменения' }
-      : closeConfig
+      : closeConfig ??
+        (isOutgoingSource
+          ? { label: 'Закрытие карты', action: 'close' as const, disabled: true, hint: CLOSE_BUTTON_DISABLED_HINT }
+          : null)
 
   // Кнопка «Удалить»: исходящая карта, статус Черновик, право dangerousProductOut:edit, карта сохранена в БД, есть guid
   const isDraftStatus =
@@ -953,6 +958,33 @@ const DangerousProductCard: React.FC<DangerousProductCardProps> = ({
                       setEditedData((prev) => ({ ...prev, status: newStatus, statusId: newStatusId }))
                       message.success('Статус обновлён')
                       fetchDpaResolutions(effectiveDpaid).then((list) => setDpaResolutionDepKindCodes(list.map((r) => r.depKindCode)))
+                    })
+                    .catch((e) => message.error(e instanceof Error ? e.message : 'Ошибка смены статуса'))
+                },
+              })
+              return
+            }
+
+            if (action === 'complete_processing') {
+              const regNumber = currentData.registrationNumber ?? currentData.notification?.registrationNumber ?? effectiveDpaid ?? ''
+              Modal.confirm({
+                title: 'Завершение обработки',
+                content: `Внимание! После подтверждения карта ${regNumber} будет переведена в статус «Обработано» (завершение обработки входящих сведений). Продолжить?`,
+                okText: 'Продолжить',
+                cancelText: 'Отмена',
+                onOk: async () => {
+                  const hasRight = await checkAccessRight(effectiveDpaid, 'dangerousProductIn:status')
+                  if (!hasRight) {
+                    message.error('Нет права на управление статусом входящих сведений.')
+                    return
+                  }
+                  changeDpaStatus(effectiveDpaid, 'complete_processing', Object.keys(opts || {}).length ? opts : undefined)
+                    .then((res) => {
+                      const newStatus = res.newStatus ?? currentData.status
+                      const newStatusId = newStatus === 'Обработано' ? 3 : (editedData.statusId ?? data.statusId)
+                      onUpdate({ ...currentData, status: newStatus, statusId: newStatusId })
+                      setEditedData((prev) => ({ ...prev, status: newStatus, statusId: newStatusId }))
+                      message.success('Карта переведена в статус «Обработано».')
                     })
                     .catch((e) => message.error(e instanceof Error ? e.message : 'Ошибка смены статуса'))
                 },

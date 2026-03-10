@@ -20,7 +20,56 @@ public class XsdFormBuilderServlet extends HttpServlet {
     /** Инженерный GUID "1" — всегда в карте, не требует предварительного POST. */
     private static final String ENGINEERING_GUID = "1";
     private static final String ENGINEERING_GUID_JSON =
-            "{\"GUID\":\"4c5a50f1-a7b7-494c-93a6-85f8f0b16998\",\"dbConnectString\":\"jdbc:oracle:thin:@192.168.203.212:1521/ses\",\"userId\":\"1\",\"dbUsername\":\"sesdev\",\"dbPassword\":\"sesdev\",\"department\":{\"depid\":522,\"depkindid\":73},\"up\":{\"dangerousProductOut\":{\"view\":{\"1\":{}},\"access\":{\"1\":{}},\"edit\":{\"1\":{}},\"send\":{\"1\":{}},\"status\":{\"1\":{}},\"create\":{\"522\": {},\"132\": {}}},\"dangerousProductDB\":{\"view\":{\"1\":{}}},\"dangerousProductIn\":{\"view\":{\"1\":{}},\"access\":{\"1\":{}},\"status\":{\"1\":{}}}}}";
+            "{\n" +
+                    "  \"GUID\": \"4c5a50f1-a7b7-494c-93a6-85f8f0b16998\",\n" +
+                    "  \"dbConnectString\": \"jdbc:oracle:thin:@192.168.203.212:1521/ses\",\n" +
+                    "  \"userId\": \"1\",\n" +
+                    "  \"dbUsername\": \"sesdev\",\n" +
+                    "  \"dbPassword\": \"sesdev\",\n" +
+                    "  \"department\": {\n" +
+                    "    \"depid\": 522,\n" +
+                    "    \"depkindid\": 73\n" +
+                    "  },\n" +
+                    "  \"up\": {\n" +
+                    "    \"dangerousProductOut\": {\n" +
+                    "      \"view\": {\n" +
+                    "        \"522\": {}\n" +
+                    "      },\n" +
+                    "      \"access\": {\n" +
+                    "        \"522\": {}\n" +
+                    "      },\n" +
+                    "      \"edit\": {\n" +
+                    "        \"522\": {}\n" +
+                    "      },\n" +
+                    "      \"send\": {\n" +
+                    "        \"522\": {}\n" +
+                    "      },\n" +
+                    "      \"status\": {\n" +
+                    "        \"522\": {}\n" +
+                    "      },\n" +
+                    "      \"create\": {\n" +
+                    "        \"132\": {},\n" +
+                    "        \"522\": {}\n" +
+                    "      }\n" +
+                    "    },\n" +
+                    "    \"dangerousProductDB\": {\n" +
+                    "      \"view\": {\n" +
+                    "        \"522\": {}\n" +
+                    "      }\n" +
+                    "    },\n" +
+                    "    \"dangerousProductIn\": {\n" +
+                    "      \"view\": {\n" +
+                    "        \"522\": {}\n" +
+                    "      },\n" +
+                    "      \"access\": {\n" +
+                    "        \"522\": {}\n" +
+                    "      },\n" +
+                    "      \"status\": {\n" +
+                    "        \"522\": {}\n" +
+                    "      }\n" +
+                    "    }\n" +
+                    "  }\n" +
+                    "}";
 
     @Override
     public void init() throws ServletException {

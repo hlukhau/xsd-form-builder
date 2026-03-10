@@ -593,7 +593,8 @@ function exportMeasureDocDetails(xmlParts: string[], doc: MeasureDocDetails, tag
     xmlParts.push(`${inner}<csdo:DocBinaryText${mediaAttr}>${escapeXML(doc.docBinaryText.content || '')}</csdo:DocBinaryText>`)
   }
   if (doc.xmlDocument) {
-    xmlParts.push(`${inner}<ccdo:AnyDetails>${escapeXML(doc.xmlDocument)}</ccdo:AnyDetails>`)
+    // Внутренний XML (ccdo:DocDetails и вложенная структура) выводим без экранирования — это фрагмент XML
+    xmlParts.push(`${inner}<ccdo:AnyDetails>${doc.xmlDocument}</ccdo:AnyDetails>`)
   }
   xmlParts.push(`${indent}    </smcdo:${tagName}>`)
 }
