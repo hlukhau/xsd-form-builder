@@ -1,8 +1,9 @@
-import { Form, Input, Button, Collapse, DatePicker } from 'antd'
+import { Form, Input, Button, Collapse, Space } from 'antd'
 import { PlusOutlined } from '@ant-design/icons'
-import dayjs from 'dayjs'
 import ManufacturerDetailsEdit from '../common/ManufacturerDetailsEdit'
-import type { DetectionPlaceData, BorderCheckpointDetails, GeoCoordinateDetails } from '@/types/card'
+import CountrySelect from '../common/CountrySelect'
+import type { DetectionPlaceData, AddressDetails } from '@/types/card'
+import { useCountryOptions } from '@/hooks/useCountryOptions'
 
 interface DetectionPlaceTabEditProps {
   data: DetectionPlaceData
@@ -10,10 +11,22 @@ interface DetectionPlaceTabEditProps {
 }
 
 const DetectionPlaceTabEdit: React.FC<DetectionPlaceTabEditProps> = ({ data, onChange }) => {
+  const { countryOptions, loading, normalizeCountryCode } = useCountryOptions()
+
   const handleFieldChange = (field: string, value: any) => {
     onChange({
       ...data,
       [field]: value,
+    })
+  }
+
+  const handleAddressChange = (field: keyof AddressDetails, value: string) => {
+    onChange({
+      ...data,
+      address: {
+        ...data.address,
+        [field]: value || undefined,
+      },
     })
   }
 
@@ -40,13 +53,90 @@ const DetectionPlaceTabEdit: React.FC<DetectionPlaceTabEditProps> = ({ data, onC
   return (
     <div>
       <Form layout="vertical">
-        <Form.Item label="Адрес">
-          <Input.TextArea
-            rows={2}
-            value={data.address?.fullAddress}
-            onChange={(e) => handleFieldChange('address', { fullAddress: e.target.value })}
+        {/* Адрес места обнаружения (ObjectAddressDetails) — отдельные поля как в XML */}
+        <h4 style={{ marginTop: 0 }}>Адрес места обнаружения</h4>
+        <Space direction="vertical" style={{ width: '100%', marginBottom: 16 }}>
+          <CountrySelect
+            placeholder="Страна (UnifiedCountryCode)"
+            loading={loading}
+            value={data.address?.country}
+            onChange={(value) => handleAddressChange('country', value || '')}
+            countryOptions={countryOptions}
+            normalizeCountryCode={normalizeCountryCode}
           />
-        </Form.Item>
+          <Form.Item label="Код территории (TerritoryCode)" style={{ marginBottom: 0 }}>
+            <Input
+              placeholder="Код территории"
+              value={data.address?.territoryCode}
+              onChange={(e) => handleAddressChange('territoryCode', e.target.value)}
+            />
+          </Form.Item>
+          <Form.Item label="Регион (RegionName)" style={{ marginBottom: 0 }}>
+            <Input
+              placeholder="Например: Витебская область"
+              value={data.address?.regionName}
+              onChange={(e) => handleAddressChange('regionName', e.target.value)}
+            />
+          </Form.Item>
+          <Form.Item label="Район (DistrictName)" style={{ marginBottom: 0 }}>
+            <Input
+              placeholder="Район"
+              value={data.address?.districtName}
+              onChange={(e) => handleAddressChange('districtName', e.target.value)}
+            />
+          </Form.Item>
+          <Form.Item label="Город (CityName)" style={{ marginBottom: 0 }}>
+            <Input
+              placeholder="Город"
+              value={data.address?.cityName}
+              onChange={(e) => handleAddressChange('cityName', e.target.value)}
+            />
+          </Form.Item>
+          <Form.Item label="Населённый пункт (SettlementName)" style={{ marginBottom: 0 }}>
+            <Input
+              placeholder="Например: г.п. Ушачи"
+              value={data.address?.settlementName}
+              onChange={(e) => handleAddressChange('settlementName', e.target.value)}
+            />
+          </Form.Item>
+          <Form.Item label="Улица (StreetName)" style={{ marginBottom: 0 }}>
+            <Input
+              placeholder="Улица"
+              value={data.address?.streetName}
+              onChange={(e) => handleAddressChange('streetName', e.target.value)}
+            />
+          </Form.Item>
+          <Form.Item label="Номер здания (BuildingNumberId)" style={{ marginBottom: 0 }}>
+            <Input
+              placeholder="Номер дома, корпус"
+              value={data.address?.buildingNumberId}
+              onChange={(e) => handleAddressChange('buildingNumberId', e.target.value)}
+            />
+          </Form.Item>
+          <Form.Item label="Номер помещения (RoomNumberId)" style={{ marginBottom: 0 }}>
+            <Input
+              placeholder="Квартира, офис, кабинет"
+              value={data.address?.roomNumberId}
+              onChange={(e) => handleAddressChange('roomNumberId', e.target.value)}
+            />
+          </Form.Item>
+          <Form.Item label="Почтовый индекс (PostCode)" style={{ marginBottom: 0 }}>
+            <Input
+              placeholder="Индекс"
+              value={data.address?.postCode}
+              onChange={(e) => handleAddressChange('postCode', e.target.value)}
+            />
+          </Form.Item>
+          <Form.Item label="Полный адрес одной строкой (FullAddress)" style={{ marginBottom: 0 }}>
+            <Input.TextArea
+              rows={2}
+              placeholder="При необходимости — адрес одной строкой"
+              value={data.address?.fullAddress}
+              onChange={(e) => handleAddressChange('fullAddress', e.target.value)}
+            />
+          </Form.Item>
+        </Space>
+
         <Form.Item label="Описание">
           <Input.TextArea
             rows={3}

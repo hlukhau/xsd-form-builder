@@ -359,16 +359,7 @@ export function getTextContent(
 ): string | null {
   if (!parent) return null
 
-  // 1) Поиск по namespace URI + localName (не зависит от префикса в документе)
-  try {
-    const byLocal = parent.getElementsByTagNameNS('*', tagName)
-    if (byLocal.length > 0) {
-      const text = byLocal[0].textContent?.trim() || null
-      if (text) return text
-    }
-  } catch (_) {}
-
-  // 2) Поиск по известным namespace URI (csdo и др. — теги из SimpleDataObjects)
+  // 1) Поиск по известным namespace URI (csdo и др.) — надёжно для XML из XSD
   const nsUris = [NS_CSDO, NS_SMSDO, NS_CCDO, NS_SMCDO]
   for (const ns of nsUris) {
     try {
@@ -380,7 +371,16 @@ export function getTextContent(
     } catch (_) {}
   }
 
-  // 3) Поиск по префиксу:csdo:TagName (на случай если парсер сохраняет префикс)
+  // 2) getElementsByTagNameNS('*', localName) во многих браузерах возвращает 0 для элементов с namespace (напр. csdo:UniqueCustomsNumberId)
+  try {
+    const byLocal = parent.getElementsByTagNameNS('*', tagName)
+    if (byLocal.length > 0) {
+      const text = byLocal[0].textContent?.trim() || null
+      if (text) return text
+    }
+  } catch (_) {}
+
+  // 3) Поиск по префиксу (csdo:TagName и т.д.)
   const namespaces = ['ccdo', 'csdo', 'smsdo', 'smcdo', 'doc']
   for (const ns of namespaces) {
     try {
@@ -977,24 +977,36 @@ function parseAddress(parent: Element, addressKindCode: string): AddressDetails 
 }
 
 /**
+ * Читает текст дочернего элемента адреса (getTextContent + запасной вариант по прямому потомку)
+ */
+function getAddressChildText(el: Element, localName: string): string {
+  return (
+    getTextContent(el, localName) ||
+    getTextFromDirectChildByLocalName(el, localName) ||
+    ''
+  ).trim()
+}
+
+/**
  * Парсит детали адреса из элемента
  */
 function parseAddressDetails(addressEl: Element): AddressDetails {
-  const country = getTextContent(addressEl, 'UnifiedCountryCode') || getTextContent(addressEl, 'CountryCode') || ''
-  const territoryCode = getTextContent(addressEl, 'TerritoryCode') || ''
-  const regionName = getTextContent(addressEl, 'RegionName') || ''
-  const districtName = getTextContent(addressEl, 'DistrictName') || ''
-  const cityName = getTextContent(addressEl, 'CityName') || ''
-  const settlementName = getTextContent(addressEl, 'SettlementName') || ''
-  const streetName = getTextContent(addressEl, 'StreetName') || ''
-  const buildingNumberId = getTextContent(addressEl, 'BuildingNumberId') || ''
-  const roomNumberId = getTextContent(addressEl, 'RoomNumberId') || ''
-  const postOfficeBoxId = getTextContent(addressEl, 'PostOfficeBoxId') || ''
-  const postCode = getTextContent(addressEl, 'PostCode') || ''
-  const fullAddress = getTextContent(addressEl, 'FullAddress') || undefined
+  const country = getAddressChildText(addressEl, 'UnifiedCountryCode') || getAddressChildText(addressEl, 'CountryCode') || ''
+  const territoryCode = getAddressChildText(addressEl, 'TerritoryCode') || ''
+  const regionName = getAddressChildText(addressEl, 'RegionName') || ''
+  const districtName = getAddressChildText(addressEl, 'DistrictName') || ''
+  const cityName = getAddressChildText(addressEl, 'CityName') || ''
+  const settlementName = getAddressChildText(addressEl, 'SettlementName') || ''
+  const streetName = getAddressChildText(addressEl, 'StreetName') || ''
+  const buildingNumberId = getAddressChildText(addressEl, 'BuildingNumberId') || ''
+  const roomNumberId = getAddressChildText(addressEl, 'RoomNumberId') || ''
+  const postOfficeBoxId = getAddressChildText(addressEl, 'PostOfficeBoxId') || ''
+  const postCode = getAddressChildText(addressEl, 'PostCode') || ''
+  const fullAddress = getAddressChildText(addressEl, 'FullAddress') || getTextContent(addressEl, 'FullAddress') || undefined
+  const addressKindCode = getAddressChildText(addressEl, 'AddressKindCode') || getTextContent(addressEl, 'AddressKindCode') || undefined
 
   return {
-    addressKindCode: getTextContent(addressEl, 'AddressKindCode') || undefined,
+    addressKindCode: addressKindCode || undefined,
     country: country || undefined,
     territoryCode: territoryCode || undefined,
     regionName: regionName || undefined,
@@ -1006,7 +1018,7 @@ function parseAddressDetails(addressEl: Element): AddressDetails {
     roomNumberId: roomNumberId || undefined,
     postOfficeBoxId: postOfficeBoxId || undefined,
     postCode: postCode || undefined,
-    fullAddress: fullAddress,
+    fullAddress: fullAddress || undefined,
   }
 }
 
@@ -2525,14 +2537,13 @@ function parseObjectAddress(placeElement: Element): AddressDetails | undefined {
     console.log('Ошибка при поиске ObjectAddressDetails:', e)
   }
   
-  // Если не нашли, ищем по локальному имени
+  // Если не нашли, ищем по локальному имени (регистр может отличаться в XML DOM)
   if (!addressElement) {
     const allElements = placeElement.getElementsByTagName('*')
     console.log('Ищем ObjectAddressDetails среди', allElements.length, 'элементов')
     for (let i = 0; i < allElements.length; i++) {
       const el = allElements[i]
-      const localName = el.localName || el.tagName.split(':').pop()?.toLowerCase()
-      
+      const localName = (el.localName || el.tagName.split(':').pop() || '').toLowerCase()
       if (localName === 'objectaddressdetails') {
         console.log('Найден ObjectAddressDetails по локальному имени:', el.tagName)
         addressElement = el
@@ -3027,6 +3038,118 @@ function parseUnifiedAuthorityDetails(parent: Element): UnifiedAuthorityDetails 
 }
 
 /**
+ * Парсит BusinessEntityId и атрибут kindId из родительского элемента
+ */
+function parseBusinessEntityIdAndKindId(parent: Element): { businessEntityId?: string; identificationMethod?: string } {
+  let businessEntityIdEl: Element | null = null
+  const namespaces = ['ccdo', 'csdo', 'smsdo', 'smcdo', 'doc']
+  for (const ns of namespaces) {
+    try {
+      const elements = parent.getElementsByTagName(`${ns}:BusinessEntityId`)
+      if (elements.length > 0) {
+        businessEntityIdEl = elements[0]
+        break
+      }
+    } catch (e) {
+      // ignore
+    }
+  }
+  if (!businessEntityIdEl) {
+    const allElements = parent.getElementsByTagName('*')
+    for (let i = 0; i < allElements.length; i++) {
+      const el = allElements[i]
+      const localName = (el.localName || el.tagName.split(':').pop() || '').toLowerCase()
+      if (localName === 'businessentityid') {
+        businessEntityIdEl = el
+        break
+      }
+    }
+  }
+  if (!businessEntityIdEl) return {}
+  const businessEntityId = businessEntityIdEl.textContent?.trim() || undefined
+  const kindId = businessEntityIdEl.getAttribute('kindId') || undefined
+  return { businessEntityId, identificationMethod: kindId }
+}
+
+/**
+ * Парсит SubjectDetails, когда поля юрлица заданы прямыми дочерними элементами (без вложенного OrganizationDetails).
+ * В XML: SubjectBriefName, BusinessEntityTypeCode, BusinessEntityId (kindId), UniqueCustomsNumberId, TaxpayerId и т.д.
+ */
+function parseSubjectDetailsDirect(subjectElement: Element): BusinessEntityDetails | undefined {
+  const country = getTextContent(subjectElement, 'UnifiedCountryCode') || undefined
+  const subjectName = getTextContent(subjectElement, 'SubjectName') || undefined
+  const businessEntityName = getTextContent(subjectElement, 'BusinessEntityName') || subjectName || undefined
+  const subjectBriefName = getTextContent(subjectElement, 'SubjectBriefName') || undefined
+  const businessEntityBriefName = getTextContent(subjectElement, 'BusinessEntityBriefName') || subjectBriefName || undefined
+  let businessEntityTypeCode: string | undefined
+  let businessEntityTypeCodeListId: string | undefined
+  const businessEntityTypeCodeEl = Array.from(subjectElement.getElementsByTagName('*')).find((el) => {
+    const localName = (el.localName || el.tagName.split(':').pop() || '').toLowerCase()
+    return localName === 'businessentitytypecode'
+  })
+  if (businessEntityTypeCodeEl) {
+    businessEntityTypeCode = businessEntityTypeCodeEl.textContent?.trim() || undefined
+    businessEntityTypeCodeListId = businessEntityTypeCodeEl.getAttribute('codeListId') || undefined
+  }
+  const businessEntityTypeName = getTextContent(subjectElement, 'BusinessEntityTypeName') || undefined
+  const { businessEntityId, identificationMethod } = parseBusinessEntityIdAndKindId(subjectElement)
+  const customsNumber = getTextContent(subjectElement, 'UniqueCustomsNumberId') || getTextContent(subjectElement, 'CustomsNumber') || undefined
+  const taxpayerId = getTextContent(subjectElement, 'TaxpayerId') || undefined
+
+  const addresses: AddressDetails[] = []
+  try {
+    const addressElements = subjectElement.getElementsByTagName('ccdo:SubjectAddressDetails')
+    for (let i = 0; i < addressElements.length; i++) {
+      const addr = parseAddressDetails(addressElements[i])
+      if (addr.fullAddress || addr.country) addresses.push(addr)
+    }
+  } catch (e) {
+    // ignore
+  }
+  if (addresses.length === 0) {
+    const allElements = subjectElement.getElementsByTagName('*')
+    for (let i = 0; i < allElements.length; i++) {
+      const el = allElements[i]
+      const localName = (el.localName || el.tagName.split(':').pop() || '').toLowerCase()
+      if (localName === 'subjectaddressdetails') {
+        const addr = parseAddressDetails(el)
+        if (addr.fullAddress || addr.country) addresses.push(addr)
+      }
+    }
+  }
+
+  const contacts = parseContacts(subjectElement)
+
+  const hasAny =
+    country ||
+    businessEntityName ||
+    businessEntityBriefName ||
+    businessEntityTypeCode ||
+    businessEntityTypeName ||
+    businessEntityId ||
+    customsNumber ||
+    taxpayerId ||
+    addresses.length > 0 ||
+    (contacts && contacts.length > 0)
+  if (!hasAny) return undefined
+
+  return {
+    country,
+    businessEntityName,
+    businessEntityBriefName,
+    businessEntityTypeCode: businessEntityTypeCode || undefined,
+    businessEntityTypeCodeListId: businessEntityTypeCodeListId || undefined,
+    businessEntityTypeName: businessEntityTypeName || undefined,
+    businessEntityId,
+    identificationMethod,
+    customsNumber,
+    taxpayerId,
+    addresses: addresses.length > 0 ? addresses : undefined,
+    contacts: contacts && contacts.length > 0 ? contacts : undefined,
+  }
+}
+
+/**
  * Парсит SubjectDetails (может быть юрлицо/ИП или физлицо)
  */
 function parseSubjectDetails(parent: Element): SubjectDetails | undefined {
@@ -3045,7 +3168,7 @@ function parseSubjectDetails(parent: Element): SubjectDetails | undefined {
     const allElements = parent.getElementsByTagName('*')
     for (let i = 0; i < allElements.length; i++) {
       const el = allElements[i]
-      const localName = el.localName || el.tagName.split(':').pop()?.toLowerCase()
+      const localName = (el.localName || el.tagName.split(':').pop() || '').toLowerCase()
       if (localName === 'subjectdetails') {
         subjectElement = el
         break
@@ -3057,42 +3180,36 @@ function parseSubjectDetails(parent: Element): SubjectDetails | undefined {
     return undefined
   }
   
-  // Проверяем, есть ли BusinessEntityName - если есть, то это юрлицо/ИП
-  const businessEntityName = getTextContent(subjectElement, 'BusinessEntityName')
-  if (businessEntityName) {
-    // Это юрлицо/ИП - используем parseOrganizationDetails
-    const businessEntity = parseOrganizationDetails(subjectElement)
-    if (businessEntity) {
-      return { businessEntity }
-    }
-  } else {
-    // Это физлицо
-    const country = getTextContent(subjectElement, 'UnifiedCountryCode') || undefined
-    const subjectName = getTextContent(subjectElement, 'SubjectName') || undefined
-    
-    // IdentityDocV3Details
-    const identityDoc = parseIdentityDocDetails(subjectElement)
-    
-    // Адреса
-    const registrationAddress = parseAddress(subjectElement, '1')
-    const actualAddress = parseAddress(subjectElement, '2')
-    const mailingAddress = parseAddress(subjectElement, '3')
-    
-    // Контакты
-    const contacts = parseContacts(subjectElement)
-    
-    return {
-      country,
-      subjectName,
-      identityDoc,
-      registrationAddress,
-      actualAddress,
-      mailingAddress,
-      contacts,
-    }
+  // Юрлицо/ИП: сначала пробуем вложенный OrganizationDetails
+  let businessEntity = parseOrganizationDetails(subjectElement)
+  if (businessEntity) {
+    return { businessEntity }
+  }
+
+  // Юрлицо/ИП: поля заданы прямыми дочерними элементами (SubjectBriefName, BusinessEntityTypeCode и т.д.)
+  businessEntity = parseSubjectDetailsDirect(subjectElement)
+  if (businessEntity) {
+    return { businessEntity }
   }
   
-  return undefined
+  // Физлицо
+  const country = getTextContent(subjectElement, 'UnifiedCountryCode') || undefined
+  const subjectName = getTextContent(subjectElement, 'SubjectName') || undefined
+  const identityDoc = parseIdentityDocDetails(subjectElement)
+  const registrationAddress = parseAddress(subjectElement, '1')
+  const actualAddress = parseAddress(subjectElement, '2')
+  const mailingAddress = parseAddress(subjectElement, '3')
+  const contacts = parseContacts(subjectElement)
+  
+  return {
+    country,
+    subjectName,
+    identityDoc,
+    registrationAddress,
+    actualAddress,
+    mailingAddress,
+    contacts,
+  }
 }
 
 /**

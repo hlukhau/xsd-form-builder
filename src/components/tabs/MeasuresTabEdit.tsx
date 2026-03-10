@@ -1088,7 +1088,7 @@ const SubjectDetailsUnifiedEdit: React.FC<{
   const country = subject.country ?? be?.country
   const subjectName = subject.subjectName ?? be?.businessEntityName
   const briefName = be?.businessEntityBriefName
-  const orgForm = be?.businessEntityTypeName
+  const orgForm = be?.businessEntityTypeName ?? be?.businessEntityTypeCode
   const subjectId = be?.businessEntityId
   const identificationMethod = be?.identificationMethod
   const customsNumber = be?.customsNumber

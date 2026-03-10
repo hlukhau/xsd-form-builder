@@ -288,6 +288,7 @@ function exportSupplyChainParty(xmlParts: string[], party: SupplyChainPartyDetai
       xmlParts.push(`${indent}  <csdo:BusinessEntityId>${escapeXML(party.subjectIdentifier)}</csdo:BusinessEntityId>`)
     }
   }
+  if (party.customsNumber) xmlParts.push(`${indent}  <csdo:UniqueCustomsNumberId>${escapeXML(party.customsNumber)}</csdo:UniqueCustomsNumberId>`)
   if (party.taxpayerId) xmlParts.push(`${indent}  <csdo:TaxpayerId>${escapeXML(party.taxpayerId)}</csdo:TaxpayerId>`)
   if (party.taxRegistrationReasonCode) xmlParts.push(`${indent}  <csdo:TaxRegistrationReasonCode>${escapeXML(party.taxRegistrationReasonCode)}</csdo:TaxRegistrationReasonCode>`)
   
@@ -310,9 +311,18 @@ function exportSupplyChainParty(xmlParts: string[], party: SupplyChainPartyDetai
   xmlParts.push(`${indent}</ccdo:SupplyChainPartyDetails>`)
 }
 
-function exportAddress(xmlParts: string[], address: AddressDetails, kindCode: string, indent: string) {
-  xmlParts.push(`${indent}<ccdo:SubjectAddressDetails>`)
-  xmlParts.push(`${indent}    <csdo:AddressKindCode>${escapeXML(kindCode)}</csdo:AddressKindCode>`)
+function exportAddress(
+  xmlParts: string[],
+  address: AddressDetails,
+  kindCode: string,
+  indent: string,
+  opts?: { wrapperTag?: 'SubjectAddressDetails' | 'ObjectAddressDetails' }
+) {
+  const wrapper = opts?.wrapperTag ?? 'SubjectAddressDetails'
+  xmlParts.push(`${indent}<ccdo:${wrapper}>`)
+  if (wrapper === 'SubjectAddressDetails') {
+    xmlParts.push(`${indent}    <csdo:AddressKindCode>${escapeXML(kindCode)}</csdo:AddressKindCode>`)
+  }
   if (address.country) {
     xmlParts.push(`${indent}    <csdo:UnifiedCountryCode codeListId="2021">${escapeXML(address.country)}</csdo:UnifiedCountryCode>`)
   }
@@ -327,7 +337,7 @@ function exportAddress(xmlParts: string[], address: AddressDetails, kindCode: st
   if (address.postOfficeBoxId) xmlParts.push(`${indent}    <csdo:PostOfficeBoxId>${escapeXML(address.postOfficeBoxId)}</csdo:PostOfficeBoxId>`)
   if (address.postCode) xmlParts.push(`${indent}    <csdo:PostCode>${escapeXML(address.postCode)}</csdo:PostCode>`)
   if (address.fullAddress) xmlParts.push(`${indent}    <csdo:FullAddress>${escapeXML(address.fullAddress)}</csdo:FullAddress>`)
-  xmlParts.push(`${indent}</ccdo:SubjectAddressDetails>`)
+  xmlParts.push(`${indent}</ccdo:${wrapper}>`)
 }
 
 function exportShippingDocument(xmlParts: string[], doc: ShippingDocument, indent: string) {
@@ -489,7 +499,7 @@ function exportDetectionPlace(xmlParts: string[], place: DetectionPlaceData, ind
     xmlParts.push(`${indent}    </smcdo:BorderCheckpointDetails>`)
   }
   if (place.address) {
-    exportAddress(xmlParts, place.address, '1', `${indent}    `)
+    exportAddress(xmlParts, place.address, '1', `${indent}    `, { wrapperTag: 'ObjectAddressDetails' })
   }
   
   if (place.geoCoordinates) {
@@ -611,12 +621,16 @@ function exportMeasureImplementation(xmlParts: string[], impl: MeasureImplementa
       if (entity.country) xmlParts.push(`${indent}    <csdo:UnifiedCountryCode>${escapeXML(entity.country)}</csdo:UnifiedCountryCode>`)
       if (entity.businessEntityName) xmlParts.push(`${indent}    <csdo:BusinessEntityName>${escapeXML(entity.businessEntityName)}</csdo:BusinessEntityName>`)
       if (entity.businessEntityBriefName) xmlParts.push(`${indent}    <csdo:BusinessEntityBriefName>${escapeXML(entity.businessEntityBriefName)}</csdo:BusinessEntityBriefName>`)
+      if (entity.businessEntityTypeCode) {
+        const codeListIdAttr = entity.businessEntityTypeCodeListId ? ` codeListId="${escapeXML(entity.businessEntityTypeCodeListId)}"` : ''
+        xmlParts.push(`${indent}    <csdo:BusinessEntityTypeCode${codeListIdAttr}>${escapeXML(entity.businessEntityTypeCode)}</csdo:BusinessEntityTypeCode>`)
+      }
       if (entity.businessEntityTypeName) xmlParts.push(`${indent}    <csdo:BusinessEntityTypeName>${escapeXML(entity.businessEntityTypeName)}</csdo:BusinessEntityTypeName>`)
       if (entity.businessEntityId) {
         const kindIdAttr = entity.identificationMethod ? ` kindId="${escapeXML(entity.identificationMethod)}"` : ''
         xmlParts.push(`${indent}    <csdo:BusinessEntityId${kindIdAttr}>${escapeXML(entity.businessEntityId)}</csdo:BusinessEntityId>`)
       }
-      if (entity.customsNumber) xmlParts.push(`${indent}    <csdo:CustomsNumber>${escapeXML(entity.customsNumber)}</csdo:CustomsNumber>`)
+      if (entity.customsNumber) xmlParts.push(`${indent}    <csdo:UniqueCustomsNumberId>${escapeXML(entity.customsNumber)}</csdo:UniqueCustomsNumberId>`)
       if (entity.taxpayerId) xmlParts.push(`${indent}    <csdo:TaxpayerId>${escapeXML(entity.taxpayerId)}</csdo:TaxpayerId>`)
       if (entity.addresses && entity.addresses.length > 0) {
         entity.addresses.forEach(addr => {

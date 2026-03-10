@@ -301,11 +301,13 @@ export interface DetectionPlaceData {
 export interface BusinessEntityDetails {
   country?: string // UnifiedCountryCode
   businessEntityName?: string // BusinessEntityName
-  businessEntityBriefName?: string // BusinessEntityBriefName
+  businessEntityBriefName?: string // BusinessEntityBriefName (или SubjectBriefName в SubjectDetails)
+  businessEntityTypeCode?: string // BusinessEntityTypeCode
+  businessEntityTypeCodeListId?: string // codeListId атрибут
   businessEntityTypeName?: string // BusinessEntityTypeName
   businessEntityId?: string // BusinessEntityId
   identificationMethod?: string // из атрибута kindId
-  customsNumber?: string // CustomsNumber (таможенный номер)
+  customsNumber?: string // UniqueCustomsNumberId / CustomsNumber (таможенный номер)
   taxpayerId?: string // TaxpayerId
   addresses?: AddressDetails[] // SubjectAddressDetails (может быть несколько)
   contacts?: ContactDetails[] // CommunicationDetails

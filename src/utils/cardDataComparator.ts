@@ -9,6 +9,25 @@ const COUNTRY_NORMALIZE: Record<string, string[]> = {
   KG: ['KG', 'КИРГИЗИЯ', 'Киргизия', 'Kyrgyzstan'],
 }
 
+/** Пути, по которым не предупреждать об отсутствии в экспорте (поля пока не заполняем) */
+const IGNORE_MISSING_IN_EXPORT = [
+  'authorityId',
+  'authority.authorityId',
+  'identityDoc.authorityId',
+]
+
+function shouldIgnoreMissingExport(path: string): boolean {
+  return IGNORE_MISSING_IN_EXPORT.some((s) => path.endsWith(s) || path.includes('.authorityId'))
+}
+
+function isEmptyValue(val: unknown): boolean {
+  if (val == null) return true
+  if (typeof val === 'string') return val.trim() === ''
+  if (Array.isArray(val)) return val.length === 0
+  if (typeof val === 'object') return Object.keys(val).length === 0
+  return false
+}
+
 function normalizeCountry(val: string): string {
   if (!val || !val.trim()) return val
   const v = val.trim()
@@ -45,7 +64,9 @@ export function compareCardData(original: CardData, exported: CardData): {
     // Обработка null/undefined
     if (originalVal == null && exportedVal == null) return true
     if (originalVal == null) {
-      // В экспорте есть значение — пользователь добавил поле; показываем как отличие, не как предупреждение
+      // В экспорте подставляется значение по умолчанию — не считать добавленным
+      if (path.endsWith('.addressKindCode') && exportedVal === '1') return false
+      // В экспорте есть значение — пользователь добавил поле; показываем как отличие
       if (exportedVal != null && (typeof exportedVal !== 'string' || String(exportedVal).trim() !== '')) {
         const displayVal = typeof exportedVal === 'string' ? exportedVal : JSON.stringify(exportedVal)
         added.push(`${path} = "${displayVal}"`)
@@ -55,6 +76,8 @@ export function compareCardData(original: CardData, exported: CardData): {
       return false
     }
     if (exportedVal == null) {
+      if (shouldIgnoreMissingExport(path)) return false
+      if (isEmptyValue(originalVal)) return false
       warnings.push(`Отсутствует значение в экспортированных данных: ${path}`)
       return false
     }
@@ -133,7 +156,10 @@ export function compareCardData(original: CardData, exported: CardData): {
       // Проверяем отсутствующие ключи: только предупреждаем, если в исходных было поле, а в экспорте его нет (потеря данных)
       for (const key of originalKeys) {
         if (!exportedKeys.has(key)) {
-          warnings.push(`Отсутствует поле в экспортированных данных: ${path}.${key}`)
+          const subPath = path ? `${path}.${key}` : key
+          if (shouldIgnoreMissingExport(subPath)) continue
+          if (isEmptyValue(originalVal[key])) continue
+          warnings.push(`Отсутствует поле в экспортированных данных: ${subPath}`)
         }
       }
       // Сравниваем общие ключи
