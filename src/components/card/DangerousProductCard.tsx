@@ -753,27 +753,37 @@ const DangerousProductCard: React.FC<DangerousProductCardProps> = ({
   })
 
   return (
-    <div style={{ padding: 0 }} className="fade-in">
-      <Card
-        bordered={false}
-        title={
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <span>Карта сведений об обнаружении опасной продукции</span>
-          </div>
-        }
-        extra={
+    <div style={{ padding: 0, display: 'flex', flexDirection: 'column', minHeight: '100vh' }} className="fade-in card-page-layout">
+      <div
+        className="card-sticky-header"
+        style={{
+          position: 'sticky',
+          top: 0,
+          zIndex: 100,
+          background: '#ffffff',
+          boxShadow: '0 1px 2px rgba(0,0,0,0.06)',
+          padding: '0 24px 2px 24px',
+          isolation: 'isolate',
+          display: 'flex',
+          flexDirection: 'column',
+          height: '100vh',
+          maxHeight: '100vh',
+          overflow: 'hidden',
+        }}
+      >
+        <div className="card-sticky-header-title-row">
+          <span className="card-sticky-header-title">Карта сведений об обнаружении опасной продукции</span>
           <Space size="small" wrap>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
               <Switch
                 checked={isEditMode}
                 onChange={setIsEditMode}
                 checkedChildren={<EditOutlined />}
                 unCheckedChildren={<EyeOutlined />}
-                size="default"
                 disabled={isOutgoingSource && !canEditByStatus}
                 title={isOutgoingSource && !canEditByStatus ? 'Редактирование недоступно для текущего статуса карты' : undefined}
               />
-              <span style={{ color: '#ffffff', fontWeight: 500 }}>
+              <span className="card-sticky-header-mode-label">
                 Режим редактирования
                 {isOutgoingSource && !canEditByStatus && ' (недоступен для текущего статуса)'}
               </span>
@@ -781,10 +791,10 @@ const DangerousProductCard: React.FC<DangerousProductCardProps> = ({
             {isEditMode && (
               <>
                 {(effectiveDpaid === '-' || (isOutgoingSource && hasSaveRight && canEditByStatus)) && (
-                  <Button type="primary" onClick={handleSave} loading={saving} size="middle">Сохранить</Button>
+                  <Button type="primary" onClick={handleSave} loading={saving}>Сохранить</Button>
                 )}
-                <Button icon={<DownloadOutlined />} onClick={handleExportXML} size="middle">Экспорт XML</Button>
-                <Button onClick={handleCompareXML} size="middle">Сравнить с исходным</Button>
+                <Button icon={<DownloadOutlined />} onClick={handleExportXML}>Экспорт XML</Button>
+                <Button onClick={handleCompareXML}>Сравнить с исходным</Button>
               </>
             )}
             {isOutgoingSource && (
@@ -794,24 +804,21 @@ const DangerousProductCard: React.FC<DangerousProductCardProps> = ({
                   setValidationResult(validateOutgoingCard(dataToValidate))
                   setValidationModalVisible(true)
                 }}
-                size="middle"
               >
                 Валидация карты
               </Button>
             )}
             <Button
-                onClick={() => {
-                  if (typeof window !== 'undefined') {
-                    window.parent.postMessage({ code: 'exit' }, '*')
-                  }
-                }}
-                size="middle"
-              >
-                {effectiveDpaid === '-' ? 'Отменить создание' : 'Закрыть'}
-              </Button>
+              onClick={() => {
+                if (typeof window !== 'undefined') {
+                  window.parent.postMessage({ code: 'exit' }, '*')
+                }
+              }}
+            >
+              {effectiveDpaid === '-' ? 'Отменить создание' : 'Закрыть'}
+            </Button>
           </Space>
-        }
-      >
+        </div>
         <CardHeader
           data={currentData}
           onStatusClick={() => {
@@ -837,7 +844,6 @@ const DangerousProductCard: React.FC<DangerousProductCardProps> = ({
             }
           }}
         />
-        
         <CardActions
           data={currentData}
           onDefineAccess={() => setAccessModalVisible(true)}
@@ -1075,9 +1081,12 @@ const DangerousProductCard: React.FC<DangerousProductCardProps> = ({
             }
           }}
         />
+        <div className="card-tabs-wrapper">
+          <Tabs defaultActiveKey="notification" items={tabItemsWithEdit} />
+        </div>
+      </div>
 
-        <Tabs defaultActiveKey="notification" items={tabItemsWithEdit} />
-
+      <>
         <StatusHistoryModal
           visible={statusHistoryVisible}
           data={statusHistoryModalData}
@@ -1220,7 +1229,7 @@ const DangerousProductCard: React.FC<DangerousProductCardProps> = ({
             setValidationResult(null)
           }}
         />
-      </Card>
+      </>
     </div>
   )
 }

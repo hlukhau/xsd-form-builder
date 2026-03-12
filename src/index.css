@@ -130,6 +130,121 @@ body {
   background: var(--bg-secondary);
 }
 
+/* Закреплённая шапка: непрозрачный фон, чтобы контент не просвечивал при скролле */
+.card-sticky-header {
+  background: #ffffff !important;
+}
+.card-sticky-header .card-header-descriptions {
+  background: #ffffff;
+  margin: 0 !important;
+}
+.card-sticky-header .ant-descriptions-view {
+  background: #ffffff;
+  margin: 0 !important;
+  padding: 0 !important;
+}
+.card-sticky-header .ant-descriptions-view table {
+  margin: 0 !important;
+}
+.card-sticky-header .ant-descriptions.card-header-descriptions {
+  margin: 4px 0 !important;
+  padding-top: 4px !important;
+  padding-bottom: 4px !important;
+  padding-left: 0 !important;
+  padding-right: 0 !important;
+}
+
+/* Закреплённая шапка: синяя полоса (название + кнопки) как раньше */
+.card-sticky-header-title-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 8px;
+  background: #1890ff;
+  color: #ffffff;
+  padding: 6px 16px;
+  margin: 0 -24px 1px -24px;
+}
+.card-sticky-header-title {
+  font-size: 16px;
+  font-weight: 600;
+  letter-spacing: 0.3px;
+  color: #ffffff;
+}
+.card-sticky-header-mode-label {
+  font-weight: 500;
+  color: #ffffff;
+}
+.card-sticky-header-title-row .ant-btn {
+  border-color: rgba(255, 255, 255, 0.3);
+  color: #ffffff;
+  background: rgba(255, 255, 255, 0.1);
+}
+.card-sticky-header-title-row .ant-btn:hover {
+  background: rgba(255, 255, 255, 0.2);
+  border-color: rgba(255, 255, 255, 0.5);
+  color: #ffffff;
+}
+.card-sticky-header-title-row .ant-btn-primary {
+  background: rgba(255, 255, 255, 0.25);
+  border-color: rgba(255, 255, 255, 0.4);
+  color: #ffffff;
+}
+.card-sticky-header-title-row .ant-btn-primary:hover {
+  background: rgba(255, 255, 255, 0.35);
+  color: #ffffff;
+}
+
+/* Закреплённая шапка карты: компактная метаинформация, без лишних отступов */
+.card-sticky-header .card-header-descriptions.ant-descriptions-small .ant-descriptions-item-label,
+.card-sticky-header .card-header-descriptions.ant-descriptions-small .ant-descriptions-item-content {
+  padding-block: 1px 2px !important;
+  padding-inline: 8px;
+}
+.card-sticky-header .card-header-descriptions.ant-descriptions-small .ant-descriptions-item-label {
+  width: 120px;
+}
+/* Убрать отступ после блока метаданных (перед кнопками) */
+.card-sticky-header .card-header-descriptions + div,
+.card-sticky-header .card-actions-row {
+  margin-top: 0 !important;
+}
+
+/* Верхняя часть шапки (название, метаданные, кнопки) не сжимается */
+.card-sticky-header > .card-sticky-header-title-row,
+.card-sticky-header > .ant-descriptions,
+.card-sticky-header > .card-actions-row {
+  flex-shrink: 0;
+}
+
+/* Вкладки внутри фиксированной шапки: скроллится только контент вкладки */
+.card-sticky-header .card-tabs-wrapper {
+  flex: 1 1 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+.card-sticky-header .card-tabs-wrapper .ant-tabs {
+  flex: 1 1 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+.card-sticky-header .card-tabs-wrapper .ant-tabs-content-holder {
+  flex: 1 1 0;
+  min-height: 0;
+  overflow-y: auto;
+}
+.card-sticky-header .card-tabs-wrapper .ant-tabs-content {
+  height: 100%;
+}
+.card-sticky-header .card-tabs-wrapper .ant-tabs-tabpane {
+  height: 100%;
+}
+
 /* Вкладки: без рамки и тени */
 .ant-tabs {
   background: #ffffff;

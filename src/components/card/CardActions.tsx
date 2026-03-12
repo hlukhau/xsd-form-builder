@@ -44,6 +44,7 @@ const CardActions: React.FC<CardActionsProps> = ({
     <Tooltip title={statusButton.hint ?? statusButtonComment}>
       <span>
         <Button
+          size="small"
           type="primary"
           disabled={statusButton.disabled}
           onClick={() => !statusButton.disabled && onStatusAction(statusButton.action)}
@@ -55,8 +56,8 @@ const CardActions: React.FC<CardActionsProps> = ({
   ) : statusButtonComment ? (
     <Tooltip title={statusButtonComment}>
       <span style={{ display: 'inline-flex', alignItems: 'center', color: '#8c8c8c' }}>
-        <InfoCircleOutlined style={{ fontSize: 16 }} />
-        <span style={{ marginLeft: 6, fontSize: 12 }}>Смена статуса</span>
+        <InfoCircleOutlined style={{ fontSize: 14 }} />
+        <span style={{ marginLeft: 4, fontSize: 12 }}>Смена статуса</span>
       </span>
     </Tooltip>
   ) : null
@@ -65,6 +66,7 @@ const CardActions: React.FC<CardActionsProps> = ({
     <Tooltip title={closeButton.hint}>
       <span>
         <Button
+          size="small"
           disabled={closeButton.disabled}
           onClick={() => !closeButton.disabled && onStatusAction(closeButton.action)}
         >
@@ -75,10 +77,10 @@ const CardActions: React.FC<CardActionsProps> = ({
   ) : null
 
   return (
-    <div style={{ marginBottom: '16px' }}>
-      <Space>
-        <Button onClick={onDefineAccess}>Определить доступ</Button>
-        <Button onClick={onOpenAllVersions}>Открыть все версии</Button>
+    <div style={{ marginTop: 0, marginBottom: 4 }} className="card-actions-row">
+      <Space size="small" wrap>
+        <Button size="small" onClick={onDefineAccess}>Определить доступ</Button>
+        <Button size="small" onClick={onOpenAllVersions}>Открыть все версии</Button>
         {onShowRightsDebug && (
           <Tooltip title="Отладка: JSON карты прав доступа по текущему GUID">
             <Button size="small" onClick={onShowRightsDebug}>
@@ -89,16 +91,16 @@ const CardActions: React.FC<CardActionsProps> = ({
         {statusButtonNode}
         {closeButtonNode}
         {showDeleteButton && onDelete && (
-          <Button type="primary" danger icon={<DeleteOutlined />} onClick={onDelete}>
+          <Button size="small" type="primary" danger icon={<DeleteOutlined />} onClick={onDelete}>
             Удалить
           </Button>
         )}
         {showCopyButton && onCopy && (
-          <Button icon={<CopyOutlined />} onClick={onCopy}>
+          <Button size="small" icon={<CopyOutlined />} onClick={onCopy}>
             Сделать копию
           </Button>
         )}
-        <a onClick={onElectronicDocumentClick} style={{ cursor: 'pointer' }}>
+        <a onClick={onElectronicDocumentClick} style={{ cursor: 'pointer', fontSize: 13 }}>
           Электронный документ
         </a>
       </Space>
