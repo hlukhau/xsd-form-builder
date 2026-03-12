@@ -46,13 +46,9 @@ public class SupplyChainPartyKindOptionsServlet extends HttpServlet {
         
         try {
             // Получаем данные из кеша
-            if (!DictionaryCache.isSupplyChainPartyKindsLoaded()) {
-                response.setStatus(HttpServletResponse.SC_SERVICE_UNAVAILABLE);
-                out.print("{\"error\":\"Справочник видов участников цепи поставки не загружен. Дождитесь инициализации приложения.\"}");
-                System.err.println("[SupplyChainPartyKindOptionsServlet] Supply chain party kinds cache not loaded");
-                return;
-            }
-            
+            com.eec.servlet.DictionaryInitializerListener loader = com.eec.servlet.DictionaryInitializerListener.getInstance();
+            if (loader != null) loader.ensureSupplyChainPartyKindsLoaded();
+
             List<SupplyChainPartyKindOption> kinds = DictionaryCache.getSupplyChainPartyKindsList();
             
             out.print("[");

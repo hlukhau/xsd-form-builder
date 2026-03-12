@@ -30,12 +30,10 @@ public class DepOptionsServlet extends HttpServlet {
         response.setCharacterEncoding("UTF-8");
         response.setHeader("Access-Control-Allow-Origin", "*");
 
-        if (!DictionaryCache.isDepOptionsLoaded()) {
-            response.setStatus(HttpServletResponse.SC_SERVICE_UNAVAILABLE);
-            response.getWriter().print("{\"error\":\"Справочник подразделений не загружен. Дождитесь инициализации приложения.\"}");
-            return;
+        com.eec.servlet.DictionaryInitializerListener loader = com.eec.servlet.DictionaryInitializerListener.getInstance();
+        if (loader != null) {
+            loader.ensureDepOptionsLoaded();
         }
-
         List<DepOption> list = DictionaryCache.getDepOptionsList();
         StringBuilder json = new StringBuilder("[");
         boolean first = true;

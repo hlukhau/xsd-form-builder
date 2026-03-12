@@ -43,12 +43,10 @@ public class LegalFormOptionsServlet extends HttpServlet {
         }
 
         try {
-            if (!DictionaryCache.isLegalFormsLoaded()) {
-                response.setStatus(HttpServletResponse.SC_SERVICE_UNAVAILABLE);
-                out.print("{\"error\":\"Справочник организационно-правовых форм не загружен\"}");
-                return;
+            com.eec.servlet.DictionaryInitializerListener loader = com.eec.servlet.DictionaryInitializerListener.getInstance();
+            if (loader != null) {
+                loader.ensureLegalFormsLoaded();
             }
-
             List<LegalFormOption> list = (countryCode != null && !countryCode.trim().isEmpty())
                     ? DictionaryCache.getLegalFormsByCountry(countryCode.trim())
                     : DictionaryCache.getLegalFormsList();

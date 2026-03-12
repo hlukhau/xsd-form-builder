@@ -68,7 +68,11 @@ public class AuthorityOptionsServlet extends HttpServlet {
         }
         
         try {
-            // Проверяем, загружен ли кеш
+            // Ленивая загрузка: при первом запросе загружаем справочник и кешируем
+            com.eec.servlet.DictionaryInitializerListener loader = com.eec.servlet.DictionaryInitializerListener.getInstance();
+            if (loader != null) {
+                loader.ensureAuthoritiesLoaded();
+            }
             List<AuthorityOption> allAuthorities = DictionaryCache.getAllAuthorities();
             System.out.println("[AuthorityOptionsServlet] Total authorities in cache: " + allAuthorities.size());
             

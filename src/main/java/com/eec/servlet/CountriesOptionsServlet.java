@@ -45,14 +45,11 @@ public class CountriesOptionsServlet extends HttpServlet {
         }
         
         try {
-            // Получаем данные из кеша
-            if (!DictionaryCache.isCountriesLoaded()) {
-                response.setStatus(HttpServletResponse.SC_SERVICE_UNAVAILABLE);
-                out.print("{\"error\":\"Справочник стран не загружен. Дождитесь инициализации приложения.\"}");
-                System.err.println("[CountriesOptionsServlet] Countries cache not loaded");
-                return;
+            // Ленивая загрузка: при первом запросе загружаем справочник и кешируем
+            com.eec.servlet.DictionaryInitializerListener loader = com.eec.servlet.DictionaryInitializerListener.getInstance();
+            if (loader != null) {
+                loader.ensureCountriesLoaded();
             }
-            
             List<CountryOption> countries = DictionaryCache.getCountriesList();
             
             out.print("[");

@@ -4,6 +4,7 @@ import { ru } from 'date-fns/locale'
 import { useState, useEffect } from 'react'
 import { checkCountryExists } from '@/utils/referenceDataApi'
 import { useCountryOptions } from '@/hooks/useCountryOptions'
+import { useIncidentAlertKindOptions } from '@/hooks/useIncidentAlertKindOptions'
 import type { Notification } from '@/types/card'
 
 interface NotificationTabProps {
@@ -12,6 +13,7 @@ interface NotificationTabProps {
 
 const NotificationTab: React.FC<NotificationTabProps> = ({ data }) => {
   const { getDisplayLabel: getCountryDisplayLabel } = useCountryOptions()
+  const { getNameByCode: getIncidentAlertKindNameByCode } = useIncidentAlertKindOptions()
   const [countryValid, setCountryValid] = useState<boolean | null>(null)
   const [authorizedBodyCountryValid, setAuthorizedBodyCountryValid] = useState<boolean | null>(null)
 
@@ -59,7 +61,14 @@ const NotificationTab: React.FC<NotificationTabProps> = ({ data }) => {
       <Descriptions.Item label="Регистрационный номер">
         {data.registrationNumber}
       </Descriptions.Item>
-      <Descriptions.Item label="Вид">{data.type}</Descriptions.Item>
+      <Descriptions.Item label="Вид">
+        {data.type
+          ? (() => {
+              const name = getIncidentAlertKindNameByCode(data.type)
+              return name ? `${data.type} — ${name}` : data.type
+            })()
+          : '-'}
+      </Descriptions.Item>
       <Descriptions.Item label="Дата формирования">
         {formatDate(data.formationDate)}
       </Descriptions.Item>

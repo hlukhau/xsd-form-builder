@@ -46,13 +46,9 @@ public class ShipDocKindOptionsServlet extends HttpServlet {
         
         try {
             // Получаем данные из кеша
-            if (!DictionaryCache.isShipDocKindsLoaded()) {
-                response.setStatus(HttpServletResponse.SC_SERVICE_UNAVAILABLE);
-                out.print("{\"error\":\"Справочник видов товаросопроводительных документов не загружен. Дождитесь инициализации приложения.\"}");
-                System.err.println("[ShipDocKindOptionsServlet] Ship document kinds cache not loaded");
-                return;
-            }
-            
+            com.eec.servlet.DictionaryInitializerListener loader = com.eec.servlet.DictionaryInitializerListener.getInstance();
+            if (loader != null) loader.ensureShipDocKindsLoaded();
+
             List<ShipDocKindOption> kinds = DictionaryCache.getShipDocKindsList();
             
             out.print("[");

@@ -18,7 +18,7 @@ export interface NotificationTabEditProps {
   isNewCard?: boolean
   /** Код страны карты (для отображения в режиме новой карты) */
   cardCountry?: string
-  /** Версия карты: 1 — вид только 8; иначе — 8 и 9 */
+  /** Версия карты: 1 — вид только 7; иначе — 8 и 9 */
   version?: number
   /** Черновик: разрешён выбор уполномоченного органа */
   isDraft?: boolean
@@ -28,7 +28,7 @@ export interface NotificationTabEditProps {
   allowedAuthorityIds?: string[]
 }
 
-const VERSION_1_KIND_CODES = ['8']
+const VERSION_1_KIND_CODES = ['7']
 const OTHER_VERSIONS_KIND_CODES = ['8', '9']
 
 const NotificationTabEdit: React.FC<NotificationTabEditProps> = ({
@@ -46,7 +46,7 @@ const NotificationTabEdit: React.FC<NotificationTabEditProps> = ({
   
   const [selectedAuthorityUid, setSelectedAuthorityUid] = useState<string | undefined>(undefined)
 
-  // Ограничение видов уведомления по версии: 1 — только 8; иначе — 8 и 9. Сортировка по коду как числу.
+  // Ограничение видов уведомления по версии: 1 — только 7; иначе — 8 и 9. Сортировка по коду как числу.
   const allowedKindCodes = version === 1 ? VERSION_1_KIND_CODES : OTHER_VERSIONS_KIND_CODES
   const incidentKindSelectOptions = getIncidentAlertKindSelectOptions()
     .filter((opt) => allowedKindCodes.includes(String(opt.value)))

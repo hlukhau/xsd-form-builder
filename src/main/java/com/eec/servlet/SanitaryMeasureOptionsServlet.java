@@ -46,13 +46,9 @@ public class SanitaryMeasureOptionsServlet extends HttpServlet {
         
         try {
             // Получаем данные из кеша
-            if (!DictionaryCache.isSanitaryMeasuresLoaded()) {
-                response.setStatus(HttpServletResponse.SC_SERVICE_UNAVAILABLE);
-                out.print("{\"error\":\"Справочник санитарных мер не загружен. Дождитесь инициализации приложения.\"}");
-                System.err.println("[SanitaryMeasureOptionsServlet] Sanitary measures cache not loaded");
-                return;
-            }
-            
+            com.eec.servlet.DictionaryInitializerListener loader = com.eec.servlet.DictionaryInitializerListener.getInstance();
+            if (loader != null) loader.ensureSanitaryMeasuresLoaded();
+
             List<SanitaryMeasureOption> measures = DictionaryCache.getSanitaryMeasuresList();
             
             out.print("[");

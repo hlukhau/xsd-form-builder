@@ -43,11 +43,8 @@ public class IdentificationMethodOptionsServlet extends HttpServlet {
         }
 
         try {
-            if (!DictionaryCache.isIdentificationMethodsLoaded()) {
-                response.setStatus(HttpServletResponse.SC_SERVICE_UNAVAILABLE);
-                out.print("{\"error\":\"Справочник методов идентификации не загружен\"}");
-                return;
-            }
+            com.eec.servlet.DictionaryInitializerListener loader = com.eec.servlet.DictionaryInitializerListener.getInstance();
+            if (loader != null) loader.ensureIdentificationMethodsLoaded();
 
             List<IdentificationMethodOption> list = (countryCode != null && !countryCode.trim().isEmpty())
                     ? DictionaryCache.getIdentificationMethodsByCountry(countryCode.trim())

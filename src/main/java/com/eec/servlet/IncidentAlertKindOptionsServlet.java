@@ -53,18 +53,11 @@ public class IncidentAlertKindOptionsServlet extends HttpServlet {
         }
         
         try {
-            // Ждём загрузки кеша (справочники грузятся в фоне при старте), чтобы не отдавать 503
-            int waitMs = 0;
-            while (!DictionaryCache.isIncidentAlertKindsLoaded() && waitMs < 5000) {
-                try {
-                    Thread.sleep(200);
-                } catch (InterruptedException e) {
-                    Thread.currentThread().interrupt();
-                    break;
-                }
-                waitMs += 200;
+            // Ленивая загрузка: при первом запросе загружаем справочник и кешируем
+            com.eec.servlet.DictionaryInitializerListener loader = com.eec.servlet.DictionaryInitializerListener.getInstance();
+            if (loader != null) {
+                loader.ensureIncidentAlertKindsLoaded();
             }
-            // Всегда отдаём 200: либо данные из кеша, либо пустой массив (чтобы фронт не показывал «недоступен»)
             List<IncidentAlertKindOption> kinds = DictionaryCache.isIncidentAlertKindsLoaded()
                 ? DictionaryCache.getIncidentAlertKindsList()
                 : java.util.Collections.emptyList();

@@ -46,13 +46,9 @@ public class MeasurementUnitOptionsServlet extends HttpServlet {
         
         try {
             // Получаем данные из кеша
-            if (!DictionaryCache.isMeasurementUnitsLoaded()) {
-                response.setStatus(HttpServletResponse.SC_SERVICE_UNAVAILABLE);
-                out.print("{\"error\":\"Справочник единиц измерения не загружен. Дождитесь инициализации приложения.\"}");
-                System.err.println("[MeasurementUnitOptionsServlet] Measurement units cache not loaded");
-                return;
-            }
-            
+            com.eec.servlet.DictionaryInitializerListener loader = com.eec.servlet.DictionaryInitializerListener.getInstance();
+            if (loader != null) loader.ensureMeasurementUnitsLoaded();
+
             List<MeasurementUnitOption> units = DictionaryCache.getMeasurementUnitsList();
             
             out.print("[");

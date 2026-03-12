@@ -27,53 +27,126 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.function.BooleanSupplier;
 
 /**
- * Listener для инициализации справочников при старте приложения
- * Загружает справочники в кеш при старте
- * Регистрируется в web.xml
+ * Listener для ленивой загрузки справочников при первом запросе.
+ * Предзагрузка при старте отключена: справочники кешируются при первом обращении к API.
+ * Регистрируется в web.xml.
  */
 public class DictionaryInitializerListener implements ServletContextListener {
-    
+
+    private static volatile DictionaryInitializerListener INSTANCE;
+    private static final Object LOCK_COUNTRIES = new Object();
+    private static final Object LOCK_INCIDENT_ALERT_KINDS = new Object();
+    private static final Object LOCK_AUTHORITIES = new Object();
+    private static final Object LOCK_SANITARY_PROD_TYPES = new Object();
+    private static final Object LOCK_MEASUREMENT_UNITS = new Object();
+    private static final Object LOCK_SHIP_DOC_KINDS = new Object();
+    private static final Object LOCK_SUPPLY_CHAIN_PARTY_KINDS = new Object();
+    private static final Object LOCK_TECH_REGULS = new Object();
+    private static final Object LOCK_SANITARY_MEASURE_OBJ_KINDS = new Object();
+    private static final Object LOCK_SANITARY_MEASURES = new Object();
+    private static final Object LOCK_MEDIA_TYPES = new Object();
+    private static final Object LOCK_DEP_OPTIONS = new Object();
+    private static final Object LOCK_LEGAL_FORMS = new Object();
+    private static final Object LOCK_IDENTIFICATION_METHODS = new Object();
+    private static final Object LOCK_CONFORMITY_DOC_KINDS = new Object();
+    private static final Object LOCK_IDENTITY_DOC_KINDS = new Object();
+
+    public static DictionaryInitializerListener getInstance() {
+        return INSTANCE;
+    }
+
     @Override
     public void contextInitialized(ServletContextEvent sce) {
-        System.out.println("========================================");
-        System.out.println("[DictionaryInitializer] Starting dictionary loading in background (Tomcat will respond immediately)");
-        System.out.println("========================================");
-        // Загрузка в фоне, чтобы не блокировать развёртывание контекста и не «подвешивать» Tomcat при недоступности БД
-        Thread loader = new Thread(() -> {
-            try {
-                loadWithRetries("countries", this::loadCountriesDictionary, DictionaryCache::isCountriesLoaded);
-                loadWithRetries("incident alert kinds", this::loadIncidentAlertKindsDictionary, DictionaryCache::isIncidentAlertKindsLoaded);
-                loadWithRetries("authorities", this::loadAuthoritiesDictionary, DictionaryCache::isAuthoritiesLoaded);
-                loadWithRetries("sanitary product types", this::loadSanitaryProdTypesDictionary, DictionaryCache::isSanitaryProdTypesLoaded);
-                loadWithRetries("measurement units", this::loadMeasurementUnitsDictionary, DictionaryCache::isMeasurementUnitsLoaded);
-                loadWithRetries("ship document kinds", this::loadShipDocKindsDictionary, DictionaryCache::isShipDocKindsLoaded);
-                loadWithRetries("supply chain party kinds", this::loadSupplyChainPartyKindsDictionary, DictionaryCache::isSupplyChainPartyKindsLoaded);
-                loadWithRetries("technical regulations", this::loadTechRegulsDictionary, DictionaryCache::isTechRegulsLoaded);
-                loadWithRetries("sanitary measure object kinds", this::loadSanitaryMeasureObjKindsDictionary, DictionaryCache::isSanitaryMeasureObjKindsLoaded);
-                loadWithRetries("sanitary measures", this::loadSanitaryMeasuresDictionary, DictionaryCache::isSanitaryMeasuresLoaded);
-                loadWithRetries("media types", this::loadMediaTypesDictionary, DictionaryCache::isMediaTypesLoaded);
-                loadWithRetries("dep options", this::loadDepOptionsDictionary, DictionaryCache::isDepOptionsLoaded);
-                loadWithRetries("legal forms", this::loadLegalFormsDictionary, DictionaryCache::isLegalFormsLoaded);
-                loadWithRetries("identification methods", this::loadIdentificationMethodsDictionary, DictionaryCache::isIdentificationMethodsLoaded);
-                loadWithRetries("conformity doc kinds", this::loadConformityDocKindsDictionary, DictionaryCache::isConformityDocKindsLoaded);
-                loadWithRetries("identity doc kinds", this::loadIdentityDocKindsDictionary, DictionaryCache::isIdentityDocKindsLoaded);
-                System.out.println("========================================");
-                System.out.println("[DictionaryInitializer] Dictionary loading completed");
-                System.out.println("========================================");
-            } catch (Throwable t) {
-                System.err.println("[DictionaryInitializer] Background loading failed: " + t.getMessage());
-                t.printStackTrace();
-            }
-        }, "DictionaryInitializer");
-        loader.setDaemon(true);
-        loader.start();
+        INSTANCE = this;
+        System.out.println("[DictionaryInitializer] Lazy loading enabled: dictionaries will load on first request.");
+    }
+
+    public void ensureCountriesLoaded() {
+        synchronized (LOCK_COUNTRIES) {
+            if (!DictionaryCache.isCountriesLoaded()) loadCountriesDictionary();
+        }
+    }
+    public void ensureIncidentAlertKindsLoaded() {
+        synchronized (LOCK_INCIDENT_ALERT_KINDS) {
+            if (!DictionaryCache.isIncidentAlertKindsLoaded()) loadIncidentAlertKindsDictionary();
+        }
+    }
+    public void ensureAuthoritiesLoaded() {
+        synchronized (LOCK_AUTHORITIES) {
+            if (!DictionaryCache.isAuthoritiesLoaded()) loadAuthoritiesDictionary();
+        }
+    }
+    public void ensureSanitaryProdTypesLoaded() {
+        synchronized (LOCK_SANITARY_PROD_TYPES) {
+            if (!DictionaryCache.isSanitaryProdTypesLoaded()) loadSanitaryProdTypesDictionary();
+        }
+    }
+    public void ensureMeasurementUnitsLoaded() {
+        synchronized (LOCK_MEASUREMENT_UNITS) {
+            if (!DictionaryCache.isMeasurementUnitsLoaded()) loadMeasurementUnitsDictionary();
+        }
+    }
+    public void ensureShipDocKindsLoaded() {
+        synchronized (LOCK_SHIP_DOC_KINDS) {
+            if (!DictionaryCache.isShipDocKindsLoaded()) loadShipDocKindsDictionary();
+        }
+    }
+    public void ensureSupplyChainPartyKindsLoaded() {
+        synchronized (LOCK_SUPPLY_CHAIN_PARTY_KINDS) {
+            if (!DictionaryCache.isSupplyChainPartyKindsLoaded()) loadSupplyChainPartyKindsDictionary();
+        }
+    }
+    public void ensureTechRegulsLoaded() {
+        synchronized (LOCK_TECH_REGULS) {
+            if (!DictionaryCache.isTechRegulsLoaded()) loadTechRegulsDictionary();
+        }
+    }
+    public void ensureSanitaryMeasureObjKindsLoaded() {
+        synchronized (LOCK_SANITARY_MEASURE_OBJ_KINDS) {
+            if (!DictionaryCache.isSanitaryMeasureObjKindsLoaded()) loadSanitaryMeasureObjKindsDictionary();
+        }
+    }
+    public void ensureSanitaryMeasuresLoaded() {
+        synchronized (LOCK_SANITARY_MEASURES) {
+            if (!DictionaryCache.isSanitaryMeasuresLoaded()) loadSanitaryMeasuresDictionary();
+        }
+    }
+    public void ensureMediaTypesLoaded() {
+        synchronized (LOCK_MEDIA_TYPES) {
+            if (!DictionaryCache.isMediaTypesLoaded()) loadMediaTypesDictionary();
+        }
+    }
+    public void ensureDepOptionsLoaded() {
+        synchronized (LOCK_DEP_OPTIONS) {
+            if (!DictionaryCache.isDepOptionsLoaded()) loadDepOptionsDictionary();
+        }
+    }
+    public void ensureLegalFormsLoaded() {
+        synchronized (LOCK_LEGAL_FORMS) {
+            if (!DictionaryCache.isLegalFormsLoaded()) loadLegalFormsDictionary();
+        }
+    }
+    public void ensureIdentificationMethodsLoaded() {
+        synchronized (LOCK_IDENTIFICATION_METHODS) {
+            if (!DictionaryCache.isIdentificationMethodsLoaded()) loadIdentificationMethodsDictionary();
+        }
+    }
+    public void ensureConformityDocKindsLoaded() {
+        synchronized (LOCK_CONFORMITY_DOC_KINDS) {
+            if (!DictionaryCache.isConformityDocKindsLoaded()) loadConformityDocKindsDictionary();
+        }
+    }
+    public void ensureIdentityDocKindsLoaded() {
+        synchronized (LOCK_IDENTITY_DOC_KINDS) {
+            if (!DictionaryCache.isIdentityDocKindsLoaded()) loadIdentityDocKindsDictionary();
+        }
     }
     
     @Override
     public void contextDestroyed(ServletContextEvent sce) {
+        INSTANCE = null;
         System.out.println("[DictionaryInitializer] Application context destroyed");
         // Очищаем кеш при остановке
         DictionaryCache.clearCountriesCache();
@@ -92,36 +165,6 @@ public class DictionaryInitializerListener implements ServletContextListener {
         DictionaryCache.clearIdentificationMethodsCache();
         DictionaryCache.clearConformityDocKindsCache();
         DictionaryCache.clearIdentityDocKindsCache();
-    }
-    
-    private static final int LOAD_MAX_ATTEMPTS = 3;
-    private static final long LOAD_RETRY_DELAY_MS = 3000;
-    
-    /**
-     * Выполняет загрузку справочника с повторными попытками при неудаче (таймаут БД, сеть).
-     */
-    private void loadWithRetries(String dictionaryName, Runnable loadTask, BooleanSupplier isLoaded) {
-        for (int attempt = 1; attempt <= LOAD_MAX_ATTEMPTS; attempt++) {
-            loadTask.run();
-            if (isLoaded.getAsBoolean()) {
-                if (attempt > 1) {
-                    System.out.println("[DictionaryInitializer] " + dictionaryName + " loaded on attempt " + attempt);
-                }
-                return;
-            }
-            if (attempt < LOAD_MAX_ATTEMPTS) {
-                System.out.println("[DictionaryInitializer] " + dictionaryName + " failed (attempt " + attempt + "/" + LOAD_MAX_ATTEMPTS + "), retry in " + (LOAD_RETRY_DELAY_MS / 1000) + " s...");
-                try {
-                    Thread.sleep(LOAD_RETRY_DELAY_MS);
-                } catch (InterruptedException e) {
-                    Thread.currentThread().interrupt();
-                    System.err.println("[DictionaryInitializer] Interrupted while waiting before retry");
-                    return;
-                }
-            } else {
-                System.err.println("[DictionaryInitializer] " + dictionaryName + " failed after " + LOAD_MAX_ATTEMPTS + " attempts");
-            }
-        }
     }
     
     /**

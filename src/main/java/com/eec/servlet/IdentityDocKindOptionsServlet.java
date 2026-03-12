@@ -41,11 +41,8 @@ public class IdentityDocKindOptionsServlet extends HttpServlet {
         }
 
         try {
-            if (!DictionaryCache.isIdentityDocKindsLoaded()) {
-                response.setStatus(HttpServletResponse.SC_SERVICE_UNAVAILABLE);
-                out.print("{\"error\":\"Справочник видов документов, удостоверяющих личность, не загружен\"}");
-                return;
-            }
+            com.eec.servlet.DictionaryInitializerListener loader = com.eec.servlet.DictionaryInitializerListener.getInstance();
+            if (loader != null) loader.ensureIdentityDocKindsLoaded();
 
             List<IdentityDocKindOption> list = DictionaryCache.getIdentityDocKindsList();
 

@@ -41,11 +41,8 @@ public class ConformityDocKindOptionsServlet extends HttpServlet {
         }
 
         try {
-            if (!DictionaryCache.isConformityDocKindsLoaded()) {
-                response.setStatus(HttpServletResponse.SC_SERVICE_UNAVAILABLE);
-                out.print("{\"error\":\"Справочник видов документов об оценке соответствия не загружен\"}");
-                return;
-            }
+            com.eec.servlet.DictionaryInitializerListener loader = com.eec.servlet.DictionaryInitializerListener.getInstance();
+            if (loader != null) loader.ensureConformityDocKindsLoaded();
 
             List<ConformityDocKindOption> list = DictionaryCache.getConformityDocKindsList();
 

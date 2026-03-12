@@ -46,13 +46,9 @@ public class TechRegulOptionsServlet extends HttpServlet {
         
         try {
             // Получаем данные из кеша
-            if (!DictionaryCache.isTechRegulsLoaded()) {
-                response.setStatus(HttpServletResponse.SC_SERVICE_UNAVAILABLE);
-                out.print("{\"error\":\"Справочник технических регламентов не загружен. Дождитесь инициализации приложения.\"}");
-                System.err.println("[TechRegulOptionsServlet] Technical regulations cache not loaded");
-                return;
-            }
-            
+            com.eec.servlet.DictionaryInitializerListener loader = com.eec.servlet.DictionaryInitializerListener.getInstance();
+            if (loader != null) loader.ensureTechRegulsLoaded();
+
             List<TechRegulOption> reguls = DictionaryCache.getTechRegulsList();
             
             out.print("[");

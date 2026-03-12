@@ -46,13 +46,9 @@ public class SanitaryMeasureObjKindOptionsServlet extends HttpServlet {
         
         try {
             // Получаем данные из кеша
-            if (!DictionaryCache.isSanitaryMeasureObjKindsLoaded()) {
-                response.setStatus(HttpServletResponse.SC_SERVICE_UNAVAILABLE);
-                out.print("{\"error\":\"Справочник видов объектов действия мер не загружен. Дождитесь инициализации приложения.\"}");
-                System.err.println("[SanitaryMeasureObjKindOptionsServlet] Sanitary measure object kinds cache not loaded");
-                return;
-            }
-            
+            com.eec.servlet.DictionaryInitializerListener loader = com.eec.servlet.DictionaryInitializerListener.getInstance();
+            if (loader != null) loader.ensureSanitaryMeasureObjKindsLoaded();
+
             List<SanitaryMeasureObjKindOption> kinds = DictionaryCache.getSanitaryMeasureObjKindsList();
             
             out.print("[");

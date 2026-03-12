@@ -46,13 +46,9 @@ public class SanitaryProdTypeOptionsServlet extends HttpServlet {
         
         try {
             // Получаем данные из кеша
-            if (!DictionaryCache.isSanitaryProdTypesLoaded()) {
-                response.setStatus(HttpServletResponse.SC_SERVICE_UNAVAILABLE);
-                out.print("{\"error\":\"Справочник типов санитарной продукции не загружен. Дождитесь инициализации приложения.\"}");
-                System.err.println("[SanitaryProdTypeOptionsServlet] Sanitary product types cache not loaded");
-                return;
-            }
-            
+            com.eec.servlet.DictionaryInitializerListener loader = com.eec.servlet.DictionaryInitializerListener.getInstance();
+            if (loader != null) loader.ensureSanitaryProdTypesLoaded();
+
             List<SanitaryProdTypeOption> types = DictionaryCache.getSanitaryProdTypesList();
             
             out.print("[");
