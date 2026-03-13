@@ -25,6 +25,41 @@ function dictionaryLoadingEnd() {
   }
 }
 
+function getGuidFromCurrentLocation(): string | undefined {
+  if (typeof window === 'undefined') return undefined
+  const parts = window.location.pathname.split('/').filter(Boolean)
+  if (parts.length < 3) return undefined
+  const maybeGuid = parts[parts.length - 1]?.trim()
+  const maybeDpaid = parts[parts.length - 2]?.trim()
+  if (!maybeGuid || !maybeDpaid) return undefined
+  if (maybeDpaid !== '-' && !/^\d+$/.test(maybeDpaid)) return undefined
+  return maybeGuid || undefined
+}
+
+function resolveGuid(guid?: string): string | undefined {
+  const explicit = guid?.trim()
+  if (explicit) return explicit
+  return getGuidFromCurrentLocation()
+}
+
+function withGuidParams(params: URLSearchParams, guid?: string): URLSearchParams {
+  const resolvedGuid = resolveGuid(guid)
+  if (resolvedGuid && !params.has('guid')) params.set('guid', resolvedGuid)
+  return params
+}
+
+function withGuidUrl(url: string, guid?: string): string {
+  const resolvedGuid = resolveGuid(guid)
+  if (!resolvedGuid) return url
+  const separator = url.includes('?') ? '&' : '?'
+  return `${url}${separator}guid=${encodeURIComponent(resolvedGuid)}`
+}
+
+function withGuidBody<T extends Record<string, unknown>>(body: T, guid?: string): T & { guid?: string } {
+  const resolvedGuid = resolveGuid(guid)
+  return resolvedGuid ? { ...body, guid: resolvedGuid } : body
+}
+
 export interface Country {
   countryId: number
   countryCode: string
@@ -70,6 +105,11 @@ export interface ShipDocKindOption {
 }
 
 export interface SupplyChainPartyKindOption {
+  code: string
+  name: string
+}
+
+export interface CommunicationChannelOption {
   code: string
   name: string
 }
@@ -136,17 +176,18 @@ export async function saveDpaCard(payload: {
   copyFromDpaid?: number
   guid?: string
 }): Promise<DpaSaveResponse> {
+  const resolvedGuid = resolveGuid(payload.guid)
   let body: Record<string, unknown>
   if (payload.dpaid != null && !payload.isNew) {
     body = { isNew: false, dpaid: payload.dpaid, xmlBody: payload.xmlBody, metadata: payload.metadata }
   } else {
     body = { isNew: true, xmlBody: payload.xmlBody, metadata: payload.metadata }
-    if (payload.copyFromDpaid != null && payload.guid) {
+    if (payload.copyFromDpaid != null && resolvedGuid) {
       body.copyFromDpaid = payload.copyFromDpaid
-      body.guid = payload.guid
+      body.guid = resolvedGuid
     }
   }
-  if (payload.guid != null && payload.guid !== '') body.guid = payload.guid
+  if (resolvedGuid) body.guid = resolvedGuid
   const url = `${BASE_URL}api/dpa/save`
   const response = await fetch(url, {
     method: 'POST',
@@ -173,8 +214,9 @@ export interface CanCreateNewVersionResponse {
   allowed: boolean
   reason?: string
 }
-export async function canCreateNewVersion(dpaid: string, guid: string): Promise<CanCreateNewVersionResponse> {
-  const url = `${BASE_URL}api/dpa/can-create-new-version?dpaid=${encodeURIComponent(dpaid)}&guid=${encodeURIComponent(guid)}`
+export async function canCreateNewVersion(dpaid: string, guid?: string): Promise<CanCreateNewVersionResponse> {
+  const params = withGuidParams(new URLSearchParams({ dpaid }), guid)
+  const url = `${BASE_URL}api/dpa/can-create-new-version?${params.toString()}`
   const response = await fetch(url)
   const text = await response.text()
   if (!response.ok) {
@@ -194,12 +236,12 @@ export interface DpaDeleteResponse {
  * POST /api/dpa/delete — тело { dpaid, guid }.
  * Условия на сервере: DATASOURCEKINDCODE=2, DPASTATUSID=5, право dangerousProductOut:edit в пределах хотя бы одного подразделения из DPADEPPERMIS.
  */
-export async function deleteDpaCard(dpaid: number | string, guid: string): Promise<DpaDeleteResponse> {
+export async function deleteDpaCard(dpaid: number | string, guid?: string): Promise<DpaDeleteResponse> {
   const url = `${BASE_URL}api/dpa/delete`
   const response = await fetch(url, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ dpaid: Number(dpaid), guid }),
+    body: JSON.stringify(withGuidBody({ dpaid: Number(dpaid) }, guid)),
   })
   const text = await response.text()
   if (!response.ok) {
@@ -262,9 +304,10 @@ export function buildSaveMetadataFromCardData(data: CardData): DpaSaveMetadata {
  * Получить следующий уникальный регистрационный номер для страны (при создании карты).
  * GET /api/dpa/next-registration-number?country=BY → { registrationNumber: "BY-DP00002-26" }
  */
-export async function fetchNextRegistrationNumber(countryCode: string): Promise<{ registrationNumber: string }> {
+export async function fetchNextRegistrationNumber(countryCode: string, guid?: string): Promise<{ registrationNumber: string }> {
   const country = (countryCode || 'BY').trim().toUpperCase().slice(0, 2)
-  const response = await fetch(`${BASE_URL}api/dpa/next-registration-number?country=${encodeURIComponent(country)}`)
+  const params = withGuidParams(new URLSearchParams({ country }), guid)
+  const response = await fetch(`${BASE_URL}api/dpa/next-registration-number?${params.toString()}`)
   if (!response.ok) {
     const text = await response.text()
     let errMsg = response.statusText
@@ -282,8 +325,8 @@ export async function fetchNextRegistrationNumber(countryCode: string): Promise<
 /**
  * Загрузить XML по DPAID из таблицы DPAXML (GET /api/dpa/xml/{DPAID})
  */
-export async function fetchDpaXml(dpaid: string): Promise<string> {
-  const response = await fetch(`${BASE_URL}api/dpa/xml/${encodeURIComponent(dpaid)}`)
+export async function fetchDpaXml(dpaid: string, guid?: string): Promise<string> {
+  const response = await fetch(withGuidUrl(`${BASE_URL}api/dpa/xml/${encodeURIComponent(dpaid)}`, guid))
   if (!response.ok) {
     const text = await response.text()
     let errMsg = response.statusText
@@ -319,8 +362,8 @@ export interface DpaMetadata {
   authorityCountryCode: string | null
 }
 
-export async function fetchDpaMetadata(dpaid: string): Promise<DpaMetadata> {
-  const response = await fetch(`${BASE_URL}api/dpa/metadata/${encodeURIComponent(dpaid)}`)
+export async function fetchDpaMetadata(dpaid: string, guid?: string): Promise<DpaMetadata> {
+  const response = await fetch(withGuidUrl(`${BASE_URL}api/dpa/metadata/${encodeURIComponent(dpaid)}`, guid))
   if (!response.ok) {
     const text = await response.text()
     let errMsg = response.statusText
@@ -342,8 +385,8 @@ export interface DpaStatusHistoryItem {
   employee: string | null
 }
 
-export async function fetchDpaStatusHistory(dpaid: string): Promise<DpaStatusHistoryItem[]> {
-  const response = await fetch(`${BASE_URL}api/dpa/status-history/${encodeURIComponent(dpaid)}`)
+export async function fetchDpaStatusHistory(dpaid: string, guid?: string): Promise<DpaStatusHistoryItem[]> {
+  const response = await fetch(withGuidUrl(`${BASE_URL}api/dpa/status-history/${encodeURIComponent(dpaid)}`, guid))
   if (!response.ok) {
     const text = await response.text()
     let errMsg = response.statusText
@@ -369,8 +412,8 @@ export interface DpaElectronicDocRaw {
   contentBody: string | null
 }
 
-export async function fetchDpaElectronicDocs(dpaid: string): Promise<DpaElectronicDocRaw[]> {
-  const response = await fetch(`${BASE_URL}api/dpa/electronic-docs/${encodeURIComponent(dpaid)}`)
+export async function fetchDpaElectronicDocs(dpaid: string, guid?: string): Promise<DpaElectronicDocRaw[]> {
+  const response = await fetch(withGuidUrl(`${BASE_URL}api/dpa/electronic-docs/${encodeURIComponent(dpaid)}`, guid))
   if (!response.ok) {
     const text = await response.text()
     let errMsg = response.statusText
@@ -390,7 +433,7 @@ export async function fetchDpaElectronicDocs(dpaid: string): Promise<DpaElectron
  */
 export async function getCountries(): Promise<Country[]> {
   try {
-    const response = await fetch(`${BASE_URL}api/countries`)
+    const response = await fetch(withGuidUrl(`${BASE_URL}api/countries`))
     if (!response.ok) {
       throw new Error(`Ошибка загрузки стран: ${response.statusText}`)
     }
@@ -407,7 +450,7 @@ export async function getCountries(): Promise<Country[]> {
 export async function getCountryOptions(): Promise<CountryOption[]> {
   dictionaryLoadingStart()
   try {
-    const response = await fetch(`${BASE_URL}api/countries/options`)
+    const response = await fetch(withGuidUrl(`${BASE_URL}api/countries/options`))
     if (!response.ok) {
       throw new Error(`Ошибка загрузки опций стран: ${response.statusText}`)
     }
@@ -420,12 +463,28 @@ export async function getCountryOptions(): Promise<CountryOption[]> {
   }
 }
 
+export async function getCommunicationChannelOptions(): Promise<CommunicationChannelOption[]> {
+  dictionaryLoadingStart()
+  try {
+    const response = await fetch(withGuidUrl(`${BASE_URL}api/communication-channels/options`))
+    if (!response.ok) {
+      throw new Error(`Ошибка загрузки опций видов контакта: ${response.statusText}`)
+    }
+    return await response.json()
+  } catch (error) {
+    console.error('Ошибка загрузки опций видов контакта:', error)
+    throw error
+  } finally {
+    dictionaryLoadingEnd()
+  }
+}
+
 /**
  * Получить страну по коду
  */
 export async function getCountryByCode(code: string): Promise<Country | null> {
   try {
-    const response = await fetch(`${BASE_URL}api/countries/${code}`)
+    const response = await fetch(withGuidUrl(`${BASE_URL}api/countries/${code}`))
     if (!response.ok) {
       if (response.status === 404) {
         return null
@@ -447,7 +506,7 @@ export async function checkCountryExists(code: string): Promise<boolean> {
     return false
   }
   try {
-    const response = await fetch(`${BASE_URL}api/countries/${code}/exists`)
+    const response = await fetch(withGuidUrl(`${BASE_URL}api/countries/${code}/exists`))
     if (!response.ok) {
       return false
     }
@@ -465,7 +524,7 @@ export async function checkCountryExists(code: string): Promise<boolean> {
 export async function getIncidentAlertKindOptions(): Promise<IncidentAlertKindOption[]> {
   dictionaryLoadingStart()
   try {
-    const response = await fetch(`${BASE_URL}api/incident-alert-kinds/options`)
+    const response = await fetch(withGuidUrl(`${BASE_URL}api/incident-alert-kinds/options`))
     if (!response.ok) {
       throw new Error(`Ошибка загрузки опций видов уведомлений: ${response.statusText}`)
     }
@@ -590,8 +649,8 @@ export function cardSourceToAccessRight(source: string): 'dangerousProductIn:acc
   return undefined
 }
 
-export async function fetchDpaAccess(dpaid: string, source?: string, creatorDepId?: string | number): Promise<AccessItemDto[]> {
-  const params = new URLSearchParams({ dpaid })
+export async function fetchDpaAccess(dpaid: string, source?: string, creatorDepId?: string | number, guid?: string): Promise<AccessItemDto[]> {
+  const params = withGuidParams(new URLSearchParams({ dpaid }), guid)
   const apiSource = source != null ? cardSourceToApiSource(source) : undefined
   if (apiSource) params.set('source', apiSource)
   if (creatorDepId != null && String(creatorDepId).trim()) params.set('creatorDepId', String(creatorDepId).trim())
@@ -610,11 +669,11 @@ export async function fetchDpaAccess(dpaid: string, source?: string, creatorDepI
   return response.json()
 }
 
-export async function addDpaAccess(dpaid: string, depId: string): Promise<void> {
+export async function addDpaAccess(dpaid: string, depId: string, guid?: string): Promise<void> {
   const response = await fetch(`${BASE_URL}api/dpa/access`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ dpaid, depId }),
+    body: JSON.stringify(withGuidBody({ dpaid, depId }, guid)),
   })
   if (!response.ok) {
     const text = await response.text()
@@ -629,9 +688,10 @@ export async function addDpaAccess(dpaid: string, depId: string): Promise<void> 
   }
 }
 
-export async function removeDpaAccess(dpaid: string, depId: string): Promise<void> {
+export async function removeDpaAccess(dpaid: string, depId: string, guid?: string): Promise<void> {
+  const params = withGuidParams(new URLSearchParams({ dpaid, depId }), guid)
   const response = await fetch(
-    `${BASE_URL}api/dpa/access?dpaid=${encodeURIComponent(dpaid)}&depId=${encodeURIComponent(depId)}`,
+    `${BASE_URL}api/dpa/access?${params.toString()}`,
     { method: 'DELETE' }
   )
   if (!response.ok) {
@@ -656,16 +716,17 @@ export interface DepKindLevel {
 /** Текущий пользователь: уровень ЦГЭ (TB_USER → TB_EMP → TB_DEP → TB_DEPKIND). GET /api/current-user */
 export type CurrentUserLevel = DepKindLevel
 
-export async function fetchCurrentUser(): Promise<CurrentUserLevel> {
-  const response = await fetch(`${BASE_URL}api/current-user`)
+export async function fetchCurrentUser(guid?: string): Promise<CurrentUserLevel> {
+  const response = await fetch(withGuidUrl(`${BASE_URL}api/current-user`, guid))
   if (!response.ok) return { depKindCode: null, depKindName: null }
   const data = await response.json()
   return { depKindCode: data.depKindCode ?? null, depKindName: data.depKindName ?? null }
 }
 
 /** Уровень ЦГЭ по DEPID (из карты прав доступа). GET /api/dep/info?depid=... */
-export async function fetchDepInfo(depid: number): Promise<DepKindLevel> {
-  const response = await fetch(`${BASE_URL}api/dep/info?depid=${encodeURIComponent(depid)}`)
+export async function fetchDepInfo(depid: number, guid?: string): Promise<DepKindLevel> {
+  const params = withGuidParams(new URLSearchParams({ depid: String(depid) }), guid)
+  const response = await fetch(`${BASE_URL}api/dep/info?${params.toString()}`)
   if (!response.ok) return { depKindCode: null, depKindName: null }
   const data = await response.json()
   return { depKindCode: data.depKindCode ?? null, depKindName: data.depKindName ?? null }
@@ -677,8 +738,9 @@ export interface DpaResolutionLevel {
   depKindName: string
 }
 
-export async function fetchDpaResolutions(dpaid: string): Promise<DpaResolutionLevel[]> {
-  const response = await fetch(`${BASE_URL}api/dpa/resolutions?dpaid=${encodeURIComponent(dpaid)}`)
+export async function fetchDpaResolutions(dpaid: string, guid?: string): Promise<DpaResolutionLevel[]> {
+  const params = withGuidParams(new URLSearchParams({ dpaid }), guid)
+  const response = await fetch(`${BASE_URL}api/dpa/resolutions?${params.toString()}`)
   if (!response.ok) return []
   const data = await response.json()
   return Array.isArray(data.resolutions) ? data.resolutions : []
@@ -703,7 +765,8 @@ export async function changeDpaStatus(
 ): Promise<{ newStatus: string }> {
   const body: { dpaid: string; action: string; depKindCode?: string; guid?: string } = { dpaid, action }
   if (options?.depKindCode != null && options.depKindCode !== '') body.depKindCode = options.depKindCode
-  if (options?.guid != null && options.guid !== '') body.guid = options.guid
+  const resolvedGuid = resolveGuid(options?.guid)
+  if (resolvedGuid) body.guid = resolvedGuid
   const response = await fetch(`${BASE_URL}api/dpa/status`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -733,7 +796,7 @@ export interface DepOption {
 export async function fetchDepOptions(): Promise<DepOption[]> {
   dictionaryLoadingStart()
   try {
-    const response = await fetch(`${BASE_URL}api/dep/options`)
+    const response = await fetch(withGuidUrl(`${BASE_URL}api/dep/options`))
     if (!response.ok) {
       const text = await response.text()
       let errMsg = response.statusText
@@ -764,7 +827,7 @@ export async function getAuthorityOptions(
 ): Promise<AuthorityOption[]> {
   dictionaryLoadingStart()
   try {
-    const params = new URLSearchParams()
+    const params = withGuidParams(new URLSearchParams())
     if (countryCode) params.set('countryCode', countryCode)
     if (forOutgoingCreation) params.set('forOutgoingCreation', '1')
     if (forOutgoingCreation && createKeys != null) {
@@ -791,7 +854,7 @@ export async function getAuthorityOptions(
 export async function getSanitaryProdTypeOptions(): Promise<SanitaryProdTypeOption[]> {
   dictionaryLoadingStart()
   try {
-    const response = await fetch(`${BASE_URL}api/sanitary-prod-types/options`)
+    const response = await fetch(withGuidUrl(`${BASE_URL}api/sanitary-prod-types/options`))
     if (!response.ok) {
       throw new Error(`Ошибка загрузки опций типов санитарной продукции: ${response.statusText}`)
     }
@@ -843,7 +906,7 @@ export async function getSanitaryProdTypeNameByCode(code: string): Promise<strin
 export async function getMeasurementUnitOptions(): Promise<MeasurementUnitOption[]> {
   dictionaryLoadingStart()
   try {
-    const response = await fetch(`${BASE_URL}api/measurement-units/options`)
+    const response = await fetch(withGuidUrl(`${BASE_URL}api/measurement-units/options`))
     if (!response.ok) {
       throw new Error(`Ошибка загрузки опций единиц измерения: ${response.statusText}`)
     }
@@ -878,7 +941,7 @@ export async function getMeasurementUnitByCode(code: string): Promise<Measuremen
 export async function getShipDocKindOptions(): Promise<ShipDocKindOption[]> {
   dictionaryLoadingStart()
   try {
-    const response = await fetch(`${BASE_URL}api/ship-doc-kinds/options`)
+    const response = await fetch(withGuidUrl(`${BASE_URL}api/ship-doc-kinds/options`))
     if (!response.ok) {
       throw new Error(`Ошибка загрузки опций видов товаросопроводительных документов: ${response.statusText}`)
     }
@@ -912,7 +975,7 @@ export interface IdentityDocKindOption {
 export async function getIdentityDocKindOptions(): Promise<IdentityDocKindOption[]> {
   dictionaryLoadingStart()
   try {
-    const response = await fetch(`${BASE_URL}api/identity-doc-kinds/options`)
+    const response = await fetch(withGuidUrl(`${BASE_URL}api/identity-doc-kinds/options`))
     if (!response.ok) {
       throw new Error(`Ошибка загрузки опций видов документов, удостоверяющих личность: ${response.statusText}`)
     }
@@ -931,7 +994,7 @@ export async function getIdentityDocKindOptions(): Promise<IdentityDocKindOption
 export async function getConformityDocKindOptions(): Promise<ConformityDocKindOption[]> {
   dictionaryLoadingStart()
   try {
-    const response = await fetch(`${BASE_URL}api/conformity-doc-kinds/options`)
+    const response = await fetch(withGuidUrl(`${BASE_URL}api/conformity-doc-kinds/options`))
     if (!response.ok) {
       throw new Error(`Ошибка загрузки опций видов документов об оценке соответствия: ${response.statusText}`)
     }
@@ -990,9 +1053,10 @@ export interface LegalFormOption {
 export async function getLegalFormOptions(countryCode?: string): Promise<LegalFormOption[]> {
   dictionaryLoadingStart()
   try {
-    const url = countryCode
-      ? `${BASE_URL}api/legal-forms/options?countryCode=${encodeURIComponent(countryCode)}`
-      : `${BASE_URL}api/legal-forms/options`
+    const params = withGuidParams(new URLSearchParams())
+    if (countryCode) params.set('countryCode', countryCode)
+    const qs = params.toString()
+    const url = qs ? `${BASE_URL}api/legal-forms/options?${qs}` : `${BASE_URL}api/legal-forms/options`
     const response = await fetch(url)
     if (!response.ok) {
       throw new Error(`Ошибка загрузки опций организационно-правовых форм: ${response.statusText}`)
@@ -1035,9 +1099,10 @@ export interface IdentificationMethodOption {
 export async function getIdentificationMethodOptions(countryCode?: string): Promise<IdentificationMethodOption[]> {
   dictionaryLoadingStart()
   try {
-    const url = countryCode
-      ? `${BASE_URL}api/identification-methods/options?countryCode=${encodeURIComponent(countryCode)}`
-      : `${BASE_URL}api/identification-methods/options`
+    const params = withGuidParams(new URLSearchParams())
+    if (countryCode) params.set('countryCode', countryCode)
+    const qs = params.toString()
+    const url = qs ? `${BASE_URL}api/identification-methods/options?${qs}` : `${BASE_URL}api/identification-methods/options`
     const response = await fetch(url)
     if (!response.ok) {
       throw new Error(`Ошибка загрузки опций методов идентификации: ${response.statusText}`)
@@ -1057,7 +1122,7 @@ export async function getIdentificationMethodOptions(countryCode?: string): Prom
 export async function getSupplyChainPartyKindOptions(): Promise<SupplyChainPartyKindOption[]> {
   dictionaryLoadingStart()
   try {
-    const response = await fetch(`${BASE_URL}api/supply-chain-party-kinds/options`)
+    const response = await fetch(withGuidUrl(`${BASE_URL}api/supply-chain-party-kinds/options`))
     if (!response.ok) {
       throw new Error(`Ошибка загрузки опций видов участников цепи поставки: ${response.statusText}`)
     }
@@ -1109,7 +1174,7 @@ export async function getSupplyChainPartyKindNameByCode(code: string): Promise<s
 export async function getTechRegulOptions(): Promise<TechRegulOption[]> {
   dictionaryLoadingStart()
   try {
-    const response = await fetch(`${BASE_URL}api/tech-reguls/options`)
+    const response = await fetch(withGuidUrl(`${BASE_URL}api/tech-reguls/options`))
     if (!response.ok) {
       throw new Error(`Ошибка загрузки опций технических регламентов: ${response.statusText}`)
     }
@@ -1161,7 +1226,7 @@ export async function getTechRegulNameByCode(code: string): Promise<string | nul
 export async function getSanitaryMeasureObjKindOptions(): Promise<SanitaryMeasureObjKindOption[]> {
   dictionaryLoadingStart()
   try {
-    const response = await fetch(`${BASE_URL}api/sanitary-measure-obj-kinds/options`)
+    const response = await fetch(withGuidUrl(`${BASE_URL}api/sanitary-measure-obj-kinds/options`))
     if (!response.ok) {
       throw new Error(`Ошибка загрузки опций видов объектов действия мер: ${response.statusText}`)
     }
@@ -1213,7 +1278,7 @@ export async function getSanitaryMeasureObjKindNameByCode(code: string): Promise
 export async function getSanitaryMeasureOptions(): Promise<SanitaryMeasureOption[]> {
   dictionaryLoadingStart()
   try {
-    const response = await fetch(`${BASE_URL}api/sanitary-measures/options`)
+    const response = await fetch(withGuidUrl(`${BASE_URL}api/sanitary-measures/options`))
     if (!response.ok) {
       throw new Error(`Ошибка загрузки опций санитарных мер: ${response.statusText}`)
     }
@@ -1270,7 +1335,7 @@ export interface MediaTypeOption {
 export async function getMediaTypeOptions(): Promise<MediaTypeOption[]> {
   dictionaryLoadingStart()
   try {
-    const response = await fetch(`${BASE_URL}api/media-types/options`)
+    const response = await fetch(withGuidUrl(`${BASE_URL}api/media-types/options`))
     if (!response.ok) {
       throw new Error(`Ошибка загрузки опций форматов данных: ${response.statusText}`)
     }

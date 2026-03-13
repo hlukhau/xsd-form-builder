@@ -105,7 +105,7 @@ function AppContent() {
     setOriginalXML(null)
     ;(async () => {
       try {
-        const { registrationNumber } = await fetchNextRegistrationNumber(country)
+        const { registrationNumber } = await fetchNextRegistrationNumber(country, guid)
         if (cancelled) return
         const newData = createNewCardData(country, { registrationNumber })
         setCardData(newData)
@@ -120,7 +120,7 @@ function AppContent() {
       }
     })()
     return () => { cancelled = true }
-  }, [dpaid, searchParams, location.state])
+  }, [dpaid, searchParams, location.state, guid])
 
   // Загрузка XML по DPAID из БД при открытии /xsd_form_builder/{DPAID}
   useEffect(() => {
@@ -135,7 +135,7 @@ function AppContent() {
 
     ;(async () => {
       try {
-        const xmlText = await fetchDpaXml(dpaid)
+        const xmlText = await fetchDpaXml(dpaid, guid)
         if (cancelled) return
         const cardData = parseXMLToCardData(xmlText)
         const parser = new DOMParser()
@@ -157,7 +157,7 @@ function AppContent() {
         validationResult.validationErrors.forEach((e) => message.error(e))
         let card = validationResult.cardData
         try {
-          const meta = await fetchDpaMetadata(dpaid)
+          const meta = await fetchDpaMetadata(dpaid, guid)
           // УО: идентификатор и страна — из БД (DPA.AUTHORITYID → справочник); наименование и краткое наименование — всегда из XML (csdo:AuthorityName, csdo:AuthorityBriefName)
           const authorityFromDb = (meta.authorityUid != null && meta.authorityUid.trim() !== '')
             ? {
@@ -206,7 +206,7 @@ function AppContent() {
     return () => {
       cancelled = true
     }
-  }, [dpaid])
+  }, [dpaid, guid])
 
   return (
     <div className="app">

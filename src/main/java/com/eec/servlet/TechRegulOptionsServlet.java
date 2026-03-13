@@ -47,7 +47,7 @@ public class TechRegulOptionsServlet extends HttpServlet {
         try {
             // Получаем данные из кеша
             com.eec.servlet.DictionaryInitializerListener loader = com.eec.servlet.DictionaryInitializerListener.getInstance();
-            if (loader != null) loader.ensureTechRegulsLoaded();
+            if (loader != null) loader.ensureTechRegulsLoaded(request.getParameter("guid"));
 
             List<TechRegulOption> reguls = DictionaryCache.getTechRegulsList();
             

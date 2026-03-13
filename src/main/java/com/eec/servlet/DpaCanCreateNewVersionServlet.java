@@ -57,7 +57,7 @@ public class DpaCanCreateNewVersionServlet extends HttpServlet {
 
         Connection conn = null;
         try {
-            conn = DatabaseUtil.getConnection();
+            conn = DatabaseUtil.getConnectionForRequest(request, guid);
 
             long sourceDpaid;
             try {

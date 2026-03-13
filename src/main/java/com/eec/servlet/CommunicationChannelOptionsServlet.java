@@ -1,7 +1,7 @@
 package com.eec.servlet;
 
 import com.eec.util.DictionaryCache;
-import com.eec.util.DictionaryCache.ConformityDocKindOption;
+import com.eec.util.DictionaryCache.CommunicationChannelOption;
 
 import javax.servlet.ServletException;
 import javax.servlet.http.HttpServlet;
@@ -12,22 +12,20 @@ import java.io.PrintWriter;
 import java.util.List;
 
 /**
- * Сервлет для получения списка видов документов об оценке соответствия (SESINT.CONFDOCKIND, codeListId=2001)
- * GET /api/conformity-doc-kinds/options
- * Регистрируется в web.xml
+ * Сервлет для получения списка видов каналов связи (SESINT.COMMUNICATIONCHANNEL).
+ * GET /api/communication-channels/options
  */
-public class ConformityDocKindOptionsServlet extends HttpServlet {
+public class CommunicationChannelOptionsServlet extends HttpServlet {
 
     @Override
     public void init() throws ServletException {
         super.init();
-        System.out.println("[ConformityDocKindOptionsServlet] Initialized");
+        System.out.println("[CommunicationChannelOptionsServlet] Initialized");
     }
 
     @Override
     protected void doGet(HttpServletRequest request, HttpServletResponse response)
             throws ServletException, IOException {
-
         response.setContentType("application/json;charset=UTF-8");
         response.setCharacterEncoding("UTF-8");
         response.setHeader("Access-Control-Allow-Origin", "*");
@@ -36,34 +34,28 @@ public class ConformityDocKindOptionsServlet extends HttpServlet {
         try {
             out = response.getWriter();
         } catch (IOException e) {
-            System.err.println("[ConformityDocKindOptionsServlet] Cannot get writer: " + e.getMessage());
+            System.err.println("[CommunicationChannelOptionsServlet] Cannot get writer: " + e.getMessage());
             return;
         }
 
         try {
-            com.eec.servlet.DictionaryInitializerListener loader = com.eec.servlet.DictionaryInitializerListener.getInstance();
-            if (loader != null) loader.ensureConformityDocKindsLoaded(request.getParameter("guid"));
+            DictionaryInitializerListener loader = DictionaryInitializerListener.getInstance();
+            if (loader != null) loader.ensureCommunicationChannelsLoaded(request.getParameter("guid"));
 
-            List<ConformityDocKindOption> list = DictionaryCache.getConformityDocKindsList();
-
+            List<CommunicationChannelOption> list = DictionaryCache.getCommunicationChannelsList();
             out.print("[");
             boolean first = true;
-            for (ConformityDocKindOption o : list) {
+            for (CommunicationChannelOption option : list) {
                 if (!first) out.print(",");
                 first = false;
-                String code = escapeJson(o.code);
-                String name = escapeJson(o.name);
-                String briefName = escapeJson(o.briefName);
-                out.print("{\"code\":\"" + code + "\",\"name\":\"" + name + "\",\"briefName\":\"" + briefName + "\"}");
+                out.print("{\"code\":\"" + escapeJson(option.code) + "\",\"name\":\"" + escapeJson(option.name) + "\"}");
             }
             out.print("]");
-
         } catch (Exception e) {
-            System.err.println("[ConformityDocKindOptionsServlet] ERROR: " + e.getMessage());
+            System.err.println("[CommunicationChannelOptionsServlet] ERROR: " + e.getMessage());
             e.printStackTrace();
             response.setStatus(HttpServletResponse.SC_INTERNAL_SERVER_ERROR);
             if (out != null) {
-                try { out = response.getWriter(); } catch (IOException ignored) {}
                 out.print("{\"error\":\"Ошибка: " + escapeJson(e.getMessage()) + "\"}");
             }
         } finally {

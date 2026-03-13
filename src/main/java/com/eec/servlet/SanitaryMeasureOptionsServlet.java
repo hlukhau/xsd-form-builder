@@ -47,7 +47,7 @@ public class SanitaryMeasureOptionsServlet extends HttpServlet {
         try {
             // Получаем данные из кеша
             com.eec.servlet.DictionaryInitializerListener loader = com.eec.servlet.DictionaryInitializerListener.getInstance();
-            if (loader != null) loader.ensureSanitaryMeasuresLoaded();
+            if (loader != null) loader.ensureSanitaryMeasuresLoaded(request.getParameter("guid"));
 
             List<SanitaryMeasureOption> measures = DictionaryCache.getSanitaryMeasuresList();
             

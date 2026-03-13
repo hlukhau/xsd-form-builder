@@ -67,8 +67,8 @@ public class DpaSaveServlet extends HttpServlet {
     /** UPDATE DPAXML при обновлении существующей карты */
     private static final String SQL_UPDATE_DPAXML = "UPDATE SESINT.DPAXML SET DPAXMLBODY = ?, EDOCCODE = ?, EDOCVERSION = ? WHERE DPAID = ?";
 
-    /** Обновить MODIFICATIONDATETIME, ENDDATE, AUTHORITYID, производителя и вид/наименование продукции в DPA при обновлении */
-    private static final String SQL_UPDATE_DPA_MODIFIED = "UPDATE SESINT.DPA SET MODIFICATIONDATETIME = SYSDATE, ENDDATE = ?, AUTHORITYID = ?, MANUFBUSENTNAME = ?, MANUFBUSENTBRIEFNAME = ?, SANITARYPRODNAME = ?, SANITARYPRODTYPEID = ?, SANITARYPRODTYPENAME = ? WHERE DPAID = ?";
+    /** Обновить MODIFICATIONDATETIME, ENDDATE, AUTHORITYID, производителя, код ТН ВЭД и вид/наименование продукции в DPA при обновлении */
+    private static final String SQL_UPDATE_DPA_MODIFIED = "UPDATE SESINT.DPA SET MODIFICATIONDATETIME = SYSDATE, ENDDATE = ?, AUTHORITYID = ?, MANUFBUSENTNAME = ?, MANUFBUSENTBRIEFNAME = ?, COMMODITYCODE = ?, SANITARYPRODNAME = ?, SANITARYPRODTYPEID = ?, SANITARYPRODTYPENAME = ? WHERE DPAID = ?";
     /** Текущий DPASTATUSID карты (при сохранении: только Отредактировано (12) → переход в «Новое»; остальные статусы не меняются) */
     private static final String SQL_SELECT_DPASTATUSID = "SELECT DPASTATUSID FROM SESINT.DPA WHERE DPAID = ?";
     private static final int OUTGOING_NEW = 6, OUTGOING_FAILED = 9, OUTGOING_ERROR = 10, OUTGOING_EDITED = 12;
@@ -145,7 +145,7 @@ public class DpaSaveServlet extends HttpServlet {
 
         Connection conn = null;
         try {
-            conn = DatabaseUtil.getConnection();
+            conn = DatabaseUtil.getConnectionForRequest(request, guid);
             conn.setAutoCommit(false);
 
             if (isNew) {
@@ -292,6 +292,7 @@ public class DpaSaveServlet extends HttpServlet {
                     setIntOrNull(ps, idx++, authorityIdResolved);
                     ps.setString(idx++, manufBusEntName != null ? manufBusEntName : "");
                     ps.setString(idx++, manufBusEntBriefName != null ? manufBusEntBriefName : "");
+                    ps.setString(idx++, commodityCode != null ? commodityCode : "");
                     ps.setString(idx++, sanitaryProdName != null ? sanitaryProdName : "");
                     setIntOrNull(ps, idx++, sanitaryProdTypeIdUpdate);
                     ps.setString(idx++, sanitaryProdTypeNameValUpdate != null ? sanitaryProdTypeNameValUpdate : "");

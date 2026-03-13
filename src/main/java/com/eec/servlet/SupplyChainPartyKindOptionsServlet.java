@@ -47,7 +47,7 @@ public class SupplyChainPartyKindOptionsServlet extends HttpServlet {
         try {
             // Получаем данные из кеша
             com.eec.servlet.DictionaryInitializerListener loader = com.eec.servlet.DictionaryInitializerListener.getInstance();
-            if (loader != null) loader.ensureSupplyChainPartyKindsLoaded();
+            if (loader != null) loader.ensureSupplyChainPartyKindsLoaded(request.getParameter("guid"));
 
             List<SupplyChainPartyKindOption> kinds = DictionaryCache.getSupplyChainPartyKindsList();
             

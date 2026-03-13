@@ -47,7 +47,7 @@ public class ShipDocKindOptionsServlet extends HttpServlet {
         try {
             // Получаем данные из кеша
             com.eec.servlet.DictionaryInitializerListener loader = com.eec.servlet.DictionaryInitializerListener.getInstance();
-            if (loader != null) loader.ensureShipDocKindsLoaded();
+            if (loader != null) loader.ensureShipDocKindsLoaded(request.getParameter("guid"));
 
             List<ShipDocKindOption> kinds = DictionaryCache.getShipDocKindsList();
             

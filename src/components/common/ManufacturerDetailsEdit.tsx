@@ -11,7 +11,7 @@ import { useLegalFormOptions } from '@/hooks/useLegalFormOptions'
 import { useIdentificationMethodOptions } from '@/hooks/useIdentificationMethodOptions'
 import { checkSupplyChainPartyKindExists } from '@/utils/referenceDataApi'
 import { getAddressListFromParty, getDefaultAddressKindName } from '@/utils/addressFormatUtils'
-import { getCommunicationChannelSelectOptions } from '@/constants/communicationChannel'
+import { useCommunicationChannelOptions } from '@/hooks/useCommunicationChannelOptions'
 
 /** Идентификатор справочника организационно-правовых форм (SESINT.LEGALFORM) */
 const LEGAL_FORM_CODE_LIST_ID = '2049'
@@ -33,7 +33,7 @@ const ManufacturerDetailsEdit: React.FC<ManufacturerDetailsEditProps> = ({
   const [isOpen, setIsOpen] = useState(false)
   const [form] = Form.useForm()
   const { countryOptions, loading, normalizeCountryCode } = useCountryOptions()
-  const { options: supplyChainPartyKindOptions, loading: loadingSupplyChainPartyKinds, getSelectOptions: getSupplyChainPartyKindSelectOptions, getNameByCode: getSupplyChainPartyKindNameByCode } = useSupplyChainPartyKindOptions()
+  const { loading: loadingSupplyChainPartyKinds, getSelectOptions: getSupplyChainPartyKindSelectOptions, getNameByCode: getSupplyChainPartyKindNameByCode } = useSupplyChainPartyKindOptions()
   const countryForLegalForm = normalizeCountryCode(data.country)
   const { options: legalFormOptionsList, getSelectOptions: getLegalFormSelectOptions, getNameByCode: getLegalFormNameByCode, loading: loadingLegalForms } = useLegalFormOptions(countryForLegalForm)
   /** Значение из справочника (код + codeListId 2049): в Select показывается «код — наименование» */
@@ -46,6 +46,7 @@ const ManufacturerDetailsEdit: React.FC<ManufacturerDetailsEditProps> = ({
     legalFormOptionsList.length >= 0 &&
     !legalFormOptionsList.some((o) => String(o.code) === String(legalFormCodeFromRef))
   const { getSelectOptions: getIdentificationMethodSelectOptions, loading: loadingIdMethods } = useIdentificationMethodOptions(countryForLegalForm)
+  const { getSelectOptions: getCommunicationChannelSelectOptions, loading: loadingCommunicationChannels } = useCommunicationChannelOptions()
   const [kindCodeError, setKindCodeError] = useState<boolean>(false)
 
   // Проверяем валидность кода вида участника при загрузке данных
@@ -68,7 +69,7 @@ const ManufacturerDetailsEdit: React.FC<ManufacturerDetailsEditProps> = ({
   useEffect(() => {
     if (fixedSupplyChainPartyKindCode && data.supplyChainPartyKindCode !== fixedSupplyChainPartyKindCode) {
       // Передаём только код вида, чтобы не перезаписать уже введённые поля (наименование и т.д.)
-      onChange({ supplyChainPartyKindCode: fixedSupplyChainPartyKindCode })
+      onChange({ ...data, supplyChainPartyKindCode: fixedSupplyChainPartyKindCode })
     }
   }, [fixedSupplyChainPartyKindCode, data.supplyChainPartyKindCode])
 
@@ -96,7 +97,6 @@ const ManufacturerDetailsEdit: React.FC<ManufacturerDetailsEditProps> = ({
 
   // Обработчик выбора вида участника цепи поставки
   const handleSupplyChainPartyKindSelect = (code: string) => {
-    const kindName = getSupplyChainPartyKindNameByCode(code) || ''
     setKindCodeError(false) // Сбрасываем ошибку при выборе из справочника
     onChange({
       ...data,
@@ -191,6 +191,14 @@ const ManufacturerDetailsEdit: React.FC<ManufacturerDetailsEditProps> = ({
   const handleContactChange = (index: number, field: string, value: string) => {
     const updatedContacts = [...(data.contacts || [])]
     const next = { ...updatedContacts[index], [field]: value }
+    if (field === 'communicationChannelCode') {
+      next.communicationChannelCode = value || ''
+      if (value) next.communicationChannelName = ''
+    }
+    if (field === 'communicationChannelName') {
+      next.communicationChannelName = value
+      if (value.trim()) next.communicationChannelCode = ''
+    }
     if (field === 'communicationChannelId' || field === 'contactValue') {
       next.communicationChannelId = value
       next.contactValue = value
@@ -383,12 +391,15 @@ const ManufacturerDetailsEdit: React.FC<ManufacturerDetailsEditProps> = ({
                           style={{ width: '100%' }}
                           value={contact.communicationChannelCode || undefined}
                           onChange={(value) => handleContactChange(index, 'communicationChannelCode', value ?? '')}
+                          loading={loadingCommunicationChannels}
                           options={getCommunicationChannelSelectOptions()}
+                          disabled={!!contact.communicationChannelName?.trim()}
                         />
                         <Input
                           placeholder="Наименование вида связи (если не из справочника)"
                           value={contact.communicationChannelName ?? ''}
                           onChange={(e) => handleContactChange(index, 'communicationChannelName', e.target.value)}
+                          disabled={!!contact.communicationChannelCode}
                         />
                         <Input
                           placeholder="Значение (номер, адрес и т.д.)"

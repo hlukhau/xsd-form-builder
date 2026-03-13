@@ -111,7 +111,7 @@ public class DpaStatusChangeServlet extends HttpServlet {
 
         Connection conn = null;
         try {
-            conn = DatabaseUtil.getConnection();
+            conn = DatabaseUtil.getConnectionForRequest(request, guid);
             int currentStatusId = -1;
             String currentStatusName = null;
             String sourceName = null;

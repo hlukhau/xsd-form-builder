@@ -153,7 +153,7 @@ const DangerousProductCard: React.FC<DangerousProductCardProps> = ({
           setHasSendRight(false)
           setHasSaveRight(false)
         })
-      fetchCurrentUser().then((u) => {
+      fetchCurrentUser(guid).then((u) => {
         setCurrentUserDepKindCode(u.depKindCode ?? null)
         setCurrentUserDepKindName(u.depKindName ?? null)
       })
@@ -186,7 +186,7 @@ const DangerousProductCard: React.FC<DangerousProductCardProps> = ({
             }
 
             return r.department?.depid != null
-              ? fetchDepInfo(r.department.depid)
+              ? fetchDepInfo(r.department.depid, guid)
               : Promise.resolve({ depKindCode: null, depKindName: null })
           })
           .then((level) => {
@@ -199,7 +199,7 @@ const DangerousProductCard: React.FC<DangerousProductCardProps> = ({
         setRightsDepKindName(null)
         setCreateAuthorityIds(null)
       }
-      fetchDpaResolutions(effectiveDpaid).then((list) => {
+      fetchDpaResolutions(effectiveDpaid, guid).then((list) => {
         setDpaResolutionDepKindCodes(list.map((r) => r.depKindCode))
         setHasResolution(list.length > 0)
       })
@@ -826,7 +826,7 @@ const DangerousProductCard: React.FC<DangerousProductCardProps> = ({
               setStatusHistoryLoading(true)
               setStatusHistoryVisible(true)
               setStatusHistoryModalData([])
-              fetchDpaStatusHistory(effectiveDpaid)
+              fetchDpaStatusHistory(effectiveDpaid, guid)
                 .then((items) => {
                   setStatusHistoryModalData(
                     items.map((i) => ({
@@ -976,7 +976,7 @@ const DangerousProductCard: React.FC<DangerousProductCardProps> = ({
                       onUpdate({ ...currentData, status: newStatus, statusId: newStatusId })
                       setEditedData((prev) => ({ ...prev, status: newStatus, statusId: newStatusId }))
                       message.success('Статус обновлён')
-                      fetchDpaResolutions(effectiveDpaid).then((list) => setDpaResolutionDepKindCodes(list.map((r) => r.depKindCode)))
+                      fetchDpaResolutions(effectiveDpaid, guid).then((list) => setDpaResolutionDepKindCodes(list.map((r) => r.depKindCode)))
                     })
                     .catch((e) => message.error(e instanceof Error ? e.message : 'Ошибка смены статуса'))
                 },
@@ -1047,7 +1047,7 @@ const DangerousProductCard: React.FC<DangerousProductCardProps> = ({
                 onUpdate({ ...currentData, status: newStatus, statusId: newStatusId })
                 setEditedData((prev) => ({ ...prev, status: newStatus, statusId: newStatusId }))
                 message.success('Статус обновлён')
-                if (action === 'mark_ready') fetchDpaResolutions(effectiveDpaid).then((list) => setDpaResolutionDepKindCodes(list.map((r) => r.depKindCode)))
+                if (action === 'mark_ready') fetchDpaResolutions(effectiveDpaid, guid).then((list) => setDpaResolutionDepKindCodes(list.map((r) => r.depKindCode)))
               })
               .catch((e) => message.error(e instanceof Error ? e.message : 'Ошибка смены статуса'))
           }}
@@ -1056,7 +1056,7 @@ const DangerousProductCard: React.FC<DangerousProductCardProps> = ({
               setElectronicDocLoading(true)
               setElectronicDocumentVisible(true)
               setElectronicDocList([])
-              fetchDpaElectronicDocs(effectiveDpaid)
+              fetchDpaElectronicDocs(effectiveDpaid, guid)
                 .then((rawList) => {
                   const docs: ElectronicDocument[] = rawList.map((raw) => {
                     const resource = raw.contentBody ? parseElectronicDocContentBody(raw.contentBody) : { validityPeriod: { start: '', end: '' }, updateDateTime: '' }

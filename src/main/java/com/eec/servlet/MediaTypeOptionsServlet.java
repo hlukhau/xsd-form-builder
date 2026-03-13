@@ -47,7 +47,7 @@ public class MediaTypeOptionsServlet extends HttpServlet {
         try {
             // Получаем данные из кеша
             com.eec.servlet.DictionaryInitializerListener loader = com.eec.servlet.DictionaryInitializerListener.getInstance();
-            if (loader != null) loader.ensureMediaTypesLoaded();
+            if (loader != null) loader.ensureMediaTypesLoaded(request.getParameter("guid"));
 
             List<MediaTypeOption> mediaTypes = DictionaryCache.getMediaTypesList();
             

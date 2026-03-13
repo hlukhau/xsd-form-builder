@@ -64,7 +64,7 @@ public class DpaMetadataServlet extends HttpServlet {
         ResultSet rs = null;
 
         try {
-            conn = DatabaseUtil.getConnection();
+            conn = DatabaseUtil.getConnectionForRequest(request);
             ps = conn.prepareStatement(SQL);
             try {
                 ps.setLong(1, Long.parseLong(dpaidStr));

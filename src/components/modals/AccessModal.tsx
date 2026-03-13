@@ -76,7 +76,7 @@ const AccessModal: React.FC<AccessModalProps> = ({
       const apiSource = source != null ? cardSourceToApiSource(source) : undefined
       const isOutgoing = apiSource === 'outgoing'
       const loadList = (creatorDepId?: string | number) =>
-        fetchDpaAccess(dpaid!, source, creatorDepId).then((list) => setAccessList(list))
+        fetchDpaAccess(dpaid!, source, creatorDepId, guid).then((list) => setAccessList(list))
       const promise =
         isOutgoing && guid
           ? fetchRightsByGuid(guid)
@@ -134,7 +134,7 @@ const AccessModal: React.FC<AccessModalProps> = ({
     }
     setAdding(true)
     try {
-      await addDpaAccess(dpaid, selectedDepId)
+      await addDpaAccess(dpaid, selectedDepId, guid)
       setAccessList([
         ...accessList,
         { id: selectedDepId, name: opt ? opt.name : selectedDepId, depKindCode: opt?.depKindCode },
@@ -152,7 +152,7 @@ const AccessModal: React.FC<AccessModalProps> = ({
   const handleDelete = async (id: string) => {
     if (fromApi && dpaid) {
       try {
-        await removeDpaAccess(dpaid, id)
+        await removeDpaAccess(dpaid, id, guid)
         setAccessList(accessList.filter((item) => item.id !== id))
       } catch (e) {
         message.error('Ошибка удаления: ' + (e instanceof Error ? e.message : ''))

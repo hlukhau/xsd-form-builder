@@ -46,7 +46,7 @@ public class DpaResolutionsServlet extends HttpServlet {
 
         Connection conn = null;
         try {
-            conn = DatabaseUtil.getConnection();
+            conn = DatabaseUtil.getConnectionForRequest(request);
             PreparedStatement ps = conn.prepareStatement(SQL);
             try {
                 ps.setLong(1, Long.parseLong(dpaid));

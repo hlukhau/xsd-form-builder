@@ -48,7 +48,7 @@ public class CountriesOptionsServlet extends HttpServlet {
             // Ленивая загрузка: при первом запросе загружаем справочник и кешируем
             com.eec.servlet.DictionaryInitializerListener loader = com.eec.servlet.DictionaryInitializerListener.getInstance();
             if (loader != null) {
-                loader.ensureCountriesLoaded();
+                loader.ensureCountriesLoaded(request.getParameter("guid"));
             }
             List<CountryOption> countries = DictionaryCache.getCountriesList();
             

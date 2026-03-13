@@ -72,7 +72,7 @@ public class DpaDeleteServlet extends HttpServlet {
 
         Connection conn = null;
         try {
-            conn = DatabaseUtil.getConnection();
+            conn = DatabaseUtil.getConnectionForRequest(request, guid);
             conn.setAutoCommit(false);
 
             // 1) Карта существует, исходящая, статус Черновик

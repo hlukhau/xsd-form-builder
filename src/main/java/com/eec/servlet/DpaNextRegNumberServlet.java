@@ -42,7 +42,7 @@ public class DpaNextRegNumberServlet extends HttpServlet {
 
         Connection conn = null;
         try {
-            conn = DatabaseUtil.getConnection();
+            conn = DatabaseUtil.getConnectionForRequest(request);
             Integer countryId = resolveCountryId(conn, countryCode);
             if (countryId == null) {
                 response.setStatus(HttpServletResponse.SC_BAD_REQUEST);

@@ -44,7 +44,7 @@ public class IdentificationMethodOptionsServlet extends HttpServlet {
 
         try {
             com.eec.servlet.DictionaryInitializerListener loader = com.eec.servlet.DictionaryInitializerListener.getInstance();
-            if (loader != null) loader.ensureIdentificationMethodsLoaded();
+            if (loader != null) loader.ensureIdentificationMethodsLoaded(request.getParameter("guid"));
 
             List<IdentificationMethodOption> list = (countryCode != null && !countryCode.trim().isEmpty())
                     ? DictionaryCache.getIdentificationMethodsByCountry(countryCode.trim())

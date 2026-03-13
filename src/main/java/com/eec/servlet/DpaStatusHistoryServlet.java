@@ -72,7 +72,7 @@ public class DpaStatusHistoryServlet extends HttpServlet {
         ResultSet rs = null;
 
         try {
-            conn = DatabaseUtil.getConnection();
+            conn = DatabaseUtil.getConnectionForRequest(request);
             ps = conn.prepareStatement(SQL);
             bindDpaid(ps, 1, dpaidStr);
             bindDpaid(ps, 2, dpaidStr);

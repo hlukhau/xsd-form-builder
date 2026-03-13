@@ -8,7 +8,6 @@ import javax.servlet.http.HttpServlet;
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
 import java.io.IOException;
-import java.io.PrintWriter;
 import java.util.List;
 
 /**
@@ -32,7 +31,7 @@ public class DepOptionsServlet extends HttpServlet {
 
         com.eec.servlet.DictionaryInitializerListener loader = com.eec.servlet.DictionaryInitializerListener.getInstance();
         if (loader != null) {
-            loader.ensureDepOptionsLoaded();
+            loader.ensureDepOptionsLoaded(request.getParameter("guid"));
         }
         List<DepOption> list = DictionaryCache.getDepOptionsList();
         StringBuilder json = new StringBuilder("[");

@@ -8,7 +8,6 @@ import javax.servlet.http.HttpServlet;
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
 import java.io.IOException;
-import java.io.PrintWriter;
 import java.io.BufferedReader;
 import java.sql.Connection;
 import java.util.regex.Matcher;
@@ -51,6 +50,7 @@ public class DpaAccessServlet extends HttpServlet {
     protected void doGet(HttpServletRequest request, HttpServletResponse response)
             throws ServletException, IOException {
         String dpaid = request.getParameter("dpaid");
+        String guid = request.getParameter("guid");
         if (dpaid == null || dpaid.trim().isEmpty()) {
             sendJsonError(response, HttpServletResponse.SC_BAD_REQUEST, "Параметр dpaid обязателен");
             return;
@@ -64,7 +64,7 @@ public class DpaAccessServlet extends HttpServlet {
         PreparedStatement ps = null;
         ResultSet rs = null;
         try {
-            conn = DatabaseUtil.getConnection();
+            conn = DatabaseUtil.getConnectionForRequest(request, guid);
             ps = conn.prepareStatement(SQL_LIST);
             bindDpaid(ps, 1, dpaid);
             rs = ps.executeQuery();
@@ -156,6 +156,7 @@ public class DpaAccessServlet extends HttpServlet {
             String body = sb.toString();
             dpaid = extractJsonString(body, "dpaid");
             depId = extractJsonString(body, "depId");
+            request.setAttribute("guid", extractJsonString(body, "guid"));
         } else {
             dpaid = request.getParameter("dpaid");
             depId = request.getParameter("depId");
@@ -168,7 +169,10 @@ public class DpaAccessServlet extends HttpServlet {
         response.setCharacterEncoding("UTF-8");
         response.setHeader("Access-Control-Allow-Origin", "*");
 
-        String accessRight = resolveAccessRightByDpaid(dpaid);
+        String guid = request.getAttribute("guid") instanceof String
+                ? (String) request.getAttribute("guid")
+                : request.getParameter("guid");
+        String accessRight = resolveAccessRightByDpaid(request, dpaid, guid);
         if (accessRight != null && !checkAccessRight(accessRight, dpaid)) {
             sendJsonError(response, HttpServletResponse.SC_FORBIDDEN, "Нет права на управление доступом");
             return;
@@ -177,7 +181,7 @@ public class DpaAccessServlet extends HttpServlet {
         Connection conn = null;
         PreparedStatement ps = null;
         try {
-            conn = DatabaseUtil.getConnection();
+            conn = DatabaseUtil.getConnectionForRequest(request, guid);
             ps = conn.prepareStatement(SQL_ADD);
             bindDpaid(ps, 1, dpaid);
             ps.setString(2, depId.trim());
@@ -197,6 +201,7 @@ public class DpaAccessServlet extends HttpServlet {
             throws ServletException, IOException {
         String dpaid = request.getParameter("dpaid");
         String depId = request.getParameter("depId");
+        String guid = request.getParameter("guid");
         if (dpaid == null || dpaid.trim().isEmpty() || depId == null || depId.trim().isEmpty()) {
             sendJsonError(response, HttpServletResponse.SC_BAD_REQUEST, "Нужны dpaid и depId");
             return;
@@ -205,7 +210,7 @@ public class DpaAccessServlet extends HttpServlet {
         response.setCharacterEncoding("UTF-8");
         response.setHeader("Access-Control-Allow-Origin", "*");
 
-        String accessRight = resolveAccessRightByDpaid(dpaid);
+        String accessRight = resolveAccessRightByDpaid(request, dpaid, guid);
         if (accessRight != null && !checkAccessRight(accessRight, dpaid)) {
             sendJsonError(response, HttpServletResponse.SC_FORBIDDEN, "Нет права на управление доступом");
             return;
@@ -214,7 +219,7 @@ public class DpaAccessServlet extends HttpServlet {
         Connection conn = null;
         PreparedStatement ps = null;
         try {
-            conn = DatabaseUtil.getConnection();
+            conn = DatabaseUtil.getConnectionForRequest(request, guid);
             ps = conn.prepareStatement(SQL_DELETE);
             bindDpaid(ps, 1, dpaid);
             ps.setString(2, depId.trim());
@@ -230,12 +235,12 @@ public class DpaAccessServlet extends HttpServlet {
     }
 
     /** Определяет право по источнику карты (VW_DPA + DATASOURCEKIND). */
-    private String resolveAccessRightByDpaid(String dpaid) {
+    private String resolveAccessRightByDpaid(HttpServletRequest request, String dpaid, String guid) {
         Connection conn = null;
         PreparedStatement ps = null;
         ResultSet rs = null;
         try {
-            conn = DatabaseUtil.getConnection();
+            conn = DatabaseUtil.getConnectionForRequest(request, guid);
             ps = conn.prepareStatement(SQL_SOURCE);
             bindDpaid(ps, 1, dpaid);
             rs = ps.executeQuery();

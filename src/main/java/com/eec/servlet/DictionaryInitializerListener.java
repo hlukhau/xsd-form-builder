@@ -9,6 +9,7 @@ import com.eec.util.DictionaryCache.SanitaryProdTypeOption;
 import com.eec.util.DictionaryCache.MeasurementUnitOption;
 import com.eec.util.DictionaryCache.ShipDocKindOption;
 import com.eec.util.DictionaryCache.SupplyChainPartyKindOption;
+import com.eec.util.DictionaryCache.CommunicationChannelOption;
 import com.eec.util.DictionaryCache.TechRegulOption;
 import com.eec.util.DictionaryCache.SanitaryMeasureObjKindOption;
 import com.eec.util.DictionaryCache.SanitaryMeasureOption;
@@ -43,6 +44,7 @@ public class DictionaryInitializerListener implements ServletContextListener {
     private static final Object LOCK_MEASUREMENT_UNITS = new Object();
     private static final Object LOCK_SHIP_DOC_KINDS = new Object();
     private static final Object LOCK_SUPPLY_CHAIN_PARTY_KINDS = new Object();
+    private static final Object LOCK_COMMUNICATION_CHANNELS = new Object();
     private static final Object LOCK_TECH_REGULS = new Object();
     private static final Object LOCK_SANITARY_MEASURE_OBJ_KINDS = new Object();
     private static final Object LOCK_SANITARY_MEASURES = new Object();
@@ -63,84 +65,89 @@ public class DictionaryInitializerListener implements ServletContextListener {
         System.out.println("[DictionaryInitializer] Lazy loading enabled: dictionaries will load on first request.");
     }
 
-    public void ensureCountriesLoaded() {
+    public void ensureCountriesLoaded(String guid) {
         synchronized (LOCK_COUNTRIES) {
-            if (!DictionaryCache.isCountriesLoaded()) loadCountriesDictionary();
+            if (!DictionaryCache.isCountriesLoaded()) loadCountriesDictionary(guid);
         }
     }
-    public void ensureIncidentAlertKindsLoaded() {
+    public void ensureIncidentAlertKindsLoaded(String guid) {
         synchronized (LOCK_INCIDENT_ALERT_KINDS) {
-            if (!DictionaryCache.isIncidentAlertKindsLoaded()) loadIncidentAlertKindsDictionary();
+            if (!DictionaryCache.isIncidentAlertKindsLoaded()) loadIncidentAlertKindsDictionary(guid);
         }
     }
-    public void ensureAuthoritiesLoaded() {
+    public void ensureAuthoritiesLoaded(String guid) {
         synchronized (LOCK_AUTHORITIES) {
-            if (!DictionaryCache.isAuthoritiesLoaded()) loadAuthoritiesDictionary();
+            if (!DictionaryCache.isAuthoritiesLoaded()) loadAuthoritiesDictionary(guid);
         }
     }
-    public void ensureSanitaryProdTypesLoaded() {
+    public void ensureSanitaryProdTypesLoaded(String guid) {
         synchronized (LOCK_SANITARY_PROD_TYPES) {
-            if (!DictionaryCache.isSanitaryProdTypesLoaded()) loadSanitaryProdTypesDictionary();
+            if (!DictionaryCache.isSanitaryProdTypesLoaded()) loadSanitaryProdTypesDictionary(guid);
         }
     }
-    public void ensureMeasurementUnitsLoaded() {
+    public void ensureMeasurementUnitsLoaded(String guid) {
         synchronized (LOCK_MEASUREMENT_UNITS) {
-            if (!DictionaryCache.isMeasurementUnitsLoaded()) loadMeasurementUnitsDictionary();
+            if (!DictionaryCache.isMeasurementUnitsLoaded()) loadMeasurementUnitsDictionary(guid);
         }
     }
-    public void ensureShipDocKindsLoaded() {
+    public void ensureShipDocKindsLoaded(String guid) {
         synchronized (LOCK_SHIP_DOC_KINDS) {
-            if (!DictionaryCache.isShipDocKindsLoaded()) loadShipDocKindsDictionary();
+            if (!DictionaryCache.isShipDocKindsLoaded()) loadShipDocKindsDictionary(guid);
         }
     }
-    public void ensureSupplyChainPartyKindsLoaded() {
+    public void ensureSupplyChainPartyKindsLoaded(String guid) {
         synchronized (LOCK_SUPPLY_CHAIN_PARTY_KINDS) {
-            if (!DictionaryCache.isSupplyChainPartyKindsLoaded()) loadSupplyChainPartyKindsDictionary();
+            if (!DictionaryCache.isSupplyChainPartyKindsLoaded()) loadSupplyChainPartyKindsDictionary(guid);
         }
     }
-    public void ensureTechRegulsLoaded() {
+    public void ensureCommunicationChannelsLoaded(String guid) {
+        synchronized (LOCK_COMMUNICATION_CHANNELS) {
+            if (!DictionaryCache.isCommunicationChannelsLoaded()) loadCommunicationChannelsDictionary(guid);
+        }
+    }
+    public void ensureTechRegulsLoaded(String guid) {
         synchronized (LOCK_TECH_REGULS) {
-            if (!DictionaryCache.isTechRegulsLoaded()) loadTechRegulsDictionary();
+            if (!DictionaryCache.isTechRegulsLoaded()) loadTechRegulsDictionary(guid);
         }
     }
-    public void ensureSanitaryMeasureObjKindsLoaded() {
+    public void ensureSanitaryMeasureObjKindsLoaded(String guid) {
         synchronized (LOCK_SANITARY_MEASURE_OBJ_KINDS) {
-            if (!DictionaryCache.isSanitaryMeasureObjKindsLoaded()) loadSanitaryMeasureObjKindsDictionary();
+            if (!DictionaryCache.isSanitaryMeasureObjKindsLoaded()) loadSanitaryMeasureObjKindsDictionary(guid);
         }
     }
-    public void ensureSanitaryMeasuresLoaded() {
+    public void ensureSanitaryMeasuresLoaded(String guid) {
         synchronized (LOCK_SANITARY_MEASURES) {
-            if (!DictionaryCache.isSanitaryMeasuresLoaded()) loadSanitaryMeasuresDictionary();
+            if (!DictionaryCache.isSanitaryMeasuresLoaded()) loadSanitaryMeasuresDictionary(guid);
         }
     }
-    public void ensureMediaTypesLoaded() {
+    public void ensureMediaTypesLoaded(String guid) {
         synchronized (LOCK_MEDIA_TYPES) {
-            if (!DictionaryCache.isMediaTypesLoaded()) loadMediaTypesDictionary();
+            if (!DictionaryCache.isMediaTypesLoaded()) loadMediaTypesDictionary(guid);
         }
     }
-    public void ensureDepOptionsLoaded() {
+    public void ensureDepOptionsLoaded(String guid) {
         synchronized (LOCK_DEP_OPTIONS) {
-            if (!DictionaryCache.isDepOptionsLoaded()) loadDepOptionsDictionary();
+            if (!DictionaryCache.isDepOptionsLoaded()) loadDepOptionsDictionary(guid);
         }
     }
-    public void ensureLegalFormsLoaded() {
+    public void ensureLegalFormsLoaded(String guid) {
         synchronized (LOCK_LEGAL_FORMS) {
-            if (!DictionaryCache.isLegalFormsLoaded()) loadLegalFormsDictionary();
+            if (!DictionaryCache.isLegalFormsLoaded()) loadLegalFormsDictionary(guid);
         }
     }
-    public void ensureIdentificationMethodsLoaded() {
+    public void ensureIdentificationMethodsLoaded(String guid) {
         synchronized (LOCK_IDENTIFICATION_METHODS) {
-            if (!DictionaryCache.isIdentificationMethodsLoaded()) loadIdentificationMethodsDictionary();
+            if (!DictionaryCache.isIdentificationMethodsLoaded()) loadIdentificationMethodsDictionary(guid);
         }
     }
-    public void ensureConformityDocKindsLoaded() {
+    public void ensureConformityDocKindsLoaded(String guid) {
         synchronized (LOCK_CONFORMITY_DOC_KINDS) {
-            if (!DictionaryCache.isConformityDocKindsLoaded()) loadConformityDocKindsDictionary();
+            if (!DictionaryCache.isConformityDocKindsLoaded()) loadConformityDocKindsDictionary(guid);
         }
     }
-    public void ensureIdentityDocKindsLoaded() {
+    public void ensureIdentityDocKindsLoaded(String guid) {
         synchronized (LOCK_IDENTITY_DOC_KINDS) {
-            if (!DictionaryCache.isIdentityDocKindsLoaded()) loadIdentityDocKindsDictionary();
+            if (!DictionaryCache.isIdentityDocKindsLoaded()) loadIdentityDocKindsDictionary(guid);
         }
     }
     
@@ -156,6 +163,7 @@ public class DictionaryInitializerListener implements ServletContextListener {
         DictionaryCache.clearMeasurementUnitsCache();
         DictionaryCache.clearShipDocKindsCache();
         DictionaryCache.clearSupplyChainPartyKindsCache();
+        DictionaryCache.clearCommunicationChannelsCache();
         DictionaryCache.clearTechRegulsCache();
         DictionaryCache.clearSanitaryMeasureObjKindsCache();
         DictionaryCache.clearSanitaryMeasuresCache();
@@ -170,12 +178,12 @@ public class DictionaryInitializerListener implements ServletContextListener {
     /**
      * Загружает справочник стран из базы данных в кеш
      */
-    private void loadCountriesDictionary() {
+    private void loadCountriesDictionary(String guid) {
         Connection conn = null;
         
         try {
             System.out.println("[DictionaryInitializer] Loading countries dictionary...");
-            conn = DatabaseUtil.getConnection();
+            conn = DatabaseUtil.getConnectionForGuid(guid);
             System.out.println("[DictionaryInitializer] Database connection established");
             
             String sql = "SELECT COUNTRYCODE, COUNTRYNAME " +
@@ -213,12 +221,12 @@ public class DictionaryInitializerListener implements ServletContextListener {
     /**
      * Загружает справочник видов уведомлений из базы данных в кеш
      */
-    private void loadIncidentAlertKindsDictionary() {
+    private void loadIncidentAlertKindsDictionary(String guid) {
         Connection conn = null;
         
         try {
             System.out.println("[DictionaryInitializer] Loading incident alert kinds dictionary...");
-            conn = DatabaseUtil.getConnection();
+            conn = DatabaseUtil.getConnectionForGuid(guid);
             
             String sql = "SELECT INCIDENTALERTKINDCODE, INCIDENTALERTKINDNAME " +
                         "FROM SESINT.INCIDENTALERTKIND " +
@@ -260,12 +268,12 @@ public class DictionaryInitializerListener implements ServletContextListener {
     /**
      * Загружает справочник уполномоченных органов из базы данных в кеш
      */
-    private void loadAuthoritiesDictionary() {
+    private void loadAuthoritiesDictionary(String guid) {
         Connection conn = null;
         
         try {
             System.out.println("[DictionaryInitializer] Loading authorities dictionary...");
-            conn = DatabaseUtil.getConnection();
+            conn = DatabaseUtil.getConnectionForGuid(guid);
             
             String sql = "SELECT AUTHORITYID, AUTHORITYUID, AUTHORITYNAME, AUTHORITYBRIEFNAME, COUNTRYCODE " +
                         "FROM SESINT.AUTHORITY " +
@@ -312,11 +320,11 @@ public class DictionaryInitializerListener implements ServletContextListener {
     /**
      * Загружает справочник типов санитарной продукции из базы данных в кеш
      */
-    private void loadSanitaryProdTypesDictionary() {
+    private void loadSanitaryProdTypesDictionary(String guid) {
         Connection conn = null;
         try {
             System.out.println("[DictionaryInitializer] Loading sanitary product types dictionary...");
-            conn = DatabaseUtil.getConnection();
+            conn = DatabaseUtil.getConnectionForGuid(guid);
             
             // Загружаем только активные записи (где SANITARYPRODTYPEEDATE IS NULL или в будущем)
             String sql = "SELECT SANITARYPRODTYPECODE, SANITARYPRODTYPENAME " +
@@ -358,11 +366,11 @@ public class DictionaryInitializerListener implements ServletContextListener {
     /**
      * Загружает справочник единиц измерения из базы данных в кеш
      */
-    private void loadMeasurementUnitsDictionary() {
+    private void loadMeasurementUnitsDictionary(String guid) {
         Connection conn = null;
         try {
             System.out.println("[DictionaryInitializer] Loading measurement units dictionary...");
-            conn = DatabaseUtil.getConnection();
+            conn = DatabaseUtil.getConnectionForGuid(guid);
             
             // Загружаем только активные записи (где MEASUREMENTUNITEDATE >= SYSDATE)
             String sql = "SELECT MEASUREMENTUNITCODE, MEASUREMENTUNITNAME, MEASUREMENTUNITBRIEFNAME " +
@@ -406,11 +414,11 @@ public class DictionaryInitializerListener implements ServletContextListener {
     /**
      * Загружает справочник видов товаросопроводительных документов из базы данных в кеш
      */
-    private void loadShipDocKindsDictionary() {
+    private void loadShipDocKindsDictionary(String guid) {
         Connection conn = null;
         try {
             System.out.println("[DictionaryInitializer] Loading ship document kinds dictionary...");
-            conn = DatabaseUtil.getConnection();
+            conn = DatabaseUtil.getConnectionForGuid(guid);
             
             // Загружаем только активные записи (где SHIPDOCKINDEDATE >= SYSDATE)
             String sql = "SELECT SHIPDOCKINDCODE, SHIPDOCKINDNAME " +
@@ -452,11 +460,11 @@ public class DictionaryInitializerListener implements ServletContextListener {
     /**
      * Загружает справочник видов участников цепи поставки из базы данных в кеш
      */
-    private void loadSupplyChainPartyKindsDictionary() {
+    private void loadSupplyChainPartyKindsDictionary(String guid) {
         Connection conn = null;
         try {
             System.out.println("[DictionaryInitializer] Loading supply chain party kinds dictionary...");
-            conn = DatabaseUtil.getConnection();
+            conn = DatabaseUtil.getConnectionForGuid(guid);
             
             // Загружаем только активные записи (где SUPPLYCHAINPARTYKINDACTFL = 1)
             String sql = "SELECT SUPPLYCHAINPARTYKINDCODE, SUPPLYCHAINPARTYKINDNAME " +
@@ -498,11 +506,11 @@ public class DictionaryInitializerListener implements ServletContextListener {
     /**
      * Загружает справочник организационно-правовых форм (SESINT.LEGALFORM, codeListId=2049) в кеш
      */
-    private void loadLegalFormsDictionary() {
+    private void loadLegalFormsDictionary(String guid) {
         Connection conn = null;
         try {
             System.out.println("[DictionaryInitializer] Loading legal forms dictionary...");
-            conn = DatabaseUtil.getConnection();
+            conn = DatabaseUtil.getConnectionForGuid(guid);
             String sql = "SELECT LEGALFORMCODE, LEGALFORMNAME, COUNTRYCODE " +
                         "FROM SESINT.LEGALFORM " +
                         "WHERE (LEGALFORMSDATE IS NULL OR LEGALFORMSDATE <= SYSDATE) " +
@@ -535,11 +543,11 @@ public class DictionaryInitializerListener implements ServletContextListener {
     /**
      * Загружает справочник методов идентификации (SESINT.BUSENTKIND, codeListId=1033) в кеш
      */
-    private void loadIdentificationMethodsDictionary() {
+    private void loadIdentificationMethodsDictionary(String guid) {
         Connection conn = null;
         try {
             System.out.println("[DictionaryInitializer] Loading identification methods dictionary...");
-            conn = DatabaseUtil.getConnection();
+            conn = DatabaseUtil.getConnectionForGuid(guid);
             String sql = "SELECT BUSENTKINDCODE, BUSENTKINDLETTERCODE, BUSENTKINDDESC, COUNTRYCODE " +
                         "FROM SESINT.BUSENTKIND " +
                         "WHERE (BUSENTKINDSDATE IS NULL OR BUSENTKINDSDATE <= SYSDATE) " +
@@ -573,11 +581,11 @@ public class DictionaryInitializerListener implements ServletContextListener {
     /**
      * Загружает справочник видов документов об оценке соответствия (SESINT.CONFDOCKIND, codeListId=2001) в кеш
      */
-    private void loadConformityDocKindsDictionary() {
+    private void loadConformityDocKindsDictionary(String guid) {
         Connection conn = null;
         try {
             System.out.println("[DictionaryInitializer] Loading conformity doc kinds dictionary...");
-            conn = DatabaseUtil.getConnection();
+            conn = DatabaseUtil.getConnectionForGuid(guid);
             String sql = "SELECT CONFDOCKINDCODE, CONFDOCKINDNAME, CONFDOCKINDBRIEFNAME " +
                         "FROM SESINT.CONFDOCKIND " +
                         "WHERE (CONFDOCKINDSDATE IS NULL OR CONFDOCKINDSDATE <= SYSDATE) " +
@@ -606,15 +614,55 @@ public class DictionaryInitializerListener implements ServletContextListener {
             DatabaseUtil.closeConnection(conn);
         }
     }
+
+    /**
+     * Загружает справочник видов каналов связи из базы данных в кеш
+     */
+    private void loadCommunicationChannelsDictionary(String guid) {
+        Connection conn = null;
+        try {
+            System.out.println("[DictionaryInitializer] Loading communication channels dictionary...");
+            conn = DatabaseUtil.getConnectionForGuid(guid);
+
+            String sql = "SELECT COMMUNICATIONCHANNELCODE, COMMUNICATIONCHANNELNAME " +
+                    "FROM SESINT.COMMUNICATIONCHANNEL " +
+                    "WHERE COMMUNICATIONCHANNELACTFL = 1 " +
+                    "ORDER BY NVL(COMMUNICATIONCHANNELSEQNUM, 999999), COMMUNICATIONCHANNELCODE";
+
+            PreparedStatement stmt = conn.prepareStatement(sql);
+            ResultSet rs = stmt.executeQuery();
+
+            List<CommunicationChannelOption> list = new ArrayList<>();
+            int count = 0;
+            while (rs.next()) {
+                list.add(new CommunicationChannelOption(
+                        rs.getString("COMMUNICATIONCHANNELCODE"),
+                        rs.getString("COMMUNICATIONCHANNELNAME")
+                ));
+                count++;
+            }
+
+            DictionaryCache.setCommunicationChannelsCache(list);
+            System.out.println("[DictionaryInitializer] Loaded " + count + " communication channels into cache");
+
+            rs.close();
+            stmt.close();
+        } catch (SQLException e) {
+            System.err.println("[DictionaryInitializer] ERROR loading communication channels dictionary: " + e.getMessage());
+            e.printStackTrace();
+        } finally {
+            DatabaseUtil.closeConnection(conn);
+        }
+    }
     
     /**
      * Загружает справочник видов документов, удостоверяющих личность (SESINT.IDENTITYDOCKIND, codeListId=2053) в кеш
      */
-    private void loadIdentityDocKindsDictionary() {
+    private void loadIdentityDocKindsDictionary(String guid) {
         Connection conn = null;
         try {
             System.out.println("[DictionaryInitializer] Loading identity doc kinds dictionary...");
-            conn = DatabaseUtil.getConnection();
+            conn = DatabaseUtil.getConnectionForGuid(guid);
             String sql = "SELECT IDENTITYDOCKINDCODE, IDENTITYDOCKINDNAME " +
                         "FROM SESINT.IDENTITYDOCKIND " +
                         "WHERE IDENTITYDOCKINDSDATE <= SYSDATE " +
@@ -646,11 +694,11 @@ public class DictionaryInitializerListener implements ServletContextListener {
     /**
      * Загружает справочник технических регламентов из базы данных в кеш
      */
-    private void loadTechRegulsDictionary() {
+    private void loadTechRegulsDictionary(String guid) {
         Connection conn = null;
         try {
             System.out.println("[DictionaryInitializer] Loading technical regulations dictionary...");
-            conn = DatabaseUtil.getConnection();
+            conn = DatabaseUtil.getConnectionForGuid(guid);
             
             // Загружаем только активные записи (где TECHREGULEDATE либо NULL, либо больше текущей даты)
             String sql = "SELECT TECHREGULCODE, TECHREGULNAME, TECHREGULREGNUM " +
@@ -695,11 +743,11 @@ public class DictionaryInitializerListener implements ServletContextListener {
     /**
      * Загружает справочник видов объектов действия мер из базы данных в кеш
      */
-    private void loadSanitaryMeasureObjKindsDictionary() {
+    private void loadSanitaryMeasureObjKindsDictionary(String guid) {
         Connection conn = null;
         try {
             System.out.println("[DictionaryInitializer] Loading sanitary measure object kinds dictionary...");
-            conn = DatabaseUtil.getConnection();
+            conn = DatabaseUtil.getConnectionForGuid(guid);
             
             // Загружаем только активные записи (где SANITARYMEASUREOBJKINDACTFL = 1)
             String sql = "SELECT SANITARYMEASUREOBJKINDCODE, SANITARYMEASUREOBJKINDNAME " +
@@ -741,11 +789,11 @@ public class DictionaryInitializerListener implements ServletContextListener {
     /**
      * Загружает справочник санитарных мер из базы данных в кеш
      */
-    private void loadSanitaryMeasuresDictionary() {
+    private void loadSanitaryMeasuresDictionary(String guid) {
         Connection conn = null;
         try {
             System.out.println("[DictionaryInitializer] Loading sanitary measures dictionary...");
-            conn = DatabaseUtil.getConnection();
+            conn = DatabaseUtil.getConnectionForGuid(guid);
             
             // Загружаем только активные записи (где SANITARYMEASURESDATE <= SYSDATE и (SANITARYMEASUREEDATE IS NULL или SANITARYMEASUREEDATE >= SYSDATE))
             String sql = "SELECT SANITARYMEASURECODE, SANITARYMEASURENAME " +
@@ -788,11 +836,11 @@ public class DictionaryInitializerListener implements ServletContextListener {
     /**
      * Загружает справочник форматов данных (MEDIATYPE) из базы данных в кеш
      */
-    private void loadMediaTypesDictionary() {
+    private void loadMediaTypesDictionary(String guid) {
         Connection conn = null;
         try {
             System.out.println("[DictionaryInitializer] Loading media types dictionary...");
-            conn = DatabaseUtil.getConnection();
+            conn = DatabaseUtil.getConnectionForGuid(guid);
             
             // Загружаем только активные записи (где MEDIATYPEACTFL = 1)
             String sql = "SELECT MEDIATYPECODE, MEDIATYPENAME " +
@@ -834,11 +882,11 @@ public class DictionaryInitializerListener implements ServletContextListener {
     /**
      * Загружает справочник подразделений (TB_DEP + TB_DEPKIND) для «Определить доступ»
      */
-    private void loadDepOptionsDictionary() {
+    private void loadDepOptionsDictionary(String guid) {
         Connection conn = null;
         try {
             System.out.println("[DictionaryInitializer] Loading dep options dictionary...");
-            conn = DatabaseUtil.getConnection();
+            conn = DatabaseUtil.getConnectionForGuid(guid);
             
             String sql = "SELECT d.DEPID, d.DEPNAME, dk.DEPKINDCODE "
                     + "FROM SESDEV.TB_DEP d "

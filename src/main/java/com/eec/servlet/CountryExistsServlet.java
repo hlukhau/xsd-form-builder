@@ -107,7 +107,7 @@ public class CountryExistsServlet extends HttpServlet {
         }
         
         try {
-            conn = DatabaseUtil.getConnection();
+            conn = DatabaseUtil.getConnectionForRequest(request);
             System.out.println("[CountryExistsServlet] Database connection established");
             
             // Проверка существования активной страны

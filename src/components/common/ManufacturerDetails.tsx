@@ -7,11 +7,11 @@ import {
   getDefaultAddressKindName,
   getDefaultCountryName,
 } from '@/utils/addressFormatUtils'
-import { getCommunicationChannelNameByCode } from '@/constants/communicationChannel'
 import { useLegalFormOptions } from '@/hooks/useLegalFormOptions'
 import { useIdentificationMethodOptions } from '@/hooks/useIdentificationMethodOptions'
 import { useCountryOptions } from '@/hooks/useCountryOptions'
 import { useSupplyChainPartyKindOptions } from '@/hooks/useSupplyChainPartyKindOptions'
+import { useCommunicationChannelOptions } from '@/hooks/useCommunicationChannelOptions'
 
 const LEGAL_FORM_CODE_LIST_ID = '2049'
 
@@ -29,6 +29,7 @@ const ManufacturerDetails: React.FC<ManufacturerDetailsProps> = ({
   const { getDisplayLabel: getIdentificationMethodDisplayLabel } = useIdentificationMethodOptions(data.country)
   const { getDisplayLabel: getCountryDisplayLabel } = useCountryOptions()
   const { getNameByCode: getSupplyChainPartyKindNameByCode } = useSupplyChainPartyKindOptions()
+  const { getNameByCode: getCommunicationChannelNameByCode } = useCommunicationChannelOptions()
   const isFromRef = !!(data.businessEntityTypeCode && data.businessEntityTypeCodeListId === LEGAL_FORM_CODE_LIST_ID)
   const kindDisplay = data.supplyChainPartyKindCode
     ? `${data.supplyChainPartyKindCode} - ${getSupplyChainPartyKindNameByCode(data.supplyChainPartyKindCode) || data.supplyChainPartyKindCode}`

@@ -55,7 +55,7 @@ public class DpaXmlServlet extends HttpServlet {
         Reader reader = null;
 
         try {
-            conn = DatabaseUtil.getConnection();
+            conn = DatabaseUtil.getConnectionForRequest(request);
             ps = conn.prepareStatement(SQL_SELECT);
             try {
                 ps.setLong(1, Long.parseLong(dpaidStr));

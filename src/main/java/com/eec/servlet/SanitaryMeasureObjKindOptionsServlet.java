@@ -47,7 +47,7 @@ public class SanitaryMeasureObjKindOptionsServlet extends HttpServlet {
         try {
             // Получаем данные из кеша
             com.eec.servlet.DictionaryInitializerListener loader = com.eec.servlet.DictionaryInitializerListener.getInstance();
-            if (loader != null) loader.ensureSanitaryMeasureObjKindsLoaded();
+            if (loader != null) loader.ensureSanitaryMeasureObjKindsLoaded(request.getParameter("guid"));
 
             List<SanitaryMeasureObjKindOption> kinds = DictionaryCache.getSanitaryMeasureObjKindsList();
             

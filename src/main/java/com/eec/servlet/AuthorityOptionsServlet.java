@@ -52,6 +52,7 @@ public class AuthorityOptionsServlet extends HttpServlet {
         String countryCode = request.getParameter("countryCode");
         String authorityIdsParam = request.getParameter("authorityIds");
         String depIdsParam = request.getParameter("depIds");
+        String guid = request.getParameter("guid");
         System.out.println("[AuthorityOptionsServlet] Loading authorities from cache, countryCode: " + countryCode + ", authorityIds: " + authorityIdsParam + ", depIds: " + depIdsParam);
         
         response.setContentType("application/json;charset=UTF-8");
@@ -71,7 +72,7 @@ public class AuthorityOptionsServlet extends HttpServlet {
             // Ленивая загрузка: при первом запросе загружаем справочник и кешируем
             com.eec.servlet.DictionaryInitializerListener loader = com.eec.servlet.DictionaryInitializerListener.getInstance();
             if (loader != null) {
-                loader.ensureAuthoritiesLoaded();
+                loader.ensureAuthoritiesLoaded(guid);
             }
             List<AuthorityOption> allAuthorities = DictionaryCache.getAllAuthorities();
             System.out.println("[AuthorityOptionsServlet] Total authorities in cache: " + allAuthorities.size());
@@ -101,7 +102,7 @@ public class AuthorityOptionsServlet extends HttpServlet {
                 } else {
                     Connection conn = null;
                     try {
-                        conn = DatabaseUtil.getConnection();
+                        conn = DatabaseUtil.getConnectionForRequest(request, guid);
                         allowedAuthorityIds = resolveAuthorityIdsByDepIds(conn, depIds);
                         System.out.println("[AuthorityOptionsServlet] Filter by create rights (depIds=" + depIds + "), resolved AUTHORITYIDs: " + allowedAuthorityIds);
                     } catch (SQLException e) {

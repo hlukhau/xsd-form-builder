@@ -42,7 +42,7 @@ public class IdentityDocKindOptionsServlet extends HttpServlet {
 
         try {
             com.eec.servlet.DictionaryInitializerListener loader = com.eec.servlet.DictionaryInitializerListener.getInstance();
-            if (loader != null) loader.ensureIdentityDocKindsLoaded();
+            if (loader != null) loader.ensureIdentityDocKindsLoaded(request.getParameter("guid"));
 
             List<IdentityDocKindOption> list = DictionaryCache.getIdentityDocKindsList();
 

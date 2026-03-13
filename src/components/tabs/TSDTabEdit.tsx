@@ -144,7 +144,7 @@ const TSDTabEdit: React.FC<TSDTabEditProps> = ({ data, onChange }) => {
   const handleAddProduct = (batchIndex: number, docIndex: number) => {
     const batch = batches[batchIndex] || { shippingDocuments: [] }
     const doc = batch.shippingDocuments[docIndex]
-    const newProduct: ProductDetails = { productId: '', productName: '', technicalDocs: [] }
+    const newProduct: ProductDetails = { productId: '', productName: '', tradeNames: [''], technicalDocs: [] }
     const updated = [...(batch.shippingDocuments || [])]
     updated[docIndex] = { ...doc, products: [...(doc.products || []), newProduct] }
     updateBatch(batchIndex, { ...batch, shippingDocuments: updated })
@@ -158,6 +158,75 @@ const TSDTabEdit: React.FC<TSDTabEditProps> = ({ data, onChange }) => {
     const updated = [...(batch.shippingDocuments || [])]
     updated[docIndex] = { ...doc, products }
     updateBatch(batchIndex, { ...batch, shippingDocuments: updated })
+  }
+
+  const handleProductFieldChange = (
+    batchIndex: number,
+    docIndex: number,
+    pIndex: number,
+    field: keyof ProductDetails,
+    value: string,
+  ) => {
+    const batch = batches[batchIndex] || { shippingDocuments: [] }
+    const doc = batch.shippingDocuments[docIndex]
+    const product = doc.products?.[pIndex]
+    if (!product) return
+    updateProduct(batchIndex, docIndex, pIndex, { ...product, [field]: value || undefined })
+  }
+
+  const handleProductTradeNameChange = (
+    batchIndex: number,
+    docIndex: number,
+    pIndex: number,
+    tradeIndex: number,
+    value: string,
+  ) => {
+    const batch = batches[batchIndex] || { shippingDocuments: [] }
+    const doc = batch.shippingDocuments[docIndex]
+    const product = doc.products?.[pIndex]
+    if (!product) return
+    const tradeNames = product.tradeNames?.length
+      ? [...product.tradeNames]
+      : [product.tradeName || '']
+    tradeNames[tradeIndex] = value
+    const normalizedTradeNames = tradeNames.some((item) => item.trim()) ? tradeNames : undefined
+    updateProduct(batchIndex, docIndex, pIndex, {
+      ...product,
+      tradeNames: normalizedTradeNames,
+      tradeName: normalizedTradeNames?.[0] || undefined,
+    })
+  }
+
+  const handleAddProductTradeName = (batchIndex: number, docIndex: number, pIndex: number) => {
+    const batch = batches[batchIndex] || { shippingDocuments: [] }
+    const doc = batch.shippingDocuments[docIndex]
+    const product = doc.products?.[pIndex]
+    if (!product) return
+    const tradeNames = product.tradeNames?.length
+      ? [...product.tradeNames, '']
+      : [product.tradeName || '', '']
+    updateProduct(batchIndex, docIndex, pIndex, {
+      ...product,
+      tradeNames,
+      tradeName: tradeNames[0] || undefined,
+    })
+  }
+
+  const handleRemoveProductTradeName = (batchIndex: number, docIndex: number, pIndex: number, tradeIndex: number) => {
+    const batch = batches[batchIndex] || { shippingDocuments: [] }
+    const doc = batch.shippingDocuments[docIndex]
+    const product = doc.products?.[pIndex]
+    if (!product) return
+    const tradeNames = product.tradeNames?.length
+      ? [...product.tradeNames]
+      : [product.tradeName || '']
+    tradeNames.splice(tradeIndex, 1)
+    const normalizedTradeNames = tradeNames.length > 0 ? tradeNames : undefined
+    updateProduct(batchIndex, docIndex, pIndex, {
+      ...product,
+      tradeNames: normalizedTradeNames,
+      tradeName: normalizedTradeNames?.[0] || undefined,
+    })
   }
 
   const handleAddProductTechnicalDoc = (batchIndex: number, docIndex: number, pIndex: number) => {
@@ -390,11 +459,75 @@ const TSDTabEdit: React.FC<TSDTabEditProps> = ({ data, onChange }) => {
                       <Input
                         placeholder="Наименование"
                         value={product.productName}
-                        onChange={(e) => {
-                          const updated = [...(doc.products || [])]
-                          updated[pIndex] = { ...updated[pIndex], productName: e.target.value }
-                          handleDocumentChange(batchIndex, docIndex, 'products', updated)
-                        }}
+                        onChange={(e) => handleProductFieldChange(batchIndex, docIndex, pIndex, 'productName', e.target.value)}
+                      />
+                      <div style={{ marginTop: 8 }}>
+                        <div style={{ marginBottom: 8, fontWeight: 500 }}>Название продукции</div>
+                        {(product.tradeNames?.length ? product.tradeNames : [product.tradeName || '']).map((tradeName, tradeIndex, tradeNames) => (
+                          <div key={tradeIndex} style={{ display: 'flex', gap: 8, marginBottom: 8 }}>
+                            <Input
+                              placeholder="Название продукции"
+                              value={tradeName}
+                              onChange={(e) => handleProductTradeNameChange(batchIndex, docIndex, pIndex, tradeIndex, e.target.value)}
+                            />
+                            <Button
+                              type="text"
+                              danger
+                              icon={<DeleteOutlined />}
+                              onClick={() => handleRemoveProductTradeName(batchIndex, docIndex, pIndex, tradeIndex)}
+                              disabled={tradeNames.length === 1}
+                            />
+                          </div>
+                        ))}
+                        <Button
+                          type="dashed"
+                          size="small"
+                          icon={<PlusOutlined />}
+                          onClick={() => handleAddProductTradeName(batchIndex, docIndex, pIndex)}
+                        >
+                          Добавить название продукции
+                        </Button>
+                      </div>
+                      <Input.TextArea
+                        rows={2}
+                        placeholder="Описание"
+                        value={product.description || ''}
+                        onChange={(e) => handleProductFieldChange(batchIndex, docIndex, pIndex, 'description', e.target.value)}
+                      />
+                      <Input
+                        placeholder="Код товара по ТН ВЭД ЕАЭС"
+                        value={product.commodityCode || ''}
+                        onChange={(e) => handleProductFieldChange(batchIndex, docIndex, pIndex, 'commodityCode', e.target.value)}
+                      />
+                      <Input.TextArea
+                        rows={2}
+                        placeholder="Описание назначения продукции"
+                        value={product.productPurpose || ''}
+                        onChange={(e) => handleProductFieldChange(batchIndex, docIndex, pIndex, 'productPurpose', e.target.value)}
+                      />
+                      <Input.TextArea
+                        rows={2}
+                        placeholder="Описание способа применения продукции"
+                        value={product.applicationMethod || ''}
+                        onChange={(e) => handleProductFieldChange(batchIndex, docIndex, pIndex, 'applicationMethod', e.target.value)}
+                      />
+                      <Input.TextArea
+                        rows={2}
+                        placeholder="Описание формы выпуска продукции"
+                        value={product.releaseForm || ''}
+                        onChange={(e) => handleProductFieldChange(batchIndex, docIndex, pIndex, 'releaseForm', e.target.value)}
+                      />
+                      <Input.TextArea
+                        rows={2}
+                        placeholder="Описание условий хранения"
+                        value={product.storageCondition || ''}
+                        onChange={(e) => handleProductFieldChange(batchIndex, docIndex, pIndex, 'storageCondition', e.target.value)}
+                      />
+                      <Input.TextArea
+                        rows={3}
+                        placeholder="Информация на этикетке"
+                        value={product.labelText || ''}
+                        onChange={(e) => handleProductFieldChange(batchIndex, docIndex, pIndex, 'labelText', e.target.value)}
                       />
                       <div style={{ marginTop: 8 }}>
                         <div style={{ marginBottom: 8, fontWeight: 500 }}>Техническая документация</div>

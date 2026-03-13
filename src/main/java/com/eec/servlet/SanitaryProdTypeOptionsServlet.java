@@ -47,7 +47,7 @@ public class SanitaryProdTypeOptionsServlet extends HttpServlet {
         try {
             // Получаем данные из кеша
             com.eec.servlet.DictionaryInitializerListener loader = com.eec.servlet.DictionaryInitializerListener.getInstance();
-            if (loader != null) loader.ensureSanitaryProdTypesLoaded();
+            if (loader != null) loader.ensureSanitaryProdTypesLoaded(request.getParameter("guid"));
 
             List<SanitaryProdTypeOption> types = DictionaryCache.getSanitaryProdTypesList();
             

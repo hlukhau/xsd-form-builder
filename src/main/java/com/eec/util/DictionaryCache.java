@@ -40,6 +40,8 @@ public class DictionaryCache {
     // Кеш видов участников цепи поставки: код -> название
     private static final Map<String, String> supplyChainPartyKindsCache = new ConcurrentHashMap<>();
     private static final List<SupplyChainPartyKindOption> supplyChainPartyKindsListCache = new ArrayList<>();
+    // Кеш видов каналов связи (COMMUNICATIONCHANNEL)
+    private static final List<CommunicationChannelOption> communicationChannelsListCache = new ArrayList<>();
     
     // Кеш технических регламентов: код -> название
     private static final Map<String, String> techRegulsCache = new ConcurrentHashMap<>();
@@ -76,6 +78,7 @@ public class DictionaryCache {
     private static volatile boolean measurementUnitsLoaded = false;
     private static volatile boolean shipDocKindsLoaded = false;
     private static volatile boolean supplyChainPartyKindsLoaded = false;
+    private static volatile boolean communicationChannelsLoaded = false;
     private static volatile boolean techRegulsLoaded = false;
     private static volatile boolean sanitaryMeasureObjKindsLoaded = false;
     private static volatile boolean sanitaryMeasuresLoaded = false;
@@ -188,6 +191,19 @@ public class DictionaryCache {
         public SupplyChainPartyKindOption(String code, String name) {
             this.code = code;
             this.name = name;
+        }
+    }
+
+    /**
+     * Опция справочника видов каналов связи (SESINT.COMMUNICATIONCHANNEL)
+     */
+    public static class CommunicationChannelOption {
+        public String code;
+        public String name;
+
+        public CommunicationChannelOption(String code, String name) {
+            this.code = code != null ? code : "";
+            this.name = name != null ? name : "";
         }
     }
     
@@ -651,6 +667,43 @@ public class DictionaryCache {
     
     public static boolean isSupplyChainPartyKindsLoaded() {
         return supplyChainPartyKindsLoaded;
+    }
+
+    // ========== Методы для видов каналов связи (COMMUNICATIONCHANNEL) ==========
+
+    public static void clearCommunicationChannelsCache() {
+        synchronized (communicationChannelsListCache) {
+            communicationChannelsListCache.clear();
+            communicationChannelsLoaded = false;
+        }
+    }
+
+    public static void setCommunicationChannelsCache(List<CommunicationChannelOption> list) {
+        synchronized (communicationChannelsListCache) {
+            communicationChannelsListCache.clear();
+            communicationChannelsListCache.addAll(list);
+            communicationChannelsLoaded = true;
+        }
+    }
+
+    public static List<CommunicationChannelOption> getCommunicationChannelsList() {
+        synchronized (communicationChannelsListCache) {
+            return new ArrayList<>(communicationChannelsListCache);
+        }
+    }
+
+    public static String getCommunicationChannelName(String code) {
+        if (code == null) return null;
+        synchronized (communicationChannelsListCache) {
+            for (CommunicationChannelOption o : communicationChannelsListCache) {
+                if (code.equals(o.code)) return o.name;
+            }
+        }
+        return null;
+    }
+
+    public static boolean isCommunicationChannelsLoaded() {
+        return communicationChannelsLoaded;
     }
     
     // ========== Методы для технических регламентов ==========

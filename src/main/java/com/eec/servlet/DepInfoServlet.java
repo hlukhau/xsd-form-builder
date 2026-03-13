@@ -46,7 +46,7 @@ public class DepInfoServlet extends HttpServlet {
 
         Connection conn = null;
         try {
-            conn = DatabaseUtil.getConnection();
+            conn = DatabaseUtil.getConnectionForRequest(request);
             PreparedStatement ps = conn.prepareStatement(SQL);
             ps.setInt(1, depid);
             ResultSet rs = ps.executeQuery();

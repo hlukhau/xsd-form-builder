@@ -47,7 +47,7 @@ public class MeasurementUnitOptionsServlet extends HttpServlet {
         try {
             // Получаем данные из кеша
             com.eec.servlet.DictionaryInitializerListener loader = com.eec.servlet.DictionaryInitializerListener.getInstance();
-            if (loader != null) loader.ensureMeasurementUnitsLoaded();
+            if (loader != null) loader.ensureMeasurementUnitsLoaded(request.getParameter("guid"));
 
             List<MeasurementUnitOption> units = DictionaryCache.getMeasurementUnitsList();
             

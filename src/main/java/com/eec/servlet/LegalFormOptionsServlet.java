@@ -45,7 +45,7 @@ public class LegalFormOptionsServlet extends HttpServlet {
         try {
             com.eec.servlet.DictionaryInitializerListener loader = com.eec.servlet.DictionaryInitializerListener.getInstance();
             if (loader != null) {
-                loader.ensureLegalFormsLoaded();
+                loader.ensureLegalFormsLoaded(request.getParameter("guid"));
             }
             List<LegalFormOption> list = (countryCode != null && !countryCode.trim().isEmpty())
                     ? DictionaryCache.getLegalFormsByCountry(countryCode.trim())

@@ -56,7 +56,7 @@ public class IncidentAlertKindOptionsServlet extends HttpServlet {
             // Ленивая загрузка: при первом запросе загружаем справочник и кешируем
             com.eec.servlet.DictionaryInitializerListener loader = com.eec.servlet.DictionaryInitializerListener.getInstance();
             if (loader != null) {
-                loader.ensureIncidentAlertKindsLoaded();
+                loader.ensureIncidentAlertKindsLoaded(request.getParameter("guid"));
             }
             List<IncidentAlertKindOption> kinds = DictionaryCache.isIncidentAlertKindsLoaded()
                 ? DictionaryCache.getIncidentAlertKindsList()
