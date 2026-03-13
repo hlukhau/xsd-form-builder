@@ -229,6 +229,12 @@ const TSDTabEdit: React.FC<TSDTabEditProps> = ({ data, onChange }) => {
     })
   }
 
+  const renderFieldLabel = (label: string) => (
+    <div style={{ marginBottom: 4, fontSize: 12, fontWeight: 500, color: '#595959' }}>
+      {label}
+    </div>
+  )
+
   const handleAddProductTechnicalDoc = (batchIndex: number, docIndex: number, pIndex: number) => {
     const batch = batches[batchIndex] || { shippingDocuments: [] }
     const doc = batch.shippingDocuments[docIndex]
@@ -447,22 +453,28 @@ const TSDTabEdit: React.FC<TSDTabEditProps> = ({ data, onChange }) => {
                 {doc.products?.map((product, pIndex) => (
                   <div key={pIndex} style={{ marginBottom: '16px', padding: '12px', border: '1px solid #d9d9d9', borderRadius: '4px' }}>
                     <Space direction="vertical" style={{ width: '100%' }}>
-                      <Input
-                        placeholder="Идентификатор"
-                        value={product.productId}
-                        onChange={(e) => {
-                          const updated = [...(doc.products || [])]
-                          updated[pIndex] = { ...updated[pIndex], productId: e.target.value }
-                          handleDocumentChange(batchIndex, docIndex, 'products', updated)
-                        }}
-                      />
-                      <Input
-                        placeholder="Наименование"
-                        value={product.productName}
-                        onChange={(e) => handleProductFieldChange(batchIndex, docIndex, pIndex, 'productName', e.target.value)}
-                      />
+                      <div>
+                        {renderFieldLabel('Идентификатор')}
+                        <Input
+                          placeholder="Идентификатор"
+                          value={product.productId}
+                          onChange={(e) => {
+                            const updated = [...(doc.products || [])]
+                            updated[pIndex] = { ...updated[pIndex], productId: e.target.value }
+                            handleDocumentChange(batchIndex, docIndex, 'products', updated)
+                          }}
+                        />
+                      </div>
+                      <div>
+                        {renderFieldLabel('Наименование')}
+                        <Input
+                          placeholder="Наименование"
+                          value={product.productName}
+                          onChange={(e) => handleProductFieldChange(batchIndex, docIndex, pIndex, 'productName', e.target.value)}
+                        />
+                      </div>
                       <div style={{ marginTop: 8 }}>
-                        <div style={{ marginBottom: 8, fontWeight: 500 }}>Название продукции</div>
+                        <div style={{ marginBottom: 8, fontSize: 12, fontWeight: 500, color: '#595959' }}>Название продукции</div>
                         {(product.tradeNames?.length ? product.tradeNames : [product.tradeName || '']).map((tradeName, tradeIndex, tradeNames) => (
                           <div key={tradeIndex} style={{ display: 'flex', gap: 8, marginBottom: 8 }}>
                             <Input
@@ -488,47 +500,68 @@ const TSDTabEdit: React.FC<TSDTabEditProps> = ({ data, onChange }) => {
                           Добавить название продукции
                         </Button>
                       </div>
-                      <Input.TextArea
-                        rows={2}
-                        placeholder="Описание"
-                        value={product.description || ''}
-                        onChange={(e) => handleProductFieldChange(batchIndex, docIndex, pIndex, 'description', e.target.value)}
-                      />
-                      <Input
-                        placeholder="Код товара по ТН ВЭД ЕАЭС"
-                        value={product.commodityCode || ''}
-                        onChange={(e) => handleProductFieldChange(batchIndex, docIndex, pIndex, 'commodityCode', e.target.value)}
-                      />
-                      <Input.TextArea
-                        rows={2}
-                        placeholder="Описание назначения продукции"
-                        value={product.productPurpose || ''}
-                        onChange={(e) => handleProductFieldChange(batchIndex, docIndex, pIndex, 'productPurpose', e.target.value)}
-                      />
-                      <Input.TextArea
-                        rows={2}
-                        placeholder="Описание способа применения продукции"
-                        value={product.applicationMethod || ''}
-                        onChange={(e) => handleProductFieldChange(batchIndex, docIndex, pIndex, 'applicationMethod', e.target.value)}
-                      />
-                      <Input.TextArea
-                        rows={2}
-                        placeholder="Описание формы выпуска продукции"
-                        value={product.releaseForm || ''}
-                        onChange={(e) => handleProductFieldChange(batchIndex, docIndex, pIndex, 'releaseForm', e.target.value)}
-                      />
-                      <Input.TextArea
-                        rows={2}
-                        placeholder="Описание условий хранения"
-                        value={product.storageCondition || ''}
-                        onChange={(e) => handleProductFieldChange(batchIndex, docIndex, pIndex, 'storageCondition', e.target.value)}
-                      />
-                      <Input.TextArea
-                        rows={3}
-                        placeholder="Информация на этикетке"
-                        value={product.labelText || ''}
-                        onChange={(e) => handleProductFieldChange(batchIndex, docIndex, pIndex, 'labelText', e.target.value)}
-                      />
+                      <div>
+                        {renderFieldLabel('Описание')}
+                        <Input.TextArea
+                          rows={2}
+                          placeholder="Описание"
+                          value={product.description || ''}
+                          onChange={(e) => handleProductFieldChange(batchIndex, docIndex, pIndex, 'description', e.target.value)}
+                        />
+                      </div>
+                      <div>
+                        {renderFieldLabel('Код товара по ТН ВЭД ЕАЭС')}
+                        <Input
+                          placeholder="Код товара по ТН ВЭД ЕАЭС"
+                          value={product.commodityCode || ''}
+                          onChange={(e) => handleProductFieldChange(batchIndex, docIndex, pIndex, 'commodityCode', e.target.value)}
+                        />
+                      </div>
+                      <div>
+                        {renderFieldLabel('Описание назначения продукции')}
+                        <Input.TextArea
+                          rows={2}
+                          placeholder="Описание назначения продукции"
+                          value={product.productPurpose || ''}
+                          onChange={(e) => handleProductFieldChange(batchIndex, docIndex, pIndex, 'productPurpose', e.target.value)}
+                        />
+                      </div>
+                      <div>
+                        {renderFieldLabel('Описание способа применения продукции')}
+                        <Input.TextArea
+                          rows={2}
+                          placeholder="Описание способа применения продукции"
+                          value={product.applicationMethod || ''}
+                          onChange={(e) => handleProductFieldChange(batchIndex, docIndex, pIndex, 'applicationMethod', e.target.value)}
+                        />
+                      </div>
+                      <div>
+                        {renderFieldLabel('Описание формы выпуска продукции')}
+                        <Input.TextArea
+                          rows={2}
+                          placeholder="Описание формы выпуска продукции"
+                          value={product.releaseForm || ''}
+                          onChange={(e) => handleProductFieldChange(batchIndex, docIndex, pIndex, 'releaseForm', e.target.value)}
+                        />
+                      </div>
+                      <div>
+                        {renderFieldLabel('Описание условий хранения')}
+                        <Input.TextArea
+                          rows={2}
+                          placeholder="Описание условий хранения"
+                          value={product.storageCondition || ''}
+                          onChange={(e) => handleProductFieldChange(batchIndex, docIndex, pIndex, 'storageCondition', e.target.value)}
+                        />
+                      </div>
+                      <div>
+                        {renderFieldLabel('Информация на этикетке')}
+                        <Input.TextArea
+                          rows={3}
+                          placeholder="Информация на этикетке"
+                          value={product.labelText || ''}
+                          onChange={(e) => handleProductFieldChange(batchIndex, docIndex, pIndex, 'labelText', e.target.value)}
+                        />
+                      </div>
                       <div style={{ marginTop: 8 }}>
                         <div style={{ marginBottom: 8, fontWeight: 500 }}>Техническая документация</div>
                         {(product.technicalDocs || []).map((td, tdIndex) => (
