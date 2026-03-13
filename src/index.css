@@ -245,6 +245,38 @@ body {
   height: 100%;
 }
 
+.field-tag-form .ant-form-item {
+  margin-bottom: 12px;
+}
+
+.field-tag-form .ant-form-item-label {
+  padding-bottom: 0 !important;
+}
+
+.field-tag-form .ant-form-item-label > label {
+  display: inline-flex;
+  align-items: center;
+  max-width: 100%;
+  height: auto;
+  min-height: 14px;
+  padding: 0 7px;
+  margin-left: 8px;
+  margin-bottom: -2px;
+  font-size: 10px;
+  line-height: 14px;
+  font-weight: 500;
+  color: #4b5563;
+  background: #f5f7fa;
+  border: 1px solid #d9e1ec;
+  border-bottom: none;
+  border-radius: 7px 7px 0 0;
+  z-index: 1;
+}
+
+.field-tag-form .ant-form-item-label > label::after {
+  display: none !important;
+}
+
 /* Вкладки: без рамки и тени */
 .ant-tabs {
   background: #ffffff;

@@ -152,6 +152,7 @@ const NotificationTabEdit: React.FC<NotificationTabEditProps> = ({
     <Form
       form={form}
       layout="vertical"
+      className="field-tag-form"
       onValuesChange={handleValuesChange}
     >
       {isNewCard && (

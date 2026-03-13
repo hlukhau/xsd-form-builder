@@ -217,6 +217,7 @@ const ProductTabEdit: React.FC<ProductTabEditProps> = ({ data, onChange }) => {
     <Form
       form={form}
       layout="vertical"
+      className="field-tag-form"
       onValuesChange={handleValuesChange}
     >
       <Form.Item label={labelWithHelp('Вид продукции', FIELD_HELP.productTypeCode)}>

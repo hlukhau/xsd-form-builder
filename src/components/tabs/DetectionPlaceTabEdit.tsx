@@ -52,7 +52,7 @@ const DetectionPlaceTabEdit: React.FC<DetectionPlaceTabEditProps> = ({ data, onC
 
   return (
     <div>
-      <Form layout="vertical">
+      <Form layout="vertical" className="field-tag-form">
         {/* Адрес места обнаружения (ObjectAddressDetails) — отдельные поля как в XML */}
         <h4 style={{ marginTop: 0 }}>Адрес места обнаружения</h4>
         <Space direction="vertical" style={{ width: '100%', marginBottom: 16 }}>
@@ -174,7 +174,7 @@ const DetectionPlaceTabEdit: React.FC<DetectionPlaceTabEditProps> = ({ data, onC
             key: 'checkpoint',
             label: 'Пункт пропуска',
             children: (
-              <Form layout="vertical">
+              <Form layout="vertical" className="field-tag-form">
                 <Form.Item label="Код вида пункта пропуска">
                   <Input
                     value={data.borderCheckpoint?.checkpointCode}
@@ -194,7 +194,7 @@ const DetectionPlaceTabEdit: React.FC<DetectionPlaceTabEditProps> = ({ data, onC
             key: 'coordinates',
             label: 'Географические координаты',
             children: (
-              <Form layout="vertical">
+              <Form layout="vertical" className="field-tag-form">
                 <Form.Item label="Географическая долгота">
                   <Input
                     value={data.geoCoordinates?.longitude}

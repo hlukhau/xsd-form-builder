@@ -175,7 +175,7 @@ const MeasuresTabEdit: React.FC<MeasuresTabEditProps> = ({ data, onChange }) => 
     }
 
     return (
-      <Form layout="vertical">
+      <Form layout="vertical" className="field-tag-form">
         <Form.Item label="Страна">
           <CountrySelect
             value={doc.country}
@@ -595,7 +595,7 @@ const MeasuresTabEdit: React.FC<MeasuresTabEditProps> = ({ data, onChange }) => 
     return (
       <div style={{ padding: '16px', background: '#fafafa', borderRadius: '4px' }}>
         <h4>Детализация меры</h4>
-        <Form layout="vertical">
+        <Form layout="vertical" className="field-tag-form">
           <Form.Item label={labelWithHelp('Обоснование', FIELD_HELP.measureJustification)}>
             <Input.TextArea
               rows={3}
@@ -822,7 +822,7 @@ const MeasureImplementationDetailsEdit: React.FC<{
   return (
     <div style={{ marginTop: '16px', padding: '12px', border: '1px solid #d9d9d9', borderRadius: '4px' }}>
       <h5>Детализация мероприятия</h5>
-      <Form layout="vertical" style={{ marginBottom: '16px' }}>
+      <Form layout="vertical" className="field-tag-form" style={{ marginBottom: '16px' }}>
         <Form.Item label={labelWithHelp('Код страны', FIELD_HELP.executorCountry)}>
           <CountrySelect
             value={item.country}
@@ -879,7 +879,7 @@ const MeasureImplementationDetailsEdit: React.FC<{
             key: 'authority',
             label: 'Уполномоченный орган',
             children: item.authority ? (
-              <Form layout="vertical">
+              <Form layout="vertical" className="field-tag-form">
                 <Form.Item label="Страна">
                   <CountrySelect
                     value={item.authority.country}
@@ -964,7 +964,7 @@ const MeasureImplementationDetailsEdit: React.FC<{
             key: 'document',
             label: labelWithHelp('Документ, устанавливающий мероприятие', FIELD_HELP.documentEstablishingMeasure),
             children: item.documentDetails ? (
-              <Form layout="vertical">
+              <Form layout="vertical" className="field-tag-form">
                 <Form.Item label={labelWithHelp('Код вида документа', FIELD_HELP.implDocKindCode)}>
                   <Input
                     value={item.documentDetails.docKindName}
@@ -1023,7 +1023,7 @@ const MeasureImplementationDetailsEdit: React.FC<{
             key: 'place',
             label: 'Место проведения мероприятия',
             children: item.placeDetails ? (
-              <Form layout="vertical">
+              <Form layout="vertical" className="field-tag-form">
                 <Form.Item label="Регион">
                   <Input
                     value={item.placeDetails.regionName}
@@ -1095,7 +1095,7 @@ const SubjectDetailsUnifiedEdit: React.FC<{
   const taxpayerId = be?.taxpayerId
 
   return (
-    <Form layout="vertical">
+    <Form layout="vertical" className="field-tag-form">
       <Form.Item label="Страна">
         <CountrySelect
           value={country}
@@ -1157,7 +1157,7 @@ const SubjectDetailsUnifiedEdit: React.FC<{
       {subject.identityDoc ? (
         <div style={{ marginTop: 16, padding: 12, border: '1px solid #d9d9d9', borderRadius: 4 }}>
           <h5>Удостоверение личности</h5>
-          <Form layout="vertical">
+          <Form layout="vertical" className="field-tag-form">
             <Form.Item label="Страна">
               <CountrySelect
                 value={subject.identityDoc.country}

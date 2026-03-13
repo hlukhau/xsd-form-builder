@@ -139,7 +139,7 @@ const ComplianceDocumentsTabEdit: React.FC<ComplianceDocumentsTabEditProps> = ({
         width={600}
       >
         {authorityContext !== null && batches[authorityContext.batchIndex]?.complianceDocuments?.[authorityContext.docIndex] && (
-          <Form layout="vertical">
+          <Form layout="vertical" className="field-tag-form">
             <Form.Item label="Страна">
               <CountrySelect
                 value={batches[authorityContext.batchIndex].complianceDocuments![authorityContext.docIndex].authority?.country}

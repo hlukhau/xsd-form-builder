@@ -12,6 +12,7 @@ import { useIdentificationMethodOptions } from '@/hooks/useIdentificationMethodO
 import { checkSupplyChainPartyKindExists } from '@/utils/referenceDataApi'
 import { getAddressListFromParty, getDefaultAddressKindName } from '@/utils/addressFormatUtils'
 import { useCommunicationChannelOptions } from '@/hooks/useCommunicationChannelOptions'
+import { FieldTagBlock } from '@/components/common/FieldTag'
 
 /** Идентификатор справочника организационно-правовых форм (SESINT.LEGALFORM) */
 const LEGAL_FORM_CODE_LIST_ID = '2049'
@@ -220,6 +221,7 @@ const ManufacturerDetailsEdit: React.FC<ManufacturerDetailsEditProps> = ({
               <Form
                 form={form}
                 layout="vertical"
+                className="field-tag-form"
                 onValuesChange={handleValuesChange}
               >
                 <Form.Item label="Страна" name="country">
@@ -347,30 +349,52 @@ const ManufacturerDetailsEdit: React.FC<ManufacturerDetailsEditProps> = ({
                             Удалить адрес
                           </Button>
                         </Space>
-                        <CountrySelect
-                          placeholder="Страна"
-                          loading={loading}
-                          value={addr.country}
-                          onChange={(value) => handleAddressChange(index, 'country', value || undefined)}
-                          countryOptions={countryOptions}
-                          normalizeCountryCode={normalizeCountryCode}
-                        />
-                        <Input
-                          placeholder="Почтовый индекс"
-                          value={addr.postCode}
-                          onChange={(e) => handleAddressChange(index, 'postCode', e.target.value || undefined)}
-                        />
-                        <Input placeholder="Код территории" value={addr.territoryCode} onChange={(e) => handleAddressChange(index, 'territoryCode', e.target.value || undefined)} />
-                        <Input placeholder="Регион" value={addr.regionName} onChange={(e) => handleAddressChange(index, 'regionName', e.target.value || undefined)} />
-                        <Input placeholder="Район" value={addr.districtName} onChange={(e) => handleAddressChange(index, 'districtName', e.target.value || undefined)} />
-                        <Input placeholder="Город" value={addr.cityName} onChange={(e) => handleAddressChange(index, 'cityName', e.target.value || undefined)} />
-                        <Input placeholder="Населённый пункт" value={addr.settlementName} onChange={(e) => handleAddressChange(index, 'settlementName', e.target.value || undefined)} />
-                        <Input placeholder="Улица" value={addr.streetName} onChange={(e) => handleAddressChange(index, 'streetName', e.target.value || undefined)} />
+                        <FieldTagBlock label="Страна">
+                          <CountrySelect
+                            placeholder="Страна"
+                            loading={loading}
+                            value={addr.country}
+                            onChange={(value) => handleAddressChange(index, 'country', value || undefined)}
+                            countryOptions={countryOptions}
+                            normalizeCountryCode={normalizeCountryCode}
+                          />
+                        </FieldTagBlock>
+                        <FieldTagBlock label="Почтовый индекс">
+                          <Input
+                            placeholder="Почтовый индекс"
+                            value={addr.postCode}
+                            onChange={(e) => handleAddressChange(index, 'postCode', e.target.value || undefined)}
+                          />
+                        </FieldTagBlock>
+                        <FieldTagBlock label="Код территории">
+                          <Input placeholder="Код территории" value={addr.territoryCode} onChange={(e) => handleAddressChange(index, 'territoryCode', e.target.value || undefined)} />
+                        </FieldTagBlock>
+                        <FieldTagBlock label="Регион">
+                          <Input placeholder="Регион" value={addr.regionName} onChange={(e) => handleAddressChange(index, 'regionName', e.target.value || undefined)} />
+                        </FieldTagBlock>
+                        <FieldTagBlock label="Район">
+                          <Input placeholder="Район" value={addr.districtName} onChange={(e) => handleAddressChange(index, 'districtName', e.target.value || undefined)} />
+                        </FieldTagBlock>
+                        <FieldTagBlock label="Город">
+                          <Input placeholder="Город" value={addr.cityName} onChange={(e) => handleAddressChange(index, 'cityName', e.target.value || undefined)} />
+                        </FieldTagBlock>
+                        <FieldTagBlock label="Населённый пункт">
+                          <Input placeholder="Населённый пункт" value={addr.settlementName} onChange={(e) => handleAddressChange(index, 'settlementName', e.target.value || undefined)} />
+                        </FieldTagBlock>
+                        <FieldTagBlock label="Улица">
+                          <Input placeholder="Улица" value={addr.streetName} onChange={(e) => handleAddressChange(index, 'streetName', e.target.value || undefined)} />
+                        </FieldTagBlock>
                         <Space wrap>
-                          <Input placeholder="Номер дома" value={addr.buildingNumberId} onChange={(e) => handleAddressChange(index, 'buildingNumberId', e.target.value || undefined)} style={{ width: 120 }} />
-                          <Input placeholder="Номер помещения" value={addr.roomNumberId} onChange={(e) => handleAddressChange(index, 'roomNumberId', e.target.value || undefined)} style={{ width: 120 }} />
+                          <FieldTagBlock label="Номер дома" style={{ width: 120 }}>
+                            <Input placeholder="Номер дома" value={addr.buildingNumberId} onChange={(e) => handleAddressChange(index, 'buildingNumberId', e.target.value || undefined)} style={{ width: 120 }} />
+                          </FieldTagBlock>
+                          <FieldTagBlock label="Номер помещения" style={{ width: 120 }}>
+                            <Input placeholder="Номер помещения" value={addr.roomNumberId} onChange={(e) => handleAddressChange(index, 'roomNumberId', e.target.value || undefined)} style={{ width: 120 }} />
+                          </FieldTagBlock>
                         </Space>
-                        <Input placeholder="Номер абонентского ящика" value={addr.postOfficeBoxId} onChange={(e) => handleAddressChange(index, 'postOfficeBoxId', e.target.value || undefined)} />
+                        <FieldTagBlock label="Номер абонентского ящика">
+                          <Input placeholder="Номер абонентского ящика" value={addr.postOfficeBoxId} onChange={(e) => handleAddressChange(index, 'postOfficeBoxId', e.target.value || undefined)} />
+                        </FieldTagBlock>
                       </Space>
                     </div>
                   ))}
@@ -385,27 +409,33 @@ const ManufacturerDetailsEdit: React.FC<ManufacturerDetailsEditProps> = ({
                   {data.contacts?.map((contact, index) => (
                     <div key={index} style={{ marginBottom: '8px', padding: '8px', border: '1px solid #d9d9d9', borderRadius: '4px' }}>
                       <Space direction="vertical" style={{ width: '100%' }}>
-                        <Select
-                          placeholder="Вид контакта (код — наименование)"
-                          allowClear
-                          style={{ width: '100%' }}
-                          value={contact.communicationChannelCode || undefined}
-                          onChange={(value) => handleContactChange(index, 'communicationChannelCode', value ?? '')}
-                          loading={loadingCommunicationChannels}
-                          options={getCommunicationChannelSelectOptions()}
-                          disabled={!!contact.communicationChannelName?.trim()}
-                        />
-                        <Input
-                          placeholder="Наименование вида связи (если не из справочника)"
-                          value={contact.communicationChannelName ?? ''}
-                          onChange={(e) => handleContactChange(index, 'communicationChannelName', e.target.value)}
-                          disabled={!!contact.communicationChannelCode}
-                        />
-                        <Input
-                          placeholder="Значение (номер, адрес и т.д.)"
-                          value={contact.communicationChannelId ?? contact.contactValue ?? ''}
-                          onChange={(e) => handleContactChange(index, 'communicationChannelId', e.target.value)}
-                        />
+                        <FieldTagBlock label="Вид контакта">
+                          <Select
+                            placeholder="Вид контакта (код — наименование)"
+                            allowClear
+                            style={{ width: '100%' }}
+                            value={contact.communicationChannelCode || undefined}
+                            onChange={(value) => handleContactChange(index, 'communicationChannelCode', value ?? '')}
+                            loading={loadingCommunicationChannels}
+                            options={getCommunicationChannelSelectOptions()}
+                            disabled={!!contact.communicationChannelName?.trim()}
+                          />
+                        </FieldTagBlock>
+                        <FieldTagBlock label="Наименование вида связи">
+                          <Input
+                            placeholder="Наименование вида связи (если не из справочника)"
+                            value={contact.communicationChannelName ?? ''}
+                            onChange={(e) => handleContactChange(index, 'communicationChannelName', e.target.value)}
+                            disabled={!!contact.communicationChannelCode}
+                          />
+                        </FieldTagBlock>
+                        <FieldTagBlock label="Значение">
+                          <Input
+                            placeholder="Значение (номер, адрес и т.д.)"
+                            value={contact.communicationChannelId ?? contact.contactValue ?? ''}
+                            onChange={(e) => handleContactChange(index, 'communicationChannelId', e.target.value)}
+                          />
+                        </FieldTagBlock>
                         <Button
                           type="link"
                           danger
