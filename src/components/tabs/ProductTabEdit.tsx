@@ -6,6 +6,7 @@ import { DATE_DISPLAY_FORMAT } from '@/constants/dateFormat'
 import ManufacturerDetailsEdit from '../common/ManufacturerDetailsEdit'
 import { labelWithHelp } from '@/components/common/FieldHelp'
 import { FIELD_HELP } from '@/constants/fieldDescriptions'
+import { getFormRules, getMaxLength } from '@/constants/xsdFieldConstraints'
 import type { ProductData, TechnicalDocument } from '@/types/card'
 import { useSanitaryProdTypeOptions } from '@/hooks/useSanitaryProdTypeOptions'
 import { useShipDocKindOptions } from '@/hooks/useShipDocKindOptions'
@@ -269,11 +270,11 @@ const ProductTabEdit: React.FC<ProductTabEditProps> = ({ data, onChange }) => {
           />
         </Form.Item>
       )}
-      <Form.Item label="Идентификатор" name="productId">
-        <Input placeholder="штрихкод" />
+      <Form.Item label="Идентификатор" name="productId" rules={getFormRules('productId')}>
+        <Input placeholder="штрихкод" maxLength={getMaxLength('productId')} showCount />
       </Form.Item>
-      <Form.Item label="Наименование" name="productName">
-        <Input />
+      <Form.Item label="Наименование" name="productName" rules={getFormRules('productName')}>
+        <Input maxLength={getMaxLength('productName')} showCount />
       </Form.Item>
       <Form.Item label={labelWithHelp('Название продукции', FIELD_HELP.tradeName)}>
         <div>
@@ -284,6 +285,8 @@ const ProductTabEdit: React.FC<ProductTabEditProps> = ({ data, onChange }) => {
                 value={value}
                 onChange={(e) => handleTradeNamesChange(index, e.target.value)}
                 style={{ flex: 1 }}
+                maxLength={getMaxLength('tradeName')}
+                showCount
               />
               <Button
                 type="text"
@@ -299,26 +302,26 @@ const ProductTabEdit: React.FC<ProductTabEditProps> = ({ data, onChange }) => {
           </Button>
         </div>
       </Form.Item>
-      <Form.Item label="Описание" name="description">
-        <Input.TextArea rows={3} />
+      <Form.Item label="Описание" name="description" rules={getFormRules('description')}>
+        <Input.TextArea rows={3} maxLength={getMaxLength('description')} showCount />
       </Form.Item>
-      <Form.Item label="Код ТН ВЭД ЕАЭС" name="commodityCode">
-        <Input />
+      <Form.Item label="Код ТН ВЭД ЕАЭС" name="commodityCode" rules={getFormRules('commodityCode')}>
+        <Input placeholder="2, 4, 6 или 8–10 цифр" maxLength={10} />
       </Form.Item>
-      <Form.Item label="Назначение продукции" name="productPurpose">
-        <Input.TextArea rows={2} />
+      <Form.Item label="Назначение продукции" name="productPurpose" rules={getFormRules('productPurpose')}>
+        <Input.TextArea rows={2} maxLength={getMaxLength('productPurpose')} showCount />
       </Form.Item>
-      <Form.Item label="Способ применения" name="applicationMethod">
-        <Input.TextArea rows={2} />
+      <Form.Item label="Способ применения" name="applicationMethod" rules={getFormRules('applicationMethod')}>
+        <Input.TextArea rows={2} maxLength={getMaxLength('applicationMethod')} showCount />
       </Form.Item>
-      <Form.Item label="Форма выпуска" name="releaseForm">
-        <Input />
+      <Form.Item label="Форма выпуска" name="releaseForm" rules={getFormRules('releaseForm')}>
+        <Input maxLength={getMaxLength('releaseForm')} showCount />
       </Form.Item>
-      <Form.Item label="Условия хранения" name="storageCondition">
-        <Input.TextArea rows={2} />
+      <Form.Item label="Условия хранения" name="storageCondition" rules={getFormRules('storageCondition')}>
+        <Input.TextArea rows={2} maxLength={getMaxLength('storageCondition')} showCount />
       </Form.Item>
-      <Form.Item label="Информация на этикетке" name="labelText">
-        <Input.TextArea rows={3} />
+      <Form.Item label="Информация на этикетке" name="labelText" rules={getFormRules('labelText')}>
+        <Input.TextArea rows={3} maxLength={getMaxLength('labelText')} showCount />
       </Form.Item>
       
       <Form.Item label="Техническая документация">

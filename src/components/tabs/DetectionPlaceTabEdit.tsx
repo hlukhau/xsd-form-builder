@@ -4,6 +4,7 @@ import ManufacturerDetailsEdit from '../common/ManufacturerDetailsEdit'
 import CountrySelect from '../common/CountrySelect'
 import type { DetectionPlaceData, AddressDetails } from '@/types/card'
 import { useCountryOptions } from '@/hooks/useCountryOptions'
+import { getMaxLength } from '@/constants/xsdFieldConstraints'
 
 interface DetectionPlaceTabEditProps {
   data: DetectionPlaceData
@@ -69,6 +70,8 @@ const DetectionPlaceTabEdit: React.FC<DetectionPlaceTabEditProps> = ({ data, onC
               placeholder="Код территории"
               value={data.address?.territoryCode}
               onChange={(e) => handleAddressChange('territoryCode', e.target.value)}
+              maxLength={getMaxLength('territoryCode')}
+              showCount
             />
           </Form.Item>
           <Form.Item label="Регион (RegionName)" style={{ marginBottom: 0 }}>
@@ -76,6 +79,8 @@ const DetectionPlaceTabEdit: React.FC<DetectionPlaceTabEditProps> = ({ data, onC
               placeholder="Например: Витебская область"
               value={data.address?.regionName}
               onChange={(e) => handleAddressChange('regionName', e.target.value)}
+              maxLength={getMaxLength('regionName')}
+              showCount
             />
           </Form.Item>
           <Form.Item label="Район (DistrictName)" style={{ marginBottom: 0 }}>
@@ -83,6 +88,8 @@ const DetectionPlaceTabEdit: React.FC<DetectionPlaceTabEditProps> = ({ data, onC
               placeholder="Район"
               value={data.address?.districtName}
               onChange={(e) => handleAddressChange('districtName', e.target.value)}
+              maxLength={getMaxLength('districtName')}
+              showCount
             />
           </Form.Item>
           <Form.Item label="Город (CityName)" style={{ marginBottom: 0 }}>
@@ -90,6 +97,8 @@ const DetectionPlaceTabEdit: React.FC<DetectionPlaceTabEditProps> = ({ data, onC
               placeholder="Город"
               value={data.address?.cityName}
               onChange={(e) => handleAddressChange('cityName', e.target.value)}
+              maxLength={getMaxLength('cityName')}
+              showCount
             />
           </Form.Item>
           <Form.Item label="Населённый пункт (SettlementName)" style={{ marginBottom: 0 }}>
@@ -97,6 +106,8 @@ const DetectionPlaceTabEdit: React.FC<DetectionPlaceTabEditProps> = ({ data, onC
               placeholder="Например: г.п. Ушачи"
               value={data.address?.settlementName}
               onChange={(e) => handleAddressChange('settlementName', e.target.value)}
+              maxLength={getMaxLength('settlementName')}
+              showCount
             />
           </Form.Item>
           <Form.Item label="Улица (StreetName)" style={{ marginBottom: 0 }}>
@@ -104,6 +115,8 @@ const DetectionPlaceTabEdit: React.FC<DetectionPlaceTabEditProps> = ({ data, onC
               placeholder="Улица"
               value={data.address?.streetName}
               onChange={(e) => handleAddressChange('streetName', e.target.value)}
+              maxLength={getMaxLength('streetName')}
+              showCount
             />
           </Form.Item>
           <Form.Item label="Номер здания (BuildingNumberId)" style={{ marginBottom: 0 }}>
@@ -111,6 +124,8 @@ const DetectionPlaceTabEdit: React.FC<DetectionPlaceTabEditProps> = ({ data, onC
               placeholder="Номер дома, корпус"
               value={data.address?.buildingNumberId}
               onChange={(e) => handleAddressChange('buildingNumberId', e.target.value)}
+              maxLength={getMaxLength('buildingNumberId')}
+              showCount
             />
           </Form.Item>
           <Form.Item label="Номер помещения (RoomNumberId)" style={{ marginBottom: 0 }}>
@@ -118,6 +133,8 @@ const DetectionPlaceTabEdit: React.FC<DetectionPlaceTabEditProps> = ({ data, onC
               placeholder="Квартира, офис, кабинет"
               value={data.address?.roomNumberId}
               onChange={(e) => handleAddressChange('roomNumberId', e.target.value)}
+              maxLength={getMaxLength('roomNumberId')}
+              showCount
             />
           </Form.Item>
           <Form.Item label="Почтовый индекс (PostCode)" style={{ marginBottom: 0 }}>
@@ -133,6 +150,8 @@ const DetectionPlaceTabEdit: React.FC<DetectionPlaceTabEditProps> = ({ data, onC
               placeholder="При необходимости — адрес одной строкой"
               value={data.address?.fullAddress}
               onChange={(e) => handleAddressChange('fullAddress', e.target.value)}
+              maxLength={getMaxLength('fullAddress')}
+              showCount
             />
           </Form.Item>
         </Space>
@@ -142,6 +161,8 @@ const DetectionPlaceTabEdit: React.FC<DetectionPlaceTabEditProps> = ({ data, onC
             rows={3}
             value={data.description}
             onChange={(e) => handleFieldChange('description', e.target.value)}
+            maxLength={getMaxLength('descriptionPlace')}
+            showCount
           />
         </Form.Item>
       </Form>
@@ -179,12 +200,16 @@ const DetectionPlaceTabEdit: React.FC<DetectionPlaceTabEditProps> = ({ data, onC
                   <Input
                     value={data.borderCheckpoint?.checkpointCode}
                     onChange={(e) => handleCheckpointChange('checkpointCode', e.target.value)}
+                    maxLength={getMaxLength('checkpointCode')}
+                    showCount
                   />
                 </Form.Item>
                 <Form.Item label="Наименование пункта пропуска">
                   <Input
                     value={data.borderCheckpoint?.checkpointName}
                     onChange={(e) => handleCheckpointChange('checkpointName', e.target.value)}
+                    maxLength={getMaxLength('checkpointName')}
+                    showCount
                   />
                 </Form.Item>
               </Form>

@@ -9,6 +9,7 @@ import ManufacturerDetailsEdit from '../common/ManufacturerDetailsEdit'
 import { FieldTag, FieldTagBlock } from '../common/FieldTag'
 import { labelWithHelp } from '@/components/common/FieldHelp'
 import { FIELD_HELP } from '@/constants/fieldDescriptions'
+import { getMaxLength, validateFieldValue } from '@/constants/xsdFieldConstraints'
 import type { TSDData, ProductBatchDetails, ShippingDocument, ProductDetails, SupplyChainPartyDetails, MeasureWithUnit, TechnicalDocument } from '@/types/card'
 import { useMeasurementUnitOptions } from '@/hooks/useMeasurementUnitOptions'
 import { useShipDocKindOptions } from '@/hooks/useShipDocKindOptions'
@@ -26,8 +27,10 @@ const TSDTabEdit: React.FC<TSDTabEditProps> = ({ data, onChange }) => {
   const { options: measurementUnitOptions, loading: loadingMeasurementUnits, getSelectOptions: getMeasurementUnitSelectOptions, getUnitByCode } = useMeasurementUnitOptions()
   const { options: shipDocKindOptions, loading: loadingShipDocKinds, getSelectOptions: getShipDocKindSelectOptions, getNameByCode: getShipDocKindNameByCode } = useShipDocKindOptions()
   const [docKindErrors, setDocKindErrors] = useState<Map<string, boolean>>(new Map())
+  const [commodityCodeErrors, setCommodityCodeErrors] = useState<Record<string, string>>({})
 
   const docKindErrorKey = (batchIndex: number, docIndex: number) => `${batchIndex}-${docIndex}`
+  const productKey = (batchIndex: number, docIndex: number, pIndex: number) => `${batchIndex}-${docIndex}-${pIndex}`
 
   useEffect(() => {
     const errors = new Map<string, boolean>()
@@ -457,6 +460,8 @@ const TSDTabEdit: React.FC<TSDTabEditProps> = ({ data, onChange }) => {
                             updated[pIndex] = { ...updated[pIndex], productId: e.target.value }
                             handleDocumentChange(batchIndex, docIndex, 'products', updated)
                           }}
+                          maxLength={getMaxLength('productId')}
+                          showCount
                         />
                       </FieldTagBlock>
                       <FieldTagBlock label="Наименование">
@@ -464,6 +469,8 @@ const TSDTabEdit: React.FC<TSDTabEditProps> = ({ data, onChange }) => {
                           placeholder="Наименование"
                           value={product.productName}
                           onChange={(e) => handleProductFieldChange(batchIndex, docIndex, pIndex, 'productName', e.target.value)}
+                          maxLength={getMaxLength('productName')}
+                          showCount
                         />
                       </FieldTagBlock>
                       <div style={{ marginTop: 8 }}>
@@ -474,6 +481,8 @@ const TSDTabEdit: React.FC<TSDTabEditProps> = ({ data, onChange }) => {
                               placeholder="Название продукции"
                               value={tradeName}
                               onChange={(e) => handleProductTradeNameChange(batchIndex, docIndex, pIndex, tradeIndex, e.target.value)}
+                              maxLength={getMaxLength('tradeName')}
+                              showCount
                             />
                             <Button
                               type="text"
@@ -499,14 +508,31 @@ const TSDTabEdit: React.FC<TSDTabEditProps> = ({ data, onChange }) => {
                           placeholder="Описание"
                           value={product.description || ''}
                           onChange={(e) => handleProductFieldChange(batchIndex, docIndex, pIndex, 'description', e.target.value)}
+                          maxLength={getMaxLength('description')}
+                          showCount
                         />
                       </FieldTagBlock>
                       <FieldTagBlock label="Код товара по ТН ВЭД ЕАЭС">
                         <Input
-                          placeholder="Код товара по ТН ВЭД ЕАЭС"
+                          placeholder="2, 4, 6 или 8–10 цифр"
                           value={product.commodityCode || ''}
-                          onChange={(e) => handleProductFieldChange(batchIndex, docIndex, pIndex, 'commodityCode', e.target.value)}
+                          onChange={(e) => {
+                            handleProductFieldChange(batchIndex, docIndex, pIndex, 'commodityCode', e.target.value)
+                            const key = productKey(batchIndex, docIndex, pIndex)
+                            setCommodityCodeErrors((prev) => ({ ...prev, [key]: '' }))
+                          }}
+                          onBlur={(e) => {
+                            const err = validateFieldValue('commodityCode', e.target.value?.trim() || undefined)
+                            setCommodityCodeErrors((prev) => ({ ...prev, [productKey(batchIndex, docIndex, pIndex)]: err || '' }))
+                          }}
+                          status={commodityCodeErrors[productKey(batchIndex, docIndex, pIndex)] ? 'error' : undefined}
+                          maxLength={10}
                         />
+                        {commodityCodeErrors[productKey(batchIndex, docIndex, pIndex)] && (
+                          <div style={{ color: 'var(--ant-color-error)', fontSize: 12, marginTop: 4 }}>
+                            {commodityCodeErrors[productKey(batchIndex, docIndex, pIndex)]}
+                          </div>
+                        )}
                       </FieldTagBlock>
                       <FieldTagBlock label="Описание назначения продукции">
                         <Input.TextArea
@@ -514,6 +540,8 @@ const TSDTabEdit: React.FC<TSDTabEditProps> = ({ data, onChange }) => {
                           placeholder="Описание назначения продукции"
                           value={product.productPurpose || ''}
                           onChange={(e) => handleProductFieldChange(batchIndex, docIndex, pIndex, 'productPurpose', e.target.value)}
+                          maxLength={getMaxLength('productPurpose')}
+                          showCount
                         />
                       </FieldTagBlock>
                       <FieldTagBlock label="Описание способа применения продукции">
@@ -522,6 +550,8 @@ const TSDTabEdit: React.FC<TSDTabEditProps> = ({ data, onChange }) => {
                           placeholder="Описание способа применения продукции"
                           value={product.applicationMethod || ''}
                           onChange={(e) => handleProductFieldChange(batchIndex, docIndex, pIndex, 'applicationMethod', e.target.value)}
+                          maxLength={getMaxLength('applicationMethod')}
+                          showCount
                         />
                       </FieldTagBlock>
                       <FieldTagBlock label="Описание формы выпуска продукции">
@@ -530,6 +560,8 @@ const TSDTabEdit: React.FC<TSDTabEditProps> = ({ data, onChange }) => {
                           placeholder="Описание формы выпуска продукции"
                           value={product.releaseForm || ''}
                           onChange={(e) => handleProductFieldChange(batchIndex, docIndex, pIndex, 'releaseForm', e.target.value)}
+                          maxLength={getMaxLength('releaseForm')}
+                          showCount
                         />
                       </FieldTagBlock>
                       <FieldTagBlock label="Описание условий хранения">
@@ -538,6 +570,8 @@ const TSDTabEdit: React.FC<TSDTabEditProps> = ({ data, onChange }) => {
                           placeholder="Описание условий хранения"
                           value={product.storageCondition || ''}
                           onChange={(e) => handleProductFieldChange(batchIndex, docIndex, pIndex, 'storageCondition', e.target.value)}
+                          maxLength={getMaxLength('storageCondition')}
+                          showCount
                         />
                       </FieldTagBlock>
                       <FieldTagBlock label="Информация на этикетке">
@@ -546,6 +580,8 @@ const TSDTabEdit: React.FC<TSDTabEditProps> = ({ data, onChange }) => {
                           placeholder="Информация на этикетке"
                           value={product.labelText || ''}
                           onChange={(e) => handleProductFieldChange(batchIndex, docIndex, pIndex, 'labelText', e.target.value)}
+                          maxLength={getMaxLength('labelText')}
+                          showCount
                         />
                       </FieldTagBlock>
                       <div style={{ marginTop: 8 }}>
@@ -705,6 +741,8 @@ const TSDTabEdit: React.FC<TSDTabEditProps> = ({ data, onChange }) => {
             <Input
               value={batch.batchId}
               onChange={(e) => handleBatchChange(batchIndex, 'batchId', e.target.value)}
+              maxLength={getMaxLength('batchId')}
+              showCount
             />
           </Form.Item>
           <Form.Item label={labelWithHelp('Дата производства', FIELD_HELP.manufactureDate)}>
@@ -728,6 +766,8 @@ const TSDTabEdit: React.FC<TSDTabEditProps> = ({ data, onChange }) => {
               rows={2}
               value={batch.note}
               onChange={(e) => handleBatchChange(batchIndex, 'note', e.target.value)}
+              maxLength={getMaxLength('note')}
+              showCount
             />
           </Form.Item>
           <Form.Item label={labelWithHelp('Количество товара', FIELD_HELP.commodityMeasure)}>
@@ -759,6 +799,8 @@ const TSDTabEdit: React.FC<TSDTabEditProps> = ({ data, onChange }) => {
             <Input
               value={batch.consignmentId}
               onChange={(e) => handleBatchChange(batchIndex, 'consignmentId', e.target.value)}
+              maxLength={getMaxLength('consignmentId')}
+              showCount
             />
           </Form.Item>
           <Form.Item label={labelWithHelp('Количество товара в партии', FIELD_HELP.batchCommodityMeasure)}>

@@ -6,6 +6,7 @@ import { format } from 'date-fns'
 import { ru } from 'date-fns/locale'
 import { labelWithHelp } from '@/components/common/FieldHelp'
 import { FIELD_HELP } from '@/constants/fieldDescriptions'
+import { getMaxLength } from '@/constants/xsdFieldConstraints'
 import { DATE_DISPLAY_FORMAT } from '@/constants/dateFormat'
 import type { ComplianceDocument, TSDData, ProductBatchDetails } from '@/types/card'
 import { useCountryOptions } from '@/hooks/useCountryOptions'
@@ -88,8 +89,8 @@ const ComplianceDocumentsTabEdit: React.FC<ComplianceDocumentsTabEditProps> = ({
         />
       ),
     },
-    { title: labelWithHelp('Наименование', FIELD_HELP.complianceDocName), key: 'docName', width: 200, render: (_: any, record: ComplianceDocument, docIndex: number) => (<Input value={record.docName} onChange={(e) => handleDocumentChange(batchIndex, docIndex, 'docName', e.target.value)} />) },
-    { title: 'Номер', key: 'docId', width: 150, render: (_: any, record: ComplianceDocument, docIndex: number) => (<Input value={record.docId} onChange={(e) => handleDocumentChange(batchIndex, docIndex, 'docId', e.target.value)} />) },
+    { title: labelWithHelp('Наименование', FIELD_HELP.complianceDocName), key: 'docName', width: 200, render: (_: any, record: ComplianceDocument, docIndex: number) => (<Input value={record.docName} onChange={(e) => handleDocumentChange(batchIndex, docIndex, 'docName', e.target.value)} maxLength={getMaxLength('docName')} showCount />) },
+    { title: 'Номер', key: 'docId', width: 150, render: (_: any, record: ComplianceDocument, docIndex: number) => (<Input value={record.docId} onChange={(e) => handleDocumentChange(batchIndex, docIndex, 'docId', e.target.value)} maxLength={getMaxLength('docId')} showCount />) },
     { title: labelWithHelp('Дата', FIELD_HELP.complianceDocCreationDate), key: 'docCreationDate', width: 150, render: (_: any, record: ComplianceDocument, docIndex: number) => (<DatePicker format={DATE_DISPLAY_FORMAT} value={record.docCreationDate ? dayjs(record.docCreationDate) : null} onChange={(date) => handleDocumentChange(batchIndex, docIndex, 'docCreationDate', date ? date.format('YYYY-MM-DD') : '')} style={{ width: '100%' }} />) },
     { title: 'Действия', key: 'actions', width: 200, render: (_: any, record: ComplianceDocument, docIndex: number) => (<Space><Button type="link" icon={<EyeOutlined />} onClick={() => { setAuthorityContext({ batchIndex, docIndex }); setAuthorityModalVisible(true) }}>{labelWithHelp('Уполномоченный орган', FIELD_HELP.complianceAuthority)}</Button><Button type="link" danger icon={<DeleteOutlined />} onClick={() => handleRemoveDocument(batchIndex, docIndex)}>Удалить</Button></Space>) },
   ]
@@ -153,18 +154,24 @@ const ComplianceDocumentsTabEdit: React.FC<ComplianceDocumentsTabEditProps> = ({
               <Input
                 value={batches[authorityContext.batchIndex].complianceDocuments![authorityContext.docIndex].authority?.authorityName}
                 onChange={(e) => handleAuthorityChange(authorityContext.batchIndex, authorityContext.docIndex, 'authorityName', e.target.value)}
+                maxLength={getMaxLength('authorityName')}
+                showCount
               />
             </Form.Item>
             <Form.Item label="Краткое наименование">
               <Input
                 value={batches[authorityContext.batchIndex].complianceDocuments![authorityContext.docIndex].authority?.authorityBriefName}
                 onChange={(e) => handleAuthorityChange(authorityContext.batchIndex, authorityContext.docIndex, 'authorityBriefName', e.target.value)}
+                maxLength={getMaxLength('authorityBriefName')}
+                showCount
               />
             </Form.Item>
             <Form.Item label="Идентификатор">
               <Input
                 value={batches[authorityContext.batchIndex].complianceDocuments![authorityContext.docIndex].authority?.authorityId}
                 onChange={(e) => handleAuthorityChange(authorityContext.batchIndex, authorityContext.docIndex, 'authorityId', e.target.value)}
+                maxLength={getMaxLength('authorityId')}
+                showCount
               />
             </Form.Item>
           </Form>

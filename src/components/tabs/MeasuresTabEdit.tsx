@@ -11,6 +11,7 @@ import { useIdentityDocKindOptions } from '@/hooks/useIdentityDocKindOptions'
 import CountrySelect from '@/components/common/CountrySelect'
 import { labelWithHelp } from '@/components/common/FieldHelp'
 import { FIELD_HELP } from '@/constants/fieldDescriptions'
+import { getMaxLength } from '@/constants/xsdFieldConstraints'
 import { DATE_DISPLAY_FORMAT } from '@/constants/dateFormat'
 import type { CountryOption } from '@/utils/referenceDataApi'
 import type {
@@ -212,24 +213,32 @@ const MeasuresTabEdit: React.FC<MeasuresTabEditProps> = ({ data, onChange }) => 
           <Input
             value={doc.docKindName}
             onChange={(e) => onChange({ ...doc, docKindName: e.target.value })}
+            maxLength={getMaxLength('docKindName')}
+            showCount
           />
         </Form.Item>
         <Form.Item label="Наименование">
           <Input
             value={doc.docName}
             onChange={(e) => onChange({ ...doc, docName: e.target.value })}
+            maxLength={getMaxLength('docName')}
+            showCount
           />
         </Form.Item>
         <Form.Item label="Серия">
           <Input
             value={doc.docSeriesId}
             onChange={(e) => onChange({ ...doc, docSeriesId: e.target.value })}
+            maxLength={getMaxLength('docSeriesId')}
+            showCount
           />
         </Form.Item>
         <Form.Item label="Номер">
           <Input
             value={doc.docId}
             onChange={(e) => onChange({ ...doc, docId: e.target.value })}
+            maxLength={getMaxLength('docId')}
+            showCount
           />
         </Form.Item>
         <Form.Item label="Дата документа">
@@ -260,12 +269,16 @@ const MeasuresTabEdit: React.FC<MeasuresTabEditProps> = ({ data, onChange }) => 
           <Input
             value={doc.authorityId}
             onChange={(e) => onChange({ ...doc, authorityId: e.target.value })}
+            maxLength={getMaxLength('authorityId')}
+            showCount
           />
         </Form.Item>
         <Form.Item label="Уполномоченный орган. Наименование">
           <Input
             value={doc.authorityName}
             onChange={(e) => onChange({ ...doc, authorityName: e.target.value })}
+            maxLength={getMaxLength('authorityName')}
+            showCount
           />
         </Form.Item>
         <Form.Item label="Описание">
@@ -273,6 +286,8 @@ const MeasuresTabEdit: React.FC<MeasuresTabEditProps> = ({ data, onChange }) => 
             rows={3}
             value={doc.description}
             onChange={(e) => onChange({ ...doc, description: e.target.value })}
+            maxLength={getMaxLength('description')}
+            showCount
           />
         </Form.Item>
         <Form.Item label="Документ в бинарном виде">
@@ -371,6 +386,8 @@ const MeasuresTabEdit: React.FC<MeasuresTabEditProps> = ({ data, onChange }) => 
             placeholder="Введите XML-документ"
             value={doc.xmlDocument || ''}
             onChange={(e) => onChange({ ...doc, xmlDocument: e.target.value })}
+            maxLength={getMaxLength('description')}
+            showCount
           />
         </Form.Item>
         <Button
@@ -548,6 +565,8 @@ const MeasuresTabEdit: React.FC<MeasuresTabEditProps> = ({ data, onChange }) => 
           value={record.measureJustificationText || ''}
           onChange={(e) => handleMeasureChange(index, 'measureJustificationText', e.target.value)}
           placeholder="Текстовое описание обоснования"
+          maxLength={getMaxLength('measureJustification')}
+          showCount
         />
       ),
     },
@@ -561,6 +580,8 @@ const MeasuresTabEdit: React.FC<MeasuresTabEditProps> = ({ data, onChange }) => 
           value={record.description || ''}
           onChange={(e) => handleMeasureChange(index, 'description', e.target.value)}
           placeholder="Содержание (описание) вводимой меры"
+          maxLength={getMaxLength('description')}
+          showCount
         />
       ),
     },
@@ -601,6 +622,8 @@ const MeasuresTabEdit: React.FC<MeasuresTabEditProps> = ({ data, onChange }) => 
               rows={3}
               value={measure.measureJustificationText}
               onChange={(e) => handleMeasureChange(measureIndex, 'measureJustificationText', e.target.value)}
+              maxLength={getMaxLength('measureJustification')}
+              showCount
             />
           </Form.Item>
           <Form.Item label="Описание">
@@ -608,6 +631,8 @@ const MeasuresTabEdit: React.FC<MeasuresTabEditProps> = ({ data, onChange }) => 
               rows={3}
               value={measure.description}
               onChange={(e) => handleMeasureChange(measureIndex, 'description', e.target.value)}
+              maxLength={getMaxLength('description')}
+              showCount
             />
           </Form.Item>
         </Form>
@@ -652,6 +677,8 @@ const MeasuresTabEdit: React.FC<MeasuresTabEditProps> = ({ data, onChange }) => 
                           <Input
                             value={record.docKindName}
                             onChange={(e) => handleBasisChange(measureIndex, basisIndex, 'docKindName', e.target.value)}
+                            maxLength={getMaxLength('docKindName')}
+                            showCount
                           />
                         ),
                       },
@@ -662,6 +689,8 @@ const MeasuresTabEdit: React.FC<MeasuresTabEditProps> = ({ data, onChange }) => 
                           <Input
                             value={record.docName}
                             onChange={(e) => handleBasisChange(measureIndex, basisIndex, 'docName', e.target.value)}
+                            maxLength={getMaxLength('docName')}
+                            showCount
                           />
                         ),
                       },
@@ -672,6 +701,8 @@ const MeasuresTabEdit: React.FC<MeasuresTabEditProps> = ({ data, onChange }) => 
                           <Input
                             value={record.docId}
                             onChange={(e) => handleBasisChange(measureIndex, basisIndex, 'docId', e.target.value)}
+                            maxLength={getMaxLength('docId')}
+                            showCount
                           />
                         ),
                       },
@@ -869,6 +900,8 @@ const MeasureImplementationDetailsEdit: React.FC<{
             value={item.description || ''}
             onChange={(e) => onChange('description', e.target.value)}
             placeholder="Описание мероприятия"
+            maxLength={getMaxLength('description')}
+            showCount
           />
         </Form.Item>
       </Form>
@@ -893,18 +926,24 @@ const MeasureImplementationDetailsEdit: React.FC<{
                   <Input
                     value={item.authority.authorityId}
                     onChange={(e) => onChange('authority', { ...item.authority, authorityId: e.target.value })}
+                    maxLength={getMaxLength('authorityId')}
+                    showCount
                   />
                 </Form.Item>
                 <Form.Item label="Наименование">
                   <Input
                     value={item.authority.authorityName}
                     onChange={(e) => onChange('authority', { ...item.authority, authorityName: e.target.value })}
+                    maxLength={getMaxLength('authorityName')}
+                    showCount
                   />
                 </Form.Item>
                 <Form.Item label="Краткое наименование">
                   <Input
                     value={item.authority.authorityBriefName}
                     onChange={(e) => onChange('authority', { ...item.authority, authorityBriefName: e.target.value })}
+                    maxLength={getMaxLength('authorityBriefName')}
+                    showCount
                   />
                 </Form.Item>
                 <Button
@@ -969,18 +1008,24 @@ const MeasureImplementationDetailsEdit: React.FC<{
                   <Input
                     value={item.documentDetails.docKindName}
                     onChange={(e) => onChange('documentDetails', { ...item.documentDetails, docKindName: e.target.value })}
+                    maxLength={getMaxLength('docKindName')}
+                    showCount
                   />
                 </Form.Item>
                 <Form.Item label={labelWithHelp('Наименование', FIELD_HELP.implDocName)}>
                   <Input
                     value={item.documentDetails.docName}
                     onChange={(e) => onChange('documentDetails', { ...item.documentDetails, docName: e.target.value })}
+                    maxLength={getMaxLength('docName')}
+                    showCount
                   />
                 </Form.Item>
                 <Form.Item label={labelWithHelp('Номер', FIELD_HELP.implDocId)}>
                   <Input
                     value={item.documentDetails.docId}
                     onChange={(e) => onChange('documentDetails', { ...item.documentDetails, docId: e.target.value })}
+                    maxLength={getMaxLength('docId')}
+                    showCount
                   />
                 </Form.Item>
                 <Form.Item label={labelWithHelp('Дата', FIELD_HELP.implDocCreationDate)}>
@@ -1028,18 +1073,24 @@ const MeasureImplementationDetailsEdit: React.FC<{
                   <Input
                     value={item.placeDetails.regionName}
                     onChange={(e) => onChange('placeDetails', { ...item.placeDetails, regionName: e.target.value })}
+                    maxLength={getMaxLength('regionName')}
+                    showCount
                   />
                 </Form.Item>
                 <Form.Item label="Код пункта пропуска">
                   <Input
                     value={item.placeDetails.borderCheckpointCode}
                     onChange={(e) => onChange('placeDetails', { ...item.placeDetails, borderCheckpointCode: e.target.value })}
+                    maxLength={getMaxLength('checkpointCode')}
+                    showCount
                   />
                 </Form.Item>
                 <Form.Item label="Наименование пункта пропуска">
                   <Input
                     value={item.placeDetails.borderCheckpointName}
                     onChange={(e) => onChange('placeDetails', { ...item.placeDetails, borderCheckpointName: e.target.value })}
+                    maxLength={getMaxLength('checkpointName')}
+                    showCount
                   />
                 </Form.Item>
                 <Button
@@ -1115,24 +1166,32 @@ const SubjectDetailsUnifiedEdit: React.FC<{
             const v = e.target.value
             upd({ subjectName: v }, { businessEntityName: v })
           }}
+          maxLength={getMaxLength('businessEntityName')}
+          showCount
         />
       </Form.Item>
       <Form.Item label="Краткое наименование">
         <Input
           value={briefName}
           onChange={(e) => upd({}, { businessEntityBriefName: e.target.value })}
+          maxLength={getMaxLength('shortName')}
+          showCount
         />
       </Form.Item>
       <Form.Item label="Организационно-правовая форма">
         <Input
           value={orgForm}
           onChange={(e) => upd({}, { businessEntityTypeName: e.target.value })}
+          maxLength={getMaxLength('organizationalForm')}
+          showCount
         />
       </Form.Item>
       <Form.Item label="Идентификатор субъекта">
         <Input
           value={subjectId}
           onChange={(e) => upd({}, { businessEntityId: e.target.value })}
+          maxLength={getMaxLength('subjectIdentifier')}
+          showCount
         />
       </Form.Item>
       <Form.Item label="Метод идентификации">
@@ -1145,12 +1204,16 @@ const SubjectDetailsUnifiedEdit: React.FC<{
         <Input
           value={customsNumber}
           onChange={(e) => upd({}, { customsNumber: e.target.value })}
+          maxLength={getMaxLength('customsNumber')}
+          showCount
         />
       </Form.Item>
       <Form.Item label="Идентификатор налогоплательщика">
         <Input
           value={taxpayerId}
           onChange={(e) => upd({}, { taxpayerId: e.target.value })}
+          maxLength={getMaxLength('taxpayerId')}
+          showCount
         />
       </Form.Item>
       {/* Удостоверение личности */}
@@ -1192,12 +1255,16 @@ const SubjectDetailsUnifiedEdit: React.FC<{
               <Input
                 value={subject.identityDoc.docSeriesId}
                 onChange={(e) => onChange({ ...subject, identityDoc: { ...subject.identityDoc!, docSeriesId: e.target.value } })}
+                maxLength={getMaxLength('docSeriesId')}
+                showCount
               />
             </Form.Item>
             <Form.Item label="Номер">
               <Input
                 value={subject.identityDoc.docId}
                 onChange={(e) => onChange({ ...subject, identityDoc: { ...subject.identityDoc!, docId: e.target.value } })}
+                maxLength={getMaxLength('docId')}
+                showCount
               />
             </Form.Item>
             <Form.Item label="Дата">
@@ -1220,12 +1287,16 @@ const SubjectDetailsUnifiedEdit: React.FC<{
               <Input
                 value={subject.identityDoc.authorityId}
                 onChange={(e) => onChange({ ...subject, identityDoc: { ...subject.identityDoc!, authorityId: e.target.value } })}
+                maxLength={getMaxLength('authorityId')}
+                showCount
               />
             </Form.Item>
             <Form.Item label="Уполномоченный орган. Наименование">
               <Input
                 value={subject.identityDoc.authorityName}
                 onChange={(e) => onChange({ ...subject, identityDoc: { ...subject.identityDoc!, authorityName: e.target.value } })}
+                maxLength={getMaxLength('authorityName')}
+                showCount
               />
             </Form.Item>
             <Button type="link" danger icon={<DeleteOutlined />} onClick={() => onChange({ ...subject, identityDoc: undefined })}>

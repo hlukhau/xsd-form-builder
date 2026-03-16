@@ -13,6 +13,7 @@ import { checkSupplyChainPartyKindExists } from '@/utils/referenceDataApi'
 import { getAddressListFromParty, getDefaultAddressKindName } from '@/utils/addressFormatUtils'
 import { useCommunicationChannelOptions } from '@/hooks/useCommunicationChannelOptions'
 import { FieldTagBlock } from '@/components/common/FieldTag'
+import { getFormRules, getMaxLength } from '@/constants/xsdFieldConstraints'
 
 /** Идентификатор справочника организационно-правовых форм (SESINT.LEGALFORM) */
 const LEGAL_FORM_CODE_LIST_ID = '2049'
@@ -264,11 +265,11 @@ const ManufacturerDetailsEdit: React.FC<ManufacturerDetailsEditProps> = ({
                     />
                   </Form.Item>
                 )}
-                <Form.Item label="Наименование субъекта" name="businessEntityName">
-                  <Input />
+                <Form.Item label="Наименование субъекта" name="businessEntityName" rules={getFormRules('businessEntityName')}>
+                  <Input maxLength={getMaxLength('businessEntityName')} showCount />
                 </Form.Item>
-                <Form.Item label="Краткое наименование" name="shortName">
-                  <Input />
+                <Form.Item label="Краткое наименование" name="shortName" rules={getFormRules('shortName')}>
+                  <Input maxLength={getMaxLength('shortName')} showCount />
                 </Form.Item>
                 <Form.Item
                   label="Организационно-правовая форма (из справочника)"
@@ -298,12 +299,13 @@ const ManufacturerDetailsEdit: React.FC<ManufacturerDetailsEditProps> = ({
                   <Form.Item
                     label="Наименование организационно-правовой формы (вручную)"
                     name="organizationalForm"
+                    rules={getFormRules('organizationalForm')}
                   >
-                    <Input placeholder="Если не выбрано из справочника" />
+                    <Input placeholder="Если не выбрано из справочника" maxLength={getMaxLength('organizationalForm')} showCount />
                   </Form.Item>
                 )}
-                <Form.Item label="Идентификатор субъекта" name="subjectIdentifier">
-                  <Input />
+                <Form.Item label="Идентификатор субъекта" name="subjectIdentifier" rules={getFormRules('subjectIdentifier')}>
+                  <Input maxLength={getMaxLength('subjectIdentifier')} showCount />
                 </Form.Item>
                 <Form.Item label="Метод идентификации" name="identificationMethod">
                   <Select
@@ -319,11 +321,11 @@ const ManufacturerDetailsEdit: React.FC<ManufacturerDetailsEditProps> = ({
                     notFoundContent={loadingIdMethods ? 'Загрузка...' : 'Нет данных по выбранной стране'}
                   />
                 </Form.Item>
-                <Form.Item label="Таможенный номер" name="customsNumber">
-                  <Input />
+                <Form.Item label="Таможенный номер" name="customsNumber" rules={getFormRules('customsNumber')}>
+                  <Input maxLength={getMaxLength('customsNumber')} showCount />
                 </Form.Item>
-                <Form.Item label="Идентификатор налогоплательщика" name="taxpayerId">
-                  <Input />
+                <Form.Item label="Идентификатор налогоплательщика" name="taxpayerId" rules={getFormRules('taxpayerId')}>
+                  <Input maxLength={getMaxLength('taxpayerId')} showCount />
                 </Form.Item>
 
                 {/* Адреса — список с добавлением */}
@@ -367,29 +369,29 @@ const ManufacturerDetailsEdit: React.FC<ManufacturerDetailsEditProps> = ({
                           />
                         </FieldTagBlock>
                         <FieldTagBlock label="Код территории">
-                          <Input placeholder="Код территории" value={addr.territoryCode} onChange={(e) => handleAddressChange(index, 'territoryCode', e.target.value || undefined)} />
+                          <Input placeholder="Код территории" value={addr.territoryCode} onChange={(e) => handleAddressChange(index, 'territoryCode', e.target.value || undefined)} maxLength={getMaxLength('territoryCode')} showCount />
                         </FieldTagBlock>
                         <FieldTagBlock label="Регион">
-                          <Input placeholder="Регион" value={addr.regionName} onChange={(e) => handleAddressChange(index, 'regionName', e.target.value || undefined)} />
+                          <Input placeholder="Регион" value={addr.regionName} onChange={(e) => handleAddressChange(index, 'regionName', e.target.value || undefined)} maxLength={getMaxLength('regionName')} showCount />
                         </FieldTagBlock>
                         <FieldTagBlock label="Район">
-                          <Input placeholder="Район" value={addr.districtName} onChange={(e) => handleAddressChange(index, 'districtName', e.target.value || undefined)} />
+                          <Input placeholder="Район" value={addr.districtName} onChange={(e) => handleAddressChange(index, 'districtName', e.target.value || undefined)} maxLength={getMaxLength('districtName')} showCount />
                         </FieldTagBlock>
                         <FieldTagBlock label="Город">
-                          <Input placeholder="Город" value={addr.cityName} onChange={(e) => handleAddressChange(index, 'cityName', e.target.value || undefined)} />
+                          <Input placeholder="Город" value={addr.cityName} onChange={(e) => handleAddressChange(index, 'cityName', e.target.value || undefined)} maxLength={getMaxLength('cityName')} showCount />
                         </FieldTagBlock>
                         <FieldTagBlock label="Населённый пункт">
-                          <Input placeholder="Населённый пункт" value={addr.settlementName} onChange={(e) => handleAddressChange(index, 'settlementName', e.target.value || undefined)} />
+                          <Input placeholder="Населённый пункт" value={addr.settlementName} onChange={(e) => handleAddressChange(index, 'settlementName', e.target.value || undefined)} maxLength={getMaxLength('settlementName')} showCount />
                         </FieldTagBlock>
                         <FieldTagBlock label="Улица">
-                          <Input placeholder="Улица" value={addr.streetName} onChange={(e) => handleAddressChange(index, 'streetName', e.target.value || undefined)} />
+                          <Input placeholder="Улица" value={addr.streetName} onChange={(e) => handleAddressChange(index, 'streetName', e.target.value || undefined)} maxLength={getMaxLength('streetName')} showCount />
                         </FieldTagBlock>
                         <Space wrap>
                           <FieldTagBlock label="Номер дома" style={{ width: 120 }}>
-                            <Input placeholder="Номер дома" value={addr.buildingNumberId} onChange={(e) => handleAddressChange(index, 'buildingNumberId', e.target.value || undefined)} style={{ width: 120 }} />
+                            <Input placeholder="Номер дома" value={addr.buildingNumberId} onChange={(e) => handleAddressChange(index, 'buildingNumberId', e.target.value || undefined)} style={{ width: 120 }} maxLength={getMaxLength('buildingNumberId')} showCount />
                           </FieldTagBlock>
                           <FieldTagBlock label="Номер помещения" style={{ width: 120 }}>
-                            <Input placeholder="Номер помещения" value={addr.roomNumberId} onChange={(e) => handleAddressChange(index, 'roomNumberId', e.target.value || undefined)} style={{ width: 120 }} />
+                            <Input placeholder="Номер помещения" value={addr.roomNumberId} onChange={(e) => handleAddressChange(index, 'roomNumberId', e.target.value || undefined)} style={{ width: 120 }} maxLength={getMaxLength('roomNumberId')} showCount />
                           </FieldTagBlock>
                         </Space>
                         <FieldTagBlock label="Номер абонентского ящика">
@@ -427,6 +429,8 @@ const ManufacturerDetailsEdit: React.FC<ManufacturerDetailsEditProps> = ({
                             value={contact.communicationChannelName ?? ''}
                             onChange={(e) => handleContactChange(index, 'communicationChannelName', e.target.value)}
                             disabled={!!contact.communicationChannelCode}
+                            maxLength={getMaxLength('communicationChannelName')}
+                            showCount
                           />
                         </FieldTagBlock>
                         <FieldTagBlock label="Значение">
@@ -434,6 +438,8 @@ const ManufacturerDetailsEdit: React.FC<ManufacturerDetailsEditProps> = ({
                             placeholder="Значение (номер, адрес и т.д.)"
                             value={contact.communicationChannelId ?? contact.contactValue ?? ''}
                             onChange={(e) => handleContactChange(index, 'communicationChannelId', e.target.value)}
+                            maxLength={getMaxLength('communicationChannelId')}
+                            showCount
                           />
                         </FieldTagBlock>
                         <Button

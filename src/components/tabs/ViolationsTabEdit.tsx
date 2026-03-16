@@ -5,6 +5,7 @@ import { format } from 'date-fns'
 import { ru } from 'date-fns/locale'
 import { labelWithHelp } from '@/components/common/FieldHelp'
 import { FIELD_HELP } from '@/constants/fieldDescriptions'
+import { getMaxLength } from '@/constants/xsdFieldConstraints'
 import type { ViolationsData, ViolatedRequirement, ViolatedIndicator, DocStructuralElement, TSDData, ProductBatchDetails } from '@/types/card'
 import { useTechRegulOptions } from '@/hooks/useTechRegulOptions'
 import { useMeasurementUnitOptions } from '@/hooks/useMeasurementUnitOptions'
@@ -106,25 +107,25 @@ const ViolationsTabEdit: React.FC<ViolationsTabEditProps> = ({ tsd, onTsdChange 
     }
 
     const requirementsColumns = [
-      { title: labelWithHelp('Номер техрегламента', FIELD_HELP.technicalRegulationId), key: 'technicalRegulationId', width: 120, render: (_: any, record: ViolatedRequirement, index: number) => (<Input value={record.technicalRegulationId} onChange={(e) => handleRequirementChange(index, 'technicalRegulationId', e.target.value)} style={{ wordWrap: 'break-word', whiteSpace: 'normal' }} />) },
+      { title: labelWithHelp('Номер техрегламента', FIELD_HELP.technicalRegulationId), key: 'technicalRegulationId', width: 120, render: (_: any, record: ViolatedRequirement, index: number) => (<Input value={record.technicalRegulationId} onChange={(e) => handleRequirementChange(index, 'technicalRegulationId', e.target.value)} maxLength={getMaxLength('technicalRegulationId')} showCount style={{ wordWrap: 'break-word', whiteSpace: 'normal' }} />) },
       { title: labelWithHelp('Наименование техрегламента', FIELD_HELP.technicalRegulationName), key: 'technicalRegulationName', width: 300, render: (_: any, record: ViolatedRequirement, index: number) => (<Select showSearch placeholder="Выберите техрегламент" loading={loadingTechReguls} value={record.technicalRegulationId || undefined} onChange={(code) => code ? handleTechRegulSelect(index, code) : onVChange({ ...vData, violatedRequirements: (vData.violatedRequirements || []).map((r, i) => i === index ? { ...r, technicalRegulationId: '', technicalRegulationName: '' } : r) })} filterOption={(input, option) => (option?.label ?? '').toLowerCase().includes(input.toLowerCase())} options={getTechRegulSelectOptions()} allowClear style={{ width: '100%' }} />) },
-      { title: labelWithHelp('Регистрационный номер', FIELD_HELP.registrationNumber), key: 'registrationNumber', width: 120, render: (_: any, record: ViolatedRequirement, index: number) => (<Input value={record.registrationNumber} onChange={(e) => handleRequirementChange(index, 'registrationNumber', e.target.value)} />) },
-      { title: 'Описание', key: 'description', width: 500, render: (_: any, record: ViolatedRequirement, index: number) => (<Input.TextArea value={record.description} onChange={(e) => handleRequirementChange(index, 'description', e.target.value)} rows={2} style={{ wordWrap: 'break-word', whiteSpace: 'normal' }} />) },
+      { title: labelWithHelp('Регистрационный номер', FIELD_HELP.registrationNumber), key: 'registrationNumber', width: 120, render: (_: any, record: ViolatedRequirement, index: number) => (<Input value={record.registrationNumber} onChange={(e) => handleRequirementChange(index, 'registrationNumber', e.target.value)} maxLength={getMaxLength('registrationNumber')} showCount />) },
+      { title: 'Описание', key: 'description', width: 500, render: (_: any, record: ViolatedRequirement, index: number) => (<Input.TextArea value={record.description} onChange={(e) => handleRequirementChange(index, 'description', e.target.value)} rows={2} maxLength={getMaxLength('description')} showCount style={{ wordWrap: 'break-word', whiteSpace: 'normal' }} />) },
       { title: 'Действия', key: 'actions', width: 100, render: (_: any, record: ViolatedRequirement, index: number) => (<Button type="link" danger icon={<DeleteOutlined />} onClick={() => handleRemoveRequirement(index)}>Удалить</Button>) },
     ]
     const indicatorsColumns = [
       { title: 'Нормативный показатель', key: 'isNormative', width: 150, render: (_: any, record: ViolatedIndicator, index: number) => (<Input type="checkbox" checked={record.isNormative} onChange={(e) => handleIndicatorChange(index, 'isNormative', e.target.checked)} />) },
-      { title: labelWithHelp('Наименование показателя', FIELD_HELP.indicatorName), key: 'indicatorName', width: 200, render: (_: any, record: ViolatedIndicator, index: number) => (<Input value={record.indicatorName} onChange={(e) => handleIndicatorChange(index, 'indicatorName', e.target.value)} />) },
-      { title: labelWithHelp('Значение показателя', FIELD_HELP.indicatorValue), key: 'indicatorValue', width: 150, render: (_: any, record: ViolatedIndicator, index: number) => (<Input value={record.indicatorValue} onChange={(e) => handleIndicatorChange(index, 'indicatorValue', e.target.value)} />) },
+      { title: labelWithHelp('Наименование показателя', FIELD_HELP.indicatorName), key: 'indicatorName', width: 200, render: (_: any, record: ViolatedIndicator, index: number) => (<Input value={record.indicatorName} onChange={(e) => handleIndicatorChange(index, 'indicatorName', e.target.value)} maxLength={getMaxLength('indicatorName')} showCount />) },
+      { title: labelWithHelp('Значение показателя', FIELD_HELP.indicatorValue), key: 'indicatorValue', width: 150, render: (_: any, record: ViolatedIndicator, index: number) => (<Input value={record.indicatorValue} onChange={(e) => handleIndicatorChange(index, 'indicatorValue', e.target.value)} maxLength={getMaxLength('indicatorValue')} showCount />) },
       { title: 'Единица измерения', key: 'unit', width: 200, render: (_: any, record: ViolatedIndicator, index: number) => (<Select showSearch placeholder="Выберите единицу измерения" loading={loadingMeasurementUnits} value={record.unitCode || undefined} onChange={(code) => handleMeasurementUnitSelect(index, code)} filterOption={(input, option) => (option?.label ?? '').toLowerCase().includes(input.toLowerCase())} options={getMeasurementUnitSelectOptions()} allowClear style={{ width: '100%' }} />) },
-      { title: labelWithHelp('Примечание', FIELD_HELP.indicatorNote), key: 'note', width: 300, render: (_: any, record: ViolatedIndicator, index: number) => (<Input.TextArea value={record.note} onChange={(e) => handleIndicatorChange(index, 'note', e.target.value)} rows={2} />) },
+      { title: labelWithHelp('Примечание', FIELD_HELP.indicatorNote), key: 'note', width: 300, render: (_: any, record: ViolatedIndicator, index: number) => (<Input.TextArea value={record.note} onChange={(e) => handleIndicatorChange(index, 'note', e.target.value)} rows={2} maxLength={getMaxLength('noteText')} showCount />) },
       { title: 'Действия', key: 'actions', width: 100, render: (_: any, record: ViolatedIndicator, index: number) => (<Button type="link" danger icon={<DeleteOutlined />} onClick={() => handleRemoveIndicator(index)}>Удалить</Button>) },
     ]
 
     return (
       <>
         <Form.Item label={labelWithHelp('Описание нарушения', FIELD_HELP.violationDescription)}>
-          <Input.TextArea rows={3} value={vData.generalDescription} onChange={(e) => handleGeneralDescriptionChange(e.target.value)} />
+          <Input.TextArea rows={3} value={vData.generalDescription} onChange={(e) => handleGeneralDescriptionChange(e.target.value)} maxLength={getMaxLength('violationDescription')} showCount />
         </Form.Item>
         <div style={{ marginBottom: '24px' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
