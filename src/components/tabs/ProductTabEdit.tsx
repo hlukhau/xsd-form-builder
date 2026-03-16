@@ -6,7 +6,7 @@ import { DATE_DISPLAY_FORMAT } from '@/constants/dateFormat'
 import ManufacturerDetailsEdit from '../common/ManufacturerDetailsEdit'
 import { labelWithHelp } from '@/components/common/FieldHelp'
 import { FIELD_HELP } from '@/constants/fieldDescriptions'
-import { getFormRules, getMaxLength } from '@/constants/xsdFieldConstraints'
+import { getFormRules, getMaxLength, getFormatHint } from '@/constants/xsdFieldConstraints'
 import type { ProductData, TechnicalDocument } from '@/types/card'
 import { useSanitaryProdTypeOptions } from '@/hooks/useSanitaryProdTypeOptions'
 import { useShipDocKindOptions } from '@/hooks/useShipDocKindOptions'
@@ -37,7 +37,7 @@ const ProductTabEdit: React.FC<ProductTabEditProps> = ({ data, onChange }) => {
     else if (data.typeName?.trim()) setProductTypeMode('name')
   }, [data.typeCode, data.typeName])
 
-  // Проверяем валидность кода при загрузке данных
+  // Синхронизация формы с data — без обращения к справочнику
   useEffect(() => {
     form.setFieldsValue({
       typeName: data.typeName,
@@ -52,20 +52,22 @@ const ProductTabEdit: React.FC<ProductTabEditProps> = ({ data, onChange }) => {
       storageCondition: data.productDetails.storageCondition,
       labelText: data.productDetails.labelText,
     })
-    
-    // Проверяем валидность кода типа продукции
-    if (data.typeCode) {
-      checkSanitaryProdTypeExists(data.typeCode)
-        .then((exists) => {
-          setTypeCodeError(!exists)
-        })
-        .catch(() => {
-          setTypeCodeError(false)
-        })
-    } else {
-      setTypeCodeError(false)
-    }
   }, [data, form])
+
+  // Проверка кода типа продукции по справочнику только при изменении typeCode, с дебаунсом (не при каждом вводе символа)
+  const typeCodeToValidate = data.typeCode?.trim() || ''
+  useEffect(() => {
+    if (!typeCodeToValidate) {
+      setTypeCodeError(false)
+      return
+    }
+    const t = setTimeout(() => {
+      checkSanitaryProdTypeExists(typeCodeToValidate)
+        .then((exists) => setTypeCodeError(!exists))
+        .catch(() => setTypeCodeError(false))
+    }, 400)
+    return () => clearTimeout(t)
+  }, [typeCodeToValidate])
 
   // Обработчик выбора типа санитарной продукции (только код → SANITARYPRODTYPEID, наименование не сохраняем)
   const handleSanitaryProdTypeSelect = (code: string) => {
@@ -305,7 +307,7 @@ const ProductTabEdit: React.FC<ProductTabEditProps> = ({ data, onChange }) => {
       <Form.Item label="Описание" name="description" rules={getFormRules('description')}>
         <Input.TextArea rows={3} maxLength={getMaxLength('description')} showCount />
       </Form.Item>
-      <Form.Item label="Код ТН ВЭД ЕАЭС" name="commodityCode" rules={getFormRules('commodityCode')}>
+      <Form.Item label="Код ТН ВЭД ЕАЭС" name="commodityCode" rules={getFormRules('commodityCode')} help={getFormatHint('commodityCode')}>
         <Input placeholder="2, 4, 6 или 8–10 цифр" maxLength={10} />
       </Form.Item>
       <Form.Item label="Назначение продукции" name="productPurpose" rules={getFormRules('productPurpose')}>

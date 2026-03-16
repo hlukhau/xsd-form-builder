@@ -12,14 +12,23 @@ export interface FieldConstraint {
   minLength?: number
   /** Регулярное выражение для проверки (должно соответствовать всей строке). */
   pattern?: RegExp
+  /** Всего цифр (для числовых полей: целая + дробная часть). */
+  totalDigits?: number
+  /** Знаков после запятой (для decimal). */
+  fractionDigits?: number
   /** Сообщение об ошибке при превышении maxLength. */
   messageMaxLength?: string
   /** Сообщение об ошибке при несоответствии pattern. */
   messagePattern?: string
+  /** Подсказка формата: показывается при ошибке и опционально под полем (например: «Формат: 2, 4, 6 или 8–10 цифр»). */
+  formatHint?: string
 }
 
 /** Код ТН ВЭД ЕАЭС: 2, 4, 6 или 8–10 цифр (csdo:CommodityCodeType). Пустая строка допустима (поле необязательное). */
 export const COMMODITY_CODE_PATTERN = /^$|^\d{2}$|^\d{4}$|^\d{6}$|^\d{8,10}$/
+
+/** Десятичное число: целая часть до 18 цифр, дробная до 6 (PhysicalMeasureType). Пустая строка допустима. */
+export const DECIMAL_18_6_PATTERN = /^$|^-?\d{1,18}([.,]\d{1,6})?$/
 
 /** Маппинг ключей полей формы на ограничения XSD. */
 export const XSD_FIELD_CONSTRAINTS: Record<string, FieldConstraint> = {
@@ -31,6 +40,7 @@ export const XSD_FIELD_CONSTRAINTS: Record<string, FieldConstraint> = {
   commodityCode: {
     pattern: COMMODITY_CODE_PATTERN,
     messagePattern: 'Код ТН ВЭД ЕАЭС: укажите 2, 4, 6 или 8–10 цифр',
+    formatHint: 'Формат: 2, 4, 6 или 8–10 цифр (например 22, 2201, 220110, 2201101100)',
   },
   productPurpose: { maxLength: 1000, messageMaxLength: 'Не более 1000 символов (csdo:Text1000Type)' },
   applicationMethod: { maxLength: 1000, messageMaxLength: 'Не более 1000 символов (csdo:Text1000Type)' },
@@ -82,9 +92,17 @@ export const XSD_FIELD_CONSTRAINTS: Record<string, FieldConstraint> = {
 
   // Нарушения
   violationDescription: { maxLength: 4000, messageMaxLength: 'Не более 4000 символов (csdo:Text4000Type)' },
-  technicalRegulationId: { maxLength: 50, messageMaxLength: 'Не более 50 символов' },
+  technicalRegulationId: { maxLength: 50, messageMaxLength: 'Не более 50 символов', formatHint: 'Например: ТР ТС 001/2011' },
   indicatorName: { maxLength: 300, messageMaxLength: 'Не более 300 символов' },
-  indicatorValue: { maxLength: 250, messageMaxLength: 'Не более 250 символов' },
+  indicatorValue: {
+    maxLength: 250,
+    messageMaxLength: 'Не более 250 символов',
+    pattern: DECIMAL_18_6_PATTERN,
+    totalDigits: 24,
+    fractionDigits: 6,
+    formatHint: 'Число: до 18 цифр до запятой и до 6 после запятой (например 0,0042 или 123,456789)',
+    messagePattern: 'Введите число в формате: до 18 цифр до запятой и до 6 после запятой (например 0,0042)',
+  },
 
   // ТСД: партия, примечание
   batchId: { maxLength: 50, messageMaxLength: 'Не более 50 символов (csdo:Id50Type)' },
@@ -104,6 +122,13 @@ export function getFieldConstraint(fieldKey: string): FieldConstraint | undefine
  */
 export function getMaxLength(fieldKey: string): number | undefined {
   return XSD_FIELD_CONSTRAINTS[fieldKey]?.maxLength
+}
+
+/**
+ * Возвращает подсказку по формату поля (для отображения при ошибке или под полем).
+ */
+export function getFormatHint(fieldKey: string): string | undefined {
+  return XSD_FIELD_CONSTRAINTS[fieldKey]?.formatHint
 }
 
 /**
@@ -131,7 +156,7 @@ export function getFormRules(fieldKey: string, options?: { required?: boolean })
   if (c.pattern) {
     rules.push({
       pattern: c.pattern,
-      message: c.messagePattern ?? 'Неверный формат',
+      message: c.messagePattern ?? c.formatHint ?? 'Неверный формат. Ожидаемый формат см. в подсказке под полем.',
       validateTrigger: ['onBlur', 'onChange'],
     })
   }

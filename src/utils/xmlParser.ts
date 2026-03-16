@@ -246,7 +246,7 @@ export function parseXMLToCardData(xmlText: string): CardData {
     if (fallbackViolations && ((fallbackViolations.violatedRequirements?.length ?? 0) > 0 || (fallbackViolations.violatedIndicators?.length ?? 0) > 0 || !!fallbackViolations.generalDescription)) {
       const batches = finalTsd?.batches?.length ? [...finalTsd.batches] : [{ shippingDocuments: [] }]
       const first = batches[0]
-      batches[0] = { ...first, violations: fallbackViolations }
+      batches[0] = { ...first, violations: [fallbackViolations] }
       finalTsd = { batches }
     }
   }
@@ -1468,7 +1468,7 @@ function parseBatchDetails(batchElement: Element): ProductBatchDetails | null {
     batchCommodityMeasure,
     shippingDocuments,
     ...(complianceData?.documents?.length ? { complianceDocuments: complianceData.documents } : {}),
-    ...(violationsData ? { violations: violationsData } : {}),
+    ...(violationsData ? { violations: [violationsData] } : {}),
   }
   
   console.log('Результат парсинга партии:', result)
@@ -1728,11 +1728,12 @@ export function mergeViolationsFromBatches(tsdData: TSDData | undefined): Violat
   const allInds: ViolatedIndicator[] = []
   let generalDescription: string | undefined
   for (const b of batches) {
-    const v = b.violations
-    if (!v) continue
-    if (v.violatedRequirements?.length) allReqs.push(...v.violatedRequirements)
-    if (v.violatedIndicators?.length) allInds.push(...v.violatedIndicators)
-    if (v.generalDescription && !generalDescription) generalDescription = v.generalDescription
+    const list = Array.isArray(b.violations) ? b.violations : (b.violations ? [b.violations as ViolationsData] : [])
+    for (const v of list) {
+      if (v.violatedRequirements?.length) allReqs.push(...v.violatedRequirements)
+      if (v.violatedIndicators?.length) allInds.push(...v.violatedIndicators)
+      if (v.generalDescription && !generalDescription) generalDescription = v.generalDescription
+    }
   }
   if (allReqs.length === 0 && allInds.length === 0 && !generalDescription) return undefined
   return { generalDescription, violatedRequirements: allReqs, violatedIndicators: allInds }

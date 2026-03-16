@@ -51,19 +51,19 @@ const ManufacturerDetailsEdit: React.FC<ManufacturerDetailsEditProps> = ({
   const { getSelectOptions: getCommunicationChannelSelectOptions, loading: loadingCommunicationChannels } = useCommunicationChannelOptions()
   const [kindCodeError, setKindCodeError] = useState<boolean>(false)
 
-  // Проверяем валидность кода вида участника при загрузке данных
+  // Проверка кода вида участника по справочнику с дебаунсом (не при каждом вводе символа)
   useEffect(() => {
-    if (data.supplyChainPartyKindCode) {
-      checkSupplyChainPartyKindExists(data.supplyChainPartyKindCode)
-        .then((exists) => {
-          setKindCodeError(!exists)
-        })
-        .catch(() => {
-          setKindCodeError(false)
-        })
-    } else {
+    const code = data.supplyChainPartyKindCode?.trim()
+    if (!code) {
       setKindCodeError(false)
+      return
     }
+    const t = setTimeout(() => {
+      checkSupplyChainPartyKindExists(code)
+        .then((exists) => setKindCodeError(!exists))
+        .catch(() => setKindCodeError(false))
+    }, 400)
+    return () => clearTimeout(t)
   }, [data.supplyChainPartyKindCode])
 
   // При фиксированном коде вида (например 41 для изготовителя) всегда подставляем его в данные

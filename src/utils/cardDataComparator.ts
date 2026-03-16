@@ -90,10 +90,17 @@ export function compareCardData(original: CardData, exported: CardData): {
     if (originalVal == null) {
       // В экспорте подставляется значение по умолчанию — не считать добавленным
       if (path.endsWith('.addressKindCode') && exportedVal === '1') return false
-      // В экспорте есть значение — пользователь добавил поле; показываем как отличие
+      // В экспорте есть значение
       if (exportedVal != null && (typeof exportedVal !== 'string' || String(exportedVal).trim() !== '')) {
         const displayVal = typeof exportedVal === 'string' ? exportedVal : JSON.stringify(exportedVal)
-        added.push(`${path} = "${displayVal}"`)
+        // Поле внутри уже сравниваемого элемента (например violations[0].generalDescription) —
+        // показываем как «разное значение», а не «добавленные данные», чтобы не путать с новым нарушением
+        const isInsideComparedElement = /\[\d+\]\./.test(path)
+        if (isInsideComparedElement) {
+          differences.push(`Разное значение на пути ${path}: (пусто) vs "${displayVal}"`)
+        } else {
+          added.push(`${path} = "${displayVal}"`)
+        }
         return false
       }
       warnings.push(`Отсутствует значение в исходных данных: ${path}`)
@@ -114,6 +121,26 @@ export function compareCardData(original: CardData, exported: CardData): {
       
       // Если массив объектов, сравниваем по содержимому (сопоставление по отпечаткам)
       if (originalVal.length > 0 && typeof originalVal[0] === 'object' && originalVal[0] !== null) {
+        const isViolationsArray = /\.violations$/.test(path)
+        if (isViolationsArray && originalVal.length !== exportedVal.length) {
+          // Сначала сравниваем общие по индексу элементы (0..min-1), чтобы не терять изменения
+          // внутри существующих нарушений (например indicatorValue в violatedIndicators).
+          const commonLen = Math.min(originalVal.length, exportedVal.length)
+          for (let i = 0; i < commonLen; i++) {
+            compareValue(`${path}[${i}]`, originalVal[i], exportedVal[i])
+          }
+          for (let i = originalVal.length; i < exportedVal.length; i++) {
+            const item = exportedVal[i]
+            const desc = item && typeof item === 'object' && typeof (item as Record<string, unknown>).generalDescription === 'string'
+              ? String((item as Record<string, unknown>).generalDescription).trim()
+              : ''
+            added.push(`${path}[${i}] — добавлен: нарушение${desc ? ` (${desc})` : ''}`)
+          }
+          for (let i = exportedVal.length; i < originalVal.length; i++) {
+            warnings.push(`Отсутствует в экспорте: ${path}[${i}] (нарушение)`)
+          }
+          return true
+        }
         const originalFingerprints = originalVal.map((item, idx) => {
           const keyFields = Object.keys(item).filter(k => {
             const val = item[k]

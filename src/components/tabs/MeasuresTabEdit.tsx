@@ -30,6 +30,245 @@ import type {
   ContactDetails,
 } from '@/types/card'
 
+/** Документ, регламентирующий введение меры — вынесен на уровень модуля, чтобы при вводе не терялся фокус (компонент не пересоздаётся при каждом рендере). */
+const MeasureDocDetailsEditStandalone: React.FC<{
+  doc?: MeasureDocDetails
+  onChange: (doc: MeasureDocDetails) => void
+  title: string
+  loadingCountries: boolean
+  countryOptions: CountryOption[]
+  normalizeCountryCode: (code: string | undefined) => string | undefined
+  loadingMediaTypes: boolean
+  getMediaTypeSelectOptions: () => Array<{ value: string; label: string }>
+}> = ({ doc, onChange, title, loadingCountries, countryOptions, normalizeCountryCode, loadingMediaTypes, getMediaTypeSelectOptions }) => {
+  if (!doc) {
+    return (
+      <Button
+        type="dashed"
+        icon={<PlusOutlined />}
+        onClick={() => onChange({})}
+        style={{ width: '100%' }}
+      >
+        Добавить {title}
+      </Button>
+    )
+  }
+  return (
+    <Form layout="vertical" className="field-tag-form">
+      <Form.Item label="Страна">
+        <CountrySelect
+          value={doc.country}
+          onChange={(value) => onChange({ ...doc, country: value || '' })}
+          loading={loadingCountries}
+          countryOptions={countryOptions}
+          normalizeCountryCode={normalizeCountryCode}
+        />
+      </Form.Item>
+      <Form.Item label="Язык">
+        <Select
+          showSearch
+          placeholder="Выберите язык"
+          value={doc.languageCode}
+          onChange={(value) => onChange({ ...doc, languageCode: value })}
+          filterOption={(input, option) =>
+            (option?.label ?? '').toLowerCase().includes(input.toLowerCase())
+          }
+          style={{ width: '100%' }}
+          allowClear
+        >
+          <Select.Option value="ru">RU - Русский</Select.Option>
+          <Select.Option value="en">EN - Английский</Select.Option>
+          <Select.Option value="by">BY - Белорусский</Select.Option>
+          <Select.Option value="kk">KK - Казахский</Select.Option>
+          <Select.Option value="ky">KY - Киргизский</Select.Option>
+          <Select.Option value="hy">HY - Армянский</Select.Option>
+          <Select.Option value="az">AZ - Азербайджанский</Select.Option>
+          <Select.Option value="ka">KA - Грузинский</Select.Option>
+          <Select.Option value="uk">UK - Украинский</Select.Option>
+        </Select>
+      </Form.Item>
+      <Form.Item label="Вид">
+        <Input
+          value={doc.docKindName}
+          onChange={(e) => onChange({ ...doc, docKindName: e.target.value })}
+          maxLength={getMaxLength('docKindName')}
+          showCount
+        />
+      </Form.Item>
+      <Form.Item label="Наименование">
+        <Input
+          value={doc.docName}
+          onChange={(e) => onChange({ ...doc, docName: e.target.value })}
+          maxLength={getMaxLength('docName')}
+          showCount
+        />
+      </Form.Item>
+      <Form.Item label="Серия">
+        <Input
+          value={doc.docSeriesId}
+          onChange={(e) => onChange({ ...doc, docSeriesId: e.target.value })}
+          maxLength={getMaxLength('docSeriesId')}
+          showCount
+        />
+      </Form.Item>
+      <Form.Item label="Номер">
+        <Input
+          value={doc.docId}
+          onChange={(e) => onChange({ ...doc, docId: e.target.value })}
+          maxLength={getMaxLength('docId')}
+          showCount
+        />
+      </Form.Item>
+      <Form.Item label="Дата документа">
+        <DatePicker
+          format={DATE_DISPLAY_FORMAT}
+          value={doc.docCreationDate ? dayjs(doc.docCreationDate) : null}
+          onChange={(date) => onChange({ ...doc, docCreationDate: date ? date.format('YYYY-MM-DD') : undefined })}
+          style={{ width: '100%' }}
+        />
+      </Form.Item>
+      <Form.Item label="Срок действия. Начало">
+        <DatePicker
+          format={DATE_DISPLAY_FORMAT}
+          value={doc.docStartDate ? dayjs(doc.docStartDate) : null}
+          onChange={(date) => onChange({ ...doc, docStartDate: date ? date.format('YYYY-MM-DD') : undefined })}
+          style={{ width: '100%' }}
+        />
+      </Form.Item>
+      <Form.Item label="Срок действия. Окончание">
+        <DatePicker
+          format={DATE_DISPLAY_FORMAT}
+          value={doc.docValidityDate ? dayjs(doc.docValidityDate) : null}
+          onChange={(date) => onChange({ ...doc, docValidityDate: date ? date.format('YYYY-MM-DD') : undefined })}
+          style={{ width: '100%' }}
+        />
+      </Form.Item>
+      <Form.Item label="Уполномоченный орган. Идентификатор">
+        <Input
+          value={doc.authorityId}
+          onChange={(e) => onChange({ ...doc, authorityId: e.target.value })}
+          maxLength={getMaxLength('authorityId')}
+          showCount
+        />
+      </Form.Item>
+      <Form.Item label="Уполномоченный орган. Наименование">
+        <Input
+          value={doc.authorityName}
+          onChange={(e) => onChange({ ...doc, authorityName: e.target.value })}
+          maxLength={getMaxLength('authorityName')}
+          showCount
+        />
+      </Form.Item>
+      <Form.Item label="Описание">
+        <Input.TextArea
+          rows={3}
+          value={doc.description}
+          onChange={(e) => onChange({ ...doc, description: e.target.value })}
+          maxLength={getMaxLength('description')}
+          showCount
+        />
+      </Form.Item>
+      <Form.Item label="Документ в бинарном виде">
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+          <Select
+            showSearch
+            placeholder="Выберите формат данных"
+            loading={loadingMediaTypes}
+            value={doc.docBinaryText?.mediaTypeCode}
+            onChange={(value) => onChange({
+              ...doc,
+              docBinaryText: {
+                ...doc.docBinaryText,
+                mediaTypeCode: value,
+              },
+            })}
+            filterOption={(input, option) =>
+              (option?.label ?? '').toLowerCase().includes(input.toLowerCase())
+            }
+            options={getMediaTypeSelectOptions()}
+            style={{ width: '100%' }}
+            allowClear
+          />
+          <Upload
+            beforeUpload={(file) => {
+              const reader = new FileReader()
+              reader.onload = (e) => {
+                const result = e.target?.result as string
+                const base64Content = result.includes(',') ? result.split(',')[1] : result
+                const fileExtension = file.name.split('.').pop()?.toLowerCase()
+                let detectedMediaType = doc.docBinaryText?.mediaTypeCode
+                if (!detectedMediaType) {
+                  const mimeTypeMap: Record<string, string> = {
+                    'pdf': 'application/pdf',
+                    'doc': 'application/msword',
+                    'docx': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+                    'xls': 'application/vnd.ms-excel',
+                    'xlsx': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+                    'jpg': 'image/jpeg',
+                    'jpeg': 'image/jpeg',
+                    'png': 'image/png',
+                    'gif': 'image/gif',
+                  }
+                  detectedMediaType = mimeTypeMap[fileExtension || ''] || file.type || 'application/octet-stream'
+                }
+                onChange({
+                  ...doc,
+                  docBinaryText: { content: base64Content, mediaTypeCode: detectedMediaType },
+                })
+                message.success(`Файл "${file.name}" загружен`)
+              }
+              reader.onerror = () => message.error('Ошибка при чтении файла')
+              reader.readAsDataURL(file)
+              return false
+            }}
+            showUploadList={false}
+          >
+            <Button icon={<UploadOutlined />}>Загрузить файл</Button>
+          </Upload>
+          {doc.docBinaryText?.content && (
+            <div style={{ fontSize: '12px', color: '#999' }}>
+              Документ загружен ({doc.docBinaryText.content.length} символов base64)
+            </div>
+          )}
+          <Input.TextArea
+            rows={4}
+            placeholder="Или введите содержимое документа в бинарном формате (base64) вручную"
+            value={doc.docBinaryText?.content || ''}
+            onChange={(e) => onChange({
+              ...doc,
+              docBinaryText: {
+                ...doc.docBinaryText,
+                content: e.target.value,
+                mediaTypeCode: doc.docBinaryText?.mediaTypeCode,
+              },
+            })}
+            maxLength={getMaxLength('description')}
+            showCount
+          />
+        </div>
+      </Form.Item>
+      <Form.Item label="XML-документ">
+        <Input.TextArea
+          rows={6}
+          placeholder="Введите XML-документ"
+          value={doc.xmlDocument || ''}
+          onChange={(e) => onChange({ ...doc, xmlDocument: e.target.value })}
+          maxLength={getMaxLength('description')}
+          showCount
+        />
+      </Form.Item>
+      <Button
+        type="link"
+        danger
+        icon={<DeleteOutlined />}
+        onClick={() => onChange(undefined as any)}
+      >
+        Удалить документ
+      </Button>
+    </Form>
+  )
+}
+
 interface MeasuresTabEditProps {
   data: MeasuresData
   onChange: (data: MeasuresData) => void
@@ -154,252 +393,6 @@ const MeasuresTabEdit: React.FC<MeasuresTabEditProps> = ({ data, onChange }) => 
       [field]: value,
     }
     handleMeasureChange(measureIndex, 'measureImplementationDetails', updated)
-  }
-
-  // MeasureDocDetails component
-  const MeasureDocDetailsEdit: React.FC<{
-    doc?: MeasureDocDetails
-    onChange: (doc: MeasureDocDetails) => void
-    title: string
-  }> = ({ doc, onChange, title }) => {
-    if (!doc) {
-      return (
-        <Button
-          type="dashed"
-          icon={<PlusOutlined />}
-          onClick={() => onChange({})}
-          style={{ width: '100%' }}
-        >
-          Добавить {title}
-        </Button>
-      )
-    }
-
-    return (
-      <Form layout="vertical" className="field-tag-form">
-        <Form.Item label="Страна">
-          <CountrySelect
-            value={doc.country}
-            onChange={(value) => onChange({ ...doc, country: value || '' })}
-            loading={loadingCountries}
-            countryOptions={countryOptions}
-            normalizeCountryCode={normalizeCountryCode}
-          />
-        </Form.Item>
-        <Form.Item label="Язык">
-          <Select
-            showSearch
-            placeholder="Выберите язык"
-            value={doc.languageCode}
-            onChange={(value) => onChange({ ...doc, languageCode: value })}
-            filterOption={(input, option) =>
-              (option?.label ?? '').toLowerCase().includes(input.toLowerCase())
-            }
-            style={{ width: '100%' }}
-            allowClear
-          >
-            <Select.Option value="ru">RU - Русский</Select.Option>
-            <Select.Option value="en">EN - Английский</Select.Option>
-            <Select.Option value="by">BY - Белорусский</Select.Option>
-            <Select.Option value="kk">KK - Казахский</Select.Option>
-            <Select.Option value="ky">KY - Киргизский</Select.Option>
-            <Select.Option value="hy">HY - Армянский</Select.Option>
-            <Select.Option value="az">AZ - Азербайджанский</Select.Option>
-            <Select.Option value="ka">KA - Грузинский</Select.Option>
-            <Select.Option value="uk">UK - Украинский</Select.Option>
-          </Select>
-        </Form.Item>
-        <Form.Item label="Вид">
-          <Input
-            value={doc.docKindName}
-            onChange={(e) => onChange({ ...doc, docKindName: e.target.value })}
-            maxLength={getMaxLength('docKindName')}
-            showCount
-          />
-        </Form.Item>
-        <Form.Item label="Наименование">
-          <Input
-            value={doc.docName}
-            onChange={(e) => onChange({ ...doc, docName: e.target.value })}
-            maxLength={getMaxLength('docName')}
-            showCount
-          />
-        </Form.Item>
-        <Form.Item label="Серия">
-          <Input
-            value={doc.docSeriesId}
-            onChange={(e) => onChange({ ...doc, docSeriesId: e.target.value })}
-            maxLength={getMaxLength('docSeriesId')}
-            showCount
-          />
-        </Form.Item>
-        <Form.Item label="Номер">
-          <Input
-            value={doc.docId}
-            onChange={(e) => onChange({ ...doc, docId: e.target.value })}
-            maxLength={getMaxLength('docId')}
-            showCount
-          />
-        </Form.Item>
-        <Form.Item label="Дата документа">
-          <DatePicker
-            format={DATE_DISPLAY_FORMAT}
-            value={doc.docCreationDate ? dayjs(doc.docCreationDate) : null}
-            onChange={(date) => onChange({ ...doc, docCreationDate: date ? date.format('YYYY-MM-DD') : undefined })}
-            style={{ width: '100%' }}
-          />
-        </Form.Item>
-        <Form.Item label="Срок действия. Начало">
-          <DatePicker
-            format={DATE_DISPLAY_FORMAT}
-            value={doc.docStartDate ? dayjs(doc.docStartDate) : null}
-            onChange={(date) => onChange({ ...doc, docStartDate: date ? date.format('YYYY-MM-DD') : undefined })}
-            style={{ width: '100%' }}
-          />
-        </Form.Item>
-        <Form.Item label="Срок действия. Окончание">
-          <DatePicker
-            format={DATE_DISPLAY_FORMAT}
-            value={doc.docValidityDate ? dayjs(doc.docValidityDate) : null}
-            onChange={(date) => onChange({ ...doc, docValidityDate: date ? date.format('YYYY-MM-DD') : undefined })}
-            style={{ width: '100%' }}
-          />
-        </Form.Item>
-        <Form.Item label="Уполномоченный орган. Идентификатор">
-          <Input
-            value={doc.authorityId}
-            onChange={(e) => onChange({ ...doc, authorityId: e.target.value })}
-            maxLength={getMaxLength('authorityId')}
-            showCount
-          />
-        </Form.Item>
-        <Form.Item label="Уполномоченный орган. Наименование">
-          <Input
-            value={doc.authorityName}
-            onChange={(e) => onChange({ ...doc, authorityName: e.target.value })}
-            maxLength={getMaxLength('authorityName')}
-            showCount
-          />
-        </Form.Item>
-        <Form.Item label="Описание">
-          <Input.TextArea
-            rows={3}
-            value={doc.description}
-            onChange={(e) => onChange({ ...doc, description: e.target.value })}
-            maxLength={getMaxLength('description')}
-            showCount
-          />
-        </Form.Item>
-        <Form.Item label="Документ в бинарном виде">
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-            <Select
-              showSearch
-              placeholder="Выберите формат данных"
-              loading={loadingMediaTypes}
-              value={doc.docBinaryText?.mediaTypeCode}
-              onChange={(value) => onChange({
-                ...doc,
-                docBinaryText: {
-                  ...doc.docBinaryText,
-                  mediaTypeCode: value,
-                },
-              })}
-              filterOption={(input, option) =>
-                (option?.label ?? '').toLowerCase().includes(input.toLowerCase())
-              }
-              options={getMediaTypeSelectOptions()}
-              style={{ width: '100%' }}
-              allowClear
-            />
-            <Upload
-              beforeUpload={(file) => {
-                const reader = new FileReader()
-                reader.onload = (e) => {
-                  const result = e.target?.result as string
-                  // Если результат начинается с "data:", извлекаем base64 часть
-                  const base64Content = result.includes(',') 
-                    ? result.split(',')[1] 
-                    : result
-                  
-                  // Определяем MIME тип из файла
-                  const fileExtension = file.name.split('.').pop()?.toLowerCase()
-                  let detectedMediaType = doc.docBinaryText?.mediaTypeCode
-                  
-                  // Если формат не выбран, пытаемся определить по расширению
-                  if (!detectedMediaType) {
-                    const mimeTypeMap: Record<string, string> = {
-                      'pdf': 'application/pdf',
-                      'doc': 'application/msword',
-                      'docx': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-                      'xls': 'application/vnd.ms-excel',
-                      'xlsx': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-                      'jpg': 'image/jpeg',
-                      'jpeg': 'image/jpeg',
-                      'png': 'image/png',
-                      'gif': 'image/gif',
-                    }
-                    detectedMediaType = mimeTypeMap[fileExtension || ''] || file.type || 'application/octet-stream'
-                  }
-                  
-                  onChange({
-                    ...doc,
-                    docBinaryText: {
-                      content: base64Content,
-                      mediaTypeCode: detectedMediaType,
-                    },
-                  })
-                  message.success(`Файл "${file.name}" загружен`)
-                }
-                reader.onerror = () => {
-                  message.error('Ошибка при чтении файла')
-                }
-                reader.readAsDataURL(file)
-                return false // Предотвращаем автоматическую загрузку
-              }}
-              showUploadList={false}
-            >
-              <Button icon={<UploadOutlined />}>Загрузить файл</Button>
-            </Upload>
-            {doc.docBinaryText?.content && (
-              <div style={{ fontSize: '12px', color: '#999' }}>
-                Документ загружен ({doc.docBinaryText.content.length} символов base64)
-              </div>
-            )}
-            <Input.TextArea
-              rows={4}
-              placeholder="Или введите содержимое документа в бинарном формате (base64) вручную"
-              value={doc.docBinaryText?.content || ''}
-              onChange={(e) => onChange({
-                ...doc,
-                docBinaryText: {
-                  ...doc.docBinaryText,
-                  content: e.target.value,
-                  mediaTypeCode: doc.docBinaryText?.mediaTypeCode,
-                },
-              })}
-            />
-          </div>
-        </Form.Item>
-        <Form.Item label="XML-документ">
-          <Input.TextArea
-            rows={6}
-            placeholder="Введите XML-документ"
-            value={doc.xmlDocument || ''}
-            onChange={(e) => onChange({ ...doc, xmlDocument: e.target.value })}
-            maxLength={getMaxLength('description')}
-            showCount
-          />
-        </Form.Item>
-        <Button
-          type="link"
-          danger
-          icon={<DeleteOutlined />}
-          onClick={() => onChange(undefined as any)}
-        >
-          Удалить документ
-        </Button>
-      </Form>
-    )
   }
 
   const columns = [
@@ -644,10 +637,15 @@ const MeasuresTabEdit: React.FC<MeasuresTabEditProps> = ({ data, onChange }) => 
               key: 'measureDoc',
               label: labelWithHelp('Документ, регламентирующий введение (отмену) меры', FIELD_HELP.measureDocDetails),
               children: (
-                <MeasureDocDetailsEdit
+                <MeasureDocDetailsEditStandalone
                   doc={measure.measureDocDetails}
                   onChange={(doc) => handleMeasureChange(measureIndex, 'measureDocDetails', doc)}
                   title="документ"
+                  loadingCountries={loadingCountries}
+                  countryOptions={countryOptions}
+                  normalizeCountryCode={normalizeCountryCode}
+                  loadingMediaTypes={loadingMediaTypes}
+                  getMediaTypeSelectOptions={getMediaTypeSelectOptions}
                 />
               ),
             },
@@ -655,10 +653,15 @@ const MeasuresTabEdit: React.FC<MeasuresTabEditProps> = ({ data, onChange }) => 
               key: 'initialMeasureDoc',
               label: labelWithHelp('Документ, регламентирующий введение исходной меры', FIELD_HELP.initialMeasureDocDetails),
               children: (
-                <MeasureDocDetailsEdit
+                <MeasureDocDetailsEditStandalone
                   doc={measure.initialMeasureDocDetails}
                   onChange={(doc) => handleMeasureChange(measureIndex, 'initialMeasureDocDetails', doc)}
                   title="исходный документ"
+                  loadingCountries={loadingCountries}
+                  countryOptions={countryOptions}
+                  normalizeCountryCode={normalizeCountryCode}
+                  loadingMediaTypes={loadingMediaTypes}
+                  getMediaTypeSelectOptions={getMediaTypeSelectOptions}
                 />
               ),
             },

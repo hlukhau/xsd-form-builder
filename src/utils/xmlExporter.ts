@@ -178,9 +178,12 @@ export function exportCardDataToXML(data: CardData): string {
         if (batch.complianceDocuments?.length) {
           exportComplianceDocuments(xmlParts, { documents: batch.complianceDocuments }, '                ')
         }
-        if (batch.violations && ((batch.violations.violatedRequirements?.length ?? 0) > 0 || (batch.violations.violatedIndicators?.length ?? 0) > 0 || !!batch.violations.generalDescription)) {
-          exportViolations(xmlParts, batch.violations, '                ')
-        }
+        const violationsList = Array.isArray(batch.violations) ? batch.violations : (batch.violations ? [batch.violations] : [])
+        violationsList.forEach((v) => {
+          if ((v.violatedRequirements?.length ?? 0) > 0 || (v.violatedIndicators?.length ?? 0) > 0 || !!v.generalDescription) {
+            exportViolations(xmlParts, v, '                ')
+          }
+        })
         
         xmlParts.push('            </smcdo:NonCompliantSanitaryProductBatchDetails>')
       })

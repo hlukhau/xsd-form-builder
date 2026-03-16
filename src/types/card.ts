@@ -48,8 +48,8 @@ export interface ProductBatchDetails {
   shippingDocuments: ShippingDocument[]
   /** Документы соответствия в составе данного кортежа партии (smcdo:ConformityDocDetails внутри NonCompliantSanitaryProductBatchDetails) */
   complianceDocuments?: ComplianceDocument[]
-  /** Нарушения в составе данного кортежа партии (smcdo:RequirementViolationDetails внутри NonCompliantSanitaryProductBatchDetails) */
-  violations?: ViolationsData
+  /** Нарушения в составе данного кортежа партии (smcdo:RequirementViolationDetails внутри NonCompliantSanitaryProductBatchDetails). В партии может быть несколько нарушений. */
+  violations?: ViolationsData[]
 }
 
 export interface MeasureWithUnit {

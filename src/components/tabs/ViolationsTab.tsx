@@ -229,14 +229,19 @@ const ViolationsTab: React.FC<ViolationsTabProps> = ({ tsd }) => {
     return isNaN(d.getTime()) ? date : format(d, 'dd.MM.yyyy', { locale: ru })
   }
 
-  const hasViolations = (v: ViolationsData | undefined) =>
-    v && (
-      (v.violatedRequirements?.length ?? 0) > 0 ||
-      (v.violatedIndicators?.length ?? 0) > 0 ||
-      !!v.generalDescription
-    )
+  const hasViolationContent = (v: ViolationsData) =>
+    (v.violatedRequirements?.length ?? 0) > 0 ||
+    (v.violatedIndicators?.length ?? 0) > 0 ||
+    !!v.generalDescription
 
-  const batchesWithViolations = tsd?.batches?.filter((b) => hasViolations(b.violations)) ?? []
+  const getViolationsListForBatch = (batch: { violations?: ViolationsData[] }) => {
+    const raw = batch.violations
+    if (Array.isArray(raw)) return raw
+    if (raw && typeof raw === 'object') return [raw as ViolationsData]
+    return []
+  }
+
+  const batchesWithViolations = tsd?.batches?.filter((b) => getViolationsListForBatch(b).some(hasViolationContent)) ?? []
   const useBatches = batchesWithViolations.length > 0
 
   const renderViolationsContent = (violationsData: ViolationsData) => (
@@ -292,12 +297,12 @@ const ViolationsTab: React.FC<ViolationsTabProps> = ({ tsd }) => {
           accordion={false}
           items={batchesWithViolations.map((batch, idx) => {
             const batchIndex = tsd!.batches!.indexOf(batch)
-            const v = batch.violations!
-            const reqCount = v.violatedRequirements?.length ?? 0
-            const indCount = v.violatedIndicators?.length ?? 0
+            const violationsList = getViolationsListForBatch(batch)
+            const totalReqs = violationsList.reduce((s, v) => s + (v.violatedRequirements?.length ?? 0), 0)
+            const totalInds = violationsList.reduce((s, v) => s + (v.violatedIndicators?.length ?? 0), 0)
             return {
               key: String(batchIndex),
-              label: `Партия ${batchIndex + 1}${batch.batchId ? ` — № ${batch.batchId}` : ''}${batch.manufactureDate ? ` (производство: ${formatDateShort(batch.manufactureDate)})` : ''} (требований: ${reqCount}, показателей: ${indCount})`,
+              label: `Партия ${batchIndex + 1}${batch.batchId ? ` — № ${batch.batchId}` : ''}${batch.manufactureDate ? ` (производство: ${formatDateShort(batch.manufactureDate)})` : ''} (нарушений: ${violationsList.length}, требований: ${totalReqs}, показателей: ${totalInds})`,
               children: (
                 <div>
                   <Descriptions column={1} bordered size="small" style={{ marginBottom: 12 }}>
@@ -305,7 +310,12 @@ const ViolationsTab: React.FC<ViolationsTabProps> = ({ tsd }) => {
                     <Descriptions.Item label="Дата производства">{formatDateShort(batch.manufactureDate)}</Descriptions.Item>
                     <Descriptions.Item label="Номер товарной партии">{batch.consignmentId || '-'}</Descriptions.Item>
                   </Descriptions>
-                  {renderViolationsContent(v)}
+                  {violationsList.map((v, violationIndex) => (
+                    <div key={violationIndex} style={{ marginBottom: 24 }}>
+                      <h4 style={{ marginBottom: 8 }}>Нарушение {violationIndex + 1}</h4>
+                      {renderViolationsContent(v)}
+                    </div>
+                  ))}
                 </div>
               ),
             }

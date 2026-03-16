@@ -429,20 +429,13 @@ const DangerousProductCard: React.FC<DangerousProductCardProps> = ({
     }
     
     try {
-      // Парсим исходный XML в объект
+      // Парсим исходный XML в объект (структура после парсинга: нарушения и др. могут быть в «слитом» виде)
       const originalData = parseXMLToCardData(xmlToCompare)
       console.log('[handleCompareXML] Исходные данные после парсинга:', originalData)
-      
-      // Экспортируем editedData в XML
-      const exportedXML = exportCardDataToXML(editedData)
-      console.log('[handleCompareXML] Экспортированный XML создан')
-      
-      // Парсим экспортированный XML обратно в объект
-      const exportedData = parseXMLToCardData(exportedXML)
-      console.log('[handleCompareXML] Экспортированные данные после парсинга:', exportedData)
-      
-      // Сравниваем объекты
-      const result = compareCardData(originalData, exportedData)
+      // Сравниваем с текущим состоянием формы, а не с повторно распарсенным экспортом:
+      // иначе при нескольких нарушениях в партии парсер сливает все в одно и сравнение даёт
+      // ложные различия (violations[0].violatedRequirements 1 vs 2 и т.п.)
+      const result = compareCardData(originalData, editedData)
       console.log('[handleCompareXML] Результат сравнения:', result)
       console.log('[handleCompareXML] Количество различий:', result.differences.length)
       console.log('[handleCompareXML] Количество предупреждений:', result.warnings.length)
@@ -495,8 +488,9 @@ const DangerousProductCard: React.FC<DangerousProductCardProps> = ({
     if (xmlToCompare) {
       try {
         const originalData = parseXMLToCardData(xmlToCompare)
-        const exportedData = parseXMLToCardData(xmlBody)
-        const result = compareCardData(originalData, exportedData)
+        // Сравниваем с текущим состоянием формы (editedData), а не с повторно распарсенным XML,
+        // чтобы корректно учитывать несколько нарушений в партии и не получать ложные различия
+        const result = compareCardData(originalData, editedData)
         setComparisonResult(result)
         setComparisonModalVisible(true)
       } catch {

@@ -8,12 +8,17 @@ import type { CardData } from '@/types/card'
 const BASE_URL = import.meta.env.BASE_URL || '/'
 
 const DICT_LOADING_KEY = 'dict-loading'
+const DICT_LOADING_DELAY_MS = 500
 let dictLoadingCount = 0
+let dictLoadingDelayTimer: ReturnType<typeof setTimeout> | null = null
 
 function dictionaryLoadingStart() {
   dictLoadingCount++
   if (dictLoadingCount === 1) {
-    message.loading({ content: 'Идёт загрузка справочника — подождите', key: DICT_LOADING_KEY, duration: 0 })
+    dictLoadingDelayTimer = setTimeout(() => {
+      dictLoadingDelayTimer = null
+      message.loading({ content: 'Идёт загрузка справочника — подождите', key: DICT_LOADING_KEY, duration: 0 })
+    }, DICT_LOADING_DELAY_MS)
   }
 }
 
@@ -21,6 +26,10 @@ function dictionaryLoadingEnd() {
   dictLoadingCount--
   if (dictLoadingCount <= 0) {
     dictLoadingCount = 0
+    if (dictLoadingDelayTimer != null) {
+      clearTimeout(dictLoadingDelayTimer)
+      dictLoadingDelayTimer = null
+    }
     message.destroy(DICT_LOADING_KEY)
   }
 }

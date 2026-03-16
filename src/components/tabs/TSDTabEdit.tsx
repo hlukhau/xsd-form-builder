@@ -9,7 +9,7 @@ import ManufacturerDetailsEdit from '../common/ManufacturerDetailsEdit'
 import { FieldTag, FieldTagBlock } from '../common/FieldTag'
 import { labelWithHelp } from '@/components/common/FieldHelp'
 import { FIELD_HELP } from '@/constants/fieldDescriptions'
-import { getMaxLength, validateFieldValue } from '@/constants/xsdFieldConstraints'
+import { getMaxLength, getFormatHint, validateFieldValue } from '@/constants/xsdFieldConstraints'
 import type { TSDData, ProductBatchDetails, ShippingDocument, ProductDetails, SupplyChainPartyDetails, MeasureWithUnit, TechnicalDocument } from '@/types/card'
 import { useMeasurementUnitOptions } from '@/hooks/useMeasurementUnitOptions'
 import { useShipDocKindOptions } from '@/hooks/useShipDocKindOptions'
@@ -32,24 +32,41 @@ const TSDTabEdit: React.FC<TSDTabEditProps> = ({ data, onChange }) => {
   const docKindErrorKey = (batchIndex: number, docIndex: number) => `${batchIndex}-${docIndex}`
   const productKey = (batchIndex: number, docIndex: number, pIndex: number) => `${batchIndex}-${docIndex}-${pIndex}`
 
+  // Строка кодов видов документов по партиям — чтобы проверять справочник только при их изменении, не при любом вводе
+  const docKindCodesSignature = batches
+    .map((b) => b.shippingDocuments?.map((d) => d.docKindCode ?? '').join('\t') ?? '')
+    .join('\n')
+
   useEffect(() => {
-    const errors = new Map<string, boolean>()
-    batches.forEach((batch, batchIndex) => {
-      batch.shippingDocuments?.forEach((doc, docIndex) => {
-        if (doc.docKindCode) {
-          checkShipDocKindExists(doc.docKindCode)
-            .then((exists) => {
-              errors.set(docKindErrorKey(batchIndex, docIndex), !exists)
-              setDocKindErrors(new Map(errors))
-            })
-            .catch(() => {
-              errors.set(docKindErrorKey(batchIndex, docIndex), false)
-              setDocKindErrors(new Map(errors))
-            })
-        }
+    if (!docKindCodesSignature.trim()) {
+      setDocKindErrors(new Map())
+      return
+    }
+    const t = setTimeout(() => {
+      const toCheck: { batchIndex: number; docIndex: number; code: string }[] = []
+      batches.forEach((batch, batchIndex) => {
+        batch.shippingDocuments?.forEach((doc, docIndex) => {
+          if (doc.docKindCode) toCheck.push({ batchIndex, docIndex, code: doc.docKindCode })
+        })
       })
-    })
-  }, [data])
+      if (toCheck.length === 0) {
+        setDocKindErrors(new Map())
+        return
+      }
+      const errors = new Map<string, boolean>()
+      let pending = toCheck.length
+      toCheck.forEach(({ batchIndex, docIndex, code }) => {
+        checkShipDocKindExists(code)
+          .then((exists) => errors.set(docKindErrorKey(batchIndex, docIndex), !exists))
+          .catch(() => errors.set(docKindErrorKey(batchIndex, docIndex), false))
+          .finally(() => {
+            pending--
+            if (pending === 0) setDocKindErrors(new Map(errors))
+          })
+      })
+    }, 400)
+    return () => clearTimeout(t)
+  }, [docKindCodesSignature])
 
   useEffect(() => {
     if (selectedBatchIndex !== null && selectedDocumentIndex !== null) {
@@ -528,11 +545,13 @@ const TSDTabEdit: React.FC<TSDTabEditProps> = ({ data, onChange }) => {
                           status={commodityCodeErrors[productKey(batchIndex, docIndex, pIndex)] ? 'error' : undefined}
                           maxLength={10}
                         />
-                        {commodityCodeErrors[productKey(batchIndex, docIndex, pIndex)] && (
+                        {commodityCodeErrors[productKey(batchIndex, docIndex, pIndex)] ? (
                           <div style={{ color: 'var(--ant-color-error)', fontSize: 12, marginTop: 4 }}>
                             {commodityCodeErrors[productKey(batchIndex, docIndex, pIndex)]}
                           </div>
-                        )}
+                        ) : getFormatHint('commodityCode') ? (
+                          <div style={{ color: '#999', fontSize: 12, marginTop: 4 }}>{getFormatHint('commodityCode')}</div>
+                        ) : null}
                       </FieldTagBlock>
                       <FieldTagBlock label="Описание назначения продукции">
                         <Input.TextArea
