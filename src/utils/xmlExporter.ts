@@ -114,31 +114,33 @@ export function exportCardDataToXML(data: CardData): string {
     console.warn('[exportCardDataToXML] UnifiedAuthorityDetails не экспортируется: notification или authorizedBody отсутствует')
   }
   
-  // Product
-  if (data.product) {
+  // Product и/или партии с нарушениями (по XSD блок один: продукция + партии)
+  const hasProduct = !!data.product
+  const hasBatches = !!(data.tsd && data.tsd.batches.length > 0)
+  if (hasProduct || hasBatches) {
     xmlParts.push('        <smcdo:NonCompliantSanitaryProductDetails>')
-    // Вид продукции: либо код (→ SanitaryProductTypeCode), либо наименование (→ SanitaryProductTypeName), не оба
-    if (data.product.typeCode?.trim()) {
-      xmlParts.push(`            <smsdo:SanitaryProductTypeCode codeListId="1025">${escapeXML(data.product.typeCode.trim())}</smsdo:SanitaryProductTypeCode>`)
-    } else if (data.product.typeName?.trim()) {
-      xmlParts.push(`            <smsdo:SanitaryProductTypeName>${escapeXML(data.product.typeName.trim())}</smsdo:SanitaryProductTypeName>`)
+    if (hasProduct) {
+      if (data.product!.typeCode?.trim()) {
+        xmlParts.push(`            <smsdo:SanitaryProductTypeCode codeListId="1025">${escapeXML(data.product!.typeCode.trim())}</smsdo:SanitaryProductTypeCode>`)
+      } else if (data.product!.typeName?.trim()) {
+        xmlParts.push(`            <smsdo:SanitaryProductTypeName>${escapeXML(data.product!.typeName.trim())}</smsdo:SanitaryProductTypeName>`)
+      }
+      xmlParts.push('            <smcdo:ProductDetails>')
+      exportProductDetails(xmlParts, data.product!.productDetails ?? {}, '                ')
+      xmlParts.push('            </smcdo:ProductDetails>')
+      if (data.product!.manufacturer) {
+        exportSupplyChainParty(xmlParts, data.product!.manufacturer, '41', '            ')
+      }
+    } else {
+      // Партии без данных о продукции: по XSD нужен минимум ProductDetails (пустой допустим)
+      xmlParts.push('            <smcdo:ProductDetails>')
+      exportProductDetails(xmlParts, {}, '                ')
+      xmlParts.push('            </smcdo:ProductDetails>')
     }
-    
-    // ProductDetails
-    xmlParts.push('            <smcdo:ProductDetails>')
-    exportProductDetails(xmlParts, data.product.productDetails, '                ')
-    xmlParts.push('            </smcdo:ProductDetails>')
-    
-    // Manufacturer
-    if (data.product.manufacturer) {
-      exportSupplyChainParty(xmlParts, data.product.manufacturer, '41', '            ')
-    }
-  
-    // TSD (внутри NonCompliantSanitaryProductDetails)
-    if (data.tsd && data.tsd.batches.length > 0) {
-      data.tsd.batches.forEach((batch, batchIndex) => {
+
+    if (hasBatches) {
+      data.tsd!.batches.forEach((batch) => {
         xmlParts.push('            <smcdo:NonCompliantSanitaryProductBatchDetails>')
-        // BatchDetails
         xmlParts.push('                <smcdo:BatchDetails>')
         if (batch.batchId) {
           xmlParts.push(`                    <smsdo:BatchId>${escapeXML(batch.batchId)}</smsdo:BatchId>`)
@@ -158,7 +160,6 @@ export function exportCardDataToXML(data: CardData): string {
           xmlParts.push(`                    <csdo:NoteText>${escapeXML(batch.note)}</csdo:NoteText>`)
         }
         xmlParts.push('                </smcdo:BatchDetails>')
-        
         if (batch.consignmentId) {
           xmlParts.push(`                <smsdo:ConsignmentId>${escapeXML(batch.consignmentId)}</smsdo:ConsignmentId>`)
         }
@@ -166,29 +167,21 @@ export function exportCardDataToXML(data: CardData): string {
           const unitAttrs = batch.batchCommodityMeasure.unitCode ? ` measurementUnitCode="${escapeXML(batch.batchCommodityMeasure.unitCode)}"` : ''
           xmlParts.push(`                <csdo:CommodityMeasure${unitAttrs}>${escapeXML(batch.batchCommodityMeasure.value)}</csdo:CommodityMeasure>`)
         }
-        
-        // ShippingDocuments
         if (batch.shippingDocuments && batch.shippingDocuments.length > 0) {
           batch.shippingDocuments.forEach(doc => {
             exportShippingDocument(xmlParts, doc, '                ')
           })
         }
-        
-        // Документы соответствия и нарушения только в составе партии (по XSD)
         if (batch.complianceDocuments?.length) {
           exportComplianceDocuments(xmlParts, { documents: batch.complianceDocuments }, '                ')
         }
         const violationsList = Array.isArray(batch.violations) ? batch.violations : (batch.violations ? [batch.violations] : [])
         violationsList.forEach((v) => {
-          if ((v.violatedRequirements?.length ?? 0) > 0 || (v.violatedIndicators?.length ?? 0) > 0 || !!v.generalDescription) {
-            exportViolations(xmlParts, v, '                ')
-          }
+          exportViolations(xmlParts, v, '                ')
         })
-        
         xmlParts.push('            </smcdo:NonCompliantSanitaryProductBatchDetails>')
       })
     }
-    
     xmlParts.push('        </smcdo:NonCompliantSanitaryProductDetails>')
   }
   
@@ -379,91 +372,68 @@ function exportShippingDocument(xmlParts: string[], doc: ShippingDocument, inden
 }
 
 function exportViolations(xmlParts: string[], violations: ViolationsData, indent: string) {
-  // По XSD в RequirementViolationDetails обязателен минимум один RequirementsDocDetails; затем идут DiscrepancyOfQualityIndexDetails*, DescriptionText?
-  const hasRequirements = violations.violatedRequirements && violations.violatedRequirements.length > 0
-  const hasIndicators = violations.violatedIndicators && violations.violatedIndicators.length > 0
+  // По XSD: один RequirementViolationDetails содержит:
+  // DescriptionText? → RequirementsDocDetails+ → DiscrepancyOfQualityIndexDetails*
+  const reqs = violations.violatedRequirements ?? []
+  const inds = violations.violatedIndicators ?? []
   const hasGeneralDesc = !!(violations.generalDescription && violations.generalDescription.trim())
 
-  if (hasRequirements) {
-    console.log('[exportViolations] Экспортируем violatedRequirements:', violations.violatedRequirements)
-    violations.violatedRequirements.forEach((req, index) => {
-      console.log(`[exportViolations] Требование ${index}:`, {
-        technicalRegulationId: req.technicalRegulationId,
-        technicalRegulationName: req.technicalRegulationName,
-        registrationNumber: req.registrationNumber,
-        description: req.description
-      })
-      xmlParts.push(`${indent}<smcdo:RequirementViolationDetails>`)
-      xmlParts.push(`${indent}  <smcdo:RequirementsDocDetails>`)
-      if (req.technicalRegulationId) xmlParts.push(`${indent}    <smsdo:TechnicalRegulationId>${escapeXML(req.technicalRegulationId)}</smsdo:TechnicalRegulationId>`)
-      if (req.technicalRegulationName) xmlParts.push(`${indent}    <csdo:DocName>${escapeXML(req.technicalRegulationName)}</csdo:DocName>`)
-      if (req.registrationNumber) xmlParts.push(`${indent}    <csdo:DocId>${escapeXML(req.registrationNumber)}</csdo:DocId>`)
+  xmlParts.push(`${indent}<smcdo:RequirementViolationDetails>`)
+  const inner = indent + '  '
+
+  // 1) Описание нарушения на уровне RequirementViolationDetails
+  if (hasGeneralDesc) {
+    xmlParts.push(`${inner}<csdo:DescriptionText>${escapeXML(violations.generalDescription!)}</csdo:DescriptionText>`)
+  }
+
+  // 2) Список RequirementsDocDetails (обязателен минимум один по XSD)
+  if (reqs.length > 0) {
+    reqs.forEach((req) => {
+      xmlParts.push(`${inner}<smcdo:RequirementsDocDetails>`)
+      if (req.technicalRegulationId) xmlParts.push(`${inner}  <smsdo:TechnicalRegulationId>${escapeXML(req.technicalRegulationId)}</smsdo:TechnicalRegulationId>`)
+      if (req.technicalRegulationName) xmlParts.push(`${inner}  <csdo:DocName>${escapeXML(req.technicalRegulationName)}</csdo:DocName>`)
+      if (req.registrationNumber) xmlParts.push(`${inner}  <csdo:DocId>${escapeXML(req.registrationNumber)}</csdo:DocId>`)
       if (req.structuralElements && req.structuralElements.length > 0) {
         req.structuralElements.forEach(structEl => {
-          xmlParts.push(`${indent}    <smcdo:DocStructuralElementDetails>`)
-          if (structEl.elementName) xmlParts.push(`${indent}      <smsdo:DocStructuralElementName>${escapeXML(structEl.elementName)}</smsdo:DocStructuralElementName>`)
-          if (structEl.elementId) xmlParts.push(`${indent}      <smsdo:DocStructuralElementId>${escapeXML(structEl.elementId)}</smsdo:DocStructuralElementId>`)
-          xmlParts.push(`${indent}    </smcdo:DocStructuralElementDetails>`)
+          xmlParts.push(`${inner}  <smcdo:DocStructuralElementDetails>`)
+          if (structEl.elementName) xmlParts.push(`${inner}    <smsdo:DocStructuralElementName>${escapeXML(structEl.elementName)}</smsdo:DocStructuralElementName>`)
+          if (structEl.elementId) xmlParts.push(`${inner}    <smsdo:DocStructuralElementId>${escapeXML(structEl.elementId)}</smsdo:DocStructuralElementId>`)
+          xmlParts.push(`${inner}  </smcdo:DocStructuralElementDetails>`)
         })
       }
-      // ccdo:DocReferenceDetails (документ, утверждающий требования) — порядок по XSD RequirementsDocDetailsType
       if (req.approvingDocument && (req.approvingDocument.docName || req.approvingDocument.docId || req.approvingDocument.docCreationDate || req.approvingDocument.docStartDate)) {
-        xmlParts.push(`${indent}    <ccdo:DocReferenceDetails>`)
-        if (req.approvingDocument.docName) xmlParts.push(`${indent}      <csdo:DocName>${escapeXML(req.approvingDocument.docName)}</csdo:DocName>`)
-        if (req.approvingDocument.docId) xmlParts.push(`${indent}      <csdo:DocId>${escapeXML(req.approvingDocument.docId)}</csdo:DocId>`)
-        if (req.approvingDocument.docCreationDate) xmlParts.push(`${indent}      <csdo:DocCreationDate>${escapeXML(req.approvingDocument.docCreationDate)}</csdo:DocCreationDate>`)
-        if (req.approvingDocument.docStartDate) xmlParts.push(`${indent}      <csdo:DocStartDate>${escapeXML(req.approvingDocument.docStartDate)}</csdo:DocStartDate>`)
-        xmlParts.push(`${indent}    </ccdo:DocReferenceDetails>`)
+        xmlParts.push(`${inner}  <ccdo:DocReferenceDetails>`)
+        if (req.approvingDocument.docName) xmlParts.push(`${inner}    <csdo:DocName>${escapeXML(req.approvingDocument.docName)}</csdo:DocName>`)
+        if (req.approvingDocument.docId) xmlParts.push(`${inner}    <csdo:DocId>${escapeXML(req.approvingDocument.docId)}</csdo:DocId>`)
+        if (req.approvingDocument.docCreationDate) xmlParts.push(`${inner}    <csdo:DocCreationDate>${escapeXML(req.approvingDocument.docCreationDate)}</csdo:DocCreationDate>`)
+        if (req.approvingDocument.docStartDate) xmlParts.push(`${inner}    <csdo:DocStartDate>${escapeXML(req.approvingDocument.docStartDate)}</csdo:DocStartDate>`)
+        xmlParts.push(`${inner}  </ccdo:DocReferenceDetails>`)
       }
-      // DescriptionText внутри RequirementsDocDetails
       if (req.description) {
-        xmlParts.push(`${indent}    <csdo:DescriptionText>${escapeXML(req.description)}</csdo:DescriptionText>`)
+        xmlParts.push(`${inner}  <csdo:DescriptionText>${escapeXML(req.description)}</csdo:DescriptionText>`)
       }
-      xmlParts.push(`${indent}  </smcdo:RequirementsDocDetails>`)
-      
-      // DescriptionText на уровне RequirementViolationDetails (после RequirementsDocDetails)
-      if (req.requirementLevelDescription) {
-        xmlParts.push(`${indent}  <csdo:DescriptionText>${escapeXML(req.requirementLevelDescription)}</csdo:DescriptionText>`)
-      }
-      
-      xmlParts.push(`${indent}</smcdo:RequirementViolationDetails>`)
+      xmlParts.push(`${inner}</smcdo:RequirementsDocDetails>`)
     })
+  } else {
+    xmlParts.push(`${inner}<smcdo:RequirementsDocDetails></smcdo:RequirementsDocDetails>`)
   }
-  
-  // Только показатели или только общее описание: по XSD нужен минимум один RequirementsDocDetails в каждом RequirementViolationDetails
-  if (hasIndicators || hasGeneralDesc) {
-    if (hasIndicators) {
-      violations.violatedIndicators!.forEach(indicator => {
-        xmlParts.push(`${indent}<smcdo:RequirementViolationDetails>`)
-        xmlParts.push(`${indent}  <smcdo:RequirementsDocDetails></smcdo:RequirementsDocDetails>`)
-        xmlParts.push(`${indent}  <smcdo:DiscrepancyOfQualityIndexDetails${indicator.isNormative ? ' normativeDiscrepancyOfQualityIndexIndicator="1"' : ''}>`)
-        if (indicator.indicatorCode) xmlParts.push(`${indent}    <smsdo:DiscrepancyOfQualityIndexCode>${escapeXML(indicator.indicatorCode)}</smsdo:DiscrepancyOfQualityIndexCode>`)
-        if (indicator.indicatorName) xmlParts.push(`${indent}    <smsdo:DiscrepancyOfQualityIndexName>${escapeXML(indicator.indicatorName)}</smsdo:DiscrepancyOfQualityIndexName>`)
-        if (indicator.indicatorValue) {
-          const unitAttrs = indicator.unitCode ? ` measurementUnitCode="${escapeXML(indicator.unitCode)}"` : ''
-          xmlParts.push(`${indent}    <smsdo:DiscrepancyOfQualityIndexValue${unitAttrs}>${escapeXML(indicator.indicatorValue)}</smsdo:DiscrepancyOfQualityIndexValue>`)
-        }
-        if (indicator.note) xmlParts.push(`${indent}    <csdo:NoteText>${escapeXML(indicator.note)}</csdo:NoteText>`)
-        xmlParts.push(`${indent}  </smcdo:DiscrepancyOfQualityIndexDetails>`)
-        xmlParts.push(`${indent}</smcdo:RequirementViolationDetails>`)
-      })
+
+  // 3) Список DiscrepancyOfQualityIndexDetails
+  inds.forEach(indicator => {
+    xmlParts.push(`${inner}<smcdo:DiscrepancyOfQualityIndexDetails${indicator.isNormative ? ' normativeDiscrepancyOfQualityIndexIndicator="1"' : ''}>`)
+    if (indicator.indicatorCode) xmlParts.push(`${inner}  <smsdo:DiscrepancyOfQualityIndexCode>${escapeXML(indicator.indicatorCode)}</smsdo:DiscrepancyOfQualityIndexCode>`)
+    if (indicator.indicatorName) xmlParts.push(`${inner}  <smsdo:DiscrepancyOfQualityIndexName>${escapeXML(indicator.indicatorName)}</smsdo:DiscrepancyOfQualityIndexName>`)
+    if (indicator.indicatorValue) {
+      const unitAttrs = indicator.unitCode ? ` measurementUnitCode="${escapeXML(indicator.unitCode)}"` : ''
+      xmlParts.push(`${inner}  <smsdo:DiscrepancyOfQualityIndexValue${unitAttrs}>${escapeXML(indicator.indicatorValue)}</smsdo:DiscrepancyOfQualityIndexValue>`)
     }
-    if (hasGeneralDesc && !hasRequirements) {
-      xmlParts.push(`${indent}<smcdo:RequirementViolationDetails>`)
-      xmlParts.push(`${indent}  <smcdo:RequirementsDocDetails></smcdo:RequirementsDocDetails>`)
-      xmlParts.push(`${indent}  <csdo:DescriptionText>${escapeXML(violations.generalDescription)}</csdo:DescriptionText>`)
-      xmlParts.push(`${indent}</smcdo:RequirementViolationDetails>`)
-    } else if (hasGeneralDesc && hasRequirements) {
-      // generalDescription уже мог быть выведен как requirementLevelDescription в одном из требований; выводим отдельным блоком только если ни в одном нет
-      const alreadyOutput = violations.violatedRequirements!.some(r => r.requirementLevelDescription === violations.generalDescription)
-      if (!alreadyOutput) {
-        xmlParts.push(`${indent}<smcdo:RequirementViolationDetails>`)
-        xmlParts.push(`${indent}  <smcdo:RequirementsDocDetails></smcdo:RequirementsDocDetails>`)
-        xmlParts.push(`${indent}  <csdo:DescriptionText>${escapeXML(violations.generalDescription)}</csdo:DescriptionText>`)
-        xmlParts.push(`${indent}</smcdo:RequirementViolationDetails>`)
-      }
+    if (indicator.note) {
+      xmlParts.push(`${inner}  <csdo:NoteText>${escapeXML(indicator.note)}</csdo:NoteText>`)
     }
-  }
+    xmlParts.push(`${inner}</smcdo:DiscrepancyOfQualityIndexDetails>`)
+  })
+
+  xmlParts.push(`${indent}</smcdo:RequirementViolationDetails>`)
 }
 
 function exportDetectionPlace(xmlParts: string[], place: DetectionPlaceData, indent: string) {

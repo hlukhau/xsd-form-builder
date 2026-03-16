@@ -242,11 +242,11 @@ export function parseXMLToCardData(xmlText: string): CardData {
     }
   }
   if (!mergedViolations || ((mergedViolations.violatedRequirements?.length ?? 0) === 0 && (mergedViolations.violatedIndicators?.length ?? 0) === 0 && !mergedViolations.generalDescription)) {
-    const fallbackViolations = parseViolations(alertDetails, xmlDoc.documentElement)
-    if (fallbackViolations && ((fallbackViolations.violatedRequirements?.length ?? 0) > 0 || (fallbackViolations.violatedIndicators?.length ?? 0) > 0 || !!fallbackViolations.generalDescription)) {
+    const fallbackViolationsList = parseViolations(alertDetails, xmlDoc.documentElement)
+    if (fallbackViolationsList?.length) {
       const batches = finalTsd?.batches?.length ? [...finalTsd.batches] : [{ shippingDocuments: [] }]
       const first = batches[0]
-      batches[0] = { ...first, violations: [fallbackViolations] }
+      batches[0] = { ...first, violations: fallbackViolationsList }
       finalTsd = { batches }
     }
   }
@@ -1456,7 +1456,7 @@ function parseBatchDetails(batchElement: Element): ProductBatchDetails | null {
 
   // Документы соответствия и нарушения в составе данного кортежа (smcdo:ConformityDocDetails, smcdo:RequirementViolationDetails внутри NonCompliantSanitaryProductBatchDetails)
   const complianceData = parseComplianceDocuments(batchElement)
-  const violationsData = parseViolations(batchElement)
+  const violationsList = parseViolations(batchElement)
   
   const result: ProductBatchDetails = {
     batchId,
@@ -1468,7 +1468,7 @@ function parseBatchDetails(batchElement: Element): ProductBatchDetails | null {
     batchCommodityMeasure,
     shippingDocuments,
     ...(complianceData?.documents?.length ? { complianceDocuments: complianceData.documents } : {}),
-    ...(violationsData ? { violations: [violationsData] } : {}),
+    ...(violationsList?.length ? { violations: violationsList } : {}),
   }
   
   console.log('Результат парсинга партии:', result)
@@ -1877,187 +1877,94 @@ function parseComplianceDocument(docElement: Element): ComplianceDocument | null
 }
 
 /**
- * Парсит нарушения
+ * Парсит один элемент RequirementViolationDetails в одно ViolationsData.
  */
-function parseViolations(alertDetails: Element, rootElement?: Element): ViolationsData | undefined {
-  console.log('Начинаем парсинг нарушений')
-  
-  const violatedRequirements: ViolatedRequirement[] = []
-  const violatedIndicators: ViolatedIndicator[] = []
-  let generalDescription: string | undefined = undefined
-  
-  // Используем Set для отслеживания уже обработанных элементов, чтобы избежать дублирования
-  const processedElements = new Set<Element>()
-  
-  // Ищем только в alertDetails, так как rootElement может содержать весь документ и дублировать элементы
-  const searchElement = alertDetails
-  
-  // Пробуем найти через getElementsByTagName
-  try {
-    const violationElements = searchElement.getElementsByTagName('smcdo:RequirementViolationDetails')
-    console.log('Найдено нарушений через getElementsByTagName:', violationElements.length)
-    
-    for (let i = 0; i < violationElements.length; i++) {
-      const el = violationElements[i]
-      
-      // Пропускаем уже обработанные элементы
-      if (processedElements.has(el)) {
-        console.log('[parseViolations] Пропускаем уже обработанный элемент')
-        continue
-      }
-      processedElements.add(el)
-        
-        // Описание на уровне RequirementViolationDetails (может быть несколько)
-        // Собираем все DescriptionText на этом уровне
-        const descs: string[] = []
-        const allDescElements = el.getElementsByTagName('*')
-        for (let j = 0; j < allDescElements.length; j++) {
-          const descEl = allDescElements[j]
-          const localName = descEl.localName || descEl.tagName.split(':').pop()?.toLowerCase()
-          // Проверяем, что это DescriptionText и он не внутри RequirementsDocDetails
-          if (localName === 'descriptiontext') {
-            const parentLocalName = (descEl.parentElement?.localName || descEl.parentElement?.tagName.split(':').pop() || '').toLowerCase()
-            if (parentLocalName === 'requirementviolationdetails') {
-              const text = descEl.textContent?.trim()
-              if (text) {
-                descs.push(text)
-              }
-            }
-          }
-        }
-        // Прямой потомок csdo:DescriptionText (на случай если цикл выше не сработал из-за регистра/namespace)
-        const directDesc = (getTextFromDirectChildByLocalName(el, 'DescriptionText') || getTextContent(el, 'DescriptionText') || '').trim()
-        if (directDesc && !descs.includes(directDesc)) {
-          descs.push(directDesc)
-        }
-        // Объединяем все описания
-        if (descs.length > 0) {
-          const combinedDesc = descs.join(' ')
-          if (!generalDescription) {
-            generalDescription = combinedDesc
-          } else {
-            generalDescription += ' ' + combinedDesc
-          }
-        }
-        
-        // RequirementsDocDetails
-        const requirementsDocs = parseRequirementsDocDetails(el)
-        
-        // DescriptionText на уровне RequirementViolationDetails (после RequirementsDocDetails)
-        // Ищем DescriptionText, который является прямым потомком RequirementViolationDetails
-        // и идет ПОСЛЕ RequirementsDocDetails (не внутри него)
-        let requirementLevelDesc: string | undefined = undefined
-        const allChildren = Array.from(el.children)
-        let foundRequirementsDocDetails = false
-        for (const child of allChildren) {
-          const localName = (child.localName || child.tagName.split(':').pop() || '').toLowerCase()
-          if (localName === 'requirementsdocdetails') {
-            foundRequirementsDocDetails = true
-            continue
-          }
-          if (foundRequirementsDocDetails && localName === 'descriptiontext') {
-            requirementLevelDesc = (child as Element).textContent?.trim() || undefined
-            break
-          }
-        }
-        if (requirementLevelDesc && requirementsDocs.length > 0) {
-          requirementsDocs[requirementsDocs.length - 1].requirementLevelDescription = requirementLevelDesc
-        }
-        
-        violatedRequirements.push(...requirementsDocs)
-        
-        // DiscrepancyOfQualityIndexDetails (нарушенные показатели)
-        const indicators = parseViolatedIndicators(el)
-        violatedIndicators.push(...indicators)
-      }
-    } catch (e) {
-      console.log('Ошибка при поиске нарушений:', e)
-    }
-    
-    // Если не нашли, ищем по локальному имени
-    if (violatedRequirements.length === 0) {
-      const allElements = searchElement.getElementsByTagName('*')
-      for (let i = 0; i < allElements.length; i++) {
-        const el = allElements[i]
-        
-        // Пропускаем уже обработанные элементы
-        if (processedElements.has(el)) {
-          continue
-        }
-        
-        const localName = el.localName || el.tagName.split(':').pop()?.toLowerCase()
-        
-        if (localName === 'requirementviolationdetails') {
-          processedElements.add(el)
-          // Описание на уровне RequirementViolationDetails
-          const descs: string[] = []
-          const allDescElements = el.getElementsByTagName('*')
-          for (let j = 0; j < allDescElements.length; j++) {
-            const descEl = allDescElements[j]
-            const descLocalName = descEl.localName || descEl.tagName.split(':').pop()?.toLowerCase()
-            if (descLocalName === 'descriptiontext') {
-              const parentLocalName = (descEl.parentElement?.localName || descEl.parentElement?.tagName.split(':').pop() || '').toLowerCase()
-              if (parentLocalName === 'requirementviolationdetails') {
-                const text = descEl.textContent?.trim()
-                if (text) {
-                  descs.push(text)
-                }
-              }
-            }
-          }
-          const directDescFallback = (getTextFromDirectChildByLocalName(el, 'DescriptionText') || getTextContent(el, 'DescriptionText') || '').trim()
-          if (directDescFallback && !descs.includes(directDescFallback)) {
-            descs.push(directDescFallback)
-          }
-          if (descs.length > 0) {
-            const combinedDesc = descs.join(' ')
-            if (!generalDescription) {
-              generalDescription = combinedDesc
-            } else {
-              generalDescription += ' ' + combinedDesc
-            }
-          }
-          
-          const requirementsDocs = parseRequirementsDocDetails(el)
-          let requirementLevelDesc: string | undefined = undefined
-          const allChildren = Array.from(el.children)
-          let foundRequirementsDocDetails = false
-          for (const child of allChildren) {
-            const localName = (child.localName || child.tagName.split(':').pop() || '').toLowerCase()
-            if (localName === 'requirementsdocdetails') {
-              foundRequirementsDocDetails = true
-              continue
-            }
-            if (foundRequirementsDocDetails && localName === 'descriptiontext') {
-              requirementLevelDesc = (child as Element).textContent?.trim() || undefined
-              break
-            }
-          }
-          if (requirementLevelDesc && requirementsDocs.length > 0) {
-            requirementsDocs[requirementsDocs.length - 1].requirementLevelDescription = requirementLevelDesc
-          }
-          
-          violatedRequirements.push(...requirementsDocs)
-          
-          const indicators = parseViolatedIndicators(el)
-          violatedIndicators.push(...indicators)
-        }
+function parseOneRequirementViolationDetails(el: Element): ViolationsData {
+  const descs: string[] = []
+  const allDescElements = el.getElementsByTagName('*')
+  for (let j = 0; j < allDescElements.length; j++) {
+    const descEl = allDescElements[j]
+    const localName = descEl.localName || descEl.tagName.split(':').pop()?.toLowerCase()
+    if (localName === 'descriptiontext') {
+      const parentLocalName = (descEl.parentElement?.localName || descEl.parentElement?.tagName.split(':').pop() || '').toLowerCase()
+      if (parentLocalName === 'requirementviolationdetails') {
+        const text = descEl.textContent?.trim()
+        if (text) descs.push(text)
       }
     }
-  
-  if (violatedRequirements.length === 0 && violatedIndicators.length === 0 && !generalDescription) {
-    console.log('Нарушения не найдены')
-    return undefined
   }
-  
-  console.log('Найдено нарушенных требований:', violatedRequirements.length)
-  console.log('Найдено нарушенных показателей:', violatedIndicators.length)
-  
+  const directDesc = (getTextFromDirectChildByLocalName(el, 'DescriptionText') || getTextContent(el, 'DescriptionText') || '').trim()
+  if (directDesc && !descs.includes(directDesc)) descs.push(directDesc)
+  const generalDescription = descs.length > 0 ? descs.join(' ') : undefined
+
+  const requirementsDocs = parseRequirementsDocDetails(el)
+  const allChildren = Array.from(el.children)
+  let foundRequirementsDocDetails = false
+  let requirementLevelDesc: string | undefined
+  for (const child of allChildren) {
+    const localName = (child.localName || child.tagName.split(':').pop() || '').toLowerCase()
+    if (localName === 'requirementsdocdetails') {
+      foundRequirementsDocDetails = true
+      continue
+    }
+    if (foundRequirementsDocDetails && localName === 'descriptiontext') {
+      requirementLevelDesc = (child as Element).textContent?.trim() || undefined
+      break
+    }
+  }
+  if (requirementLevelDesc && requirementsDocs.length > 0) {
+    requirementsDocs[requirementsDocs.length - 1].requirementLevelDescription = requirementLevelDesc
+  }
+
+  const violatedIndicators = parseViolatedIndicators(el)
   return {
     generalDescription,
-    violatedRequirements,
+    violatedRequirements: requirementsDocs,
     violatedIndicators,
   }
+}
+
+/**
+ * Парсит нарушения: возвращает массив — по одному ViolationsData на каждый smcdo:RequirementViolationDetails.
+ */
+function parseViolations(alertDetails: Element, _rootElement?: Element): ViolationsData[] | undefined {
+  const result: ViolationsData[] = []
+  const processedElements = new Set<Element>()
+  const searchElement = alertDetails
+
+  try {
+    const violationElements = searchElement.getElementsByTagName('smcdo:RequirementViolationDetails')
+    for (let i = 0; i < violationElements.length; i++) {
+      const el = violationElements[i]
+      if (processedElements.has(el)) continue
+      processedElements.add(el)
+      const one = parseOneRequirementViolationDetails(el)
+      if ((one.violatedRequirements?.length ?? 0) > 0 || (one.violatedIndicators?.length ?? 0) > 0 || !!one.generalDescription) {
+        result.push(one)
+      }
+    }
+  } catch (e) {
+    console.log('Ошибка при поиске нарушений:', e)
+  }
+
+  if (result.length === 0) {
+    const allElements = searchElement.getElementsByTagName('*')
+    for (let i = 0; i < allElements.length; i++) {
+      const el = allElements[i]
+      if (processedElements.has(el)) continue
+      const localName = el.localName || el.tagName.split(':').pop()?.toLowerCase()
+      if (localName === 'requirementviolationdetails') {
+        processedElements.add(el)
+        const one = parseOneRequirementViolationDetails(el)
+        if ((one.violatedRequirements?.length ?? 0) > 0 || (one.violatedIndicators?.length ?? 0) > 0 || !!one.generalDescription) {
+          result.push(one)
+        }
+      }
+    }
+  }
+
+  if (result.length === 0) return undefined
+  return result
 }
 
 /**
