@@ -1,13 +1,76 @@
 package com.eec.util;
 
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
+
 /**
- * Проверка прав доступа (внутренняя карта с правами).
- * Пока все методы возвращают true; реализация — отдельно.
- * Параметр id может быть null.
+ * Проверка прав доступа по JSON карты прав (up.dangerousProductIn.access и т.д.).
+ * Для проверок по источнику сведений вызывающий код передаёт JSON прав по GUID.
+ * Параметр id в методах может быть null (для обратной совместимости API).
  */
 public final class AccessRightService {
 
     private AccessRightService() {
+    }
+
+    /**
+     * Проверить наличие непустого объекта access в блоке up.dangerousProductIn.
+     * Право: управление доступом к входящим сведениям об опасной продукции — dangerousProductIn:access.
+     *
+     * @param rightsJson JSON прав (по GUID); null или пустая строка — нет права
+     * @return true — в JSON есть up.dangerousProductIn.access с хотя бы одним ключом
+     */
+    public static boolean hasDangerousProductInAccess(String rightsJson) {
+        return hasAccessRightInJson(rightsJson, "dangerousProductIn", "access");
+    }
+
+    /**
+     * Проверить наличие непустого объекта access в блоке up.dangerousProductOut.
+     * Право: управление доступом к исходящим сведениям — dangerousProductOut:access.
+     *
+     * @param rightsJson JSON прав (по GUID); null или пустая строка — нет права
+     * @return true — в JSON есть up.dangerousProductOut.access с хотя бы одним ключом
+     */
+    public static boolean hasDangerousProductOutAccess(String rightsJson) {
+        return hasAccessRightInJson(rightsJson, "dangerousProductOut", "access");
+    }
+
+    /**
+     * Проверить наличие непустого объекта access в блоке up.dangerousProductDB.
+     * Право: управление доступом к сведениям из БД ЕЭК — dangerousProductDB:access.
+     *
+     * @param rightsJson JSON прав (по GUID); null или пустая строка — нет права
+     * @return true — в JSON есть up.dangerousProductDB.access с хотя бы одним ключом
+     */
+    public static boolean hasDangerousProductDBAccess(String rightsJson) {
+        return hasAccessRightInJson(rightsJson, "dangerousProductDB", "access");
+    }
+
+    /**
+     * Ищет в JSON блок up.{section} и внутри него объект с ключом "access", содержащий хотя бы один ключ.
+     */
+    private static boolean hasAccessRightInJson(String json, String section, String rightKey) {
+        if (json == null || json.trim().isEmpty()) return false;
+        int upStart = json.indexOf("\"up\"");
+        if (upStart < 0) return false;
+        int sectionStart = json.indexOf("\"" + section + "\"", upStart);
+        if (sectionStart < 0) return false;
+        int rightStart = json.indexOf("\"" + rightKey + "\"", sectionStart);
+        if (rightStart < 0) return false;
+        int braceStart = json.indexOf('{', rightStart);
+        if (braceStart < 0) return false;
+        int depth = 1;
+        int i = braceStart + 1;
+        while (i < json.length() && depth > 0) {
+            char c = json.charAt(i);
+            if (c == '{') depth++;
+            else if (c == '}') depth--;
+            i++;
+        }
+        String block = (depth == 0 && i <= json.length()) ? json.substring(braceStart, i) : "";
+        Pattern keyP = Pattern.compile("\"([^\"]+)\"\\s*:");
+        Matcher keyM = keyP.matcher(block);
+        return keyM.find();
     }
 
     /**
@@ -40,30 +103,6 @@ public final class AccessRightService {
      */
     public static boolean canEdit(String id) {
         // TODO: реализовать
-        return true;
-    }
-
-    /**
-     * Управление доступом к входящим сведениям — dangerousProductIn:access.
-     */
-    public static boolean hasDangerousProductInAccess(String id) {
-        // TODO: проверка по внутренней карте прав
-        return true;
-    }
-
-    /**
-     * Управление доступом к исходящим сведениям — dangerousProductOut:access.
-     */
-    public static boolean hasDangerousProductOutAccess(String id) {
-        // TODO: проверка по внутренней карте прав
-        return true;
-    }
-
-    /**
-     * Управление доступом к сведениям из БД ЕЭК — dangerousProductDB:access.
-     */
-    public static boolean hasDangerousProductDBAccess(String id) {
-        // TODO: проверка по внутренней карте прав
         return true;
     }
 

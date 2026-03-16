@@ -172,8 +172,13 @@ public class DpaAccessServlet extends HttpServlet {
         String guid = request.getAttribute("guid") instanceof String
                 ? (String) request.getAttribute("guid")
                 : request.getParameter("guid");
+        if (guid == null || guid.trim().isEmpty()) {
+            sendJsonError(response, HttpServletResponse.SC_FORBIDDEN, "Для управления доступом необходим guid (карта прав)");
+            return;
+        }
+        String rightsJson = RightsJsonStore.guidMap.get(guid.trim());
         String accessRight = resolveAccessRightByDpaid(request, dpaid, guid);
-        if (accessRight != null && !checkAccessRight(accessRight, dpaid)) {
+        if (accessRight != null && !checkAccessRight(accessRight, rightsJson)) {
             sendJsonError(response, HttpServletResponse.SC_FORBIDDEN, "Нет права на управление доступом");
             return;
         }
@@ -206,12 +211,17 @@ public class DpaAccessServlet extends HttpServlet {
             sendJsonError(response, HttpServletResponse.SC_BAD_REQUEST, "Нужны dpaid и depId");
             return;
         }
+        if (guid == null || guid.trim().isEmpty()) {
+            sendJsonError(response, HttpServletResponse.SC_FORBIDDEN, "Для управления доступом необходим guid (карта прав)");
+            return;
+        }
         response.setContentType("application/json;charset=UTF-8");
         response.setCharacterEncoding("UTF-8");
         response.setHeader("Access-Control-Allow-Origin", "*");
 
+        String rightsJson = RightsJsonStore.guidMap.get(guid.trim());
         String accessRight = resolveAccessRightByDpaid(request, dpaid, guid);
-        if (accessRight != null && !checkAccessRight(accessRight, dpaid)) {
+        if (accessRight != null && !checkAccessRight(accessRight, rightsJson)) {
             sendJsonError(response, HttpServletResponse.SC_FORBIDDEN, "Нет права на управление доступом");
             return;
         }
@@ -262,10 +272,10 @@ public class DpaAccessServlet extends HttpServlet {
         }
     }
 
-    private static boolean checkAccessRight(String right, String id) {
-        if ("dangerousProductIn:access".equals(right)) return AccessRightService.hasDangerousProductInAccess(id);
-        if ("dangerousProductOut:access".equals(right)) return AccessRightService.hasDangerousProductOutAccess(id);
-        if ("dangerousProductDB:access".equals(right)) return AccessRightService.hasDangerousProductDBAccess(id);
+    private static boolean checkAccessRight(String right, String rightsJson) {
+        if ("dangerousProductIn:access".equals(right)) return AccessRightService.hasDangerousProductInAccess(rightsJson);
+        if ("dangerousProductOut:access".equals(right)) return AccessRightService.hasDangerousProductOutAccess(rightsJson);
+        if ("dangerousProductDB:access".equals(right)) return AccessRightService.hasDangerousProductDBAccess(rightsJson);
         return true;
     }
 

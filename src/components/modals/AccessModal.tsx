@@ -94,13 +94,17 @@ const AccessModal: React.FC<AccessModalProps> = ({
 
   useEffect(() => {
     if (!visible || !fromApi || !dpaid) return
+    if (!guid || !guid.trim()) {
+      setCanManageAccess(false)
+      return
+    }
     const right = source != null ? cardSourceToAccessRight(source) : undefined
     if (!right) {
       setCanManageAccess(true)
       return
     }
-    checkAccessRight(dpaid, right).then(setCanManageAccess)
-  }, [visible, fromApi, dpaid, source])
+    checkAccessRight(guid, right).then(setCanManageAccess)
+  }, [visible, fromApi, dpaid, source, guid])
 
   useEffect(() => {
     if (visible && fromApi) {

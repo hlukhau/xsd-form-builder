@@ -55,6 +55,9 @@ public class XsdFormBuilderServlet extends HttpServlet {
                     "    \"dangerousProductDB\": {\n" +
                     "      \"view\": {\n" +
                     "        \"522\": {}\n" +
+                    "      },\n" +
+                    "      \"access\": {\n" +
+                    "        \"522\": {}\n" +
                     "      }\n" +
                     "    },\n" +
                     "    \"dangerousProductIn\": {\n" +

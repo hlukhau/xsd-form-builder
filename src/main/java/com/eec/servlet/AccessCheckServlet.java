@@ -29,15 +29,16 @@ public class AccessCheckServlet extends HttpServlet {
 
         boolean allowed;
         if (right != null && !right.trim().isEmpty()) {
+            String rightsJson = (id != null && !id.trim().isEmpty()) ? RightsJsonStore.guidMap.get(id.trim()) : null;
             switch (right.trim()) {
                 case "dangerousProductIn:access":
-                    allowed = AccessRightService.hasDangerousProductInAccess(id);
+                    allowed = AccessRightService.hasDangerousProductInAccess(rightsJson);
                     break;
                 case "dangerousProductOut:access":
-                    allowed = AccessRightService.hasDangerousProductOutAccess(id);
+                    allowed = AccessRightService.hasDangerousProductOutAccess(rightsJson);
                     break;
                 case "dangerousProductDB:access":
-                    allowed = AccessRightService.hasDangerousProductDBAccess(id);
+                    allowed = AccessRightService.hasDangerousProductDBAccess(rightsJson);
                     break;
                 case "dangerousProductIn:status":
                     allowed = AccessRightService.hasDangerousProductInStatus(id);
