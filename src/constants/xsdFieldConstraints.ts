@@ -30,6 +30,9 @@ export const COMMODITY_CODE_PATTERN = /^$|^\d{2}$|^\d{4}$|^\d{6}$|^\d{8,10}$/
 /** Десятичное число: целая часть до 18 цифр, дробная до 6 (PhysicalMeasureType). Пустая строка допустима. */
 export const DECIMAL_18_6_PATTERN = /^$|^-?\d{1,18}([.,]\d{1,6})?$/
 
+/** Географическая координата ISO 6709: макс. 11 цифр всего, макс. 8 дробных (GeoCoordinateMeasureType). Пустая строка допустима. */
+export const GEO_COORDINATE_PATTERN = /^$|^-?\d{1,3}([.,]\d{1,8})?$/
+
 /** Маппинг ключей полей формы на ограничения XSD. */
 export const XSD_FIELD_CONSTRAINTS: Record<string, FieldConstraint> = {
   // Продукция (вкладка «Продукция», блок продукции в ТСД)
@@ -75,6 +78,13 @@ export const XSD_FIELD_CONSTRAINTS: Record<string, FieldConstraint> = {
   // Пункт пропуска
   checkpointCode: { maxLength: 18, messageMaxLength: 'Не более 18 символов (csdo:BorderCheckpointCodeType)' },
   checkpointName: { maxLength: 300, messageMaxLength: 'Не более 300 символов (csdo:Name300Type)' },
+
+  // Географические координаты (ISO 6709: макс. 11 цифр, макс. 8 дробных)
+  geoCoordinate: {
+    pattern: GEO_COORDINATE_PATTERN,
+    formatHint: 'Число в формате ISO 6709: макс. 11 цифр всего, макс. 8 знаков после запятой (например 27,56123456)',
+    messagePattern: 'Введите число: макс. 11 цифр всего, макс. 8 знаков после запятой (ISO 6709)',
+  },
 
   // Документы (соответствия, меры, уведомления)
   docKindName: { maxLength: 300, messageMaxLength: 'Не более 300 символов (csdo:Name300Type)' },

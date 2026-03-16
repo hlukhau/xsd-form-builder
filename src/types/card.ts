@@ -296,7 +296,8 @@ export interface DetectionPlaceData {
   organization?: BusinessEntityDetails // OrganizationDetails (UnifiedAuthorityDetails или BusinessEntityDetailsType)
   borderCheckpoint?: BorderCheckpointDetails // BorderCheckpointDetails
   address?: AddressDetails // ObjectAddressDetails
-  geoCoordinates?: GeoCoordinateDetails // GeoCoordinateDetails
+  /** Несколько географических координат (GeoCoordinateDetails). */
+  geoCoordinates?: GeoCoordinateDetails[]
   description?: string // DescriptionText
 }
 

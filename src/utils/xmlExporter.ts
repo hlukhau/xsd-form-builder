@@ -342,8 +342,11 @@ function exportAddress(
   if (address.buildingNumberId) xmlParts.push(`${indent}    <csdo:BuildingNumberId>${escapeXML(address.buildingNumberId)}</csdo:BuildingNumberId>`)
   if (address.roomNumberId) xmlParts.push(`${indent}    <csdo:RoomNumberId>${escapeXML(address.roomNumberId)}</csdo:RoomNumberId>`)
   if (address.postOfficeBoxId) xmlParts.push(`${indent}    <csdo:PostOfficeBoxId>${escapeXML(address.postOfficeBoxId)}</csdo:PostOfficeBoxId>`)
-  if (address.postCode) xmlParts.push(`${indent}    <csdo:PostCode>${escapeXML(address.postCode)}</csdo:PostCode>`)
-  if (address.fullAddress) xmlParts.push(`${indent}    <csdo:FullAddress>${escapeXML(address.fullAddress)}</csdo:FullAddress>`)
+  // В ObjectAddressDetails нет атрибутов PostCode и FullAddress — экспортируем только для SubjectAddressDetails
+  if (wrapper !== 'ObjectAddressDetails') {
+    if (address.postCode) xmlParts.push(`${indent}    <csdo:PostCode>${escapeXML(address.postCode)}</csdo:PostCode>`)
+    if (address.fullAddress) xmlParts.push(`${indent}    <csdo:FullAddress>${escapeXML(address.fullAddress)}</csdo:FullAddress>`)
+  }
   xmlParts.push(`${indent}</ccdo:${wrapper}>`)
 }
 
@@ -509,11 +512,15 @@ function exportDetectionPlace(xmlParts: string[], place: DetectionPlaceData, ind
     exportAddress(xmlParts, place.address, '1', `${indent}    `, { wrapperTag: 'ObjectAddressDetails' })
   }
   
-  if (place.geoCoordinates) {
-    xmlParts.push(`${indent}    <ccdo:GeoCoordinateDetails>`)
-    if (place.geoCoordinates.longitude) xmlParts.push(`${indent}        <ccdo:LongitudeMeasure>${escapeXML(place.geoCoordinates.longitude)}</ccdo:LongitudeMeasure>`)
-    if (place.geoCoordinates.latitude) xmlParts.push(`${indent}        <ccdo:LatitudeMeasure>${escapeXML(place.geoCoordinates.latitude)}</ccdo:LatitudeMeasure>`)
-    xmlParts.push(`${indent}    </ccdo:GeoCoordinateDetails>`)
+  if (place.geoCoordinates && place.geoCoordinates.length > 0) {
+    for (const coord of place.geoCoordinates) {
+      if (coord.longitude || coord.latitude) {
+        xmlParts.push(`${indent}    <ccdo:GeoCoordinateDetails>`)
+        if (coord.longitude) xmlParts.push(`${indent}        <ccdo:LongitudeMeasure>${escapeXML(coord.longitude)}</ccdo:LongitudeMeasure>`)
+        if (coord.latitude) xmlParts.push(`${indent}        <ccdo:LatitudeMeasure>${escapeXML(coord.latitude)}</ccdo:LatitudeMeasure>`)
+        xmlParts.push(`${indent}    </ccdo:GeoCoordinateDetails>`)
+      }
+    }
   }
   
   if (place.description) {

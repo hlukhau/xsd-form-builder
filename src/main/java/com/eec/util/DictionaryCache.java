@@ -15,6 +15,9 @@ public class DictionaryCache {
     // Кеш стран: код -> название
     private static final Map<String, String> countriesCache = new ConcurrentHashMap<>();
     private static final List<CountryOption> countriesListCache = new ArrayList<>();
+
+    // Кеш пунктов пропуска (SESINT.BORDERCHECKPOINT): код -> название
+    private static final List<BorderCheckpointOption> borderCheckpointsListCache = new ArrayList<>();
     
     // Кеш видов уведомлений: код -> название
     private static final Map<String, String> incidentAlertKindsCache = new ConcurrentHashMap<>();
@@ -73,6 +76,7 @@ public class DictionaryCache {
     
     // Флаги загрузки
     private static volatile boolean countriesLoaded = false;
+    private static volatile boolean borderCheckpointsLoaded = false;
     private static volatile boolean incidentAlertKindsLoaded = false;
     private static volatile boolean sanitaryProdTypesLoaded = false;
     private static volatile boolean measurementUnitsLoaded = false;
@@ -97,6 +101,19 @@ public class DictionaryCache {
         public String name;
         
         public CountryOption(String code, String name) {
+            this.code = code;
+            this.name = name;
+        }
+    }
+
+    /**
+     * Класс для опции пункта пропуска (SESINT.BORDERCHECKPOINT)
+     */
+    public static class BorderCheckpointOption {
+        public String code;
+        public String name;
+
+        public BorderCheckpointOption(String code, String name) {
             this.code = code;
             this.name = name;
         }
@@ -362,6 +379,24 @@ public class DictionaryCache {
         synchronized (countriesCache) {
             return new ArrayList<>(countriesListCache);
         }
+    }
+
+    public static void setBorderCheckpointCache(List<BorderCheckpointOption> list) {
+        synchronized (borderCheckpointsListCache) {
+            borderCheckpointsListCache.clear();
+            borderCheckpointsListCache.addAll(list);
+            borderCheckpointsLoaded = true;
+        }
+    }
+
+    public static List<BorderCheckpointOption> getBorderCheckpointList() {
+        synchronized (borderCheckpointsListCache) {
+            return new ArrayList<>(borderCheckpointsListCache);
+        }
+    }
+
+    public static boolean isBorderCheckpointsLoaded() {
+        return borderCheckpointsLoaded;
     }
     
     public static String getCountryName(String code) {

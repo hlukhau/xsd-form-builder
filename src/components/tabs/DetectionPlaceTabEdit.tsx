@@ -1,10 +1,11 @@
-import { Form, Input, Button, Collapse, Space } from 'antd'
-import { PlusOutlined } from '@ant-design/icons'
+import { Form, Input, Button, Collapse, Space, Select } from 'antd'
+import { PlusOutlined, DeleteOutlined } from '@ant-design/icons'
 import ManufacturerDetailsEdit from '../common/ManufacturerDetailsEdit'
 import CountrySelect from '../common/CountrySelect'
 import type { DetectionPlaceData, AddressDetails } from '@/types/card'
 import { useCountryOptions } from '@/hooks/useCountryOptions'
-import { getMaxLength } from '@/constants/xsdFieldConstraints'
+import { useBorderCheckpointOptions } from '@/hooks/useBorderCheckpointOptions'
+import { getMaxLength, validateFieldValue, getFormatHint } from '@/constants/xsdFieldConstraints'
 
 interface DetectionPlaceTabEditProps {
   data: DetectionPlaceData
@@ -13,6 +14,7 @@ interface DetectionPlaceTabEditProps {
 
 const DetectionPlaceTabEdit: React.FC<DetectionPlaceTabEditProps> = ({ data, onChange }) => {
   const { countryOptions, loading, normalizeCountryCode } = useCountryOptions()
+  const { getSelectOptions: getCheckpointSelectOptions, loading: loadingCheckpoints } = useBorderCheckpointOptions()
 
   const handleFieldChange = (field: string, value: any) => {
     onChange({
@@ -41,22 +43,50 @@ const DetectionPlaceTabEdit: React.FC<DetectionPlaceTabEditProps> = ({ data, onC
     })
   }
 
-  const handleGeoChange = (field: string, value: string) => {
+  const handleCheckpointSelect = (code: string | undefined) => {
+    if (!code) {
+      onChange({ ...data, borderCheckpoint: undefined })
+      return
+    }
+    const opts = getCheckpointSelectOptions()
+    const opt = opts.find((o) => o.value === code)
+    const name = opt?.label != null ? opt.label.split(' - ').slice(1).join(' - ') : ''
     onChange({
       ...data,
-      geoCoordinates: {
-        ...data.geoCoordinates,
-        [field]: value,
-      },
+      borderCheckpoint: { checkpointCode: code, checkpointName: name },
     })
+  }
+
+  const rawGeo = data.geoCoordinates
+  const geoList: Array<{ longitude?: string; latitude?: string }> = Array.isArray(rawGeo)
+    ? rawGeo
+    : rawGeo && typeof rawGeo === 'object' && ('longitude' in rawGeo || 'latitude' in rawGeo)
+      ? [rawGeo]
+      : []
+
+  const handleCoordinateChange = (index: number, field: 'longitude' | 'latitude', value: string) => {
+    const next = [...geoList]
+    if (!next[index]) next[index] = {}
+    next[index] = { ...next[index], [field]: value || undefined }
+    onChange({ ...data, geoCoordinates: next })
+  }
+
+  const handleAddCoordinate = () => {
+    onChange({ ...data, geoCoordinates: [...geoList, {}] })
+  }
+
+  const handleRemoveCoordinate = (index: number) => {
+    const next = geoList.filter((_, i) => i !== index)
+    onChange({ ...data, geoCoordinates: next.length ? next : undefined })
   }
 
   return (
     <div>
       <Form layout="vertical" className="field-tag-form">
-        {/* Адрес места обнаружения (ObjectAddressDetails) — отдельные поля как в XML */}
-        <h4 style={{ marginTop: 0 }}>Адрес места обнаружения</h4>
-        <Space direction="vertical" style={{ width: '100%', marginBottom: 16 }}>
+        {/* Адрес места обнаружения (ObjectAddressDetails) — без почтового индекса и полного адреса одной строкой */}
+        <h4 style={{ marginTop: 0 }}>Адрес места обнаружения (ccdo:ObjectAddressDetails)</h4>
+        <div style={{ border: '1px solid #d9d9d9', borderRadius: 4, padding: 16, marginBottom: 16 }}>
+          <Space direction="vertical" style={{ width: '100%' }}>
           <CountrySelect
             placeholder="Страна (UnifiedCountryCode)"
             loading={loading}
@@ -137,24 +167,8 @@ const DetectionPlaceTabEdit: React.FC<DetectionPlaceTabEditProps> = ({ data, onC
               showCount
             />
           </Form.Item>
-          <Form.Item label="Почтовый индекс (PostCode)" style={{ marginBottom: 0 }}>
-            <Input
-              placeholder="Индекс"
-              value={data.address?.postCode}
-              onChange={(e) => handleAddressChange('postCode', e.target.value)}
-            />
-          </Form.Item>
-          <Form.Item label="Полный адрес одной строкой (FullAddress)" style={{ marginBottom: 0 }}>
-            <Input.TextArea
-              rows={2}
-              placeholder="При необходимости — адрес одной строкой"
-              value={data.address?.fullAddress}
-              onChange={(e) => handleAddressChange('fullAddress', e.target.value)}
-              maxLength={getMaxLength('fullAddress')}
-              showCount
-            />
-          </Form.Item>
-        </Space>
+          </Space>
+        </div>
 
         <Form.Item label="Описание">
           <Input.TextArea
@@ -172,23 +186,13 @@ const DetectionPlaceTabEdit: React.FC<DetectionPlaceTabEditProps> = ({ data, onC
         items={[
           {
             key: 'organization',
-            label: 'Организация',
-            children: data.organization ? (
+            label: 'Организация места обнаружения',
+            children: (
               <ManufacturerDetailsEdit
-                data={data.organization}
+                data={data.organization ?? { country: '' }}
                 onChange={(org) => handleFieldChange('organization', org)}
                 title="Организация"
               />
-            ) : (
-              <Button
-                type="dashed"
-                icon={<PlusOutlined />}
-                onClick={() => {
-                  handleFieldChange('organization', { country: '' })
-                }}
-              >
-                Добавить организацию
-              </Button>
             ),
           },
           {
@@ -197,19 +201,18 @@ const DetectionPlaceTabEdit: React.FC<DetectionPlaceTabEditProps> = ({ data, onC
             children: (
               <Form layout="vertical" className="field-tag-form">
                 <Form.Item label="Код вида пункта пропуска">
-                  <Input
-                    value={data.borderCheckpoint?.checkpointCode}
-                    onChange={(e) => handleCheckpointChange('checkpointCode', e.target.value)}
-                    maxLength={getMaxLength('checkpointCode')}
-                    showCount
-                  />
-                </Form.Item>
-                <Form.Item label="Наименование пункта пропуска">
-                  <Input
-                    value={data.borderCheckpoint?.checkpointName}
-                    onChange={(e) => handleCheckpointChange('checkpointName', e.target.value)}
-                    maxLength={getMaxLength('checkpointName')}
-                    showCount
+                  <Select
+                    showSearch
+                    placeholder="Выберите пункт пропуска (код — наименование)"
+                    loading={loadingCheckpoints}
+                    value={data.borderCheckpoint?.checkpointCode || undefined}
+                    onChange={handleCheckpointSelect}
+                    filterOption={(input, option) =>
+                      (option?.label ?? '').toLowerCase().includes(input.toLowerCase())
+                    }
+                    options={getCheckpointSelectOptions()}
+                    style={{ width: '100%' }}
+                    allowClear
                   />
                 </Form.Item>
               </Form>
@@ -220,34 +223,50 @@ const DetectionPlaceTabEdit: React.FC<DetectionPlaceTabEditProps> = ({ data, onC
             label: 'Географические координаты',
             children: (
               <Form layout="vertical" className="field-tag-form">
-                <Form.Item label="Географическая долгота">
-                  <Input
-                    value={data.geoCoordinates?.longitude}
-                    onChange={(e) => handleGeoChange('longitude', e.target.value)}
-                  />
-                </Form.Item>
-                <Form.Item label="Географическая широта">
-                  <Input
-                    value={data.geoCoordinates?.latitude}
-                    onChange={(e) => handleGeoChange('latitude', e.target.value)}
-                  />
-                </Form.Item>
+                <p style={{ marginBottom: 8, color: '#666' }}>{getFormatHint('geoCoordinate')}</p>
+                {geoList.map((coord, idx) => (
+                  <div key={idx} style={{ display: 'flex', gap: 8, alignItems: 'flex-start', marginBottom: 12, flexWrap: 'wrap' }}>
+                    <Form.Item label="Долгота" style={{ marginBottom: 0, flex: 1, minWidth: 200 }}>
+                      <Input
+                        value={coord.longitude ?? ''}
+                        onChange={(e) => handleCoordinateChange(idx, 'longitude', e.target.value)}
+                        onBlur={(e) => handleCoordinateChange(idx, 'longitude', e.target.value)}
+                        placeholder="Число ISO 6709"
+                        status={validateFieldValue('geoCoordinate', coord.longitude?.trim()) ? 'error' : undefined}
+                      />
+                      {validateFieldValue('geoCoordinate', coord.longitude?.trim()) && (
+                        <div style={{ fontSize: 12, color: '#ff4d4f', marginTop: 2 }}>
+                          {validateFieldValue('geoCoordinate', coord.longitude?.trim())}
+                        </div>
+                      )}
+                    </Form.Item>
+                    <Form.Item label="Широта" style={{ marginBottom: 0, flex: 1, minWidth: 200 }}>
+                      <Input
+                        value={coord.latitude ?? ''}
+                        onChange={(e) => handleCoordinateChange(idx, 'latitude', e.target.value)}
+                        onBlur={(e) => handleCoordinateChange(idx, 'latitude', e.target.value)}
+                        placeholder="Число ISO 6709"
+                        status={validateFieldValue('geoCoordinate', coord.latitude?.trim()) ? 'error' : undefined}
+                      />
+                      {validateFieldValue('geoCoordinate', coord.latitude?.trim()) && (
+                        <div style={{ fontSize: 12, color: '#ff4d4f', marginTop: 2 }}>
+                          {validateFieldValue('geoCoordinate', coord.latitude?.trim())}
+                        </div>
+                      )}
+                    </Form.Item>
+                    <Button type="link" danger icon={<DeleteOutlined />} onClick={() => handleRemoveCoordinate(idx)} style={{ marginTop: 30 }}>
+                      Удалить
+                    </Button>
+                  </div>
+                ))}
+                <Button type="dashed" icon={<PlusOutlined />} onClick={handleAddCoordinate}>
+                  Добавить координаты
+                </Button>
               </Form>
             ),
           },
         ]}
       />
-
-      {/* Детальная информация об организации */}
-      {data.organization && (
-        <div style={{ marginTop: '24px' }}>
-          <ManufacturerDetailsEdit
-            data={data.organization}
-            onChange={(org) => handleFieldChange('organization', org)}
-            title="Организация"
-          />
-        </div>
-      )}
     </div>
   )
 }

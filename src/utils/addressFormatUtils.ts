@@ -1,6 +1,33 @@
 import type { AddressDetails } from '@/types/card'
 
 /**
+ * Формирует одну строку адреса для ccdo:ObjectAddressDetails (адрес места обнаружения).
+ * Без типа адреса, без почтового индекса и без полного адреса одной строкой — этих атрибутов нет в ObjectAddressDetails.
+ */
+export function formatAddressLineObjectAddress(
+  address: AddressDetails,
+  getCountryName: (countryCode?: string) => string
+): string {
+  if (!address) return ''
+  const parts: string[] = []
+  const countryName = address.country ? getCountryName(address.country) : ''
+  if (countryName && countryName !== '-') parts.push(countryName)
+  if (address.territoryCode?.trim()) parts.push(address.territoryCode.trim())
+  if (address.regionName?.trim()) parts.push(address.regionName.trim())
+  if (address.districtName?.trim()) parts.push(address.districtName.trim())
+  const cityOrSettlement = address.cityName?.trim() || address.settlementName?.trim()
+  if (cityOrSettlement) parts.push(cityOrSettlement)
+  if (address.streetName?.trim()) parts.push(address.streetName.trim())
+  const building = address.buildingNumberId?.trim()
+  const room = address.roomNumberId?.trim()
+  if (building && room) parts.push(`${building} - ${room}`)
+  else if (building) parts.push(building)
+  else if (room) parts.push(room)
+  if (address.postOfficeBoxId?.trim()) parts.push(address.postOfficeBoxId.trim())
+  return parts.filter(Boolean).join(', ') || ''
+}
+
+/**
  * Формирует одну строку адреса по правилам ccdo:SubjectAddressDetails (CR-VIEW-02).
  * Порядок: <Вид адреса> - <Почтовый индекс>, <Страна>, <Код территории>, <Регион>, <Район>, <Город или Населенный пункт>, <Улица>, <Номер дома> - <Номер помещения>, <Номер абонентского ящика>.
  * Если код вида адреса не указан — «вид адреса не определен». Пустые элементы не выводятся, без двойных запятых и без ведущих/замыкающих разделителей.

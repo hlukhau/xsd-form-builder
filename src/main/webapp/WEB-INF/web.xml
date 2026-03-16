@@ -78,6 +78,15 @@
     </servlet-mapping>
 
     <servlet>
+        <servlet-name>BorderCheckpointOptionsServlet</servlet-name>
+        <servlet-class>com.eec.servlet.BorderCheckpointOptionsServlet</servlet-class>
+    </servlet>
+    <servlet-mapping>
+        <servlet-name>BorderCheckpointOptionsServlet</servlet-name>
+        <url-pattern>/api/border-checkpoints/options</url-pattern>
+    </servlet-mapping>
+
+    <servlet>
         <servlet-name>CountryExistsServlet</servlet-name>
         <servlet-class>com.eec.servlet.CountryExistsServlet</servlet-class>
     </servlet>

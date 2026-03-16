@@ -3,7 +3,7 @@ import type { DetectionPlaceData, BusinessEntityDetails } from '@/types/card'
 import {
   getAddressListFromOrganization,
   formatAddressList,
-  formatAddressLine,
+  formatAddressLineObjectAddress,
   getDefaultAddressKindName,
   getDefaultCountryName,
 } from '@/utils/addressFormatUtils'
@@ -46,8 +46,8 @@ const DetectionPlaceTab: React.FC<DetectionPlaceTabProps> = ({ data }) => {
       {/* Адрес и Описание сверху (не в раскрывающихся секциях) */}
       <Descriptions column={1} bordered style={{ marginBottom: '16px' }}>
         {data.address && (
-          <Descriptions.Item label="Адрес">
-            {formatAddressLine(data.address, getDefaultAddressKindName, getCountryNameForAddress)}
+          <Descriptions.Item label="Адрес места обнаружения">
+            {formatAddressLineObjectAddress(data.address, getCountryNameForAddress)}
           </Descriptions.Item>
         )}
         {data.description && data.description !== 'csdo:DescriptionText' && (
@@ -85,20 +85,23 @@ const DetectionPlaceTab: React.FC<DetectionPlaceTabProps> = ({ data }) => {
           {
             key: 'coordinates',
             label: 'Географические координаты',
-            children: data.geoCoordinates ? (
-              <Descriptions column={1} bordered size="small">
-                <Descriptions.Item label="Географическая долгота">
-                  {data.geoCoordinates.longitude || '-'}
-                </Descriptions.Item>
-                <Descriptions.Item label="Географическая широта">
-                  {data.geoCoordinates.latitude || '-'}
-                </Descriptions.Item>
-              </Descriptions>
+            children: (() => {
+              const coords = Array.isArray(data.geoCoordinates) ? data.geoCoordinates : (data.geoCoordinates && typeof data.geoCoordinates === 'object' ? [data.geoCoordinates] : [])
+              return coords.length > 0 ? (
+              <div>
+                {coords.map((coord: { longitude?: string; latitude?: string }, idx: number) => (
+                  <Descriptions key={idx} column={1} bordered size="small" style={{ marginBottom: idx < coords.length - 1 ? 8 : 0 }}>
+                    <Descriptions.Item label="Долгота">{coord.longitude || '-'}</Descriptions.Item>
+                    <Descriptions.Item label="Широта">{coord.latitude || '-'}</Descriptions.Item>
+                  </Descriptions>
+                ))}
+              </div>
             ) : (
               <div style={{ color: '#999', fontStyle: 'italic' }}>
-                &lt;может быть перечень координат в составе (долгота, широта)&gt;
+                Координаты не указаны
               </div>
-            ),
+            )
+            })(),
           },
         ]}
       />

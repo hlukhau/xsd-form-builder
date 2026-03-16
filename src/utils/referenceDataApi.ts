@@ -85,6 +85,11 @@ export interface CountryOption {
   name: string
 }
 
+export interface BorderCheckpointOption {
+  code: string
+  name: string
+}
+
 export interface IncidentAlertKindOption {
   code: string
   name: string
@@ -467,6 +472,27 @@ export async function getCountryOptions(): Promise<CountryOption[]> {
   } catch (error) {
     console.error('Ошибка загрузки опций стран:', error)
     throw error
+  } finally {
+    dictionaryLoadingEnd()
+  }
+}
+
+/**
+ * Получить опции для выпадающего списка пунктов пропуска (SESINT.BORDERCHECKPOINT).
+ * Отображать в виде &lt;код&gt;-&lt;наименование&gt;.
+ */
+export async function getBorderCheckpointOptions(): Promise<BorderCheckpointOption[]> {
+  dictionaryLoadingStart()
+  try {
+    const response = await fetch(withGuidUrl(`${BASE_URL}api/border-checkpoints/options`))
+    if (!response.ok) {
+      if (response.status === 404) return []
+      throw new Error(`Ошибка загрузки опций пунктов пропуска: ${response.statusText}`)
+    }
+    return await response.json()
+  } catch (error) {
+    console.error('Ошибка загрузки опций пунктов пропуска:', error)
+    return []
   } finally {
     dictionaryLoadingEnd()
   }

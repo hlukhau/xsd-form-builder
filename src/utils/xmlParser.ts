@@ -2588,58 +2588,39 @@ function parseObjectAddress(placeElement: Element): AddressDetails | undefined {
 }
 
 /**
- * Парсит GeoCoordinateDetails
+ * Парсит все GeoCoordinateDetails в массив (может быть несколько координат).
  */
-function parseGeoCoordinates(placeElement: Element): GeoCoordinateDetails | undefined {
-  let geoElement: Element | null = null
-  
-  console.log('Ищем GeoCoordinateDetails в:', placeElement.tagName)
-  
-  // Пробуем найти через getElementsByTagName
+function parseGeoCoordinates(placeElement: Element): GeoCoordinateDetails[] {
+  const result: GeoCoordinateDetails[] = []
+  let elements: HTMLCollectionOf<Element> | Element[] = []
+
   try {
-    const elements = placeElement.getElementsByTagName('ccdo:GeoCoordinateDetails')
-    console.log('Найдено GeoCoordinateDetails через getElementsByTagName:', elements.length)
-    if (elements.length > 0) {
-      geoElement = elements[0]
-    }
+    elements = placeElement.getElementsByTagName('ccdo:GeoCoordinateDetails')
   } catch (e) {
-    console.log('Ошибка при поиске GeoCoordinateDetails:', e)
+    // ignore
   }
-  
-  // Если не нашли, ищем по локальному имени
-  if (!geoElement) {
+
+  if (elements.length === 0) {
     const allElements = placeElement.getElementsByTagName('*')
-    console.log('Ищем GeoCoordinateDetails среди', allElements.length, 'элементов')
     for (let i = 0; i < allElements.length; i++) {
       const el = allElements[i]
-      const localName = el.localName || el.tagName.split(':').pop()?.toLowerCase()
-      
+      const localName = (el.localName || el.tagName.split(':').pop() || '').toLowerCase()
       if (localName === 'geocoordinatedetails') {
-        console.log('Найден GeoCoordinateDetails по локальному имени:', el.tagName)
-        geoElement = el
-        break
+        const longitude = getTextContent(el, 'LongitudeMeasure') || undefined
+        const latitude = getTextContent(el, 'LatitudeMeasure') || undefined
+        if (longitude || latitude) result.push({ longitude, latitude })
       }
     }
+    return result
   }
-  
-  if (!geoElement) {
-    console.log('GeoCoordinateDetails не найден')
-    return undefined
+
+  for (let i = 0; i < elements.length; i++) {
+    const geoElement = elements[i]
+    const longitude = getTextContent(geoElement, 'LongitudeMeasure') || undefined
+    const latitude = getTextContent(geoElement, 'LatitudeMeasure') || undefined
+    if (longitude || latitude) result.push({ longitude, latitude })
   }
-  
-  const longitude = getTextContent(geoElement, 'LongitudeMeasure') || undefined
-  const latitude = getTextContent(geoElement, 'LatitudeMeasure') || undefined
-  
-  console.log('Распарсен GeoCoordinateDetails:', { longitude, latitude })
-  
-  if (!longitude && !latitude) {
-    return undefined
-  }
-  
-  return {
-    longitude,
-    latitude,
-  }
+  return result
 }
 
 /**

@@ -19,6 +19,7 @@ import com.eec.util.DictionaryCache.LegalFormOption;
 import com.eec.util.DictionaryCache.IdentificationMethodOption;
 import com.eec.util.DictionaryCache.ConformityDocKindOption;
 import com.eec.util.DictionaryCache.IdentityDocKindOption;
+import com.eec.util.DictionaryCache.BorderCheckpointOption;
 
 import javax.servlet.ServletContextEvent;
 import javax.servlet.ServletContextListener;
@@ -54,6 +55,7 @@ public class DictionaryInitializerListener implements ServletContextListener {
     private static final Object LOCK_IDENTIFICATION_METHODS = new Object();
     private static final Object LOCK_CONFORMITY_DOC_KINDS = new Object();
     private static final Object LOCK_IDENTITY_DOC_KINDS = new Object();
+    private static final Object LOCK_BORDER_CHECKPOINTS = new Object();
 
     public static DictionaryInitializerListener getInstance() {
         return INSTANCE;
@@ -148,6 +150,11 @@ public class DictionaryInitializerListener implements ServletContextListener {
     public void ensureIdentityDocKindsLoaded(String guid) {
         synchronized (LOCK_IDENTITY_DOC_KINDS) {
             if (!DictionaryCache.isIdentityDocKindsLoaded()) loadIdentityDocKindsDictionary(guid);
+        }
+    }
+    public void ensureBorderCheckpointsLoaded(String guid) {
+        synchronized (LOCK_BORDER_CHECKPOINTS) {
+            if (!DictionaryCache.isBorderCheckpointsLoaded()) loadBorderCheckpointsDictionary(guid);
         }
     }
     
@@ -685,6 +692,42 @@ public class DictionaryInitializerListener implements ServletContextListener {
             stmt.close();
         } catch (SQLException e) {
             System.err.println("[DictionaryInitializer] ERROR loading identity doc kinds dictionary: " + e.getMessage());
+            e.printStackTrace();
+        } finally {
+            DatabaseUtil.closeConnection(conn);
+        }
+    }
+
+    /**
+     * Загружает справочник пунктов пропуска (SESINT.BORDERCHECKPOINT) в кеш.
+     */
+    private void loadBorderCheckpointsDictionary(String guid) {
+        Connection conn = null;
+        try {
+            System.out.println("[DictionaryInitializer] Loading border checkpoints dictionary...");
+            conn = DatabaseUtil.getConnectionForGuid(guid);
+            String sql = "SELECT BORDERCHECKPOINTCODE, BORDERCHECKPOINTNAME " +
+                        "FROM SESINT.BORDERCHECKPOINT " +
+                        "WHERE BORDERCHECKPOINTSDATE <= SYSDATE " +
+                        "AND (BORDERCHECKPOINTEDATE IS NULL OR BORDERCHECKPOINTEDATE >= SYSDATE) " +
+                        "ORDER BY BORDERCHECKPOINTNAME";
+            PreparedStatement stmt = conn.prepareStatement(sql);
+            ResultSet rs = stmt.executeQuery();
+            List<BorderCheckpointOption> list = new ArrayList<>();
+            int count = 0;
+            while (rs.next()) {
+                list.add(new BorderCheckpointOption(
+                    rs.getString("BORDERCHECKPOINTCODE"),
+                    rs.getString("BORDERCHECKPOINTNAME")
+                ));
+                count++;
+            }
+            DictionaryCache.setBorderCheckpointCache(list);
+            System.out.println("[DictionaryInitializer] Loaded " + count + " border checkpoints into cache");
+            rs.close();
+            stmt.close();
+        } catch (SQLException e) {
+            System.err.println("[DictionaryInitializer] ERROR loading border checkpoints dictionary: " + e.getMessage());
             e.printStackTrace();
         } finally {
             DatabaseUtil.closeConnection(conn);
