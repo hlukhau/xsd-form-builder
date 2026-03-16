@@ -151,12 +151,19 @@ const ComplianceDocumentsTab: React.FC<ComplianceDocumentsTabProps> = ({
       title: 'Вид',
       dataIndex: 'docKindCode',
       key: 'docKindCode',
+      width: '30%',
       render: (_: string, record: ComplianceDocument) => {
+        let text: string
         if (record.docKindCode) {
-          const codeNameLabel = getConformityDocKindDisplayLabel(record.docKindCode)
-          return codeNameLabel || record.docKindName || record.docKindCode || '-'
+          const fromRef = getConformityDocKindDisplayLabel(record.docKindCode)
+          text = fromRef || record.docKindCode || '-'
+          if (record.docKindName && (text === record.docKindCode || !fromRef)) {
+            text = `${record.docKindCode} - ${record.docKindName}`
+          }
+        } else {
+          text = record.docKindName || '-'
         }
-        return record.docKindName || '-'
+        return <div className="compliance-doc-kind-view-cell" style={{ wordWrap: 'break-word', whiteSpace: 'normal' }}>{text}</div>
       },
     },
     {
@@ -246,6 +253,7 @@ const ComplianceDocumentsTab: React.FC<ComplianceDocumentsTabProps> = ({
                   rowKey={(_, i) => `batch-${batchIndex}-doc-${i}`}
                   pagination={false}
                   size="small"
+                  tableLayout="fixed"
                 />
               </div>
             ),

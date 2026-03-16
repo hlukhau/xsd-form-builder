@@ -834,3 +834,63 @@ body {
   font-style: italic;
 }
 
+/* Документы соответствия: колонка «Вид» 30%, перенос по словам, поле и строка растягиваются по высоте */
+.compliance-docs-edit-table .ant-table-tbody > tr > td {
+  height: auto !important;
+}
+.compliance-docs-edit-table .ant-table-tbody > tr {
+  height: auto !important;
+}
+.compliance-doc-kind-edit-cell {
+  vertical-align: top !important;
+  padding-bottom: 12px;
+}
+.compliance-doc-kind-cell {
+  max-width: 100%;
+  word-wrap: break-word;
+}
+.compliance-doc-kind-cell .ant-select {
+  width: 100%;
+  height: auto !important;
+  min-height: 32px;
+  max-height: none !important;
+}
+.compliance-doc-kind-cell .ant-select-selector {
+  height: auto !important;
+  min-height: 32px !important;
+  max-height: none !important;
+  align-items: flex-start !important;
+  padding: 4px 8px;
+  min-width: 0;
+  overflow: visible;
+}
+.compliance-doc-kind-cell .ant-select-selection-overflow {
+  min-height: 0;
+  flex-wrap: wrap;
+}
+.compliance-doc-kind-cell .ant-select-selection-search,
+.compliance-doc-kind-cell .ant-select-selection-placeholder {
+  min-width: 0;
+}
+.compliance-doc-kind-cell .ant-select-selection-item {
+  white-space: normal !important;
+  word-break: break-word;
+  overflow-wrap: break-word;
+  line-height: 1.4;
+  max-width: 100%;
+  box-sizing: border-box;
+}
+.compliance-doc-kind-cell .ant-select-single .ant-select-selection-item {
+  display: block;
+}
+.compliance-doc-kind-edit-cell .compliance-doc-kind-cell {
+  min-width: 0;
+}
+
+/* Режим просмотра: колонка «Вид» 30% */
+.compliance-doc-kind-view-cell {
+  word-wrap: break-word;
+  white-space: normal;
+}
+
+

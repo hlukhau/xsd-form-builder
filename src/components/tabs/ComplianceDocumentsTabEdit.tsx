@@ -71,22 +71,28 @@ const ComplianceDocumentsTabEdit: React.FC<ComplianceDocumentsTabEditProps> = ({
     {
       title: labelWithHelp('Вид', FIELD_HELP.complianceDocKindCode),
       key: 'docKindCode',
-      width: 220,
+      width: '30%',
+      ellipsis: false,
+      onCell: () => ({ className: 'compliance-doc-kind-edit-cell' }),
       render: (_: any, record: ComplianceDocument, docIndex: number) => (
-        <Select
-          showSearch
-          placeholder="Код — наименование (CONFDOCKIND)"
-          loading={loadingConformityDocKinds}
-          value={record.docKindCode || undefined}
-          onChange={(code) => handleDocumentChange(batchIndex, docIndex, 'docKindCode', code ?? '')}
-          filterOption={(input, option) =>
-            (option?.label ?? '').toLowerCase().includes(input.toLowerCase())
-          }
-          options={getConformityDocKindSelectOptions()}
-          allowClear
-          style={{ width: '100%', minWidth: 180 }}
-          size="small"
-        />
+        <div className="compliance-doc-kind-cell">
+          <Select
+            showSearch
+            placeholder="Код — наименование"
+            loading={loadingConformityDocKinds}
+            value={record.docKindCode || undefined}
+            onChange={(code) => handleDocumentChange(batchIndex, docIndex, 'docKindCode', code ?? '')}
+            filterOption={(input, option) =>
+              (option?.label ?? '').toLowerCase().includes(input.toLowerCase())
+            }
+            options={getConformityDocKindSelectOptions()}
+            allowClear
+            style={{ width: '100%' }}
+            size="small"
+            dropdownStyle={{ minWidth: 320 }}
+            optionLabelProp="label"
+          />
+        </div>
       ),
     },
     { title: labelWithHelp('Наименование', FIELD_HELP.complianceDocName), key: 'docName', width: 200, render: (_: any, record: ComplianceDocument, docIndex: number) => (<Input value={record.docName} onChange={(e) => handleDocumentChange(batchIndex, docIndex, 'docName', e.target.value)} maxLength={getMaxLength('docName')} showCount />) },
@@ -121,10 +127,12 @@ const ComplianceDocumentsTabEdit: React.FC<ComplianceDocumentsTabEditProps> = ({
                   <Button type="dashed" icon={<PlusOutlined />} onClick={() => handleAddDocument(batchIndex)}>Добавить документ</Button>
                 </div>
                 <Table
+                  className="compliance-docs-edit-table"
                   dataSource={docs}
                   columns={getColumns(batchIndex)}
                   rowKey={(_, i) => `batch-${batchIndex}-doc-${i}`}
                   pagination={false}
+                  tableLayout="fixed"
                 />
               </div>
             ),
