@@ -2,8 +2,28 @@
  * Валидация карты исходящих сведений об опасной продукции.
  * Проверка по перечню контролей; результат — отчёт по разделам с замечаниями или успех.
  */
-import type { CardData } from '@/types/card'
+import type {
+  CardData,
+  ProductData,
+  ProductDetails,
+  TechnicalDocument,
+  TSDData,
+  ProductBatchDetails,
+  ShippingDocument,
+  ComplianceDocument,
+  ViolationsData,
+  ViolatedRequirement,
+  ViolatedIndicator,
+  AddressDetails,
+  SupplyChainPartyDetails,
+  DetectionPlaceData,
+  MeasuresData,
+  SanitaryMeasure,
+  MeasureInitiationBasisItem,
+  MeasureImplementationItem,
+} from '@/types/card'
 import { mergeComplianceDocumentsFromBatches, mergeViolationsFromBatches } from '@/utils/xmlParser'
+import { validateFieldValue } from '@/constants/xsdFieldConstraints'
 
 export interface ValidationResult {
   success: boolean
@@ -388,4 +408,171 @@ export function validateOutgoingCard(data: CardData): ValidationResult {
     success: totalRemarks === 0,
     sections: sections.filter((s) => s.remarks.length > 0),
   }
+}
+
+/** Результат проверки данных на соответствие форматам XSD (длина, шаблоны). */
+export interface FormatValidationErrors {
+  errors: string[]
+}
+
+const ADDRESS_FIELD_KEYS: (keyof AddressDetails)[] = [
+  'territoryCode', 'postCode', 'postOfficeBoxId', 'regionName', 'districtName',
+  'cityName', 'settlementName', 'streetName', 'buildingNumberId', 'roomNumberId',
+]
+
+function pushFormatError(errors: string[], path: string, fieldKey: string, value: string | undefined): void {
+  const msg = validateFieldValue(fieldKey, value ?? '')
+  if (msg) errors.push(path ? `${path}: ${msg}` : msg)
+}
+
+function checkAddress(errors: string[], path: string, addr: AddressDetails | undefined): void {
+  if (!addr) return
+  for (const key of ADDRESS_FIELD_KEYS) {
+    const v = addr[key]
+    if (v !== undefined && v !== '') pushFormatError(errors, `${path} → ${key}`, key, v)
+  }
+}
+
+function checkAddressList(errors: string[], path: string, list: AddressDetails[] | undefined): void {
+  if (!list?.length) return
+  list.forEach((addr, i) => checkAddress(errors, `${path} (адрес ${i + 1})`, addr))
+}
+
+function checkParty(errors: string[], path: string, party: SupplyChainPartyDetails | undefined): void {
+  if (!party) return
+  pushFormatError(errors, `${path} → Наименование`, 'businessEntityName', party.businessEntityName)
+  pushFormatError(errors, `${path} → Краткое наименование`, 'shortName', party.shortName)
+  pushFormatError(errors, `${path} → ОПФ`, 'organizationalForm', party.organizationalForm)
+  pushFormatError(errors, `${path} → Идентификатор`, 'subjectIdentifier', party.subjectIdentifier)
+  pushFormatError(errors, `${path} → ИНН`, 'taxpayerId', party.taxpayerId)
+  pushFormatError(errors, `${path} → Таможенный номер`, 'customsNumber', party.customsNumber)
+  const addrList = party.addresses ?? []
+  if (addrList.length) checkAddressList(errors, `${path} → Адрес`, addrList)
+  else {
+    checkAddress(errors, `${path} → Регистрационный адрес`, party.registrationAddress)
+    checkAddress(errors, `${path} → Фактический адрес`, party.actualAddress)
+    checkAddress(errors, `${path} → Почтовый адрес`, party.mailingAddress)
+  }
+  party.contacts?.forEach((c, i) => {
+    pushFormatError(errors, `${path} → Контакт ${i + 1}`, 'communicationChannelId', c.communicationChannelId)
+    pushFormatError(errors, `${path} → Контакт ${i + 1} (наименование)`, 'communicationChannelName', c.communicationChannelName)
+  })
+}
+
+function checkTechnicalDocs(errors: string[], path: string, docs: TechnicalDocument[] | undefined): void {
+  if (!docs?.length) return
+  docs.forEach((d, i) => {
+    pushFormatError(errors, `${path} → Документ ${i + 1} → Наименование`, 'docName500', d.docName)
+    pushFormatError(errors, `${path} → Документ ${i + 1} → Номер`, 'docId', d.docId)
+  })
+}
+
+/**
+ * Собирает все несоответствия данных формату (длина, шаблоны) по полям с валидацией XSD.
+ * Используется перед сохранением: если список не пуст, сохранение блокируется.
+ */
+export function collectFormatValidationErrors(data: CardData): FormatValidationErrors {
+  const errors: string[] = []
+
+  const product: ProductData | undefined = data.product
+  if (product?.productDetails) {
+    const pd = product.productDetails
+    const base = 'Продукция'
+    pushFormatError(errors, `${base} → Идентификатор продукции`, 'productId', pd.productId)
+    pushFormatError(errors, `${base} → Наименование`, 'productName', pd.productName)
+    pushFormatError(errors, `${base} → Торговое наименование`, 'tradeName', pd.tradeName)
+    ;(pd.tradeNames ?? []).forEach((t, i) => pushFormatError(errors, `${base} → Торговое наименование ${i + 1}`, 'tradeName', t))
+    pushFormatError(errors, `${base} → Описание`, 'description', pd.description)
+    pushFormatError(errors, `${base} → Код ТН ВЭД`, 'commodityCode', pd.commodityCode)
+    pushFormatError(errors, `${base} → Назначение`, 'productPurpose', pd.productPurpose)
+    pushFormatError(errors, `${base} → Способ применения`, 'applicationMethod', pd.applicationMethod)
+    pushFormatError(errors, `${base} → Форма выпуска`, 'releaseForm', pd.releaseForm)
+    pushFormatError(errors, `${base} → Условия хранения`, 'storageCondition', pd.storageCondition)
+    pushFormatError(errors, `${base} → Информация на этикетке`, 'labelText', pd.labelText)
+    checkTechnicalDocs(errors, `${base} → Техническая документация`, pd.technicalDocs)
+  }
+  if (product?.manufacturer) {
+    checkParty(errors, 'Продукция → Изготовитель', product.manufacturer)
+  }
+
+  const tsd: TSDData | undefined = data.tsd
+  if (tsd?.batches?.length) {
+    tsd.batches.forEach((batch, bi) => {
+      const batchPath = `ТСД → Партия ${bi + 1}`
+      pushFormatError(errors, `${batchPath} → Номер серии`, 'batchId', batch.batchId)
+      pushFormatError(errors, `${batchPath} → Примечание`, 'note', batch.note)
+      pushFormatError(errors, `${batchPath} → Номер товарной партии`, 'consignmentId', batch.consignmentId)
+      ;(batch.complianceDocuments ?? []).forEach((d, i) => {
+        pushFormatError(errors, `${batchPath} → Документ соответствия ${i + 1} → Наименование`, 'docName', d.docName)
+        pushFormatError(errors, `${batchPath} → Документ соответствия ${i + 1} → Номер`, 'docId', d.docId)
+      })
+      ;(batch.shippingDocuments ?? []).forEach((doc, di) => {
+        const docPath = `${batchPath} → Товаросопроводительный документ ${di + 1}`
+        pushFormatError(errors, `${docPath} → Наименование`, 'docName500', doc.docName)
+        pushFormatError(errors, `${docPath} → Номер`, 'docId', doc.docId)
+        ;(doc.products ?? []).forEach((p, pi) => {
+          checkTechnicalDocs(errors, `${docPath} → Продукт ${pi + 1} → Техническая документация`, p.technicalDocs)
+        })
+        ;(doc.supplyChainParties ?? []).forEach((party, pi) => {
+          checkParty(errors, `${docPath} → Участник цепи поставки ${pi + 1}`, party)
+        })
+      })
+      ;(batch.violations ?? []).forEach((v, vi) => {
+        const vPath = `${batchPath} → Нарушение ${vi + 1}`
+        pushFormatError(errors, `${vPath} → Описание`, 'violationDescription', v.generalDescription)
+        ;(v.violatedRequirements ?? []).forEach((r, ri) => {
+          pushFormatError(errors, `${vPath} → Требование ${ri + 1} → Номер техрегламента`, 'technicalRegulationId', r.technicalRegulationId)
+          pushFormatError(errors, `${vPath} → Требование ${ri + 1} → Описание`, 'description', r.description)
+        })
+        ;(v.violatedIndicators ?? []).forEach((ind, ii) => {
+          pushFormatError(errors, `${vPath} → Показатель ${ii + 1} → Наименование`, 'indicatorName', ind.indicatorName)
+          pushFormatError(errors, `${vPath} → Показатель ${ii + 1} → Значение`, 'indicatorValue', ind.indicatorValue)
+          pushFormatError(errors, `${vPath} → Показатель ${ii + 1} → Примечание`, 'noteText', ind.note)
+        })
+      })
+    })
+  }
+
+  const place: DetectionPlaceData | undefined = data.detectionPlace
+  if (place) {
+    pushFormatError(errors, 'Место обнаружения → Описание', 'descriptionPlace', place.description)
+    if (place.organization) {
+      checkParty(errors, 'Место обнаружения → Организация', place.organization as unknown as SupplyChainPartyDetails)
+    }
+    if (place.borderCheckpoint) {
+      pushFormatError(errors, 'Место обнаружения → Пункт пропуска → Код', 'checkpointCode', place.borderCheckpoint.checkpointCode)
+      pushFormatError(errors, 'Место обнаружения → Пункт пропуска → Наименование', 'checkpointName', place.borderCheckpoint.checkpointName)
+    }
+    if (place.address) checkAddress(errors, 'Место обнаружения → Адрес', place.address)
+    ;(place.geoCoordinates ?? []).forEach((g, i) => {
+      const v = g.longitude ?? g.latitude ?? ''
+      pushFormatError(errors, `Место обнаружения → Координата ${i + 1}`, 'geoCoordinate', v)
+    })
+  }
+
+  const measures: MeasuresData | undefined = data.measures
+  if (measures?.measures?.length) {
+    measures.measures.forEach((m, mi) => {
+      const mPath = `Принятые меры → Мера ${mi + 1}`
+      pushFormatError(errors, `${mPath} → Обоснование`, 'measureJustification', m.measureJustificationText)
+      pushFormatError(errors, `${mPath} → Описание`, 'description', m.description)
+      if (m.measureDocDetails) {
+        pushFormatError(errors, `${mPath} → Документ меры → Наименование`, 'docName', m.measureDocDetails.docName)
+        pushFormatError(errors, `${mPath} → Документ меры → Номер`, 'docId', m.measureDocDetails.docId)
+      }
+      ;(m.measureInitiationBasisDetails ?? []).forEach((b, i) => {
+        pushFormatError(errors, `${mPath} → Основание ${i + 1} → Наименование`, 'docName', b.docName)
+        pushFormatError(errors, `${mPath} → Основание ${i + 1} → Номер`, 'docId', b.docId)
+      })
+      ;(m.measureImplementationDetails ?? []).forEach((impl, i) => {
+        const doc = impl.documentDetails
+        if (doc) {
+          pushFormatError(errors, `${mPath} → Реализация ${i + 1} → Наименование`, 'docName', doc.docName)
+          pushFormatError(errors, `${mPath} → Реализация ${i + 1} → Номер`, 'docId', doc.docId)
+        }
+      })
+    })
+  }
+
+  return { errors }
 }

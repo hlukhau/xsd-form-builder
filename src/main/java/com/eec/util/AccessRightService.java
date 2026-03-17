@@ -108,33 +108,33 @@ public final class AccessRightService {
 
     /**
      * Управление статусом входящих сведений — dangerousProductIn:status.
+     * Проверка по JSON прав (по GUID).
      */
-    public static boolean hasDangerousProductInStatus(String id) {
-        // TODO: проверка по внутренней карте прав
-        return true;
+    public static boolean hasDangerousProductInStatus(String rightsJson) {
+        return hasAccessRightInJson(rightsJson, "dangerousProductIn", "status");
     }
 
     /**
      * Управление статусом исходящих сведений — dangerousProductOut:status.
+     * Проверка по JSON прав (по GUID).
      */
-    public static boolean hasDangerousProductOutStatus(String id) {
-        // TODO: проверка по внутренней карте прав
-        return true;
+    public static boolean hasDangerousProductOutStatus(String rightsJson) {
+        return hasAccessRightInJson(rightsJson, "dangerousProductOut", "status");
     }
 
     /**
      * Направление исходящих сведений другим участникам — dangerousProductOut:send.
+     * Проверка по JSON прав (по GUID).
      */
-    public static boolean hasDangerousProductOutSend(String id) {
-        // TODO: проверка по внутренней карте прав
-        return true;
+    public static boolean hasDangerousProductOutSend(String rightsJson) {
+        return hasAccessRightInJson(rightsJson, "dangerousProductOut", "send");
     }
 
     /**
      * Редактирование / сохранение исходящих сведений — dangerousProductOut:edit.
+     * Проверка по JSON прав (по GUID).
      */
-    public static boolean hasDangerousProductOutEdit(String id) {
-        // TODO: проверка по внутренней карте прав
-        return true;
+    public static boolean hasDangerousProductOutEdit(String rightsJson) {
+        return hasAccessRightInJson(rightsJson, "dangerousProductOut", "edit");
     }
 }

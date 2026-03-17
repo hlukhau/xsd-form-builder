@@ -29,7 +29,7 @@ import { parseElectronicDocContentBody } from '@/utils/xmlParser'
 import { openLegacyRegisterAllVersions, isLegacyRegisterConfigured } from '@/utils/legacyRegisterUrl'
 import XMLComparisonModal, { type ComparisonResultShape } from '../modals/XMLComparisonModal'
 import ValidationResultModal from '../modals/ValidationResultModal'
-import { validateOutgoingCard, type ValidationResult } from '@/utils/cardValidation'
+import { validateOutgoingCard, collectFormatValidationErrors, type ValidationResult } from '@/utils/cardValidation'
 import type { CardData, StatusHistoryItem, ElectronicDocument } from '@/types/card'
 
 /** Статусы исходящей карты, при которых разрешено редактирование (DPASTATUSID). */
@@ -85,6 +85,8 @@ const DangerousProductCard: React.FC<DangerousProductCardProps> = ({
   const [validationResult, setValidationResult] = useState<ValidationResult | null>(null)
   const [saving, setSaving] = useState(false)
   const [pendingSavePayload, setPendingSavePayload] = useState<{ xmlBody: string; metadata: DpaSaveMetadata } | null>(null)
+  /** Ошибки формата полей (XSD) перед сохранением; блокируют кнопку «Сохранить в БД». */
+  const [formatValidationErrors, setFormatValidationErrors] = useState<string[]>([])
   const [hasStatusRight, setHasStatusRight] = useState(false)
   const [hasSendRight, setHasSendRight] = useState(false)
   const [hasSaveRight, setHasSaveRight] = useState(false)
@@ -131,17 +133,19 @@ const DangerousProductCard: React.FC<DangerousProductCardProps> = ({
     if (!isOutgoingSource) {
       const src = (data?.source ?? '').toLowerCase()
       if (src.includes('входящ')) {
-        checkAccessRight(effectiveDpaid, 'dangerousProductIn:status')
+        // Права по JSON привязаны к пользователю (guid), не к карте
+        checkAccessRight(guid ?? null, 'dangerousProductIn:status')
           .then(setHasStatusRight)
           .catch(() => setHasStatusRight(false))
       }
       return
     }
     if (isOutgoingSource) {
+      // Права по JSON привязаны к пользователю (guid); без guid или без ключа в JSON — кнопки блокируются
       Promise.all([
-        checkAccessRight(effectiveDpaid, 'dangerousProductOut:status'),
-        checkAccessRight(effectiveDpaid, 'dangerousProductOut:send'),
-        checkAccessRight(effectiveDpaid, 'dangerousProductOut:edit'),
+        checkAccessRight(guid ?? null, 'dangerousProductOut:status'),
+        checkAccessRight(guid ?? null, 'dangerousProductOut:send'),
+        checkAccessRight(guid ?? null, 'dangerousProductOut:edit'),
       ])
         .then(([status, send, edit]) => {
           setHasStatusRight(status)
@@ -460,6 +464,9 @@ const DangerousProductCard: React.FC<DangerousProductCardProps> = ({
     const isNewCard = effectiveDpaid === '-'
     const isOutgoingWithSave = isOutgoingSource && hasSaveRight
 
+    const formatErrors = collectFormatValidationErrors(editedData).errors
+    setFormatValidationErrors(formatErrors)
+
     if (isNewCard) {
       const { filled, unfilled } = getCardDataReview(editedData)
       setComparisonResult({
@@ -479,11 +486,12 @@ const DangerousProductCard: React.FC<DangerousProductCardProps> = ({
     // Существующая карта: сравнение только с оригиналом этой вкладки (без localStorage — разные вкладки = разные документы)
     if (isOutgoingWithSave) {
       setPendingSavePayload({ xmlBody, metadata })
+      // Режим редактирования не выключаем — только после успешного «Сохранить в БД» в handleSaveToDbFromModal
     } else {
       setPendingSavePayload(null)
+      onUpdate(editedData)
+      setIsEditMode(false)
     }
-    onUpdate(editedData)
-    setIsEditMode(false)
     const xmlToCompare = originalXML
     if (xmlToCompare) {
       try {
@@ -916,7 +924,7 @@ const DangerousProductCard: React.FC<DangerousProductCardProps> = ({
                 okText: 'Направить сведения',
                 cancelText: 'Отмена',
                 onOk: async () => {
-                  const hasSend = await checkAccessRight(effectiveDpaid, 'dangerousProductOut:send')
+                  const hasSend = await checkAccessRight(guid ?? null, 'dangerousProductOut:send')
                   if (!hasSend) {
                     message.error('Нет права на направление сведений об опасной продукции в пределах доступа к данной карте.')
                     return
@@ -986,7 +994,7 @@ const DangerousProductCard: React.FC<DangerousProductCardProps> = ({
                 okText: 'Продолжить',
                 cancelText: 'Отмена',
                 onOk: async () => {
-                  const hasRight = await checkAccessRight(effectiveDpaid, 'dangerousProductIn:status')
+                  const hasRight = await checkAccessRight(guid ?? null, 'dangerousProductIn:status')
                   if (!hasRight) {
                     message.error('Нет права на управление статусом входящих сведений.')
                     return
@@ -1015,7 +1023,7 @@ const DangerousProductCard: React.FC<DangerousProductCardProps> = ({
                 okButtonProps: { danger: true },
                 onOk: async () => {
                   const rightKey = isOutgoingSource ? 'dangerousProductOut:status' : 'dangerousProductIn:status'
-                  const hasRight = await checkAccessRight(effectiveDpaid, rightKey)
+                  const hasRight = await checkAccessRight(guid ?? null, rightKey)
                   if (!hasRight) {
                     message.error(isOutgoingSource ? 'Нет права на управление статусом исходящих сведений.' : 'Нет права на управление статусом входящих сведений.')
                     return
@@ -1209,7 +1217,9 @@ const DangerousProductCard: React.FC<DangerousProductCardProps> = ({
             onClose={() => {
               setComparisonModalVisible(false)
               setPendingSavePayload(null)
+              setFormatValidationErrors([])
             }}
+            formatValidationErrors={formatValidationErrors}
             onSaveToDb={pendingSavePayload ? handleSaveToDbFromModal : undefined}
             saving={saving}
           />

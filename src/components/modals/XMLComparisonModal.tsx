@@ -18,6 +18,8 @@ interface XMLComparisonModalProps {
   visible: boolean
   comparisonResult: ComparisonResultShape
   onClose: () => void
+  /** Ошибки формата полей (XSD). Если не пусто — блок «Несоответствие данных формату» и блокировка сохранения. */
+  formatValidationErrors?: string[]
   /** Если задан, в футере показывается кнопка «Сохранить в БД» (экспорт не отдаётся, а сохраняется). */
   onSaveToDb?: () => void | Promise<void>
   saving?: boolean
@@ -27,14 +29,22 @@ const XMLComparisonModal: React.FC<XMLComparisonModalProps> = ({
   visible,
   comparisonResult,
   onClose,
+  formatValidationErrors = [],
   onSaveToDb,
   saving = false,
 }) => {
   const isNewDoc = comparisonResult.isNewDocument === true
+  const hasFormatErrors = formatValidationErrors.length > 0
   const footer = onSaveToDb ? (
     <>
       <Button onClick={onClose}>Закрыть</Button>
-      <Button type="primary" icon={<SaveOutlined />} onClick={onSaveToDb} loading={saving}>
+      <Button
+        type="primary"
+        icon={<SaveOutlined />}
+        onClick={onSaveToDb}
+        loading={saving}
+        disabled={hasFormatErrors}
+      >
         Сохранить в БД
       </Button>
     </>
@@ -48,6 +58,34 @@ const XMLComparisonModal: React.FC<XMLComparisonModalProps> = ({
       footer={footer}
       width={800}
     >
+      {hasFormatErrors && (
+        <Alert
+          message="Несоответствие данных формату"
+          description={
+            <>
+              <Paragraph type="danger" style={{ marginBottom: 8 }}>
+                Сохранение невозможно: обнаружены несоответствия типов (длина, формат полей по XSD). Исправьте указанные поля и повторите попытку сохранения.
+              </Paragraph>
+              <List
+                size="small"
+                dataSource={formatValidationErrors}
+                renderItem={(item) => (
+                  <List.Item>
+                    <Text type="danger">
+                      <CloseCircleOutlined /> {item}
+                    </Text>
+                  </List.Item>
+                )}
+              />
+            </>
+          }
+          type="error"
+          icon={<CloseCircleOutlined />}
+          showIcon
+          style={{ marginBottom: 16 }}
+        />
+      )}
+
       {isNewDoc ? (
         <>
           <Alert
