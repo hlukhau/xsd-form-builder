@@ -2,7 +2,7 @@ import { Form, Input, Button, Collapse, Space, Select } from 'antd'
 import { PlusOutlined, DeleteOutlined } from '@ant-design/icons'
 import ManufacturerDetailsEdit from '../common/ManufacturerDetailsEdit'
 import CountrySelect from '../common/CountrySelect'
-import type { DetectionPlaceData, AddressDetails } from '@/types/card'
+import type { DetectionPlaceData, AddressDetails, SupplyChainPartyDetails } from '@/types/card'
 import { useCountryOptions } from '@/hooks/useCountryOptions'
 import { useBorderCheckpointOptions } from '@/hooks/useBorderCheckpointOptions'
 import { getMaxLength, validateFieldValue, getFormatHint } from '@/constants/xsdFieldConstraints'
@@ -43,19 +43,12 @@ const DetectionPlaceTabEdit: React.FC<DetectionPlaceTabEditProps> = ({ data, onC
     })
   }
 
-  const handleCheckpointSelect = (code: string | undefined) => {
-    if (!code) {
-      onChange({ ...data, borderCheckpoint: undefined })
-      return
-    }
-    const opts = getCheckpointSelectOptions()
-    const opt = opts.find((o) => o.value === code)
-    const name = opt?.label != null ? opt.label.split(' - ').slice(1).join(' - ') : ''
-    onChange({
-      ...data,
-      borderCheckpoint: { checkpointCode: code, checkpointName: name },
-    })
-  }
+  const hasCheckpointCode = (data.borderCheckpoint?.checkpointCode ?? '').trim() !== ''
+  const hasCheckpointName = (data.borderCheckpoint?.checkpointName ?? '').trim() !== ''
+  const checkpointValidationError =
+    (hasCheckpointCode && !hasCheckpointName) || (!hasCheckpointCode && hasCheckpointName)
+      ? 'Укажите оба атрибута: код вида пункта пропуска и наименование пункта пропуска (или оставьте оба пустыми).'
+      : undefined
 
   const rawGeo = data.geoCoordinates
   const geoList: Array<{ longitude?: string; latitude?: string }> = Array.isArray(rawGeo)
@@ -83,19 +76,20 @@ const DetectionPlaceTabEdit: React.FC<DetectionPlaceTabEditProps> = ({ data, onC
   return (
     <div>
       <Form layout="vertical" className="field-tag-form">
-        {/* Адрес места обнаружения (ObjectAddressDetails) — без почтового индекса и полного адреса одной строкой */}
-        <h4 style={{ marginTop: 0 }}>Адрес места обнаружения (ccdo:ObjectAddressDetails)</h4>
+        <h4 style={{ marginTop: 0 }}>Адрес</h4>
         <div style={{ border: '1px solid #d9d9d9', borderRadius: 4, padding: 16, marginBottom: 16 }}>
           <Space direction="vertical" style={{ width: '100%' }}>
-          <CountrySelect
-            placeholder="Страна (UnifiedCountryCode)"
-            loading={loading}
-            value={data.address?.country}
-            onChange={(value) => handleAddressChange('country', value || '')}
-            countryOptions={countryOptions}
-            normalizeCountryCode={normalizeCountryCode}
-          />
-          <Form.Item label="Код территории (TerritoryCode)" style={{ marginBottom: 0 }}>
+          <Form.Item label="Страна" style={{ marginBottom: 0 }}>
+            <CountrySelect
+              placeholder="Страна"
+              loading={loading}
+              value={data.address?.country}
+              onChange={(value) => handleAddressChange('country', value || '')}
+              countryOptions={countryOptions}
+              normalizeCountryCode={normalizeCountryCode}
+            />
+          </Form.Item>
+          <Form.Item label="Код территории" style={{ marginBottom: 0 }}>
             <Input
               placeholder="Код территории"
               value={data.address?.territoryCode}
@@ -104,7 +98,7 @@ const DetectionPlaceTabEdit: React.FC<DetectionPlaceTabEditProps> = ({ data, onC
               showCount
             />
           </Form.Item>
-          <Form.Item label="Регион (RegionName)" style={{ marginBottom: 0 }}>
+          <Form.Item label="Регион" style={{ marginBottom: 0 }}>
             <Input
               placeholder="Например: Витебская область"
               value={data.address?.regionName}
@@ -113,7 +107,7 @@ const DetectionPlaceTabEdit: React.FC<DetectionPlaceTabEditProps> = ({ data, onC
               showCount
             />
           </Form.Item>
-          <Form.Item label="Район (DistrictName)" style={{ marginBottom: 0 }}>
+          <Form.Item label="Район" style={{ marginBottom: 0 }}>
             <Input
               placeholder="Район"
               value={data.address?.districtName}
@@ -122,7 +116,7 @@ const DetectionPlaceTabEdit: React.FC<DetectionPlaceTabEditProps> = ({ data, onC
               showCount
             />
           </Form.Item>
-          <Form.Item label="Город (CityName)" style={{ marginBottom: 0 }}>
+          <Form.Item label="Город" style={{ marginBottom: 0 }}>
             <Input
               placeholder="Город"
               value={data.address?.cityName}
@@ -131,7 +125,7 @@ const DetectionPlaceTabEdit: React.FC<DetectionPlaceTabEditProps> = ({ data, onC
               showCount
             />
           </Form.Item>
-          <Form.Item label="Населённый пункт (SettlementName)" style={{ marginBottom: 0 }}>
+          <Form.Item label="Населённый пункт" style={{ marginBottom: 0 }}>
             <Input
               placeholder="Например: г.п. Ушачи"
               value={data.address?.settlementName}
@@ -140,7 +134,7 @@ const DetectionPlaceTabEdit: React.FC<DetectionPlaceTabEditProps> = ({ data, onC
               showCount
             />
           </Form.Item>
-          <Form.Item label="Улица (StreetName)" style={{ marginBottom: 0 }}>
+          <Form.Item label="Улица" style={{ marginBottom: 0 }}>
             <Input
               placeholder="Улица"
               value={data.address?.streetName}
@@ -149,7 +143,7 @@ const DetectionPlaceTabEdit: React.FC<DetectionPlaceTabEditProps> = ({ data, onC
               showCount
             />
           </Form.Item>
-          <Form.Item label="Номер здания (BuildingNumberId)" style={{ marginBottom: 0 }}>
+          <Form.Item label="Номер здания" style={{ marginBottom: 0 }}>
             <Input
               placeholder="Номер дома, корпус"
               value={data.address?.buildingNumberId}
@@ -158,7 +152,7 @@ const DetectionPlaceTabEdit: React.FC<DetectionPlaceTabEditProps> = ({ data, onC
               showCount
             />
           </Form.Item>
-          <Form.Item label="Номер помещения (RoomNumberId)" style={{ marginBottom: 0 }}>
+          <Form.Item label="Номер помещения" style={{ marginBottom: 0 }}>
             <Input
               placeholder="Квартира, офис, кабинет"
               value={data.address?.roomNumberId}
@@ -181,38 +175,64 @@ const DetectionPlaceTabEdit: React.FC<DetectionPlaceTabEditProps> = ({ data, onC
         </Form.Item>
       </Form>
 
+      <h4 style={{ marginTop: 16 }}>Организация места обнаружения</h4>
+      <ManufacturerDetailsEdit
+        data={(data.organization ?? { country: '' }) as SupplyChainPartyDetails}
+        onChange={(org) => handleFieldChange('organization', org)}
+        title="Организация"
+        hideKindField
+      />
+
       <Collapse
-        defaultActiveKey={['organization', 'checkpoint', 'coordinates']}
+        defaultActiveKey={['checkpoint', 'coordinates']}
         items={[
-          {
-            key: 'organization',
-            label: 'Организация места обнаружения',
-            children: (
-              <ManufacturerDetailsEdit
-                data={data.organization ?? { country: '' }}
-                onChange={(org) => handleFieldChange('organization', org)}
-                title="Организация"
-              />
-            ),
-          },
           {
             key: 'checkpoint',
             label: 'Пункт пропуска',
             children: (
               <Form layout="vertical" className="field-tag-form">
-                <Form.Item label="Код вида пункта пропуска">
+                <Form.Item
+                  label="Код вида пункта пропуска"
+                  validateStatus={checkpointValidationError ? 'error' : undefined}
+                  help={checkpointValidationError}
+                >
                   <Select
                     showSearch
                     placeholder="Выберите пункт пропуска (код — наименование)"
                     loading={loadingCheckpoints}
                     value={data.borderCheckpoint?.checkpointCode || undefined}
-                    onChange={handleCheckpointSelect}
+                    onChange={(code) => {
+                      if (!code) {
+                        onChange({ ...data, borderCheckpoint: undefined })
+                        return
+                      }
+                      const opts = getCheckpointSelectOptions()
+                      const opt = opts.find((o) => o.value === code)
+                      const name = opt?.label != null ? opt.label.split(' - ').slice(1).join(' - ') : ''
+                      onChange({
+                        ...data,
+                        borderCheckpoint: { checkpointCode: code, checkpointName: name },
+                      })
+                    }}
                     filterOption={(input, option) =>
                       (option?.label ?? '').toLowerCase().includes(input.toLowerCase())
                     }
                     options={getCheckpointSelectOptions()}
                     style={{ width: '100%' }}
                     allowClear
+                  />
+                </Form.Item>
+                <Form.Item
+                  label="Наименование пункта пропуска"
+                  validateStatus={checkpointValidationError ? 'error' : undefined}
+                  help={checkpointValidationError}
+                >
+                  <Input
+                    placeholder="Наименование пункта пропуска"
+                    value={data.borderCheckpoint?.checkpointName ?? ''}
+                    onChange={(e) => handleCheckpointChange('checkpointName', e.target.value)}
+                    maxLength={getMaxLength('checkpointName')}
+                    showCount
                   />
                 </Form.Item>
               </Form>
@@ -224,41 +244,50 @@ const DetectionPlaceTabEdit: React.FC<DetectionPlaceTabEditProps> = ({ data, onC
             children: (
               <Form layout="vertical" className="field-tag-form">
                 <p style={{ marginBottom: 8, color: '#666' }}>{getFormatHint('geoCoordinate')}</p>
-                {geoList.map((coord, idx) => (
-                  <div key={idx} style={{ display: 'flex', gap: 8, alignItems: 'flex-start', marginBottom: 12, flexWrap: 'wrap' }}>
-                    <Form.Item label="Долгота" style={{ marginBottom: 0, flex: 1, minWidth: 200 }}>
-                      <Input
-                        value={coord.longitude ?? ''}
-                        onChange={(e) => handleCoordinateChange(idx, 'longitude', e.target.value)}
-                        onBlur={(e) => handleCoordinateChange(idx, 'longitude', e.target.value)}
-                        placeholder="Число ISO 6709"
-                        status={validateFieldValue('geoCoordinate', coord.longitude?.trim()) ? 'error' : undefined}
-                      />
-                      {validateFieldValue('geoCoordinate', coord.longitude?.trim()) && (
-                        <div style={{ fontSize: 12, color: '#ff4d4f', marginTop: 2 }}>
-                          {validateFieldValue('geoCoordinate', coord.longitude?.trim())}
-                        </div>
-                      )}
-                    </Form.Item>
-                    <Form.Item label="Широта" style={{ marginBottom: 0, flex: 1, minWidth: 200 }}>
-                      <Input
-                        value={coord.latitude ?? ''}
-                        onChange={(e) => handleCoordinateChange(idx, 'latitude', e.target.value)}
-                        onBlur={(e) => handleCoordinateChange(idx, 'latitude', e.target.value)}
-                        placeholder="Число ISO 6709"
-                        status={validateFieldValue('geoCoordinate', coord.latitude?.trim()) ? 'error' : undefined}
-                      />
-                      {validateFieldValue('geoCoordinate', coord.latitude?.trim()) && (
-                        <div style={{ fontSize: 12, color: '#ff4d4f', marginTop: 2 }}>
-                          {validateFieldValue('geoCoordinate', coord.latitude?.trim())}
-                        </div>
-                      )}
-                    </Form.Item>
-                    <Button type="link" danger icon={<DeleteOutlined />} onClick={() => handleRemoveCoordinate(idx)} style={{ marginTop: 30 }}>
-                      Удалить
-                    </Button>
-                  </div>
-                ))}
+                <p style={{ marginBottom: 8, color: '#666' }}>Укажите обе координаты (широту и долготу) для каждой записи. Пустые записи сохранять нельзя.</p>
+                {geoList.map((coord, idx) => {
+                  const hasLon = (coord.longitude ?? '').trim() !== ''
+                  const hasLat = (coord.latitude ?? '').trim() !== ''
+                  const coordPairError =
+                    !hasLon && !hasLat
+                      ? 'Заполните обе координаты или удалите запись'
+                      : (hasLon && !hasLat) || (!hasLon && hasLat)
+                        ? 'Укажите обе координаты: широту и долготу'
+                        : undefined
+                  return (
+                    <div key={idx} style={{ display: 'flex', gap: 8, alignItems: 'flex-start', marginBottom: 12, flexWrap: 'wrap' }}>
+                      <Form.Item
+                        label="Долгота"
+                        style={{ marginBottom: 0, flex: 1, minWidth: 200 }}
+                        validateStatus={coordPairError || validateFieldValue('geoCoordinate', coord.longitude?.trim()) ? 'error' : undefined}
+                        help={validateFieldValue('geoCoordinate', coord.longitude?.trim()) || coordPairError}
+                      >
+                        <Input
+                          value={coord.longitude ?? ''}
+                          onChange={(e) => handleCoordinateChange(idx, 'longitude', e.target.value)}
+                          onBlur={(e) => handleCoordinateChange(idx, 'longitude', e.target.value)}
+                          placeholder="Число ISO 6709"
+                        />
+                      </Form.Item>
+                      <Form.Item
+                        label="Широта"
+                        style={{ marginBottom: 0, flex: 1, minWidth: 200 }}
+                        validateStatus={coordPairError || validateFieldValue('geoCoordinate', coord.latitude?.trim()) ? 'error' : undefined}
+                        help={validateFieldValue('geoCoordinate', coord.latitude?.trim()) || coordPairError}
+                      >
+                        <Input
+                          value={coord.latitude ?? ''}
+                          onChange={(e) => handleCoordinateChange(idx, 'latitude', e.target.value)}
+                          onBlur={(e) => handleCoordinateChange(idx, 'latitude', e.target.value)}
+                          placeholder="Число ISO 6709"
+                        />
+                      </Form.Item>
+                      <Button type="link" danger icon={<DeleteOutlined />} onClick={() => handleRemoveCoordinate(idx)} style={{ marginTop: 30 }}>
+                        Удалить
+                      </Button>
+                    </div>
+                  )
+                })}
                 <Button type="dashed" icon={<PlusOutlined />} onClick={handleAddCoordinate}>
                   Добавить координаты
                 </Button>

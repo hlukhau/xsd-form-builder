@@ -295,6 +295,25 @@ export function validateOutgoingCard(data: CardData): ValidationResult {
         add(sectionDetectionPlace, 'Если в качестве места обнаружения указан адрес, то в его составе должен быть указан или город, или населенный пункт')
       }
     }
+    const cp = place.borderCheckpoint
+    if (cp) {
+      const hasCheckpointCode = !empty(cp.checkpointCode)
+      const hasCheckpointName = !empty(cp.checkpointName)
+      if (hasCheckpointCode !== hasCheckpointName) {
+        add(sectionDetectionPlace, 'В блоке «Пункт пропуска» должны быть указаны оба атрибута: код вида пункта пропуска и наименование пункта пропуска (или оба пусты).')
+      }
+    }
+    const geoList = place.geoCoordinates ?? []
+    for (let i = 0; i < geoList.length; i++) {
+      const c = geoList[i]
+      const hasLon = !empty(c?.longitude)
+      const hasLat = !empty(c?.latitude)
+      if (!hasLon && !hasLat) {
+        add(sectionDetectionPlace, `В блоке «Географические координаты» запись ${i + 1}: заполните обе координаты (широту и долготу). Пустые записи сохранять нельзя.`)
+      } else if (hasLon !== hasLat) {
+        add(sectionDetectionPlace, `В блоке «Географические координаты» для записи ${i + 1} укажите и широту, и долготу.`)
+      }
+    }
   }
   if (sectionDetectionPlace.remarks.length) sections.push(sectionDetectionPlace)
 
@@ -420,16 +439,39 @@ const ADDRESS_FIELD_KEYS: (keyof AddressDetails)[] = [
   'cityName', 'settlementName', 'streetName', 'buildingNumberId', 'roomNumberId',
 ]
 
+/** Русские наименования полей для сообщений об ошибках (без англоязычных имён атрибутов). */
+const FIELD_LABEL: Record<string, string> = {
+  territoryCode: 'Код территории',
+  postCode: 'Почтовый индекс',
+  postOfficeBoxId: 'Номер абонентского ящика',
+  regionName: 'Регион',
+  districtName: 'Район',
+  cityName: 'Населённый пункт (город)',
+  settlementName: 'Населённый пункт',
+  streetName: 'Улица',
+  buildingNumberId: 'Номер здания',
+  roomNumberId: 'Номер помещения',
+}
+
+function getFieldLabel(fieldKey: string): string {
+  return FIELD_LABEL[fieldKey] ?? fieldKey
+}
+
 function pushFormatError(errors: string[], path: string, fieldKey: string, value: string | undefined): void {
   const msg = validateFieldValue(fieldKey, value ?? '')
-  if (msg) errors.push(path ? `${path}: ${msg}` : msg)
+  if (!msg) return
+  // Не дублировать название поля: если путь уже заканчивается им (например «→ Почтовый индекс»), убрать его из начала сообщения
+  const lastSegment = path.split(' → ').pop()?.trim() ?? ''
+  const prefix = lastSegment ? `${lastSegment}: ` : ''
+  const displayMsg = prefix && msg.startsWith(prefix) ? msg.slice(prefix.length) : msg
+  errors.push(path ? `${path}: ${displayMsg}` : displayMsg)
 }
 
 function checkAddress(errors: string[], path: string, addr: AddressDetails | undefined): void {
   if (!addr) return
   for (const key of ADDRESS_FIELD_KEYS) {
     const v = addr[key]
-    if (v !== undefined && v !== '') pushFormatError(errors, `${path} → ${key}`, key, v)
+    if (v !== undefined && v !== '') pushFormatError(errors, `${path} → ${getFieldLabel(key)}`, key, v)
   }
 }
 
@@ -540,11 +582,29 @@ export function collectFormatValidationErrors(data: CardData): FormatValidationE
       checkParty(errors, 'Место обнаружения → Организация', place.organization as unknown as SupplyChainPartyDetails)
     }
     if (place.borderCheckpoint) {
+      const hasCheckpointCode = (place.borderCheckpoint.checkpointCode ?? '').trim() !== ''
+      const hasCheckpointName = (place.borderCheckpoint.checkpointName ?? '').trim() !== ''
+      if (hasCheckpointCode !== hasCheckpointName) {
+        errors.push(
+          'Место обнаружения → Пункт пропуска: укажите оба атрибута (код вида пункта пропуска и наименование пункта пропуска) или оставьте оба пустыми.'
+        )
+      }
       pushFormatError(errors, 'Место обнаружения → Пункт пропуска → Код', 'checkpointCode', place.borderCheckpoint.checkpointCode)
       pushFormatError(errors, 'Место обнаружения → Пункт пропуска → Наименование', 'checkpointName', place.borderCheckpoint.checkpointName)
     }
     if (place.address) checkAddress(errors, 'Место обнаружения → Адрес', place.address)
     ;(place.geoCoordinates ?? []).forEach((g, i) => {
+      const hasLon = (g?.longitude ?? '').trim() !== ''
+      const hasLat = (g?.latitude ?? '').trim() !== ''
+      if (!hasLon && !hasLat) {
+        errors.push(
+          `Место обнаружения → Географические координаты → Запись ${i + 1}: заполните обе координаты (широту и долготу). Пустые записи сохранять нельзя.`
+        )
+      } else if (hasLon !== hasLat) {
+        errors.push(
+          `Место обнаружения → Географические координаты → Запись ${i + 1}: укажите обе координаты (широту и долготу).`
+        )
+      }
       const v = g.longitude ?? g.latitude ?? ''
       pushFormatError(errors, `Место обнаружения → Координата ${i + 1}`, 'geoCoordinate', v)
     })

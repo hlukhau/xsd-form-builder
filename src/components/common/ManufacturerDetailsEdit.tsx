@@ -24,6 +24,8 @@ interface ManufacturerDetailsEditProps {
   title?: string
   /** Код вида участника цепи поставки фиксирован (поле нередактируемое, подставляется автоматически). */
   fixedSupplyChainPartyKindCode?: string
+  /** Скрыть поле «Вид» (для организации в месте обнаружения — вид не указывается). */
+  hideKindField?: boolean
 }
 
 const ManufacturerDetailsEdit: React.FC<ManufacturerDetailsEditProps> = ({
@@ -31,6 +33,7 @@ const ManufacturerDetailsEdit: React.FC<ManufacturerDetailsEditProps> = ({
   onChange,
   title = 'Изготовитель продукции',
   fixedSupplyChainPartyKindCode,
+  hideKindField = false,
 }) => {
   const [isOpen, setIsOpen] = useState(false)
   const [form] = Form.useForm()
@@ -234,7 +237,7 @@ const ManufacturerDetailsEdit: React.FC<ManufacturerDetailsEditProps> = ({
                     normalizeCountryCode={normalizeCountryCode}
                   />
                 </Form.Item>
-                {fixedSupplyChainPartyKindCode ? (
+                {!hideKindField && (fixedSupplyChainPartyKindCode ? (
                   <Form.Item
                     label={labelWithHelp('Вид', FIELD_HELP.supplyChainPartyKind)}
                     validateStatus={kindCodeError ? 'error' : ''}
@@ -266,7 +269,7 @@ const ManufacturerDetailsEdit: React.FC<ManufacturerDetailsEditProps> = ({
                       status={kindCodeError ? 'error' : undefined}
                     />
                   </Form.Item>
-                )}
+                ))}
                 <Form.Item label="Наименование субъекта" name="businessEntityName" rules={getFormRules('businessEntityName')}>
                   <Input maxLength={getMaxLength('businessEntityName')} showCount />
                 </Form.Item>

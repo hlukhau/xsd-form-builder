@@ -90,17 +90,10 @@ export function compareCardData(original: CardData, exported: CardData): {
     if (originalVal == null) {
       // В экспорте подставляется значение по умолчанию — не считать добавленным
       if (path.endsWith('.addressKindCode') && exportedVal === '1') return false
-      // В экспорте есть значение
+      // В экспорте есть значение — атрибут не был задан в оригинале, считаем добавленным
       if (exportedVal != null && (typeof exportedVal !== 'string' || String(exportedVal).trim() !== '')) {
         const displayVal = typeof exportedVal === 'string' ? exportedVal : JSON.stringify(exportedVal)
-        // Поле внутри уже сравниваемого элемента (например violations[0].generalDescription) —
-        // показываем как «разное значение», а не «добавленные данные», чтобы не путать с новым нарушением
-        const isInsideComparedElement = /\[\d+\]\./.test(path)
-        if (isInsideComparedElement) {
-          differences.push(`Разное значение на пути ${path}: (пусто) vs "${displayVal}"`)
-        } else {
-          added.push(`${path} = "${displayVal}"`)
-        }
+        added.push(`Добавлен атрибут ${path}: ${displayVal}`)
         return false
       }
       warnings.push(`Отсутствует значение в исходных данных: ${path}`)

@@ -85,7 +85,7 @@ export const XSD_FIELD_CONSTRAINTS: Record<string, FieldConstraint> = {
 
   // Пункт пропуска
   checkpointCode: { maxLength: 18, messageMaxLength: 'Не более 18 символов (csdo:BorderCheckpointCodeType)' },
-  checkpointName: { maxLength: 300, messageMaxLength: 'Не более 300 символов (csdo:Name300Type)' },
+  checkpointName: { maxLength: 250, messageMaxLength: 'Не более 250 символов (csdo:Name250Type)' },
 
   // Географические координаты (ISO 6709: макс. 11 цифр, макс. 8 дробных)
   geoCoordinate: {
