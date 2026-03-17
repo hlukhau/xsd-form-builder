@@ -13,7 +13,7 @@ import { checkSupplyChainPartyKindExists } from '@/utils/referenceDataApi'
 import { getAddressListFromParty, getDefaultAddressKindName } from '@/utils/addressFormatUtils'
 import { useCommunicationChannelOptions } from '@/hooks/useCommunicationChannelOptions'
 import { FieldTagBlock } from '@/components/common/FieldTag'
-import { getFormRules, getMaxLength } from '@/constants/xsdFieldConstraints'
+import { getFormRules, getMaxLength, getFormatHint, validateFieldValue } from '@/constants/xsdFieldConstraints'
 
 /** Идентификатор справочника организационно-правовых форм (SESINT.LEGALFORM) */
 const LEGAL_FORM_CODE_LIST_ID = '2049'
@@ -50,6 +50,7 @@ const ManufacturerDetailsEdit: React.FC<ManufacturerDetailsEditProps> = ({
   const { getSelectOptions: getIdentificationMethodSelectOptions, loading: loadingIdMethods } = useIdentificationMethodOptions(countryForLegalForm)
   const { getSelectOptions: getCommunicationChannelSelectOptions, loading: loadingCommunicationChannels } = useCommunicationChannelOptions()
   const [kindCodeError, setKindCodeError] = useState<boolean>(false)
+  const [addressErrors, setAddressErrors] = useState<Record<string, string>>({})
 
   // Проверка кода вида участника по справочнику с дебаунсом (не при каждом вводе символа)
   useEffect(() => {
@@ -165,6 +166,7 @@ const ManufacturerDetailsEdit: React.FC<ManufacturerDetailsEditProps> = ({
   const handleAddressRemove = (index: number) => {
     const list = addressList.filter((_, i) => i !== index)
     syncAddressesToParty(list)
+    setAddressErrors({})
   }
 
   const handleContactAdd = () => {
@@ -362,11 +364,29 @@ const ManufacturerDetailsEdit: React.FC<ManufacturerDetailsEditProps> = ({
                           />
                         </FieldTagBlock>
                         <FieldTagBlock label="Почтовый индекс">
-                          <Input
-                            placeholder="Почтовый индекс"
-                            value={addr.postCode}
-                            onChange={(e) => handleAddressChange(index, 'postCode', e.target.value || undefined)}
-                          />
+                          <div>
+                            <Input
+                              placeholder="Почтовый индекс"
+                              value={addr.postCode}
+                              onChange={(e) => {
+                                const v = e.target.value || undefined
+                                handleAddressChange(index, 'postCode', v)
+                                const msg = validateFieldValue('postCode', v ?? '')
+                                setAddressErrors((prev) => ({ ...prev, [`addr-${index}-postCode`]: msg ?? '' }))
+                              }}
+                              onBlur={(e) => {
+                                const msg = validateFieldValue('postCode', e.target.value?.trim() || undefined)
+                                setAddressErrors((prev) => ({ ...prev, [`addr-${index}-postCode`]: msg ?? '' }))
+                              }}
+                              status={addressErrors[`addr-${index}-postCode`] ? 'error' : undefined}
+                            />
+                            {addressErrors[`addr-${index}-postCode`] && (
+                              <div style={{ fontSize: 12, color: '#ff4d4f', marginTop: 2 }}>
+                                {addressErrors[`addr-${index}-postCode`]}
+                                {getFormatHint('postCode') && ` (${getFormatHint('postCode')})`}
+                              </div>
+                            )}
+                          </div>
                         </FieldTagBlock>
                         <FieldTagBlock label="Код территории">
                           <Input placeholder="Код территории" value={addr.territoryCode} onChange={(e) => handleAddressChange(index, 'territoryCode', e.target.value || undefined)} maxLength={getMaxLength('territoryCode')} showCount />
@@ -395,7 +415,28 @@ const ManufacturerDetailsEdit: React.FC<ManufacturerDetailsEditProps> = ({
                           </FieldTagBlock>
                         </Space>
                         <FieldTagBlock label="Номер абонентского ящика">
-                          <Input placeholder="Номер абонентского ящика" value={addr.postOfficeBoxId} onChange={(e) => handleAddressChange(index, 'postOfficeBoxId', e.target.value || undefined)} />
+                          <div>
+                            <Input
+                              placeholder="Номер абонентского ящика"
+                              value={addr.postOfficeBoxId}
+                              onChange={(e) => {
+                                const v = e.target.value || undefined
+                                handleAddressChange(index, 'postOfficeBoxId', v)
+                                const msg = validateFieldValue('postOfficeBoxId', v ?? '')
+                                setAddressErrors((prev) => ({ ...prev, [`addr-${index}-postOfficeBoxId`]: msg ?? '' }))
+                              }}
+                              onBlur={(e) => {
+                                const msg = validateFieldValue('postOfficeBoxId', e.target.value?.trim() || undefined)
+                                setAddressErrors((prev) => ({ ...prev, [`addr-${index}-postOfficeBoxId`]: msg ?? '' }))
+                              }}
+                              maxLength={getMaxLength('postOfficeBoxId')}
+                              showCount
+                              status={addressErrors[`addr-${index}-postOfficeBoxId`] ? 'error' : undefined}
+                            />
+                            {addressErrors[`addr-${index}-postOfficeBoxId`] && (
+                              <div style={{ fontSize: 12, color: '#ff4d4f', marginTop: 2 }}>{addressErrors[`addr-${index}-postOfficeBoxId`]}</div>
+                            )}
+                          </div>
                         </FieldTagBlock>
                       </Space>
                     </div>

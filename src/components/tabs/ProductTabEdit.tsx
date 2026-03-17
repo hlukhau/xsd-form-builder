@@ -347,16 +347,24 @@ const ProductTabEdit: React.FC<ProductTabEditProps> = ({ data, onChange }) => {
                     style={{ width: '100%' }}
                   />
                 </Form.Item>
-                <Input
-                  placeholder="Наименование документа"
-                  value={doc.docName}
-                  onChange={(e) => handleTechnicalDocChange(index, 'docName', e.target.value)}
-                />
-                <Input
-                  placeholder="Номер документа"
-                  value={doc.docId}
-                  onChange={(e) => handleTechnicalDocChange(index, 'docId', e.target.value)}
-                />
+                <Form.Item label="Наименование документа">
+                  <Input
+                    placeholder="Наименование документа"
+                    value={doc.docName}
+                    onChange={(e) => handleTechnicalDocChange(index, 'docName', e.target.value)}
+                    maxLength={getMaxLength('docName500')}
+                    showCount
+                  />
+                </Form.Item>
+                <Form.Item label="Номер документа">
+                  <Input
+                    placeholder="Номер документа"
+                    value={doc.docId}
+                    onChange={(e) => handleTechnicalDocChange(index, 'docId', e.target.value)}
+                    maxLength={getMaxLength('docId')}
+                    showCount
+                  />
+                </Form.Item>
                 <DatePicker
                   format={DATE_DISPLAY_FORMAT}
                   placeholder="Дата документа"

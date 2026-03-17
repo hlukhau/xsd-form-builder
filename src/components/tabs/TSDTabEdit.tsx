@@ -373,11 +373,13 @@ const TSDTabEdit: React.FC<TSDTabEditProps> = ({ data, onChange }) => {
           onChange={(e) => handleDocumentChange(batchIndex, docIndex, 'docName', e.target.value)}
           placeholder="Наименование"
           size="small"
+          maxLength={getMaxLength('docName500')}
+          showCount
         />
       ),
     },
     {
-      title: labelWithHelp('Номер', FIELD_HELP.tsdDocId),
+      title: labelWithHelp('Номер документа', FIELD_HELP.tsdDocId),
       key: 'docId',
       width: 120,
       render: (_: any, record: ShippingDocument, docIndex: number) => (
@@ -386,6 +388,8 @@ const TSDTabEdit: React.FC<TSDTabEditProps> = ({ data, onChange }) => {
           onChange={(e) => handleDocumentChange(batchIndex, docIndex, 'docId', e.target.value)}
           placeholder="Номер"
           size="small"
+          maxLength={getMaxLength('docId')}
+          showCount
         />
       ),
     },
@@ -631,6 +635,8 @@ const TSDTabEdit: React.FC<TSDTabEditProps> = ({ data, onChange }) => {
                                   value={td.docName}
                                   onChange={(e) => handleProductTechnicalDocChange(batchIndex, docIndex, pIndex, tdIndex, 'docName', e.target.value)}
                                   size="small"
+                                  maxLength={getMaxLength('docName500')}
+                                  showCount
                                 />
                               </FieldTagBlock>
                               <FieldTagBlock label="Номер документа">
@@ -639,6 +645,8 @@ const TSDTabEdit: React.FC<TSDTabEditProps> = ({ data, onChange }) => {
                                   value={td.docId}
                                   onChange={(e) => handleProductTechnicalDocChange(batchIndex, docIndex, pIndex, tdIndex, 'docId', e.target.value)}
                                   size="small"
+                                  maxLength={getMaxLength('docId')}
+                                  showCount
                                 />
                               </FieldTagBlock>
                               <Space wrap>

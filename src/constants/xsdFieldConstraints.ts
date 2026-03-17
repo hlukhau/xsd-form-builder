@@ -63,6 +63,14 @@ export const XSD_FIELD_CONSTRAINTS: Record<string, FieldConstraint> = {
 
   // Адрес
   territoryCode: { maxLength: 17, messageMaxLength: 'Не более 17 символов (csdo:TerritoryCodeType)' },
+  /** Почтовый индекс (csdo:PostCodeType). Шаблон: [A-Z0-9][A-Z0-9 -]{1,8}[A-Z0-9], длина 3–10 символов. */
+  postCode: {
+    pattern: /^$|^[A-Z0-9][A-Z0-9 -]{1,8}[A-Z0-9]$/,
+    messagePattern: 'Почтовый индекс: только латинские буквы A–Z, цифры 0–9, пробел или дефис; длина 3–10 символов',
+    formatHint: 'Формат: латинские буквы A–Z, цифры 0–9, пробел или дефис; длина 3–10 символов (например 220050)',
+  },
+  /** Номер абонентского ящика (csdo:Id20Type) */
+  postOfficeBoxId: { maxLength: 20, messageMaxLength: 'Не более 20 символов (csdo:Id20Type)' },
   regionName: { maxLength: 120, messageMaxLength: 'Не более 120 символов (csdo:Name120Type)' },
   districtName: { maxLength: 120, messageMaxLength: 'Не более 120 символов (csdo:Name120Type)' },
   cityName: { maxLength: 120, messageMaxLength: 'Не более 120 символов (csdo:Name120Type)' },
@@ -89,6 +97,8 @@ export const XSD_FIELD_CONSTRAINTS: Record<string, FieldConstraint> = {
   // Документы (соответствия, меры, уведомления)
   docKindName: { maxLength: 300, messageMaxLength: 'Не более 300 символов (csdo:Name300Type)' },
   docName: { maxLength: 300, messageMaxLength: 'Не более 300 символов (csdo:Name300Type)' },
+  /** Наименование документа в технической документации и товаросопроводительных документах (csdo:Name500Type) */
+  docName500: { maxLength: 500, messageMaxLength: 'Не более 500 символов (csdo:Name500Type)' },
   docId: { maxLength: 50, messageMaxLength: 'Не более 50 символов (csdo:Id50Type)' },
   docSeriesId: { maxLength: 50, messageMaxLength: 'Не более 50 символов (csdo:Id50Type)' },
   authorityName: { maxLength: 300, messageMaxLength: 'Не более 300 символов (csdo:Name300Type)' },
