@@ -1,13 +1,27 @@
 package com.eec.servlet;
 
+import com.eec.util.DatabaseUtil;
+
+import javax.servlet.ReadListener;
 import javax.servlet.ServletException;
+import javax.servlet.ServletInputStream;
 import javax.servlet.http.HttpServlet;
 import javax.servlet.http.HttpServletRequest;
+import javax.servlet.http.HttpServletRequestWrapper;
 import javax.servlet.http.HttpServletResponse;
 import java.io.BufferedReader;
+import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.InputStreamReader;
 import java.io.OutputStream;
+import java.io.Reader;
+import java.nio.charset.StandardCharsets;
+import java.sql.Connection;
+import java.sql.PreparedStatement;
+import java.sql.ResultSet;
+import java.sql.SQLException;
+import java.sql.Clob;
 /**
  * Сервлет для работы с XSD Form Builder.
  * POST /xsd_form_builder - принимает JSON с GUID и сохраняет в мапу
@@ -175,19 +189,86 @@ public class XsdFormBuilderServlet extends HttpServlet {
         System.out.println("[XsdFormBuilderServlet] Path parts count: " + parts.length + ", parts: " + java.util.Arrays.toString(parts));
 
         // Если путь содержит 2 сегмента: /xsd_form_builder/{DPAID}/{GUID}
-        // Проверяем GUID в мапе перед возвратом SPA
+        // Опционально: ?command=copy или ?command=delete — вызов API без нажатия кнопки (без проверки прав)
         if (parts.length == 2) {
-            String dpaid = parts[0];
+            String dpaidStr = parts[0];
             String guid = parts[1];
 
-            if (dpaid.isEmpty() || guid.isEmpty()) {
+            if (dpaidStr.isEmpty() || guid.isEmpty()) {
                 System.out.println("[XsdFormBuilderServlet] Empty DPAID or GUID, returning SPA");
                 forwardToSpa(request, response);
                 return;
             }
 
+            String command = request.getParameter("command");
+            if (command != null && !command.trim().isEmpty()) {
+                String cmd = command.trim().toLowerCase();
+                if ("delete".equals(cmd)) {
+                    long dpaid;
+                    try {
+                        dpaid = Long.parseLong(dpaidStr);
+                    } catch (NumberFormatException e) {
+                        response.setStatus(HttpServletResponse.SC_BAD_REQUEST);
+                        response.setContentType("application/json;charset=UTF-8");
+                        response.getWriter().print("{\"success\":false,\"message\":\"Неверный DPAID\"}");
+                        return;
+                    }
+                    String body = "{\"dpaid\":" + dpaid + ",\"guid\":\"" + escapeJsonString(guid) + "\"}";
+                    HttpServletRequest wrapped = new PostBodyRequestWrapper(request, body, true);
+                    try {
+                        request.getRequestDispatcher("/api/dpa/delete").forward(wrapped, response);
+                    } catch (Exception e) {
+                        System.err.println("[XsdFormBuilderServlet] command=delete forward error: " + e.getMessage());
+                        response.setStatus(HttpServletResponse.SC_INTERNAL_SERVER_ERROR);
+                        response.setContentType("application/json;charset=UTF-8");
+                        response.getWriter().print("{\"success\":false,\"message\":\"" + escapeJsonString(e.getMessage()) + "\"}");
+                    }
+                    return;
+                }
+                if ("copy".equals(cmd)) {
+                    long dpaid;
+                    try {
+                        dpaid = Long.parseLong(dpaidStr);
+                    } catch (NumberFormatException e) {
+                        response.setStatus(HttpServletResponse.SC_BAD_REQUEST);
+                        response.setContentType("application/json;charset=UTF-8");
+                        response.getWriter().print("{\"success\":false,\"message\":\"Неверный DPAID\"}");
+                        return;
+                    }
+                    Connection conn = null;
+                    try {
+                        conn = DatabaseUtil.getConnectionForRequest(request, guid);
+                        String xmlBody = getXmlBodyByDpaid(conn, dpaid);
+                        if (xmlBody == null || xmlBody.trim().isEmpty()) {
+                            response.setStatus(HttpServletResponse.SC_NOT_FOUND);
+                            response.setContentType("application/json;charset=UTF-8");
+                            response.getWriter().print("{\"success\":false,\"message\":\"Карта с DPAID " + dpaid + " не найдена или пустой XML\"}");
+                            return;
+                        }
+                        String body = buildCopySaveBody(dpaid, guid, xmlBody);
+                        HttpServletRequest wrapped = new PostBodyRequestWrapper(request, body, true);
+                        request.getRequestDispatcher("/api/dpa/save").forward(wrapped, response);
+                    } catch (SQLException e) {
+                        System.err.println("[XsdFormBuilderServlet] command=copy DB error: " + e.getMessage());
+                        response.setStatus(HttpServletResponse.SC_INTERNAL_SERVER_ERROR);
+                        response.setContentType("application/json;charset=UTF-8");
+                        response.getWriter().print("{\"success\":false,\"message\":\"" + escapeJsonString("Ошибка БД: " + e.getMessage()) + "\"}");
+                    } catch (Exception e) {
+                        System.err.println("[XsdFormBuilderServlet] command=copy forward error: " + e.getMessage());
+                        response.setStatus(HttpServletResponse.SC_INTERNAL_SERVER_ERROR);
+                        response.setContentType("application/json;charset=UTF-8");
+                        response.getWriter().print("{\"success\":false,\"message\":\"" + escapeJsonString(e.getMessage()) + "\"}");
+                    } finally {
+                        if (conn != null) {
+                            try { conn.close(); } catch (SQLException ignored) {}
+                        }
+                    }
+                    return;
+                }
+            }
+
             // Проверяем наличие GUID в мапе (инженерный GUID "1" всегда разрешён и уже в карте)
-            System.out.println("[XsdFormBuilderServlet] Checking GUID in map for DPAID: " + dpaid + ", GUID: " + guid);
+            System.out.println("[XsdFormBuilderServlet] Checking GUID in map for DPAID: " + dpaidStr + ", GUID: " + guid);
             System.out.println("[XsdFormBuilderServlet] Current map size: " + RightsJsonStore.guidMap.size());
             
             if (!RightsJsonStore.guidMap.containsKey(guid)) {
@@ -200,7 +281,7 @@ public class XsdFormBuilderServlet extends HttpServlet {
                 return;
             }
             
-            System.out.println("[XsdFormBuilderServlet] GUID found in map: " + guid + ", returning SPA for DPAID: " + dpaid);
+            System.out.println("[XsdFormBuilderServlet] GUID found in map: " + guid + ", returning SPA for DPAID: " + dpaidStr);
             // GUID найден - возвращаем SPA форму
             forwardToSpa(request, response);
             return;
@@ -400,5 +481,91 @@ public class XsdFormBuilderServlet extends HttpServlet {
         }
 
         return null;
+    }
+
+    /** Экранирование строки для вставки в JSON (кавычки и обратный слэш). */
+    private static String escapeJsonString(String s) {
+        if (s == null) return "";
+        return s.replace("\\", "\\\\").replace("\"", "\\\"")
+                .replace("\n", "\\n").replace("\r", "\\r").replace("\t", "\\t");
+    }
+
+    private static final String SQL_GET_XML_BODY = "SELECT DPAXMLBODY FROM SESINT.DPAXML WHERE DPAID = ?";
+
+    /** Читает XML-тело карты по DPAID из DPAXML. */
+    private String getXmlBodyByDpaid(Connection conn, long dpaid) throws SQLException, IOException {
+        try (PreparedStatement ps = conn.prepareStatement(SQL_GET_XML_BODY)) {
+            ps.setLong(1, dpaid);
+            try (ResultSet rs = ps.executeQuery()) {
+                if (!rs.next()) return null;
+                Clob clob = rs.getClob("DPAXMLBODY");
+                if (clob == null) return null;
+                try (Reader r = clob.getCharacterStream()) {
+                    StringBuilder sb = new StringBuilder();
+                    char[] buf = new char[4096];
+                    int n;
+                    while ((n = r.read(buf)) >= 0) sb.append(buf, 0, n);
+                    return sb.toString();
+                }
+            }
+        }
+    }
+
+    /** Формирует тело POST для создания новой версии (copy): isNew, copyFromDpaid, guid, xmlBody, metadata. */
+    private String buildCopySaveBody(long copyFromDpaid, String guid, String xmlBody) {
+        String escaped = escapeJsonString(xmlBody);
+        return "{\"isNew\":true,\"copyFromDpaid\":" + copyFromDpaid + ",\"guid\":\"" + escapeJsonString(guid) + "\",\"xmlBody\":\"" + escaped + "\",\"metadata\":{}}";
+    }
+
+    /**
+     * Обёртка запроса: подменяет метод на POST и тело на заданный JSON.
+     * При commandInvoke=true атрибут com.eec.command.invoke = true (для отключения проверки прав в API).
+     */
+    private static final class PostBodyRequestWrapper extends HttpServletRequestWrapper {
+        private final byte[] bodyBytes;
+        private final boolean commandInvoke;
+        private static final String ATTR_COMMAND_INVOKE = "com.eec.command.invoke";
+
+        PostBodyRequestWrapper(HttpServletRequest request, String body, boolean commandInvoke) {
+            super(request);
+            this.bodyBytes = body.getBytes(StandardCharsets.UTF_8);
+            this.commandInvoke = commandInvoke;
+        }
+
+        @Override
+        public String getMethod() {
+            return "POST";
+        }
+
+        @Override
+        public String getContentType() {
+            return "application/json;charset=UTF-8";
+        }
+
+        @Override
+        public Object getAttribute(String name) {
+            if (commandInvoke && ATTR_COMMAND_INVOKE.equals(name)) return Boolean.TRUE;
+            return super.getAttribute(name);
+        }
+
+        @Override
+        public ServletInputStream getInputStream() {
+            return new ServletInputStream() {
+                private final ByteArrayInputStream in = new ByteArrayInputStream(bodyBytes);
+                @Override
+                public boolean isFinished() { return in.available() == 0; }
+                @Override
+                public boolean isReady() { return true; }
+                @Override
+                public void setReadListener(ReadListener readListener) { }
+                @Override
+                public int read() throws IOException { return in.read(); }
+            };
+        }
+
+        @Override
+        public BufferedReader getReader() {
+            return new BufferedReader(new InputStreamReader(new ByteArrayInputStream(bodyBytes), StandardCharsets.UTF_8));
+        }
     }
 }

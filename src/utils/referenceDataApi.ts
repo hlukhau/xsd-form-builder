@@ -658,6 +658,43 @@ export async function fetchRightsByGuidRaw(guid: string): Promise<{ ok: boolean;
   return { ok: response.ok, status: response.status, text }
 }
 
+/** Результат запроса протоколов лабораторных исследований (документ соответствия DocKindCode=25). */
+export interface LabProtocolsResponse {
+  status: 'requested' | 'no_info' | 'with_info'
+  message?: string
+  xml?: string
+  error?: string
+}
+
+/**
+ * Запрос протоколов лабораторных исследований по документу соответствия.
+ * POST /api/lab-protocols/request — body: registrationCertificateId (csdo:DocId), authorityCountryCode (страна уполномоченного органа), guid.
+ */
+export async function requestLabProtocols(
+  registrationCertificateId: string,
+  authorityCountryCode: string,
+  guid?: string | null
+): Promise<LabProtocolsResponse> {
+  const body = withGuidBody(
+    {
+      registrationCertificateId: registrationCertificateId.trim(),
+      authorityCountryCode: authorityCountryCode.trim(),
+    },
+    guid ?? undefined
+  )
+  const response = await fetch(`${BASE_URL}api/lab-protocols/request`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  })
+  const data = await response.json().catch(() => ({}))
+  if (!response.ok) {
+    const err = (data as { error?: string }).error ?? response.statusText
+    throw new Error(err)
+  }
+  return data as LabProtocolsResponse
+}
+
 /** Список доступа по DPAID (SESINT.DPADEPPERMIS + TB_DEP + TB_DEPKIND) — GET /api/dpa/access?dpaid=...&source=incoming|outgoing|eec&creatorDepId=... */
 export interface AccessItemDto {
   id: string

@@ -383,7 +383,7 @@ const DangerousProductCard: React.FC<DangerousProductCardProps> = ({
     {
       key: 'compliance',
       label: 'Документы соответствия',
-      children: <ComplianceDocumentsTab tsd={currentData.tsd} hasEditPermission={true} />,
+      children: <ComplianceDocumentsTab tsd={currentData.tsd} hasEditPermission={true} guid={guid} />,
     },
     {
       key: 'violations',
@@ -661,6 +661,7 @@ const DangerousProductCard: React.FC<DangerousProductCardProps> = ({
               <ComplianceDocumentsTabEdit
                 tsd={currentData.tsd}
                 onTsdChange={(tsd) => setEditedData((prev) => ({ ...prev, tsd }))}
+                guid={guid}
               />
             )
           } else {

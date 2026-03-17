@@ -169,6 +169,16 @@
         <url-pattern>/api/conformity-doc-kinds/options</url-pattern>
     </servlet-mapping>
 
+    <!-- Протоколы лабораторных исследований по документу соответствия (DocKindCode=25) -->
+    <servlet>
+        <servlet-name>LabProtocolsServlet</servlet-name>
+        <servlet-class>com.eec.servlet.LabProtocolsServlet</servlet-class>
+    </servlet>
+    <servlet-mapping>
+        <servlet-name>LabProtocolsServlet</servlet-name>
+        <url-pattern>/api/lab-protocols/request</url-pattern>
+    </servlet-mapping>
+
     <servlet>
         <servlet-name>IdentityDocKindOptionsServlet</servlet-name>
         <servlet-class>com.eec.servlet.IdentityDocKindOptionsServlet</servlet-class>

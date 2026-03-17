@@ -13,16 +13,20 @@ import {
 import { useIdentificationMethodOptions } from '@/hooks/useIdentificationMethodOptions'
 import { useConformityDocKindOptions } from '@/hooks/useConformityDocKindOptions'
 import { useCountryOptions } from '@/hooks/useCountryOptions'
+import { requestLabProtocols } from '@/utils/referenceDataApi'
 
 interface ComplianceDocumentsTabProps {
   /** По XSD документы соответствия только в tsd.batches[].complianceDocuments */
   tsd: TSDData | null | undefined
   hasEditPermission?: boolean // dangerousProductIn:edit
+  /** GUID для запроса протоколов лабораторных исследований (подключение к БД, userId) */
+  guid?: string | null
 }
 
 const ComplianceDocumentsTab: React.FC<ComplianceDocumentsTabProps> = ({
   tsd,
   hasEditPermission = false,
+  guid,
 }) => {
   const [selectedDocument, setSelectedDocument] = useState<ComplianceDocument | null>(null)
   const [authorityModalVisible, setAuthorityModalVisible] = useState(false)
@@ -51,8 +55,14 @@ const ComplianceDocumentsTab: React.FC<ComplianceDocumentsTabProps> = ({
   }
 
   const handleRequestProtocols = async (doc: ComplianceDocument) => {
-    if (!doc.registrationCertificateId) {
-      message.warning('Номер свидетельства о регистрации не указан')
+    const docId = doc.docId ?? doc.registrationCertificateId
+    if (!docId || !String(docId).trim()) {
+      message.warning('Номер документа (csdo:DocId) не указан')
+      return
+    }
+    const countryCode = doc.authority?.country?.trim()
+    if (!countryCode) {
+      message.warning('Код страны уполномоченного органа не указан')
       return
     }
 
@@ -62,85 +72,33 @@ const ComplianceDocumentsTab: React.FC<ComplianceDocumentsTabProps> = ({
     setSelectedDocument(doc)
     setProtocolsModalVisible(true)
 
-    // Имитация запроса протоколов
-    // В реальном приложении здесь должен быть вызов процедуры P.SS.08.PRC.017
     try {
-      // Имитируем задержку запроса
-      await new Promise(resolve => setTimeout(resolve, 1000))
-
-      // Имитация трех сценариев:
-      // 1. Данные отсутствуют в локальной БД
-      // 2. Данные отсутствуют у первоисточника
-      // 3. Данные присутствуют
-
-      // Для демонстрации используем случайный выбор
-      // В реальном приложении это будет определяться ответом от сервера
-      const scenario = Math.random()
-      
-      if (scenario < 0.33) {
-        // Сценарий 1: Данные отсутствуют в локальной БД
+      const res = await requestLabProtocols(docId, countryCode, guid ?? undefined)
+      if (res.status === 'requested') {
         setProtocolsError('local')
-        message.info('Запрошенные сведения отсутствуют в локальной базе данных. Выполнен запрос сведений к первоисточнику.')
-        // Здесь должен быть вызов процедуры P.SS.08.PRC.017
-      } else if (scenario < 0.66) {
-        // Сценарий 2: Данные отсутствуют у первоисточника
+        message.info(res.message ?? 'Запрошенные сведения отсутствуют в локальной базе данных. Выполнен запрос сведений к первоисточнику.')
+      } else if (res.status === 'no_info') {
         setProtocolsError('source')
-        message.warning('Запрошенные сведения отсутствуют у первоисточника.')
-      } else {
-        // Сценарий 3: Данные присутствуют
+        message.warning(res.message ?? 'Запрошенные сведения отсутствуют у первоисточника.')
+      } else if (res.status === 'with_info' && res.xml) {
         setProtocolsError(null)
-        // В реальном приложении здесь будут реальные данные
-        setProtocolsData({
-          product: {
-            productId: 'штрихкод',
-            productName: 'природная вода минеральная газированная "ХАЙ СКАЙ (hi-sky)-2"',
-            description: 'питьевая природная минеральная вода, расфасованная в емкости "ХАЙ СКАЙ (Hi-Sky)-2"',
-            commodityCode: '2201101100',
-          },
-          protocols: [
-            {
-              docKindName: 'Протокол',
-              docName: 'Протокол испытаний',
-              docId: 'СГР-134',
-              docCreationDate: '2020-08-05',
-              laboratory: {
-                subjectId: '123456987',
-                identificationMethod: 'ОГРН - основной государственный регистрационный номер юридического лица, указанный в Едином государственном реестре юридических лиц',
-                organizationalForm: 'Общество с ограниченной ответственностью',
-                businessEntityName: 'Общество с ограниченной ответственностью "СТАНДАРТ ДИАЛОГ"',
-                accreditationCertificate: {
-                  docKindName: 'Свидетельство об аккредитации',
-                  docId: 'POCC RU.0001.410154',
-                  eventDate: '2020-05-05',
-                  docStartDate: '2020-05-05',
-                  docValidityDate: '2030-06-05',
-                },
-              },
-            },
-            {
-              docKindName: 'Протокол',
-              docName: 'Протокол испытаний',
-              docId: 'СГР-135',
-              docCreationDate: '2020-08-05',
-              laboratory: {
-                subjectId: '123456987',
-                identificationMethod: 'ОГРН - основной государственный регистрационный номер юридического лица, указанный в Едином государственном реестре юридических лиц',
-                organizationalForm: 'Общество с ограниченной ответственностью',
-                businessEntityName: 'Общество с ограниченной ответственностью "СТАНДАРТ ДИАЛОГ"',
-                accreditationCertificate: {
-                  docKindName: 'Свидетельство об аккредитации',
-                  docId: 'POCC RU.0001.410154',
-                  eventDate: '2020-05-05',
-                  docStartDate: '2020-05-05',
-                  docValidityDate: '2030-06-05',
-                },
-              },
-            },
-          ],
-        })
+        const escaped = res.xml.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+        const w = window.open('', '_blank', 'width=900,height=700,scrollbars=yes')
+        if (w) {
+          w.document.write(
+            '<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Протоколы лабораторных исследований</title></head><body><pre style="white-space:pre-wrap;font-family:monospace;padding:12px;">' +
+            escaped +
+            '</pre></body></html>'
+          )
+          w.document.close()
+        } else {
+          setProtocolsData({ xml: res.xml })
+          setProtocolsModalVisible(true)
+        }
       }
-    } catch (error) {
-      message.error('Ошибка при запросе протоколов')
+    } catch (err) {
+      message.error(err instanceof Error ? err.message : 'Ошибка при запросе протоколов')
+      setProtocolsModalVisible(false)
     } finally {
       setProtocolsLoading(false)
     }
@@ -194,20 +152,22 @@ const ComplianceDocumentsTab: React.FC<ComplianceDocumentsTabProps> = ({
       title: 'Действия',
       key: 'actions',
       render: (_: any, record: ComplianceDocument) => (
-        <div style={{ display: 'flex', gap: '8px' }}>
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: 2 }}>
           <Button
             type="link"
             icon={<EyeOutlined />}
             onClick={() => handleViewAuthority(record)}
+            style={{ padding: 0, height: 'auto' }}
           >
             Уполномоченный орган
           </Button>
-          {record.docKindCode === '25' && hasEditPermission && (
+          {record.docKindCode === '25' && (
             <Button
               type="link"
               onClick={() => handleRequestProtocols(record)}
+              style={{ padding: 0, height: 'auto' }}
             >
-              Протоколы
+              Протоколы лабораторных исследований
             </Button>
           )}
         </div>
@@ -331,6 +291,12 @@ const ComplianceDocumentsTab: React.FC<ComplianceDocumentsTabProps> = ({
           </div>
         ) : protocolsData ? (
           <div>
+            {/* XML протоколов (если открытие в новом окне заблокировано) */}
+            {protocolsData.xml && !protocolsData.protocols && (
+              <pre style={{ whiteSpace: 'pre-wrap', fontFamily: 'monospace', fontSize: 12, maxHeight: 500, overflow: 'auto' }}>
+                {protocolsData.xml}
+              </pre>
+            )}
             {/* Информация о продукции */}
             {protocolsData.product && (
               <div style={{ marginBottom: '24px' }}>

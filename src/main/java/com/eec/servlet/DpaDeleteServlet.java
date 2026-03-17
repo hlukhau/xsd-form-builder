@@ -91,42 +91,43 @@ public class DpaDeleteServlet extends HttpServlet {
                 if (incidentId == null) incidentId = "";
             }
 
-            // 2) Подразделения из DPADEPPERMIS
-            Set<String> cardDepIds = new HashSet<>();
-            try (PreparedStatement ps = conn.prepareStatement(SQL_DEPS)) {
-                ps.setLong(1, dpaid);
-                ResultSet rs = ps.executeQuery();
-                while (rs.next()) {
-                    String depId = rs.getString(1);
-                    if (depId != null && !depId.trim().isEmpty()) {
-                        cardDepIds.add(depId.trim());
+            // 2) Подразделения из DPADEPPERMIS и 3) право edit — пропускаем при вызове по command=delete (без проверки прав)
+            boolean commandInvoke = Boolean.TRUE.equals(request.getAttribute("com.eec.command.invoke"));
+            if (!commandInvoke) {
+                Set<String> cardDepIds = new HashSet<>();
+                try (PreparedStatement ps = conn.prepareStatement(SQL_DEPS)) {
+                    ps.setLong(1, dpaid);
+                    ResultSet rs = ps.executeQuery();
+                    while (rs.next()) {
+                        String depId = rs.getString(1);
+                        if (depId != null && !depId.trim().isEmpty()) {
+                            cardDepIds.add(depId.trim());
+                        }
                     }
                 }
-            }
-            if (cardDepIds.isEmpty()) {
-                sendJsonError(response, HttpServletResponse.SC_FORBIDDEN,
-                        "Нет доступа к карте: в доступе к карте нет подразделений.");
-                return;
-            }
-
-            // 3) Право dangerousProductOut:edit в пределах хотя бы одного подразделения из DPADEPPERMIS
-            String rightsJson = RightsJsonStore.guidMap.get(guid);
-            if (rightsJson == null || rightsJson.isEmpty()) {
-                sendJsonError(response, HttpServletResponse.SC_FORBIDDEN, "Права по GUID не найдены.");
-                return;
-            }
-            Set<String> userEditDepIds = parseEditDepIdsFromRights(rightsJson);
-            boolean hasEditInCardDeps = false;
-            for (String depId : userEditDepIds) {
-                if (cardDepIds.contains(depId)) {
-                    hasEditInCardDeps = true;
-                    break;
+                if (cardDepIds.isEmpty()) {
+                    sendJsonError(response, HttpServletResponse.SC_FORBIDDEN,
+                            "Нет доступа к карте: в доступе к карте нет подразделений.");
+                    return;
                 }
-            }
-            if (!hasEditInCardDeps) {
-                sendJsonError(response, HttpServletResponse.SC_FORBIDDEN,
-                        "Нет права на редактирование исходящих сведений в пределах ни одного подразделения, имеющего доступ к данной карте.");
-                return;
+                String rightsJson = RightsJsonStore.guidMap.get(guid);
+                if (rightsJson == null || rightsJson.isEmpty()) {
+                    sendJsonError(response, HttpServletResponse.SC_FORBIDDEN, "Права по GUID не найдены.");
+                    return;
+                }
+                Set<String> userEditDepIds = parseEditDepIdsFromRights(rightsJson);
+                boolean hasEditInCardDeps = false;
+                for (String depId : userEditDepIds) {
+                    if (cardDepIds.contains(depId)) {
+                        hasEditInCardDeps = true;
+                        break;
+                    }
+                }
+                if (!hasEditInCardDeps) {
+                    sendJsonError(response, HttpServletResponse.SC_FORBIDDEN,
+                            "Нет права на редактирование исходящих сведений в пределах ни одного подразделения, имеющего доступ к данной карте.");
+                    return;
+                }
             }
 
             // 4) Удаление в порядке зависимостей

@@ -150,7 +150,7 @@ public class DpaSaveServlet extends HttpServlet {
 
             if (isNew) {
                 if (copyFromDpaid != null && copyFromDpaid > 0 && guid != null && !guid.trim().isEmpty()) {
-                    handleNewVersionCopy(conn, response, copyFromDpaid, guid.trim(), xmlBody, body);
+                    handleNewVersionCopy(conn, response, request, copyFromDpaid, guid.trim(), xmlBody, body);
                     return;
                 }
                 // Создание: INSERT, версия 1. Регистрационный номер из metadata (incidentId). Поиск существующей записи не делаем.
@@ -560,7 +560,7 @@ public class DpaSaveServlet extends HttpServlet {
     }
 
     /** Создание новой версии карты (копия из карты в статусе Доставлено). */
-    private void handleNewVersionCopy(Connection conn, HttpServletResponse response,
+    private void handleNewVersionCopy(Connection conn, HttpServletResponse response, HttpServletRequest request,
                                       long sourceDpaid, String guid, String xmlBody, String body) throws IOException, SQLException {
         String metaBlock = extractJsonObject(body, "metadata");
         if (metaBlock == null) metaBlock = "{}";
@@ -616,25 +616,28 @@ public class DpaSaveServlet extends HttpServlet {
                     if (depId != null && !depId.trim().isEmpty()) cardDepIds.add(depId.trim());
                 }
             }
-            if (cardDepIds.isEmpty()) {
-                sendJsonError(response, HttpServletResponse.SC_FORBIDDEN, "Нет доступа к исходной карте.");
-                return;
-            }
-
             String rightsJson = RightsJsonStore.guidMap.get(guid);
-            if (rightsJson == null || rightsJson.isEmpty()) {
-                sendJsonError(response, HttpServletResponse.SC_FORBIDDEN, "Права по GUID не найдены.");
-                return;
-            }
-            java.util.Set<String> userEditDepIds = parseEditDepIdsFromRights(rightsJson);
-            boolean hasEdit = false;
-            for (String depId : userEditDepIds) {
-                if (cardDepIds.contains(depId)) { hasEdit = true; break; }
-            }
-            if (!hasEdit) {
-                sendJsonError(response, HttpServletResponse.SC_FORBIDDEN,
-                    "Нет права на редактирование исходящих сведений в пределах ни одного подразделения, имеющего доступ к данной карте.");
-                return;
+            // Проверка права edit — пропускаем при вызове по command=copy (без проверки прав)
+            boolean commandInvoke = Boolean.TRUE.equals(request.getAttribute("com.eec.command.invoke"));
+            if (!commandInvoke) {
+                if (cardDepIds.isEmpty()) {
+                    sendJsonError(response, HttpServletResponse.SC_FORBIDDEN, "Нет доступа к исходной карте.");
+                    return;
+                }
+                if (rightsJson == null || rightsJson.isEmpty()) {
+                    sendJsonError(response, HttpServletResponse.SC_FORBIDDEN, "Права по GUID не найдены.");
+                    return;
+                }
+                java.util.Set<String> userEditDepIds = parseEditDepIdsFromRights(rightsJson);
+                boolean hasEdit = false;
+                for (String depId : userEditDepIds) {
+                    if (cardDepIds.contains(depId)) { hasEdit = true; break; }
+                }
+                if (!hasEdit) {
+                    sendJsonError(response, HttpServletResponse.SC_FORBIDDEN,
+                        "Нет права на редактирование исходящих сведений в пределах ни одного подразделения, имеющего доступ к данной карте.");
+                    return;
+                }
             }
 
             long newDpaid = getNextDpaid(conn);

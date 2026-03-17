@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Form, Input, Button, Table, Space, DatePicker, Modal, Descriptions, Collapse, Select } from 'antd'
+import { Form, Input, Button, Table, Space, DatePicker, Modal, Descriptions, Collapse, Select, message } from 'antd'
 import { PlusOutlined, DeleteOutlined, EyeOutlined } from '@ant-design/icons'
 import dayjs from 'dayjs'
 import { format } from 'date-fns'
@@ -12,16 +12,22 @@ import type { ComplianceDocument, TSDData, ProductBatchDetails } from '@/types/c
 import { useCountryOptions } from '@/hooks/useCountryOptions'
 import { useConformityDocKindOptions } from '@/hooks/useConformityDocKindOptions'
 import CountrySelect from '@/components/common/CountrySelect'
+import { requestLabProtocols } from '@/utils/referenceDataApi'
 
 interface ComplianceDocumentsTabEditProps {
   tsd: TSDData
   onTsdChange: (tsd: TSDData) => void
+  /** GUID для запроса протоколов лабораторных исследований (DocKindCode=25) */
+  guid?: string | null
 }
 
-const ComplianceDocumentsTabEdit: React.FC<ComplianceDocumentsTabEditProps> = ({ tsd, onTsdChange }) => {
+const ComplianceDocumentsTabEdit: React.FC<ComplianceDocumentsTabEditProps> = ({ tsd, onTsdChange, guid }) => {
   const batches = tsd.batches?.length ? tsd.batches : []
   const [authorityModalVisible, setAuthorityModalVisible] = useState(false)
   const [authorityContext, setAuthorityContext] = useState<{ batchIndex: number; docIndex: number } | null>(null)
+  const [protocolsModalVisible, setProtocolsModalVisible] = useState(false)
+  const [protocolsLoading, setProtocolsLoading] = useState(false)
+  const [protocolsError, setProtocolsError] = useState<'local' | 'source' | null>(null)
   const { countryOptions, loading: loadingCountries, normalizeCountryCode } = useCountryOptions()
   const { getSelectOptions: getConformityDocKindSelectOptions, loading: loadingConformityDocKinds } = useConformityDocKindOptions()
 
@@ -67,6 +73,53 @@ const ComplianceDocumentsTabEdit: React.FC<ComplianceDocumentsTabEditProps> = ({
     updateBatchCompliance(batchIndex, docs)
   }
 
+  const handleRequestProtocols = async (doc: ComplianceDocument) => {
+    const docId = doc.docId ?? doc.registrationCertificateId
+    if (!docId || !String(docId).trim()) {
+      message.warning('Номер документа (csdo:DocId) не указан')
+      return
+    }
+    const countryCode = doc.authority?.country?.trim()
+    if (!countryCode) {
+      message.warning('Код страны уполномоченного органа не указан')
+      return
+    }
+    setProtocolsLoading(true)
+    setProtocolsError(null)
+    setProtocolsModalVisible(true)
+    try {
+      const res = await requestLabProtocols(docId, countryCode, guid ?? undefined)
+      if (res.status === 'requested') {
+        setProtocolsError('local')
+        message.info(res.message ?? 'Запрошенные сведения отсутствуют в локальной базе данных. Выполнен запрос сведений к первоисточнику.')
+      } else if (res.status === 'no_info') {
+        setProtocolsError('source')
+        message.warning(res.message ?? 'Запрошенные сведения отсутствуют у первоисточника.')
+      } else if (res.status === 'with_info' && res.xml) {
+        setProtocolsError(null)
+        setProtocolsModalVisible(false)
+        const escaped = res.xml.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+        const w = window.open('', '_blank', 'width=900,height=700,scrollbars=yes')
+        if (w) {
+          w.document.write(
+            '<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Протоколы лабораторных исследований</title></head><body><pre style="white-space:pre-wrap;font-family:monospace;padding:12px;">' +
+            escaped +
+            '</pre></body></html>'
+          )
+          w.document.close()
+        } else {
+          setProtocolsModalVisible(true)
+          message.info('Разрешите всплывающие окна для просмотра протоколов')
+        }
+      }
+    } catch (err) {
+      message.error(err instanceof Error ? err.message : 'Ошибка при запросе протоколов')
+      setProtocolsModalVisible(false)
+    } finally {
+      setProtocolsLoading(false)
+    }
+  }
+
   const getColumns = (batchIndex: number) => [
     {
       title: labelWithHelp('Вид', FIELD_HELP.complianceDocKindCode),
@@ -98,7 +151,26 @@ const ComplianceDocumentsTabEdit: React.FC<ComplianceDocumentsTabEditProps> = ({
     { title: labelWithHelp('Наименование', FIELD_HELP.complianceDocName), key: 'docName', width: 200, render: (_: any, record: ComplianceDocument, docIndex: number) => (<Input value={record.docName} onChange={(e) => handleDocumentChange(batchIndex, docIndex, 'docName', e.target.value)} maxLength={getMaxLength('docName')} showCount />) },
     { title: 'Номер', key: 'docId', width: 150, render: (_: any, record: ComplianceDocument, docIndex: number) => (<Input value={record.docId} onChange={(e) => handleDocumentChange(batchIndex, docIndex, 'docId', e.target.value)} maxLength={getMaxLength('docId')} showCount />) },
     { title: labelWithHelp('Дата', FIELD_HELP.complianceDocCreationDate), key: 'docCreationDate', width: 150, render: (_: any, record: ComplianceDocument, docIndex: number) => (<DatePicker format={DATE_DISPLAY_FORMAT} value={record.docCreationDate ? dayjs(record.docCreationDate) : null} onChange={(date) => handleDocumentChange(batchIndex, docIndex, 'docCreationDate', date ? date.format('YYYY-MM-DD') : '')} style={{ width: '100%' }} />) },
-    { title: 'Действия', key: 'actions', width: 200, render: (_: any, record: ComplianceDocument, docIndex: number) => (<Space><Button type="link" icon={<EyeOutlined />} onClick={() => { setAuthorityContext({ batchIndex, docIndex }); setAuthorityModalVisible(true) }}>{labelWithHelp('Уполномоченный орган', FIELD_HELP.complianceAuthority)}</Button><Button type="link" danger icon={<DeleteOutlined />} onClick={() => handleRemoveDocument(batchIndex, docIndex)}>Удалить</Button></Space>) },
+    {
+      title: 'Действия',
+      key: 'actions',
+      width: 200,
+      render: (_: any, record: ComplianceDocument, docIndex: number) => (
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: 2 }}>
+          <Button type="link" icon={<EyeOutlined />} onClick={() => { setAuthorityContext({ batchIndex, docIndex }); setAuthorityModalVisible(true) }} style={{ padding: 0, height: 'auto' }}>
+            {labelWithHelp('Уполномоченный орган', FIELD_HELP.complianceAuthority)}
+          </Button>
+          {record.docKindCode === '25' && (
+            <Button type="link" onClick={() => handleRequestProtocols(record)} style={{ padding: 0, height: 'auto' }}>
+              Протоколы лабораторных исследований
+            </Button>
+          )}
+          <Button type="link" danger icon={<DeleteOutlined />} onClick={() => handleRemoveDocument(batchIndex, docIndex)} style={{ padding: 0, height: 'auto' }}>
+            Удалить
+          </Button>
+        </div>
+      ),
+    },
   ]
 
   if (batches.length === 0) {
@@ -184,6 +256,22 @@ const ComplianceDocumentsTabEdit: React.FC<ComplianceDocumentsTabEditProps> = ({
             </Form.Item>
           </Form>
         )}
+      </Modal>
+
+      <Modal
+        title="Протоколы лабораторных исследований"
+        open={protocolsModalVisible}
+        onCancel={() => { setProtocolsModalVisible(false); setProtocolsError(null) }}
+        footer={[<Button key="close" onClick={() => { setProtocolsModalVisible(false); setProtocolsError(null) }}>OK</Button>]}
+        width={500}
+      >
+        {protocolsLoading ? (
+          <div>Загрузка данных...</div>
+        ) : protocolsError === 'local' ? (
+          <p>Запрошенные сведения отсутствуют в локальной базе данных. Выполнен запрос сведений к первоисточнику.</p>
+        ) : protocolsError === 'source' ? (
+          <p>Запрошенные сведения отсутствуют у первоисточника.</p>
+        ) : null}
       </Modal>
     </div>
   )
