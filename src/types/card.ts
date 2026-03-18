@@ -31,6 +31,17 @@ export interface CardData {
   tsd?: TSDData
   detectionPlace?: DetectionPlaceData
   measures?: MeasuresData
+
+  /** PHA: уведомления, являющиеся причиной данного случая (smcdo:IncidentAlertIdDetails). */
+  phaCauseNotifications?: PhaCauseNotificationItem[]
+}
+
+/** Элемент списка причинных уведомлений PHA (smcdo:IncidentAlertIdDetails): страна, рег. номер, вид, дата формирования. */
+export interface PhaCauseNotificationItem {
+  country: string
+  registrationNumber: string
+  type: string // IncidentKindCode, справочник incidentalertkind: 1,2,3,4,7,8,10,11,13,14,16,17,19
+  formationDate: string
 }
 
 export interface TSDData {

@@ -1,4 +1,4 @@
-import { Descriptions, Tag } from 'antd'
+import { Descriptions, Tag, Table } from 'antd'
 import { format, parseISO } from 'date-fns'
 import { ru } from 'date-fns/locale'
 import { useState, useEffect } from 'react'
@@ -12,11 +12,13 @@ interface NotificationTabProps {
 }
 
 /**
- * Уведомление — данные по уведомлению о случае обнаружения болезни
- * и по уведомлениям, являющимся причиной обнаружения данного случая болезни.
+ * Уведомление PHA (R.SM.SS.08.001):
+ * - smcdo:PublicHealthAlertDetails — уведомление о случае обнаружения болезни (страна, рег. номер, вид, даты, УО).
+ * - smcdo:IncidentAlertIdDetails — уведомления, являющиеся причиной данного случая (справочник incidentalertkind: 1,2,3,4,7,8,10,11,13,14,16,17,19).
  */
 const NotificationTab: React.FC<NotificationTabProps> = ({ data }) => {
   const n = data.notification
+  const causeList = data.phaCauseNotifications ?? []
   const { getDisplayLabel: getCountryDisplayLabel } = useCountryOptions()
   const { getNameByCode: getIncidentAlertKindNameByCode } = useIncidentAlertKindOptions()
   const [countryValid, setCountryValid] = useState<boolean | null>(null)
@@ -51,17 +53,31 @@ const NotificationTab: React.FC<NotificationTabProps> = ({ data }) => {
     return displayLabel
   }
 
+  const kindLabel = (code: string) =>
+    code ? (getIncidentAlertKindNameByCode(code) ? `${code} — ${getIncidentAlertKindNameByCode(code)}` : code) : '-'
+
   return (
     <div>
-      <Descriptions column={1} bordered title="Уведомление о случае обнаружения болезни">
-        <Descriptions.Item label="Страна">{renderCountry(n.country, countryValid)}</Descriptions.Item>
-        <Descriptions.Item label="Регистрационный номер">{n.registrationNumber || '-'}</Descriptions.Item>
-        <Descriptions.Item label="Вид">
-          {n.type ? (getIncidentAlertKindNameByCode(n.type) ? `${n.type} — ${getIncidentAlertKindNameByCode(n.type)}` : n.type) : '-'}
+      <Descriptions column={1} bordered title="Уведомление о случае обнаружения болезни (smcdo:PublicHealthAlertDetails)">
+        <Descriptions.Item label="Страна (csdo:UnifiedCountryCode)">
+          {renderCountry(n.country, countryValid)}
         </Descriptions.Item>
-        <Descriptions.Item label="Дата формирования">{formatDate(n.formationDate)}</Descriptions.Item>
-        <Descriptions.Item label="Дата закрытия">{n.endDate ? formatDate(n.endDate) : '-'}</Descriptions.Item>
-        <Descriptions.Item label="Уполномоченный орган">
+        <Descriptions.Item label="Регистрационный номер (smsdo:IncidentId)">
+          {n.registrationNumber || '-'}
+        </Descriptions.Item>
+        <Descriptions.Item label="Вид (smsdo:IncidentKindCode)">
+          {kindLabel(n.type)}
+          <div style={{ marginTop: 4, fontSize: 12, color: '#8c8c8c' }}>
+            Версия = 1: 1, 2; Версия &gt; 1: инфекционная — 3, 5; неинфекционная — 4, 6. Справочник incidentalertkind.
+          </div>
+        </Descriptions.Item>
+        <Descriptions.Item label="Дата формирования (csdo:DocCreationDate)">
+          {formatDate(n.formationDate)}
+        </Descriptions.Item>
+        <Descriptions.Item label="Дата закрытия (csdo:EndDate)">
+          {n.endDate ? formatDate(n.endDate) : '-'}
+        </Descriptions.Item>
+        <Descriptions.Item label="Уполномоченный орган (ccdo:UnifiedAuthorityDetails)">
           <Descriptions column={1} size="small" bordered>
             <Descriptions.Item label="Страна">{renderCountry(n.authorizedBody?.country ?? '', authorizedBodyCountryValid)}</Descriptions.Item>
             <Descriptions.Item label="Идентификатор">{n.authorizedBody?.identifier || '-'}</Descriptions.Item>
@@ -70,10 +86,32 @@ const NotificationTab: React.FC<NotificationTabProps> = ({ data }) => {
           </Descriptions>
         </Descriptions.Item>
       </Descriptions>
+
       <div style={{ marginTop: 16 }}>
-        <Descriptions column={1} bordered title="Уведомления, являющиеся причиной обнаружения данного случая болезни">
-          <Descriptions.Item label="Сведения">Данные будут добавлены по схеме PublicHealthAlert.</Descriptions.Item>
-        </Descriptions>
+        <div style={{ marginBottom: 8 }}>
+          <strong>Уведомления, являющиеся причиной обнаружения данного случая (smcdo:IncidentAlertIdDetails)</strong>
+          <div style={{ fontSize: 12, color: '#8c8c8c' }}>
+            Вид — справочник incidentalertkind: 1, 2, 3, 4, 7, 8, 10, 11, 13, 14, 16, 17, 19.
+          </div>
+        </div>
+        {causeList.length > 0 ? (
+          <Table
+            size="small"
+            rowKey={(_, i) => String(i)}
+            dataSource={causeList}
+            columns={[
+              { title: 'Страна', dataIndex: 'country', key: 'country', render: (c: string) => getCountryDisplayLabel(c) || c || '-' },
+              { title: 'Регистрационный номер', dataIndex: 'registrationNumber', key: 'registrationNumber' },
+              { title: 'Вид', dataIndex: 'type', key: 'type', render: (t: string) => kindLabel(t) },
+              { title: 'Дата формирования', dataIndex: 'formationDate', key: 'formationDate', render: (d: string) => formatDate(d) },
+            ]}
+            pagination={false}
+          />
+        ) : (
+          <Descriptions column={1} bordered>
+            <Descriptions.Item label="Сведения">Нет данных. Элементы smcdo:IncidentAlertIdDetails в XML карты PHA.</Descriptions.Item>
+          </Descriptions>
+        )}
       </div>
     </div>
   )
