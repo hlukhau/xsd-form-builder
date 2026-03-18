@@ -16,7 +16,7 @@ public class DictionaryCache {
     private static final Map<String, String> countriesCache = new ConcurrentHashMap<>();
     private static final List<CountryOption> countriesListCache = new ArrayList<>();
 
-    // Кеш пунктов пропуска (SESINT.BORDERCHECKPOINT): код -> название
+    // Кеш пунктов пропуска (BORDERCHECKPOINT): код -> название
     private static final List<BorderCheckpointOption> borderCheckpointsListCache = new ArrayList<>();
     
     // Кеш видов уведомлений: код -> название
@@ -65,13 +65,13 @@ public class DictionaryCache {
     // Кеш подразделений (TB_DEP + TB_DEPKIND): список для «Определить доступ»
     private static final List<DepOption> depOptionsListCache = new ArrayList<>();
     
-    // Кеш организационно-правовых форм (SESINT.LEGALFORM, codeListId=2049)
+    // Кеш организационно-правовых форм (LEGALFORM, codeListId=2049)
     private static final List<LegalFormOption> legalFormsListCache = new ArrayList<>();
-    // Кеш методов идентификации (SESINT.BUSENTKIND, codeListId=1033)
+    // Кеш методов идентификации (BUSENTKIND, codeListId=1033)
     private static final List<IdentificationMethodOption> identificationMethodsListCache = new ArrayList<>();
-    // Кеш видов документов об оценке соответствия (SESINT.CONFDOCKIND, codeListId=2001)
+    // Кеш видов документов об оценке соответствия (CONFDOCKIND, codeListId=2001)
     private static final List<ConformityDocKindOption> conformityDocKindsListCache = new ArrayList<>();
-    // Кеш видов документов, удостоверяющих личность (SESINT.IDENTITYDOCKIND, codeListId=2053)
+    // Кеш видов документов, удостоверяющих личность (IDENTITYDOCKIND, codeListId=2053)
     private static final List<IdentityDocKindOption> identityDocKindsListCache = new ArrayList<>();
     
     // Флаги загрузки
@@ -107,7 +107,7 @@ public class DictionaryCache {
     }
 
     /**
-     * Класс для опции пункта пропуска (SESINT.BORDERCHECKPOINT)
+     * Класс для опции пункта пропуска (BORDERCHECKPOINT)
      */
     public static class BorderCheckpointOption {
         public String code;
@@ -141,7 +141,7 @@ public class DictionaryCache {
         public String name;
         public String briefName;
         public String countryCode;
-        /** AUTHORITYID из SESINT.AUTHORITY (для фильтра по правам create) */
+        /** AUTHORITYID из AUTHORITY (для фильтра по правам create) */
         public Integer authorityId;
 
         public AuthorityOption(String uid, String name, String briefName, String countryCode) {
@@ -212,7 +212,7 @@ public class DictionaryCache {
     }
 
     /**
-     * Опция справочника видов каналов связи (SESINT.COMMUNICATIONCHANNEL)
+     * Опция справочника видов каналов связи (COMMUNICATIONCHANNEL)
      */
     public static class CommunicationChannelOption {
         public String code;
@@ -294,7 +294,7 @@ public class DictionaryCache {
     }
     
     /**
-     * Опция справочника организационно-правовых форм (SESINT.LEGALFORM, codeListId=2049)
+     * Опция справочника организационно-правовых форм (LEGALFORM, codeListId=2049)
      */
     public static class LegalFormOption {
         public String code;
@@ -309,7 +309,7 @@ public class DictionaryCache {
     }
     
     /**
-     * Опция справочника методов идентификации (SESINT.BUSENTKIND, codeListId=1033)
+     * Опция справочника методов идентификации (BUSENTKIND, codeListId=1033)
      */
     public static class IdentificationMethodOption {
         public String code;
@@ -326,7 +326,7 @@ public class DictionaryCache {
     }
     
     /**
-     * Опция справочника видов документов об оценке соответствия (SESINT.CONFDOCKIND, codeListId=2001)
+     * Опция справочника видов документов об оценке соответствия (CONFDOCKIND, codeListId=2001)
      */
     public static class ConformityDocKindOption {
         public String code;
@@ -341,7 +341,7 @@ public class DictionaryCache {
     }
     
     /**
-     * Опция справочника видов документов, удостоверяющих личность (SESINT.IDENTITYDOCKIND, codeListId=2053)
+     * Опция справочника видов документов, удостоверяющих личность (IDENTITYDOCKIND, codeListId=2053)
      */
     public static class IdentityDocKindOption {
         public String code;

@@ -39,39 +39,39 @@ public class DpaSaveServlet extends HttpServlet {
     private static final String EDOCVERSION_DEFAULT = "1.0.0";
 
     /** Получить следующий DPAID (последовательность sqdpa или fallback) */
-    private static final String SQL_NEXT_DPAID = "SELECT SESINT.SQDPA.NEXTVAL FROM DUAL";
-    private static final String SQL_NEXT_DPAID_FALLBACK = "SELECT NVL(MAX(DPAID),0)+1 AS NEXTVAL FROM SESINT.DPA";
+    private static final String SQL_NEXT_DPAID = "SELECT SQDPA.NEXTVAL FROM DUAL";
+    private static final String SQL_NEXT_DPAID_FALLBACK = "SELECT NVL(MAX(DPAID),0)+1 AS NEXTVAL FROM DPA";
 
     /** DPASTATUSID по названию «Черновик» для исходящих (в DPASTATUS у них DATASOURCEKINDCODE = 2) */
-    private static final String SQL_STATUS_DRAFT = "SELECT DPASTATUSID FROM SESINT.DPASTATUS WHERE TRIM(DPASTATUSNAME) = 'Черновик' AND DATASOURCEKINDCODE = ?";
+    private static final String SQL_STATUS_DRAFT = "SELECT DPASTATUSID FROM DPASTATUS WHERE TRIM(DPASTATUSNAME) = 'Черновик' AND DATASOURCEKINDCODE = ?";
 
     /** COUNTRYID по коду страны (COUNTRYCODE) */
-    private static final String SQL_COUNTRY_ID = "SELECT COUNTRYID FROM SESINT.COUNTRY WHERE UPPER(TRIM(COUNTRYCODE)) = ? AND COUNTRYSDATE <= SYSDATE AND COUNTRYEDATE >= SYSDATE";
+    private static final String SQL_COUNTRY_ID = "SELECT COUNTRYID FROM COUNTRY WHERE UPPER(TRIM(COUNTRYCODE)) = ? AND COUNTRYSDATE <= SYSDATE AND COUNTRYEDATE >= SYSDATE";
     /** AUTHORITYID по AUTHORITYUID (или по числовому идентификатору из metadata) */
-    private static final String SQL_AUTHORITY_ID_BY_UID = "SELECT AUTHORITYID FROM SESINT.AUTHORITY WHERE TRIM(AUTHORITYUID) = ?";
+    private static final String SQL_AUTHORITY_ID_BY_UID = "SELECT AUTHORITYID FROM AUTHORITY WHERE TRIM(AUTHORITYUID) = ?";
     /** SANITARYPRODTYPEID по коду вида продукции (для DPA при выборе по коду) */
-    private static final String SQL_SANITARYPRODTYPE_ID_BY_CODE = "SELECT SANITARYPRODTYPEID FROM SESINT.SANITARYPRODTYPE WHERE TRIM(SANITARYPRODTYPECODE) = ? AND ROWNUM = 1";
+    private static final String SQL_SANITARYPRODTYPE_ID_BY_CODE = "SELECT SANITARYPRODTYPEID FROM SANITARYPRODTYPE WHERE TRIM(SANITARYPRODTYPECODE) = ? AND ROWNUM = 1";
 
     /** INSERT DPA (всегда версия 1 при создании) */
     private static final String SQL_INSERT_DPA = ""
-            + "INSERT INTO SESINT.DPA (DPAID, DATASOURCEKINDCODE, ALERTCOUNTRYID, INCIDENTID, DPAVERSION, AUTHORITYID, "
+            + "INSERT INTO DPA (DPAID, DATASOURCEKINDCODE, ALERTCOUNTRYID, INCIDENTID, DPAVERSION, AUTHORITYID, "
             + "INCIDENTALERTKINDCODE, DOCCREATIONDATE, DPASTATUSID, COMMODITYCODE, SANITARYPRODTYPEID, SANITARYPRODNAME, "
             + "MANUFCOUNTRYID, MANUFBUSENTNAME, MANUFBUSENTBRIEFNAME, ENDDATE, CREATIONDATETIME, MODIFICATIONDATETIME, SANITARYPRODTYPENAME) "
             + "VALUES (?, ?, ?, ?, 1, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, SYSDATE, NULL, ?)";
 
     /** INSERT DPAXML */
-    private static final String SQL_INSERT_DPAXML = "INSERT INTO SESINT.DPAXML (DPAID, DPAXMLBODY, EDOCCODE, EDOCVERSION) VALUES (?, ?, ?, ?)";
+    private static final String SQL_INSERT_DPAXML = "INSERT INTO DPAXML (DPAID, DPAXMLBODY, EDOCCODE, EDOCVERSION) VALUES (?, ?, ?, ?)";
 
     /** INSERT в историю смены статусов — присвоение статуса «Черновик» при создании карты */
-    private static final String SQL_INSERT_DPASTATUSHIST = "INSERT INTO SESINT.DPASTATUSHIST (DPAID, DPASTATUSID, DPASTATUSDATETIME, USERID) VALUES (?, ?, SYSDATE, ?)";
+    private static final String SQL_INSERT_DPASTATUSHIST = "INSERT INTO DPASTATUSHIST (DPAID, DPASTATUSID, DPASTATUSDATETIME, USERID) VALUES (?, ?, SYSDATE, ?)";
 
     /** UPDATE DPAXML при обновлении существующей карты */
-    private static final String SQL_UPDATE_DPAXML = "UPDATE SESINT.DPAXML SET DPAXMLBODY = ?, EDOCCODE = ?, EDOCVERSION = ? WHERE DPAID = ?";
+    private static final String SQL_UPDATE_DPAXML = "UPDATE DPAXML SET DPAXMLBODY = ?, EDOCCODE = ?, EDOCVERSION = ? WHERE DPAID = ?";
 
     /** Обновить MODIFICATIONDATETIME, ENDDATE, AUTHORITYID, производителя, код ТН ВЭД и вид/наименование продукции в DPA при обновлении */
-    private static final String SQL_UPDATE_DPA_MODIFIED = "UPDATE SESINT.DPA SET MODIFICATIONDATETIME = SYSDATE, ENDDATE = ?, AUTHORITYID = ?, MANUFBUSENTNAME = ?, MANUFBUSENTBRIEFNAME = ?, COMMODITYCODE = ?, SANITARYPRODNAME = ?, SANITARYPRODTYPEID = ?, SANITARYPRODTYPENAME = ? WHERE DPAID = ?";
+    private static final String SQL_UPDATE_DPA_MODIFIED = "UPDATE DPA SET MODIFICATIONDATETIME = SYSDATE, ENDDATE = ?, AUTHORITYID = ?, MANUFBUSENTNAME = ?, MANUFBUSENTBRIEFNAME = ?, COMMODITYCODE = ?, SANITARYPRODNAME = ?, SANITARYPRODTYPEID = ?, SANITARYPRODTYPENAME = ? WHERE DPAID = ?";
     /** Текущий DPASTATUSID карты (при сохранении: только Отредактировано (12) → переход в «Новое»; остальные статусы не меняются) */
-    private static final String SQL_SELECT_DPASTATUSID = "SELECT DPASTATUSID FROM SESINT.DPA WHERE DPAID = ?";
+    private static final String SQL_SELECT_DPASTATUSID = "SELECT DPASTATUSID FROM DPA WHERE DPAID = ?";
     private static final int OUTGOING_NEW = 6, OUTGOING_FAILED = 9, OUTGOING_ERROR = 10, OUTGOING_EDITED = 12;
     private static final int OUTGOING_DELIVERED = 11;
 
@@ -79,12 +79,12 @@ public class DpaSaveServlet extends HttpServlet {
     private static final String SQL_SOURCE_DPA_FOR_COPY = ""
             + "SELECT INCIDENTID, DPAVERSION, ALERTCOUNTRYID, AUTHORITYID, INCIDENTALERTKINDCODE, COMMODITYCODE, "
             + "SANITARYPRODTYPEID, SANITARYPRODNAME, MANUFCOUNTRYID, MANUFBUSENTNAME, MANUFBUSENTBRIEFNAME, SANITARYPRODTYPENAME "
-            + "FROM SESINT.DPA WHERE DPAID = ? AND DATASOURCEKINDCODE = ? AND DPASTATUSID = ? AND ENDDATE IS NULL";
-    private static final String SQL_MAX_VERSION_BY_INCIDENT = "SELECT NVL(MAX(DPAVERSION), 0) FROM SESINT.DPA WHERE INCIDENTID = ? AND ALERTCOUNTRYID = ?";
-    private static final String SQL_INSERT_DPADEPPERMIS = "INSERT INTO SESINT.DPADEPPERMIS (DPAID, DEPID, GRANTDATETIME) VALUES (?, ?, SYSDATE)";
-    private static final String SQL_DEPS_FOR_COPY = "SELECT DEPID FROM SESINT.DPADEPPERMIS WHERE DPAID = ?";
-    /** Проверка существования подразделения (FK DPADEPPERMIS_FK2 → родительская таблица, обычно SESDEV.TB_DEP) */
-    private static final String SQL_EXISTS_DEP = "SELECT 1 FROM SESDEV.TB_DEP WHERE DEPID = ?";
+            + "FROM DPA WHERE DPAID = ? AND DATASOURCEKINDCODE = ? AND DPASTATUSID = ? AND ENDDATE IS NULL";
+    private static final String SQL_MAX_VERSION_BY_INCIDENT = "SELECT NVL(MAX(DPAVERSION), 0) FROM DPA WHERE INCIDENTID = ? AND ALERTCOUNTRYID = ?";
+    private static final String SQL_INSERT_DPADEPPERMIS = "INSERT INTO DPADEPPERMIS (DPAID, DEPID, GRANTDATETIME) VALUES (?, ?, SYSDATE)";
+    private static final String SQL_DEPS_FOR_COPY = "SELECT DEPID FROM DPADEPPERMIS WHERE DPAID = ?";
+    /** Проверка существования подразделения (FK DPADEPPERMIS_FK2 → родительская таблица, обычно TB_DEP) */
+    private static final String SQL_EXISTS_DEP = "SELECT 1 FROM TB_DEP WHERE DEPID = ?";
 
     @Override
     protected void doPost(HttpServletRequest request, HttpServletResponse response)
@@ -248,7 +248,7 @@ public class DpaSaveServlet extends HttpServlet {
                     }
                     System.out.println("[DpaSaveServlet] Created DPADEPPERMIS: DPAID=" + dpaid + ", DEPID=" + creatorDepId);
                 } else if (creatorDepId != null) {
-                    System.out.println("[DpaSaveServlet] DEPID=" + creatorDepId + " not found in SESDEV.TB_DEP, DPADEPPERMIS not inserted");
+                    System.out.println("[DpaSaveServlet] DEPID=" + creatorDepId + " not found in TB_DEP, DPADEPPERMIS not inserted");
                 } else {
                     System.out.println("[DpaSaveServlet] No department.depid in rights for guid=" + guid + ", DPADEPPERMIS not inserted");
                 }
@@ -309,7 +309,7 @@ public class DpaSaveServlet extends HttpServlet {
                 }
                 // Только устаревший статус «Отредактировано» (12) при сохранении переводим в «Новое» (6). Отправка не удалась / Ошибка обработки не меняются при сохранении — переход в «Новое» только по кнопке.
                 if (currentStatusId == OUTGOING_EDITED) {
-                    try (PreparedStatement ps = conn.prepareStatement("UPDATE SESINT.DPA SET DPASTATUSID = ? WHERE DPAID = ?")) {
+                    try (PreparedStatement ps = conn.prepareStatement("UPDATE DPA SET DPASTATUSID = ? WHERE DPAID = ?")) {
                         ps.setInt(1, OUTGOING_NEW);
                         ps.setLong(2, dpaid);
                         ps.executeUpdate();
@@ -540,7 +540,7 @@ public class DpaSaveServlet extends HttpServlet {
 
     /**
      * Разрешает идентификатор УО из metadata (UID из справочника) в AUTHORITYID для DPA.
-     * Ищет только по AUTHORITYUID в SESINT.AUTHORITY, чтобы не нарушать DPA_FK7 (parent key must exist).
+     * Ищет только по AUTHORITYUID в AUTHORITY, чтобы не нарушать DPA_FK7 (parent key must exist).
      */
     private Integer resolveAuthorityId(Connection conn, String authorityIdStr) throws SQLException {
         if (authorityIdStr == null || authorityIdStr.trim().isEmpty()) return null;
@@ -649,7 +649,7 @@ public class DpaSaveServlet extends HttpServlet {
             }
 
             String sqlInsertDpaCopy = ""
-                + "INSERT INTO SESINT.DPA (DPAID, DATASOURCEKINDCODE, ALERTCOUNTRYID, INCIDENTID, DPAVERSION, AUTHORITYID, "
+                + "INSERT INTO DPA (DPAID, DATASOURCEKINDCODE, ALERTCOUNTRYID, INCIDENTID, DPAVERSION, AUTHORITYID, "
                 + "INCIDENTALERTKINDCODE, DOCCREATIONDATE, DPASTATUSID, COMMODITYCODE, SANITARYPRODTYPEID, SANITARYPRODNAME, "
                 + "MANUFCOUNTRYID, MANUFBUSENTNAME, MANUFBUSENTBRIEFNAME, ENDDATE, CREATIONDATETIME, MODIFICATIONDATETIME, SANITARYPRODTYPENAME) "
                 + "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, SYSDATE, SYSDATE, ?)";
@@ -777,7 +777,7 @@ public class DpaSaveServlet extends HttpServlet {
     }
 
     /**
-     * Проверяет, что подразделение с данным DEPID есть в SESDEV.TB_DEP (родительская таблица для FK DPADEPPERMIS_FK2).
+     * Проверяет, что подразделение с данным DEPID есть в TB_DEP (родительская таблица для FK DPADEPPERMIS_FK2).
      * Поддерживает DEPID как NUMBER и как VARCHAR2.
      */
     private static boolean existsDepIdInTbDep(Connection conn, int depId) throws SQLException {

@@ -12,7 +12,7 @@ import java.io.PrintWriter;
 import java.util.List;
 
 /**
- * Сервлет для получения списка видов каналов связи (SESINT.COMMUNICATIONCHANNEL).
+ * Сервлет для получения списка видов каналов связи (COMMUNICATIONCHANNEL).
  * GET /api/communication-channels/options
  */
 public class CommunicationChannelOptionsServlet extends HttpServlet {

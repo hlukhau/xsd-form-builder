@@ -24,8 +24,8 @@ public class DpaResolutionsServlet extends HttpServlet {
 
     private static final String SQL = ""
             + "SELECT dk.DEPKINDCODE, dk.DEPKINDNAME "
-            + "FROM SESINT.DPARESOLUTION r "
-            + "JOIN SESDEV.TB_DEPKIND dk ON r.DEPKINDID = dk.DEPKINDID "
+            + "FROM DPARESOLUTION r "
+            + "JOIN TB_DEPKIND dk ON r.DEPKINDID = dk.DEPKINDID "
             + "WHERE r.DPAID = ? "
             + "ORDER BY dk.DEPKINDCODE";
 

@@ -31,10 +31,10 @@ public class DpaCanCreateNewVersionServlet extends HttpServlet {
 
     private static final String SQL_SOURCE = ""
             + "SELECT p.DPAID, p.INCIDENTID, p.DPAVERSION, p.DPASTATUSID, p.DATASOURCEKINDCODE, p.ENDDATE, p.ALERTCOUNTRYID "
-            + "FROM SESINT.DPA p WHERE p.DPAID = ?";
+            + "FROM DPA p WHERE p.DPAID = ?";
     private static final String SQL_MAX_VERSION = ""
-            + "SELECT NVL(MAX(DPAVERSION), 0) FROM SESINT.DPA WHERE INCIDENTID = ? AND ALERTCOUNTRYID = ?";
-    private static final String SQL_DEPS = "SELECT DEPID FROM SESINT.DPADEPPERMIS WHERE DPAID = ?";
+            + "SELECT NVL(MAX(DPAVERSION), 0) FROM DPA WHERE INCIDENTID = ? AND ALERTCOUNTRYID = ?";
+    private static final String SQL_DEPS = "SELECT DEPID FROM DPADEPPERMIS WHERE DPAID = ?";
 
     @Override
     protected void doGet(HttpServletRequest request, HttpServletResponse response)

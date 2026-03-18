@@ -12,7 +12,7 @@ import java.io.PrintWriter;
 import java.util.List;
 
 /**
- * Сервлет для получения списка видов документов, удостоверяющих личность (SESINT.IDENTITYDOCKIND, codeListId=2053)
+ * Сервлет для получения списка видов документов, удостоверяющих личность (IDENTITYDOCKIND, codeListId=2053)
  * GET /api/identity-doc-kinds/options
  * Регистрируется в web.xml
  */

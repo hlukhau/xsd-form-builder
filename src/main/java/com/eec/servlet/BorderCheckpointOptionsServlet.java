@@ -12,7 +12,7 @@ import java.io.PrintWriter;
 import java.util.List;
 
 /**
- * Сервлет для получения списка пунктов пропуска (SESINT.BORDERCHECKPOINT).
+ * Сервлет для получения списка пунктов пропуска (BORDERCHECKPOINT).
  * GET /api/border-checkpoints/options
  * Возвращает JSON-массив [{ "code": "…", "name": "…" }]. Отображать в виде &lt;код&gt;-&lt;наименование&gt;.
  */

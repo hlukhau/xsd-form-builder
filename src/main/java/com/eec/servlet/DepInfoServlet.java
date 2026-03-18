@@ -20,8 +20,8 @@ public class DepInfoServlet extends HttpServlet {
 
     private static final String SQL = ""
             + "SELECT dk.DEPKINDCODE, dk.DEPKINDNAME "
-            + "FROM SESDEV.TB_DEP d "
-            + "LEFT JOIN SESDEV.TB_DEPKIND dk ON d.DEPKINDID = dk.DEPKINDID "
+            + "FROM TB_DEP d "
+            + "LEFT JOIN TB_DEPKIND dk ON d.DEPKINDID = dk.DEPKINDID "
             + "WHERE d.DEPID = ?";
 
     @Override

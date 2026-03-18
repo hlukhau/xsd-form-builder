@@ -112,7 +112,7 @@ public class CountryExistsServlet extends HttpServlet {
             
             // Проверка существования активной страны
             String sql = "SELECT COUNTRYNAME " +
-                        "FROM SESINT.COUNTRY " +
+                        "FROM COUNTRY " +
                         "WHERE UPPER(COUNTRYCODE) = ? " +
                         "AND COUNTRYSDATE <= SYSDATE AND COUNTRYEDATE >= SYSDATE";
             

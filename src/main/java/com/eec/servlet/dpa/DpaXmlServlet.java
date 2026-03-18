@@ -21,7 +21,7 @@ import java.sql.SQLException;
  */
 public class DpaXmlServlet extends HttpServlet {
 
-    private static final String SQL_SELECT = "SELECT DPAXMLBODY FROM SESINT.DPAXML WHERE DPAID = ?";
+    private static final String SQL_SELECT = "SELECT DPAXMLBODY FROM DPAXML WHERE DPAID = ?";
 
     @Override
     public void init() throws ServletException {

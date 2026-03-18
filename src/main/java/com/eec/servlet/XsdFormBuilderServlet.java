@@ -490,7 +490,7 @@ public class XsdFormBuilderServlet extends HttpServlet {
                 .replace("\n", "\\n").replace("\r", "\\r").replace("\t", "\\t");
     }
 
-    private static final String SQL_GET_XML_BODY = "SELECT DPAXMLBODY FROM SESINT.DPAXML WHERE DPAID = ?";
+    private static final String SQL_GET_XML_BODY = "SELECT DPAXMLBODY FROM DPAXML WHERE DPAID = ?";
 
     /** Читает XML-тело карты по DPAID из DPAXML. */
     private String getXmlBodyByDpaid(Connection conn, long dpaid) throws SQLException, IOException {

@@ -22,9 +22,9 @@ public class PhaMetadataServlet extends HttpServlet {
 
     private static final String SQL_SELECT =
             "SELECT PHAID, INCIDENTID, PHAVERSION, ALERTCOUNTRYID, CREATIONDATETIME, MODIFICATIONDATETIME, PHASTATUSID "
-                    + "FROM SESINT.PHA WHERE PHAID = ?";
-    private static final String SQL_COUNTRY = "SELECT COUNTRYCODE FROM SESINT.COUNTRY WHERE COUNTRYID = ?";
-    private static final String SQL_STATUS = "SELECT PHASTATUSNAME FROM SESINT.PHASTATUS WHERE PHASTATUSID = ?";
+                    + "FROM PHA WHERE PHAID = ?";
+    private static final String SQL_COUNTRY = "SELECT COUNTRYCODE FROM COUNTRY WHERE COUNTRYID = ?";
+    private static final String SQL_STATUS = "SELECT PHASTATUSNAME FROM PHASTATUS WHERE PHASTATUSID = ?";
 
     @Override
     public void init() throws ServletException {

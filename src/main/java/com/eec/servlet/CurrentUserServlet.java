@@ -25,10 +25,10 @@ public class CurrentUserServlet extends HttpServlet {
 
     private static final String SQL = ""
             + "SELECT dk.DEPKINDCODE, dk.DEPKINDNAME "
-            + "FROM SESDEV.TB_USER u "
-            + "JOIN SESDEV.TB_EMP e ON u.EMPID = e.EMPID "
-            + "JOIN SESDEV.TB_DEP d ON e.DEPID = d.DEPID "
-            + "JOIN SESDEV.TB_DEPKIND dk ON d.DEPKINDID = dk.DEPKINDID "
+            + "FROM TB_USER u "
+            + "JOIN TB_EMP e ON u.EMPID = e.EMPID "
+            + "JOIN TB_DEP d ON e.DEPID = d.DEPID "
+            + "JOIN TB_DEPKIND dk ON d.DEPKINDID = dk.DEPKINDID "
             + "WHERE u.USERID = ?";
 
     @Override

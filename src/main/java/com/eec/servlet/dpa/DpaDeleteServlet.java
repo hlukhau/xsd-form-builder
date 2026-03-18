@@ -27,16 +27,16 @@ public class DpaDeleteServlet extends HttpServlet {
     private static final int DPASTATUSID_DRAFT = 5;
 
     private static final String SQL_CHECK = ""
-            + "SELECT p.INCIDENTID FROM SESINT.DPA p "
+            + "SELECT p.INCIDENTID FROM DPA p "
             + "WHERE p.DPAID = ? AND TRIM(p.DATASOURCEKINDCODE) = ? AND p.DPASTATUSID = ?";
 
-    private static final String SQL_DEPS = "SELECT DEPID FROM SESINT.DPADEPPERMIS WHERE DPAID = ?";
+    private static final String SQL_DEPS = "SELECT DEPID FROM DPADEPPERMIS WHERE DPAID = ?";
 
-    private static final String SQL_DELETE_STATUSHIST = "DELETE FROM SESINT.DPASTATUSHIST WHERE DPAID = ?";
-    private static final String SQL_DELETE_DEPPERMIS = "DELETE FROM SESINT.DPADEPPERMIS WHERE DPAID = ?";
-    private static final String SQL_DELETE_RESOLUTION = "DELETE FROM SESINT.DPARESOLUTION WHERE DPAID = ?";
-    private static final String SQL_DELETE_DPAXML = "DELETE FROM SESINT.DPAXML WHERE DPAID = ?";
-    private static final String SQL_DELETE_DPA = "DELETE FROM SESINT.DPA WHERE DPAID = ?";
+    private static final String SQL_DELETE_STATUSHIST = "DELETE FROM DPASTATUSHIST WHERE DPAID = ?";
+    private static final String SQL_DELETE_DEPPERMIS = "DELETE FROM DPADEPPERMIS WHERE DPAID = ?";
+    private static final String SQL_DELETE_RESOLUTION = "DELETE FROM DPARESOLUTION WHERE DPAID = ?";
+    private static final String SQL_DELETE_DPAXML = "DELETE FROM DPAXML WHERE DPAID = ?";
+    private static final String SQL_DELETE_DPA = "DELETE FROM DPA WHERE DPAID = ?";
 
     @Override
     protected void doPost(HttpServletRequest request, HttpServletResponse response)

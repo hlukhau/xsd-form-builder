@@ -194,7 +194,7 @@ public class DictionaryInitializerListener implements ServletContextListener {
             System.out.println("[DictionaryInitializer] Database connection established");
             
             String sql = "SELECT COUNTRYCODE, COUNTRYNAME " +
-                        "FROM SESINT.COUNTRY " +
+                        "FROM COUNTRY " +
                         "WHERE COUNTRYSDATE <= SYSDATE AND COUNTRYEDATE >= SYSDATE " +
                         "ORDER BY SEQNUM, COUNTRYNAME";
             
@@ -236,7 +236,7 @@ public class DictionaryInitializerListener implements ServletContextListener {
             conn = DatabaseUtil.getConnectionForGuid(guid);
             
             String sql = "SELECT INCIDENTALERTKINDCODE, INCIDENTALERTKINDNAME " +
-                        "FROM SESINT.INCIDENTALERTKIND " +
+                        "FROM INCIDENTALERTKIND " +
                         "WHERE INCIDENTALERTKINDACTFL = 1 " +
                         "ORDER BY NVL(INCIDENTALERTKINDSEQNUM, 999999), INCIDENTALERTKINDNAME";
             
@@ -283,7 +283,7 @@ public class DictionaryInitializerListener implements ServletContextListener {
             conn = DatabaseUtil.getConnectionForGuid(guid);
             
             String sql = "SELECT AUTHORITYID, AUTHORITYUID, AUTHORITYNAME, AUTHORITYBRIEFNAME, COUNTRYCODE " +
-                        "FROM SESINT.AUTHORITY " +
+                        "FROM AUTHORITY " +
                         "ORDER BY COUNTRYCODE, AUTHORITYNAME";
             
             PreparedStatement stmt = conn.prepareStatement(sql);
@@ -335,7 +335,7 @@ public class DictionaryInitializerListener implements ServletContextListener {
             
             // Загружаем только активные записи (где SANITARYPRODTYPEEDATE IS NULL или в будущем)
             String sql = "SELECT SANITARYPRODTYPECODE, SANITARYPRODTYPENAME " +
-                        "FROM SESINT.SANITARYPRODTYPE " +
+                        "FROM SANITARYPRODTYPE " +
                         "WHERE SANITARYPRODTYPEEDATE IS NULL OR SANITARYPRODTYPEEDATE >= SYSDATE " +
                         "ORDER BY SANITARYPRODTYPECODE";
             
@@ -381,7 +381,7 @@ public class DictionaryInitializerListener implements ServletContextListener {
             
             // Загружаем только активные записи (где MEASUREMENTUNITEDATE >= SYSDATE)
             String sql = "SELECT MEASUREMENTUNITCODE, MEASUREMENTUNITNAME, MEASUREMENTUNITBRIEFNAME " +
-                        "FROM SESINT.MEASUREMENTUNIT " +
+                        "FROM MEASUREMENTUNIT " +
                         "WHERE MEASUREMENTUNITEDATE >= SYSDATE " +
                         "ORDER BY NVL(SEQNUM, 999999), MEASUREMENTUNITCODE";
             
@@ -429,7 +429,7 @@ public class DictionaryInitializerListener implements ServletContextListener {
             
             // Загружаем только активные записи (где SHIPDOCKINDEDATE >= SYSDATE)
             String sql = "SELECT SHIPDOCKINDCODE, SHIPDOCKINDNAME " +
-                        "FROM SESINT.SHIPDOCKIND " +
+                        "FROM SHIPDOCKIND " +
                         "WHERE SHIPDOCKINDEDATE >= SYSDATE " +
                         "ORDER BY NVL(SEQNUM, 999999), SHIPDOCKINDCODE";
             
@@ -475,7 +475,7 @@ public class DictionaryInitializerListener implements ServletContextListener {
             
             // Загружаем только активные записи (где SUPPLYCHAINPARTYKINDACTFL = 1)
             String sql = "SELECT SUPPLYCHAINPARTYKINDCODE, SUPPLYCHAINPARTYKINDNAME " +
-                        "FROM SESINT.SUPPLYCHAINPARTYKIND " +
+                        "FROM SUPPLYCHAINPARTYKIND " +
                         "WHERE SUPPLYCHAINPARTYKINDACTFL = 1 " +
                         "ORDER BY NVL(SUPPLYCHAINPARTYKINDSEQNUM, 999999), SUPPLYCHAINPARTYKINDCODE";
             
@@ -511,7 +511,7 @@ public class DictionaryInitializerListener implements ServletContextListener {
     }
     
     /**
-     * Загружает справочник организационно-правовых форм (SESINT.LEGALFORM, codeListId=2049) в кеш
+     * Загружает справочник организационно-правовых форм (LEGALFORM, codeListId=2049) в кеш
      */
     private void loadLegalFormsDictionary(String guid) {
         Connection conn = null;
@@ -519,7 +519,7 @@ public class DictionaryInitializerListener implements ServletContextListener {
             System.out.println("[DictionaryInitializer] Loading legal forms dictionary...");
             conn = DatabaseUtil.getConnectionForGuid(guid);
             String sql = "SELECT LEGALFORMCODE, LEGALFORMNAME, COUNTRYCODE " +
-                        "FROM SESINT.LEGALFORM " +
+                        "FROM LEGALFORM " +
                         "WHERE (LEGALFORMSDATE IS NULL OR LEGALFORMSDATE <= SYSDATE) " +
                         "AND (LEGALFORMEDATE IS NULL OR LEGALFORMEDATE >= SYSDATE) " +
                         "ORDER BY COUNTRYCODE, LEGALFORMCODE";
@@ -548,7 +548,7 @@ public class DictionaryInitializerListener implements ServletContextListener {
     }
     
     /**
-     * Загружает справочник методов идентификации (SESINT.BUSENTKIND, codeListId=1033) в кеш
+     * Загружает справочник методов идентификации (BUSENTKIND, codeListId=1033) в кеш
      */
     private void loadIdentificationMethodsDictionary(String guid) {
         Connection conn = null;
@@ -556,7 +556,7 @@ public class DictionaryInitializerListener implements ServletContextListener {
             System.out.println("[DictionaryInitializer] Loading identification methods dictionary...");
             conn = DatabaseUtil.getConnectionForGuid(guid);
             String sql = "SELECT BUSENTKINDCODE, BUSENTKINDLETTERCODE, BUSENTKINDDESC, COUNTRYCODE " +
-                        "FROM SESINT.BUSENTKIND " +
+                        "FROM BUSENTKIND " +
                         "WHERE (BUSENTKINDSDATE IS NULL OR BUSENTKINDSDATE <= SYSDATE) " +
                         "AND (BUSENTKINDEDATE IS NULL OR BUSENTKINDEDATE >= SYSDATE) " +
                         "ORDER BY COUNTRYCODE, BUSENTKINDCODE";
@@ -586,7 +586,7 @@ public class DictionaryInitializerListener implements ServletContextListener {
     }
     
     /**
-     * Загружает справочник видов документов об оценке соответствия (SESINT.CONFDOCKIND, codeListId=2001) в кеш
+     * Загружает справочник видов документов об оценке соответствия (CONFDOCKIND, codeListId=2001) в кеш
      */
     private void loadConformityDocKindsDictionary(String guid) {
         Connection conn = null;
@@ -594,7 +594,7 @@ public class DictionaryInitializerListener implements ServletContextListener {
             System.out.println("[DictionaryInitializer] Loading conformity doc kinds dictionary...");
             conn = DatabaseUtil.getConnectionForGuid(guid);
             String sql = "SELECT CONFDOCKINDCODE, CONFDOCKINDNAME, CONFDOCKINDBRIEFNAME " +
-                        "FROM SESINT.CONFDOCKIND " +
+                        "FROM CONFDOCKIND " +
                         "WHERE (CONFDOCKINDSDATE IS NULL OR CONFDOCKINDSDATE <= SYSDATE) " +
                         "AND CONFDOCKINDEDATE >= SYSDATE " +
                         "ORDER BY CONFDOCKINDCODE";
@@ -632,7 +632,7 @@ public class DictionaryInitializerListener implements ServletContextListener {
             conn = DatabaseUtil.getConnectionForGuid(guid);
 
             String sql = "SELECT COMMUNICATIONCHANNELCODE, COMMUNICATIONCHANNELNAME " +
-                    "FROM SESINT.COMMUNICATIONCHANNEL " +
+                    "FROM COMMUNICATIONCHANNEL " +
                     "WHERE COMMUNICATIONCHANNELACTFL = 1 " +
                     "ORDER BY NVL(COMMUNICATIONCHANNELSEQNUM, 999999), COMMUNICATIONCHANNELCODE";
 
@@ -663,7 +663,7 @@ public class DictionaryInitializerListener implements ServletContextListener {
     }
     
     /**
-     * Загружает справочник видов документов, удостоверяющих личность (SESINT.IDENTITYDOCKIND, codeListId=2053) в кеш
+     * Загружает справочник видов документов, удостоверяющих личность (IDENTITYDOCKIND, codeListId=2053) в кеш
      */
     private void loadIdentityDocKindsDictionary(String guid) {
         Connection conn = null;
@@ -671,7 +671,7 @@ public class DictionaryInitializerListener implements ServletContextListener {
             System.out.println("[DictionaryInitializer] Loading identity doc kinds dictionary...");
             conn = DatabaseUtil.getConnectionForGuid(guid);
             String sql = "SELECT IDENTITYDOCKINDCODE, IDENTITYDOCKINDNAME " +
-                        "FROM SESINT.IDENTITYDOCKIND " +
+                        "FROM IDENTITYDOCKIND " +
                         "WHERE IDENTITYDOCKINDSDATE <= SYSDATE " +
                         "AND (IDENTITYDOCKINDEDATE IS NULL OR IDENTITYDOCKINDEDATE >= SYSDATE) " +
                         "ORDER BY IDENTITYDOCKINDCODE";
@@ -699,7 +699,7 @@ public class DictionaryInitializerListener implements ServletContextListener {
     }
 
     /**
-     * Загружает справочник пунктов пропуска (SESINT.BORDERCHECKPOINT) в кеш.
+     * Загружает справочник пунктов пропуска (BORDERCHECKPOINT) в кеш.
      */
     private void loadBorderCheckpointsDictionary(String guid) {
         Connection conn = null;
@@ -707,7 +707,7 @@ public class DictionaryInitializerListener implements ServletContextListener {
             System.out.println("[DictionaryInitializer] Loading border checkpoints dictionary...");
             conn = DatabaseUtil.getConnectionForGuid(guid);
             String sql = "SELECT BORDERCHECKPOINTCODE, BORDERCHECKPOINTNAME " +
-                        "FROM SESINT.BORDERCHECKPOINT " +
+                        "FROM BORDERCHECKPOINT " +
                         "WHERE BORDERCHECKPOINTSDATE <= SYSDATE " +
                         "AND (BORDERCHECKPOINTEDATE IS NULL OR BORDERCHECKPOINTEDATE >= SYSDATE) " +
                         "ORDER BY BORDERCHECKPOINTNAME";
@@ -745,7 +745,7 @@ public class DictionaryInitializerListener implements ServletContextListener {
             
             // Загружаем только активные записи (где TECHREGULEDATE либо NULL, либо больше текущей даты)
             String sql = "SELECT TECHREGULCODE, TECHREGULNAME, TECHREGULREGNUM " +
-                        "FROM SESINT.TECHREGUL " +
+                        "FROM TECHREGUL " +
                         "WHERE TECHREGULSDATE <= SYSDATE " +
                         "AND (TECHREGULEDATE IS NULL OR TECHREGULEDATE >= SYSDATE) " +
                         "ORDER BY TECHREGULCODE";
@@ -794,7 +794,7 @@ public class DictionaryInitializerListener implements ServletContextListener {
             
             // Загружаем только активные записи (где SANITARYMEASUREOBJKINDACTFL = 1)
             String sql = "SELECT SANITARYMEASUREOBJKINDCODE, SANITARYMEASUREOBJKINDNAME " +
-                        "FROM SESINT.SANITARYMEASUREOBJKIND " +
+                        "FROM SANITARYMEASUREOBJKIND " +
                         "WHERE SANITARYMEASUREOBJKINDACTFL = 1 " +
                         "ORDER BY NVL(SANITARYMEASUREOBJKINDSEQNUM, 999999), SANITARYMEASUREOBJKINDNAME";
             
@@ -840,7 +840,7 @@ public class DictionaryInitializerListener implements ServletContextListener {
             
             // Загружаем только активные записи (где SANITARYMEASURESDATE <= SYSDATE и (SANITARYMEASUREEDATE IS NULL или SANITARYMEASUREEDATE >= SYSDATE))
             String sql = "SELECT SANITARYMEASURECODE, SANITARYMEASURENAME " +
-                        "FROM SESINT.SANITARYMEASURE " +
+                        "FROM SANITARYMEASURE " +
                         "WHERE SANITARYMEASURESDATE <= SYSDATE " +
                         "AND (SANITARYMEASUREEDATE IS NULL OR SANITARYMEASUREEDATE >= SYSDATE) " +
                         "ORDER BY SANITARYMEASURECODE";
@@ -887,7 +887,7 @@ public class DictionaryInitializerListener implements ServletContextListener {
             
             // Загружаем только активные записи (где MEDIATYPEACTFL = 1)
             String sql = "SELECT MEDIATYPECODE, MEDIATYPENAME " +
-                        "FROM SESINT.MEDIATYPE " +
+                        "FROM MEDIATYPE " +
                         "WHERE MEDIATYPEACTFL = 1 " +
                         "ORDER BY NVL(MEDIATYPESEQNUM, 999999), MEDIATYPENAME";
             
@@ -932,8 +932,8 @@ public class DictionaryInitializerListener implements ServletContextListener {
             conn = DatabaseUtil.getConnectionForGuid(guid);
             
             String sql = "SELECT d.DEPID, d.DEPNAME, dk.DEPKINDCODE "
-                    + "FROM SESDEV.TB_DEP d "
-                    + "LEFT JOIN SESDEV.TB_DEPKIND dk ON d.DEPKINDID = dk.DEPKINDID "
+                    + "FROM TB_DEP d "
+                    + "LEFT JOIN TB_DEPKIND dk ON d.DEPKINDID = dk.DEPKINDID "
                     + "ORDER BY d.DEPNAME";
             
             PreparedStatement stmt = conn.prepareStatement(sql);

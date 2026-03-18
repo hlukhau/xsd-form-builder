@@ -12,7 +12,7 @@ import java.io.PrintWriter;
 import java.util.List;
 
 /**
- * Сервлет для получения списка видов документов об оценке соответствия (SESINT.CONFDOCKIND, codeListId=2001)
+ * Сервлет для получения списка видов документов об оценке соответствия (CONFDOCKIND, codeListId=2001)
  * GET /api/conformity-doc-kinds/options
  * Регистрируется в web.xml
  */

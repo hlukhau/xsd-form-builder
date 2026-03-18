@@ -27,10 +27,10 @@ public class DpaElectronicDocsServlet extends HttpServlet {
 
     private static final String SQL = ""
             + "SELECT dc.INFENVELOPECODE, dc.EDOCCODE, dc.EDOCID, dc.EDOCDATETIME, dc.LANGUAGECODE, dc.EDOCREFID, ms.CONTENTBODY "
-            + "FROM SESINT.DPA dp "
-            + "JOIN SESINT.DPA2EDOCLINK dpe ON dpe.DPAID = dp.DPAID "
-            + "JOIN SESINT.EDOC dc ON dc.EDOCID = dpe.EDOCID "
-            + "LEFT JOIN SESINT.VW_PACKAGEMESSAGE ms ON ms.EDOCID = dpe.EDOCID "
+            + "FROM DPA dp "
+            + "JOIN DPA2EDOCLINK dpe ON dpe.DPAID = dp.DPAID "
+            + "JOIN EDOC dc ON dc.EDOCID = dpe.EDOCID "
+            + "LEFT JOIN VW_PACKAGEMESSAGE ms ON ms.EDOCID = dpe.EDOCID "
             + "WHERE dp.DPAID = ? "
             + "ORDER BY dc.EDOCDATETIME";
 

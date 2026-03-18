@@ -12,7 +12,7 @@ import java.io.PrintWriter;
 import java.util.List;
 
 /**
- * Сервлет для получения списка организационно-правовых форм (SESINT.LEGALFORM, codeListId=2049)
+ * Сервлет для получения списка организационно-правовых форм (LEGALFORM, codeListId=2049)
  * GET /api/legal-forms/options?countryCode=BY
  * Регистрируется в web.xml
  */

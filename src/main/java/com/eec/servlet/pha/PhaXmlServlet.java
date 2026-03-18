@@ -21,7 +21,7 @@ import java.sql.SQLException;
  */
 public class PhaXmlServlet extends HttpServlet {
 
-    private static final String SQL_SELECT = "SELECT PHAXMLBODY FROM SESINT.PHAXML WHERE PHAID = ?";
+    private static final String SQL_SELECT = "SELECT PHAXMLBODY FROM PHAXML WHERE PHAID = ?";
 
     @Override
     public void init() throws ServletException {

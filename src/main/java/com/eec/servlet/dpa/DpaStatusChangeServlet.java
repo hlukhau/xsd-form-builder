@@ -43,31 +43,31 @@ public class DpaStatusChangeServlet extends HttpServlet {
             + "LEFT JOIN DATASOURCEKIND t ON vw.DATASOURCEKINDCODE = t.DATASOURCEKINDCODE "
             + "WHERE vw.DPAID = ?";
     /** DPASTATUSID по названию статуса */
-    private static final String SQL_STATUS_ID = "SELECT DPASTATUSID FROM SESINT.DPASTATUS WHERE TRIM(DPASTATUSNAME) = ?";
-    private static final String SQL_UPDATE = "UPDATE SESINT.DPA SET DPASTATUSID = ?, MODIFICATIONDATETIME = SYSDATE WHERE DPAID = ?";
+    private static final String SQL_STATUS_ID = "SELECT DPASTATUSID FROM DPASTATUS WHERE TRIM(DPASTATUSNAME) = ?";
+    private static final String SQL_UPDATE = "UPDATE DPA SET DPASTATUSID = ?, MODIFICATIONDATETIME = SYSDATE WHERE DPAID = ?";
     private static final String SQL_INSERT_HIST = ""
-            + "INSERT INTO SESINT.DPASTATUSHIST (DPAID, DPASTATUSID, DPASTATUSDATETIME, USERID) VALUES (?, ?, SYSDATE, ?)";
-    /** DEPKINDID по DEPKINDCODE (SESDEV.TB_DEPKIND) */
-    private static final String SQL_DEPKIND_ID = "SELECT DEPKINDID FROM SESDEV.TB_DEPKIND WHERE TRIM(UPPER(DEPKINDCODE)) = TRIM(UPPER(?))";
+            + "INSERT INTO DPASTATUSHIST (DPAID, DPASTATUSID, DPASTATUSDATETIME, USERID) VALUES (?, ?, SYSDATE, ?)";
+    /** DEPKINDID по DEPKINDCODE (TB_DEPKIND) */
+    private static final String SQL_DEPKIND_ID = "SELECT DEPKINDID FROM TB_DEPKIND WHERE TRIM(UPPER(DEPKINDCODE)) = TRIM(UPPER(?))";
     /** DEPKINDCODE по DEPKINDID (DEPKINDID из карты прав: department.depkindid) */
-    private static final String SQL_DEPKINDCODE_BY_DEPKINDID = "SELECT DEPKINDCODE FROM SESDEV.TB_DEPKIND WHERE DEPKINDID = ?";
+    private static final String SQL_DEPKINDCODE_BY_DEPKINDID = "SELECT DEPKINDCODE FROM TB_DEPKIND WHERE DEPKINDID = ?";
     /** Вставка резолюции (для mark_ready). DPASTATUSID — статус карты после наложения резолюции (Новое). При дубликате (DPAID,DEPKINDID) — игнорируем. */
     private static final String SQL_INSERT_RESOLUTION = ""
-            + "INSERT INTO SESINT.DPARESOLUTION (DPAID, DPASTATUSID, DEPKINDID, RESOLUTIONDATETIME, USERID) VALUES (?, ?, ?, SYSDATE, ?)";
+            + "INSERT INTO DPARESOLUTION (DPAID, DPASTATUSID, DEPKINDID, RESOLUTIONDATETIME, USERID) VALUES (?, ?, ?, SYSDATE, ?)";
     /** Есть ли резолюция областного или республиканского ЦГЭ (для разрешения «Направление сведений» при статусе Новое). */
     private static final String SQL_HAS_REGIONAL_OR_REPUBLICAN_RESOLUTION = ""
-            + "SELECT 1 FROM SESINT.DPARESOLUTION r "
-            + "JOIN SESDEV.TB_DEPKIND dk ON r.DEPKINDID = dk.DEPKINDID "
+            + "SELECT 1 FROM DPARESOLUTION r "
+            + "JOIN TB_DEPKIND dk ON r.DEPKINDID = dk.DEPKINDID "
             + "WHERE r.DPAID = ? AND UPPER(TRIM(dk.DEPKINDCODE)) IN ('DEP0602','DEP0603') AND ROWNUM = 1";
     /** PARENTDEPID по иерархии OS (Организационная структура) для подразделения — для отметки готовности районным ЦГЭ. */
     private static final String SQL_PARENT_DEPID_OS = ""
-            + "SELECT dp.PARENTDEPID FROM SESDEV.TB_DEPLINK dp "
-            + "JOIN (SELECT CLASVALID FROM SESDEV.TB_CLASVAL WHERE CLASCODE = 'DEPLINKTYPE' AND CLASVALCODE = 'OS') dpl ON dpl.CLASVALID = dp.DEPLINKTYPEID "
+            + "SELECT dp.PARENTDEPID FROM TB_DEPLINK dp "
+            + "JOIN (SELECT CLASVALID FROM TB_CLASVAL WHERE CLASCODE = 'DEPLINKTYPE' AND CLASVALCODE = 'OS') dpl ON dpl.CLASVALID = dp.DEPLINKTYPEID "
             + "WHERE dp.DEPID = ? AND dp.DEPLINKACTFL = 1 AND ROWNUM = 1";
     /** DEPID республиканского ЦГЭ (006) — для отметки готовности областным ЦГЭ. */
-    private static final String SQL_DEPID_BY_DEPCODE_006 = "SELECT DEPID FROM SESDEV.TB_DEP WHERE TRIM(DEPCODE) = '006' AND ROWNUM = 1";
-    private static final String SQL_INSERT_DPADEPPERMIS = "INSERT INTO SESINT.DPADEPPERMIS (DPAID, DEPID, GRANTDATETIME) VALUES (?, ?, SYSDATE)";
-    private static final String SQL_EXISTS_DEP = "SELECT 1 FROM SESDEV.TB_DEP WHERE DEPID = ?";
+    private static final String SQL_DEPID_BY_DEPCODE_006 = "SELECT DEPID FROM TB_DEP WHERE TRIM(DEPCODE) = '006' AND ROWNUM = 1";
+    private static final String SQL_INSERT_DPADEPPERMIS = "INSERT INTO DPADEPPERMIS (DPAID, DEPID, GRANTDATETIME) VALUES (?, ?, SYSDATE)";
+    private static final String SQL_EXISTS_DEP = "SELECT 1 FROM TB_DEP WHERE DEPID = ?";
 
     @Override
     protected void doPost(HttpServletRequest request, HttpServletResponse response)

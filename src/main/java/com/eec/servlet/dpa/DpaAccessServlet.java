@@ -20,7 +20,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * API доступа к карте по DPAID: подразделения (SESDEV.TB_DEP + TB_DEPKIND DEPKINDCODE), связь SESINT.DPADEPPERMIS(DPAID, DEPID).
+ * API доступа к карте по DPAID: подразделения (TB_DEP + TB_DEPKIND DEPKINDCODE), связь DPADEPPERMIS(DPAID, DEPID).
  * GET /api/dpa/access?dpaid=...&source=incoming|outgoing|eec&creatorDepId=... — список { id, name, depKindCode }; при пустом списке и source=outgoing и creatorDepId — по умолчанию ЦГЭ создателя карты (из JSON прав department.depid).
  * POST /api/dpa/access — тело JSON { "dpaid": "...", "depId": "..." } — добавить подразделение (проверка права по источнику карты).
  * DELETE /api/dpa/access?dpaid=...&depId=... — удалить (проверка права по источнику карты).
@@ -29,23 +29,23 @@ public class DpaAccessServlet extends HttpServlet {
 
     private static final String SQL_LIST = ""
             + "SELECT d.DEPID, d.DEPNAME, dk.DEPKINDCODE "
-            + "FROM SESINT.DPADEPPERMIS dp "
-            + "JOIN SESDEV.TB_DEP d ON d.DEPID = dp.DEPID "
-            + "LEFT JOIN SESDEV.TB_DEPKIND dk ON d.DEPKINDID = dk.DEPKINDID "
+            + "FROM DPADEPPERMIS dp "
+            + "JOIN TB_DEP d ON d.DEPID = dp.DEPID "
+            + "LEFT JOIN TB_DEPKIND dk ON d.DEPKINDID = dk.DEPKINDID "
             + "WHERE dp.DPAID = ? "
             + "ORDER BY d.DEPNAME";
     /** ЦГЭ по умолчанию для входящих и ЕЭК: 006, 101, 201, 301, 401, 501, 601, 700 */
     private static final String[] DEFAULT_DEP_IDS = { "006", "101", "201", "301", "401", "501", "601", "700" };
     private static final String SQL_DEFAULT_LIST = ""
             + "SELECT d.DEPID, d.DEPNAME, dk.DEPKINDCODE "
-            + "FROM SESDEV.TB_DEP d "
-            + "LEFT JOIN SESDEV.TB_DEPKIND dk ON d.DEPKINDID = dk.DEPKINDID "
+            + "FROM TB_DEP d "
+            + "LEFT JOIN TB_DEPKIND dk ON d.DEPKINDID = dk.DEPKINDID "
             + "WHERE d.DEPID IN (?,?,?,?,?,?,?,?) ORDER BY d.DEPID";
     private static final String SQL_SOURCE = "SELECT t.DATASOURCEKINDNAME FROM VW_DPA vw LEFT JOIN DATASOURCEKIND t ON vw.DATASOURCEKINDCODE = t.DATASOURCEKINDCODE WHERE vw.DPAID = ?";
     /** Один ЦГЭ по DEPID — для списка по умолчанию (исходящие: ЦГЭ создателя) */
-    private static final String SQL_ONE_DEP = "SELECT d.DEPID, d.DEPNAME, dk.DEPKINDCODE FROM SESDEV.TB_DEP d LEFT JOIN SESDEV.TB_DEPKIND dk ON d.DEPKINDID = dk.DEPKINDID WHERE d.DEPID = ?";
-    private static final String SQL_ADD = "INSERT INTO SESINT.DPADEPPERMIS (DPAID, DEPID, GRANTDATETIME) VALUES (?, ?, SYSDATE)";
-    private static final String SQL_DELETE = "DELETE FROM SESINT.DPADEPPERMIS WHERE DPAID = ? AND DEPID = ?";
+    private static final String SQL_ONE_DEP = "SELECT d.DEPID, d.DEPNAME, dk.DEPKINDCODE FROM TB_DEP d LEFT JOIN TB_DEPKIND dk ON d.DEPKINDID = dk.DEPKINDID WHERE d.DEPID = ?";
+    private static final String SQL_ADD = "INSERT INTO DPADEPPERMIS (DPAID, DEPID, GRANTDATETIME) VALUES (?, ?, SYSDATE)";
+    private static final String SQL_DELETE = "DELETE FROM DPADEPPERMIS WHERE DPAID = ? AND DEPID = ?";
 
     @Override
     protected void doGet(HttpServletRequest request, HttpServletResponse response)

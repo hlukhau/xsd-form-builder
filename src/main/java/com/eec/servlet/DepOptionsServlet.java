@@ -11,7 +11,7 @@ import java.io.IOException;
 import java.util.List;
 
 /**
- * Список подразделений из кеша (SESDEV.TB_DEP + TB_DEPKIND, загружаются при старте).
+ * Список подразделений из кеша (TB_DEP + TB_DEPKIND, загружаются при старте).
  * GET /api/dep/options — все подразделения { id, name, depKindCode }.
  */
 public class DepOptionsServlet extends HttpServlet {

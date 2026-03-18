@@ -12,7 +12,7 @@ import java.io.PrintWriter;
 import java.util.List;
 
 /**
- * Сервлет для получения списка методов идентификации (SESINT.BUSENTKIND, codeListId=1033)
+ * Сервлет для получения списка методов идентификации (BUSENTKIND, codeListId=1033)
  * GET /api/identification-methods/options?countryCode=BY
  * Регистрируется в web.xml
  */

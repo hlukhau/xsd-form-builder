@@ -19,9 +19,9 @@ import java.sql.SQLException;
  */
 public class DpaNextRegNumberServlet extends HttpServlet {
 
-    private static final String SQL_COUNTRY_ID = "SELECT COUNTRYID FROM SESINT.COUNTRY WHERE UPPER(TRIM(COUNTRYCODE)) = ? AND COUNTRYSDATE <= SYSDATE AND COUNTRYEDATE >= SYSDATE";
+    private static final String SQL_COUNTRY_ID = "SELECT COUNTRYID FROM COUNTRY WHERE UPPER(TRIM(COUNTRYCODE)) = ? AND COUNTRYSDATE <= SYSDATE AND COUNTRYEDATE >= SYSDATE";
     /** Максимальный порядковый номер в году для страны; INCIDENTID формата XX-DPNNNNN-YY */
-    private static final String SQL_MAX_SERIAL = "SELECT NVL(MAX(TO_NUMBER(REGEXP_SUBSTR(INCIDENTID, 'DP([0-9]{5})', 1, 1, NULL, 1))), 0) + 1 AS NEXTSERIAL FROM SESINT.DPA WHERE ALERTCOUNTRYID = ? AND INCIDENTID LIKE ?";
+    private static final String SQL_MAX_SERIAL = "SELECT NVL(MAX(TO_NUMBER(REGEXP_SUBSTR(INCIDENTID, 'DP([0-9]{5})', 1, 1, NULL, 1))), 0) + 1 AS NEXTSERIAL FROM DPA WHERE ALERTCOUNTRYID = ? AND INCIDENTID LIKE ?";
 
     @Override
     protected void doGet(HttpServletRequest request, HttpServletResponse response) throws ServletException, IOException {

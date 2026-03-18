@@ -34,8 +34,8 @@ public class AuthorityOptionsServlet extends HttpServlet {
 
     /** AUTHORITYID по списку DEPID: AUTHORITY.AUTHORITYUID = TB_DEP.DEPCODE */
     private static final String SQL_AUTHORITY_IDS_BY_DEP_IDS = ""
-            + "SELECT a.AUTHORITYID FROM SESINT.AUTHORITY a "
-            + "JOIN SESDEV.TB_DEP d ON TRIM(a.AUTHORITYUID) = TRIM(d.DEPCODE) "
+            + "SELECT a.AUTHORITYID FROM AUTHORITY a "
+            + "JOIN TB_DEP d ON TRIM(a.AUTHORITYUID) = TRIM(d.DEPCODE) "
             + "WHERE d.DEPID IN (";
     
     @Override
