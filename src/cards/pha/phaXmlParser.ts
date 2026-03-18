@@ -8,7 +8,7 @@
  * - smcdo:IncidentAlertIdDetails (IncidentAlertIdDetailsType): UnifiedCountryCode, IncidentId, IncidentKindCode, DocCreationDate.
  */
 
-import type { CardData, ElectronicDocument, PhaDiseaseDetails, PhaPathogenDetails, PhaPatientGroupItem } from '@/types/card'
+import type { CardData, ElectronicDocument, PhaDiseaseDetails, PhaPathogenDetails, PhaPatientGroupItem, SanitaryMeasure } from '@/types/card'
 import { createNewCardData } from '@/utils/newCardData'
 import { parseDetectionPlaceDetails } from '@/utils/xmlParser'
 
@@ -114,6 +114,17 @@ export function parsePhaXmlToCardData(xmlText: string): CardData {
         : '',
   }
 
+  // smsdo:MeasureCode и smsdo:MeasureName — прямые потомки PublicHealthAlertDetails (0..n каждый). Сначала все коды, затем все наименования.
+  const measureCodeEls = findAllElementsByLocalName(firstCaseBlock, 'MeasureCode')
+  const measureNameEls = findAllElementsByLocalName(firstCaseBlock, 'MeasureName')
+  const codeValues = measureCodeEls.map((el) => el.textContent?.trim() ?? '').filter(Boolean)
+  const nameValues = measureNameEls.map((el) => el.textContent?.trim() ?? '').filter(Boolean)
+  const phaMeasures: SanitaryMeasure[] = [
+    ...codeValues.map((measureCode) => ({ measureCode })),
+    ...nameValues.map((measureName) => ({ measureName })),
+  ]
+  const measures = phaMeasures.length > 0 ? { measures: phaMeasures } : undefined
+
   // smcdo:IncidentAlertIdDetails — только внутри первого блока случая (причинные уведомления данного случая).
   const causeNodes = findAllElementsByLocalName(firstCaseBlock, 'IncidentAlertIdDetails')
   const phaCauseNotifications = causeNodes.map((el) => ({
@@ -207,6 +218,7 @@ export function parsePhaXmlToCardData(xmlText: string): CardData {
     phaPatientGroups: phaPatientGroups ?? undefined,
     detectionPlace: detectionPlace ?? undefined,
     spreadingZone: spreadingZone ?? undefined,
+    measures,
   }
 
   return cardData

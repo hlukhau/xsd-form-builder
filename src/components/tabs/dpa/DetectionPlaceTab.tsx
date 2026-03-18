@@ -12,10 +12,12 @@ import { useCountryOptions } from '@/hooks/shared/useCountryOptions'
 
 interface DetectionPlaceTabProps {
   data: DetectionPlaceData
+  /** Подпись для пустого состояния, например "место обнаружения" или "зона распространения". По умолчанию — "место обнаружения". */
+  label?: string
 }
 
-const DetectionPlaceTab: React.FC<DetectionPlaceTabProps> = ({ data }) => {
-  const { getDisplayLabel: getIdentificationMethodDisplayLabel } = useIdentificationMethodOptions(data.organization?.country ?? '')
+const DetectionPlaceTab: React.FC<DetectionPlaceTabProps> = ({ data, label = 'место обнаружения' }) => {
+  const { getDisplayLabel: getIdentificationMethodDisplayLabel } = useIdentificationMethodOptions(data?.organization?.country ?? '')
   const { getDisplayLabel: getCountryDisplayLabel } = useCountryOptions()
   const getCountryNameForAddress = (code?: string) => getCountryDisplayLabel(code) || getDefaultCountryName(code) || '-'
 
@@ -28,7 +30,7 @@ const DetectionPlaceTab: React.FC<DetectionPlaceTabProps> = ({ data }) => {
   }
 
   if (!data) {
-    return <div>Данные о месте обнаружения не найдены</div>
+    return <div>Данные о {label} не найдены</div>
   }
 
   console.log('DetectionPlaceTab получил данные:', data)
@@ -38,7 +40,7 @@ const DetectionPlaceTab: React.FC<DetectionPlaceTabProps> = ({ data }) => {
   const hasData = data.organization || data.borderCheckpoint || data.address || data.geoCoordinates || data.description
 
   if (!hasData) {
-    return <div>Данные о месте обнаружения не указаны</div>
+    return <div>Данные о {label} не указаны</div>
   }
 
   return (

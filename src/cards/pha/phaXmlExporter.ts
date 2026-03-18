@@ -121,6 +121,17 @@ export function exportPhaCardDataToXML(data: CardData): string {
     xmlParts.push('    </smcdo:PublicHealthIncidentDetails>')
   }
 
+  // smsdo:MeasureCode и smsdo:MeasureName — прямые потомки PublicHealthAlertDetails (сначала все коды, затем все наименования)
+  const measureList = data.measures?.measures ?? []
+  const measureCodes = measureList.filter((m) => m.measureCode?.trim()).map((m) => m.measureCode!.trim())
+  const measureNames = measureList.filter((m) => m.measureName?.trim()).map((m) => m.measureName!.trim())
+  for (const code of measureCodes) {
+    xmlParts.push(`    <smsdo:MeasureCode>${escapeXML(code)}</smsdo:MeasureCode>`)
+  }
+  for (const name of measureNames) {
+    xmlParts.push(`    <smsdo:MeasureName>${escapeXML(name)}</smsdo:MeasureName>`)
+  }
+
   xmlParts.push('  </smcdo:PublicHealthAlertDetails>')
   xmlParts.push('</doc:PublicHealthAlertDetails>')
   return xmlParts.join('\n')

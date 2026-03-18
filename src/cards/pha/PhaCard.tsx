@@ -11,6 +11,7 @@ import {
   PatientGroupTab,
   PatientGroupTabEdit,
   SanitaryMeasuresTab,
+  SanitaryMeasuresTabEdit,
 } from '@/components/tabs/pha'
 import DetectionPlaceTab from '@/components/tabs/dpa/DetectionPlaceTab'
 import DetectionPlaceTabEdit from '@/components/tabs/dpa/DetectionPlaceTabEdit'
@@ -41,7 +42,7 @@ const PHA_TABS = [
   { key: 'patientGroup', label: 'Группа пациентов', view: PatientGroupTab, edit: PatientGroupTabEdit },
   { key: 'detectionPlace', label: 'Место обнаружения', view: DetectionPlaceTab, edit: DetectionPlaceTabEdit },
   { key: 'spreadZone', label: 'Зона распространения', view: DetectionPlaceTab, edit: DetectionPlaceTabEdit },
-  { key: 'sanitaryMeasures', label: 'Санитарные меры', view: SanitaryMeasuresTab },
+  { key: 'sanitaryMeasures', label: 'Санитарные меры', view: SanitaryMeasuresTab, edit: SanitaryMeasuresTabEdit },
 ]
 
 /**
@@ -154,9 +155,9 @@ const PhaCard: React.FC<PhaCardProps> = ({ data, phaid = '', guid, originalXML, 
       }
     } else {
       if (item.key === 'detectionPlace') {
-        children = <TabView data={currentData.detectionPlace} />
+        children = <TabView data={currentData.detectionPlace ?? {}} />
       } else if (item.key === 'spreadZone') {
-        children = <TabView data={currentData.spreadingZone} />
+        children = <TabView data={currentData.spreadingZone ?? {}} label="зоне распространения" />
       } else {
         children = <TabView data={currentData} />
       }
