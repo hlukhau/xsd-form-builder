@@ -1,4 +1,5 @@
 export { default as NotificationTab } from './NotificationTab'
+export { default as NotificationTabEdit } from './NotificationTabEdit'
 export { default as DiseaseTab } from './DiseaseTab'
 export { default as PatientGroupTab } from './PatientGroupTab'
 export { default as DetectionPlaceTab } from './DetectionPlaceTab'

@@ -295,6 +295,7 @@ function AppContent() {
 /** Контент приложения для карты PHA (путь /xsd_form_builder_57/{PHAID}/{GUID}) */
 function PhaAppContent() {
   const [cardData, setCardData] = useState<CardData | null>(null)
+  const [originalXML, setOriginalXML] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const { dpaid: phaidParam, guid } = useParams<{ dpaid: string; guid?: string }>()
@@ -305,12 +306,14 @@ function PhaAppContent() {
       setLoading(false)
       setError(null)
       setCardData(createNewCardData('BY', { registrationNumber: '' }))
+      setOriginalXML(null)
       return
     }
     let cancelled = false
     setLoading(true)
     setError(null)
     setCardData(null)
+    setOriginalXML(null)
     ;(async () => {
       try {
         const [xmlText, meta] = await Promise.all([
@@ -318,6 +321,7 @@ function PhaAppContent() {
           fetchPhaMetadata(phaid, guid).catch(() => null),
         ])
         if (cancelled) return
+        setOriginalXML(xmlText)
         const card = parsePhaXmlToCardData(xmlText)
         const enriched = meta ? {
           ...card,
@@ -346,7 +350,16 @@ function PhaAppContent() {
 
   if (loading) return <div style={{ textAlign: 'center', padding: 16 }}><Spin size="large" tip="Загрузка карты PHA..." /></div>
   if (error) return <div className="empty-state"><div style={{ color: '#ff4d4f' }}>{error}</div></div>
-  if (cardData) return <PhaCard data={cardData} phaid={phaid} guid={guid} />
+  if (cardData) return (
+    <PhaCard
+      data={cardData}
+      phaid={phaid}
+      guid={guid}
+      originalXML={originalXML}
+      onUpdate={setCardData}
+      initialEditMode={phaid === '-' || !phaid}
+    />
+  )
   return <div className="empty-state"><div>Нет данных. Откройте карту по PHAID или создайте новую.</div></div>
 }
 

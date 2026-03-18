@@ -4,6 +4,8 @@
  * Эндпоинты: /api/pha/xml/{PHAID}, /api/pha/metadata/{PHAID} и т.д.
  */
 
+import type { CardData } from '@/types/card'
+
 const BASE = import.meta.env.BASE_URL || '/'
 
 function getApiUrl(path: string): string {
@@ -44,4 +46,30 @@ export async function fetchPhaMetadata(phaid: string, guid?: string): Promise<{
   })
   if (!res.ok) throw new Error(await res.text().catch(() => res.statusText))
   return res.json()
+}
+
+/** Тело запроса сохранения карты PHA (JSON). */
+export interface SavePhaCardPayload {
+  phaid: string
+  guid?: string
+  data: CardData
+}
+
+/**
+ * Сохранение карты PHA. POST /api/pha/save.
+ * При отсутствии бэкенда (404/501) выбрасывает ошибку с сообщением «Сохранение PHA в разработке».
+ */
+export async function savePhaCard(payload: SavePhaCardPayload): Promise<void> {
+  const url = getApiUrl('/api/pha/save')
+  const res = await fetch(url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...(payload.guid ? { 'X-GUID': payload.guid } : {}) },
+    credentials: 'same-origin',
+    body: JSON.stringify({ phaid: payload.phaid, guid: payload.guid, data: payload.data }),
+  })
+  if (!res.ok) {
+    const text = await res.text()
+    if (res.status === 404 || res.status === 501) throw new Error('Сохранение PHA в разработке')
+    throw new Error(text || res.statusText)
+  }
 }

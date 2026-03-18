@@ -58,26 +58,26 @@ const NotificationTab: React.FC<NotificationTabProps> = ({ data }) => {
 
   return (
     <div>
-      <Descriptions column={1} bordered title="Уведомление о случае обнаружения болезни (smcdo:PublicHealthAlertDetails)">
-        <Descriptions.Item label="Страна (csdo:UnifiedCountryCode)">
+      <Descriptions column={1} bordered title="Уведомление о случае обнаружения болезни">
+        <Descriptions.Item label="Страна">
           {renderCountry(n.country, countryValid)}
         </Descriptions.Item>
-        <Descriptions.Item label="Регистрационный номер (smsdo:IncidentId)">
+        <Descriptions.Item label="Регистрационный номер">
           {n.registrationNumber || '-'}
         </Descriptions.Item>
-        <Descriptions.Item label="Вид (smsdo:IncidentKindCode)">
+        <Descriptions.Item label="Вид">
           {kindLabel(n.type)}
           <div style={{ marginTop: 4, fontSize: 12, color: '#8c8c8c' }}>
             Версия = 1: 1, 2; Версия &gt; 1: инфекционная — 3, 5; неинфекционная — 4, 6. Справочник incidentalertkind.
           </div>
         </Descriptions.Item>
-        <Descriptions.Item label="Дата формирования (csdo:DocCreationDate)">
+        <Descriptions.Item label="Дата формирования">
           {formatDate(n.formationDate)}
         </Descriptions.Item>
-        <Descriptions.Item label="Дата закрытия (csdo:EndDate)">
+        <Descriptions.Item label="Дата закрытия">
           {n.endDate ? formatDate(n.endDate) : '-'}
         </Descriptions.Item>
-        <Descriptions.Item label="Уполномоченный орган (ccdo:UnifiedAuthorityDetails)">
+        <Descriptions.Item label="Уполномоченный орган">
           <Descriptions column={1} size="small" bordered>
             <Descriptions.Item label="Страна">{renderCountry(n.authorizedBody?.country ?? '', authorizedBodyCountryValid)}</Descriptions.Item>
             <Descriptions.Item label="Идентификатор">{n.authorizedBody?.identifier || '-'}</Descriptions.Item>
@@ -89,7 +89,7 @@ const NotificationTab: React.FC<NotificationTabProps> = ({ data }) => {
 
       <div style={{ marginTop: 16 }}>
         <div style={{ marginBottom: 8 }}>
-          <strong>Уведомления, являющиеся причиной обнаружения данного случая (smcdo:IncidentAlertIdDetails)</strong>
+          <strong>Уведомления, являющиеся причиной обнаружения данного случая</strong>
           <div style={{ fontSize: 12, color: '#8c8c8c' }}>
             Вид — справочник incidentalertkind: 1, 2, 3, 4, 7, 8, 10, 11, 13, 14, 16, 17, 19.
           </div>
@@ -109,7 +109,7 @@ const NotificationTab: React.FC<NotificationTabProps> = ({ data }) => {
           />
         ) : (
           <Descriptions column={1} bordered>
-            <Descriptions.Item label="Сведения">Нет данных. Элементы smcdo:IncidentAlertIdDetails в XML карты PHA.</Descriptions.Item>
+            <Descriptions.Item label="Сведения">Нет данных.</Descriptions.Item>
           </Descriptions>
         )}
       </div>

@@ -1,7 +1,11 @@
 /**
  * Отдельный парсер XML карт PHA (обнаружение болезней).
  * Схема: EEC_R_SM_SS_08_PublicHealthAlert_v1.0.0.xsd
- * Не использует парсер DPA (xmlParser.ts) и не требует элемент DangerousProductAlertDetails.
+ *
+ * Структура по XSD:
+ * - Корень doc:PublicHealthAlertDetails (PublicHealthAlertDetailsType): sequence EDocHeader, 1..n smcdo:PublicHealthAlertDetails.
+ * - smcdo:PublicHealthAlertDetails (PublicHealthAlertDetailsType) расширяет IncidentAlertDetailsType: UnifiedCountryCode, IncidentId, IncidentKindCode, DocCreationDate, EndDate, UnifiedAuthorityDetails; плюс 0..n smcdo:IncidentAlertIdDetails (причинные уведомления).
+ * - smcdo:IncidentAlertIdDetails (IncidentAlertIdDetailsType): UnifiedCountryCode, IncidentId, IncidentKindCode, DocCreationDate.
  */
 
 import type { CardData, ElectronicDocument } from '@/types/card'
@@ -69,6 +73,7 @@ export function parsePhaXmlToCardData(xmlText: string): CardData {
     throw new Error('XML документ не содержит корневого элемента')
   }
 
+  // По XSD: корень doc:PublicHealthAlertDetails содержит ccdo:EDocHeader и 1..n smcdo:PublicHealthAlertDetails.
   const edocHeader = findElementByLocalName(root, 'EDocHeader')
   const electronicDocument: ElectronicDocument = {
     messageCode: getTextByLocalName(edocHeader, 'InfEnvelopeCode') || '',
@@ -81,18 +86,21 @@ export function parsePhaXmlToCardData(xmlText: string): CardData {
     updateDateTime: '',
   }
 
-  // smcdo:PublicHealthAlertDetails — основное уведомление о случае обнаружения болезни
-  const alertDetails = findElementByLocalName(root, 'PublicHealthAlertDetails') || root
+  // Первый блок smcdo:PublicHealthAlertDetails (дочерний корня). Корень тоже имеет localName PublicHealthAlertDetails — берём второй элемент.
+  const allCaseBlocks = findAllElementsByLocalName(root, 'PublicHealthAlertDetails')
+  const firstCaseBlock =
+    allCaseBlocks.length > 1 ? allCaseBlocks[1] : allCaseBlocks[0]
+  // Поля уведомления — из IncidentAlertDetailsType (UnifiedCountryCode, IncidentId, IncidentKindCode, DocCreationDate, EndDate, UnifiedAuthorityDetails).
   const country =
-    getTextByLocalName(alertDetails, 'UnifiedCountryCode')?.trim() ||
+    getTextByLocalName(firstCaseBlock, 'UnifiedCountryCode')?.trim() ||
     getTextByLocalName(root, 'AlertCountryCode')?.trim() ||
     'BY'
-  const registrationNumber = getTextByLocalName(alertDetails, 'IncidentId')?.trim() || ''
-  const docCreationDate = getTextByLocalName(alertDetails, 'DocCreationDate')?.trim() || ''
-  const incidentKindCode = getTextByLocalName(alertDetails, 'IncidentKindCode')?.trim() || ''
-  const endDate = getTextByLocalName(alertDetails, 'EndDate')?.trim() || null
+  const registrationNumber = getTextByLocalName(firstCaseBlock, 'IncidentId')?.trim() || ''
+  const docCreationDate = getTextByLocalName(firstCaseBlock, 'DocCreationDate')?.trim() || ''
+  const incidentKindCode = getTextByLocalName(firstCaseBlock, 'IncidentKindCode')?.trim() || ''
+  const endDate = getTextByLocalName(firstCaseBlock, 'EndDate')?.trim() || null
 
-  const authority = findElementByLocalName(alertDetails, 'UnifiedAuthorityDetails')
+  const authority = findElementByLocalName(firstCaseBlock, 'UnifiedAuthorityDetails')
   const authorizedBody = {
     country: authority ? (getTextByLocalName(authority, 'UnifiedCountryCode') || '') : '',
     identifier: authority ? (getTextByLocalName(authority, 'AuthorityId') || '') : '',
@@ -105,8 +113,8 @@ export function parsePhaXmlToCardData(xmlText: string): CardData {
         : '',
   }
 
-  // smcdo:IncidentAlertIdDetails — уведомления, являющиеся причиной данного случая
-  const causeNodes = findAllElementsByLocalName(root, 'IncidentAlertIdDetails')
+  // smcdo:IncidentAlertIdDetails — только внутри первого блока случая (причинные уведомления данного случая).
+  const causeNodes = findAllElementsByLocalName(firstCaseBlock, 'IncidentAlertIdDetails')
   const phaCauseNotifications = causeNodes.map((el) => ({
     country: getTextByLocalName(el, 'UnifiedCountryCode')?.trim() || '',
     registrationNumber: getTextByLocalName(el, 'IncidentId')?.trim() || '',
