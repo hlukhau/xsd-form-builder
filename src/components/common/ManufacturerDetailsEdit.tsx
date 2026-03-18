@@ -15,7 +15,7 @@ import { useCommunicationChannelOptions } from '@/hooks/shared/useCommunicationC
 import { FieldTagBlock } from '@/components/common/FieldTag'
 import { getFormRules, getMaxLength, getFormatHint, validateFieldValue } from '@/constants/xsdFieldConstraints'
 
-/** Идентификатор справочника организационно-правовых форм (SESINT.LEGALFORM) */
+/** Идентификатор справочника организационно-правовых форм (LEGALFORM) */
 const LEGAL_FORM_CODE_LIST_ID = '2049'
 
 interface ManufacturerDetailsEditProps {

@@ -2233,9 +2233,10 @@ function parseDetectionPlace(alertDetails: Element, rootElement?: Element): Dete
 }
 
 /**
- * Парсит детали места обнаружения
+ * Парсит детали места обнаружения (smcdo:DetectionPlaceDetails / LocationDetailsType).
+ * Экспортируется для использования в PHA-парсере.
  */
-function parseDetectionPlaceDetails(placeElement: Element): DetectionPlaceData {
+export function parseDetectionPlaceDetails(placeElement: Element): DetectionPlaceData {
   // OrganizationDetails (может быть UnifiedAuthorityDetails или BusinessEntityDetailsType)
   const organization = parseOrganizationDetails(placeElement)
   

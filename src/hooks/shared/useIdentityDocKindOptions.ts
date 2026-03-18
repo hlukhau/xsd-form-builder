@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react'
 import { getIdentityDocKindOptions, type IdentityDocKindOption } from '@/utils/referenceDataApi'
 
 /**
- * Хук для загрузки справочника видов документов, удостоверяющих личность (SESINT.IDENTITYDOCKIND, codeListId=2053)
+ * Хук для загрузки справочника видов документов, удостоверяющих личность (IDENTITYDOCKIND, codeListId=2053)
  */
 export function useIdentityDocKindOptions() {
   const [options, setOptions] = useState<IdentityDocKindOption[]>([])

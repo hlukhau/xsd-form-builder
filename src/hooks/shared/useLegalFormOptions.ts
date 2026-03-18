@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react'
 import { getLegalFormOptions, type LegalFormOption } from '@/utils/referenceDataApi'
 
 /**
- * Хук для загрузки справочника организационно-правовых форм (SESINT.LEGALFORM, codeListId=2049).
+ * Хук для загрузки справочника организационно-правовых форм (LEGALFORM, codeListId=2049).
  * @param countryCode - код страны (COUNTRYCODE); при указании список фильтруется по стране
  */
 export function useLegalFormOptions(countryCode?: string) {

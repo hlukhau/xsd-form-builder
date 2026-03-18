@@ -20,6 +20,10 @@ import com.eec.util.DictionaryCache.IdentificationMethodOption;
 import com.eec.util.DictionaryCache.ConformityDocKindOption;
 import com.eec.util.DictionaryCache.IdentityDocKindOption;
 import com.eec.util.DictionaryCache.BorderCheckpointOption;
+import com.eec.util.DictionaryCache.DiseaseHealthProblemOption;
+import com.eec.util.DictionaryCache.PathogenKindOption;
+import com.eec.util.DictionaryCache.AgeGroupOption;
+import com.eec.util.DictionaryCache.DiseaseOutcomeOption;
 
 import javax.servlet.ServletContextEvent;
 import javax.servlet.ServletContextListener;
@@ -56,6 +60,10 @@ public class DictionaryInitializerListener implements ServletContextListener {
     private static final Object LOCK_CONFORMITY_DOC_KINDS = new Object();
     private static final Object LOCK_IDENTITY_DOC_KINDS = new Object();
     private static final Object LOCK_BORDER_CHECKPOINTS = new Object();
+    private static final Object LOCK_DISEASE_HEALTH_PROBLEM = new Object();
+    private static final Object LOCK_PATHOGEN_KIND = new Object();
+    private static final Object LOCK_AGE_GROUP = new Object();
+    private static final Object LOCK_DISEASE_OUTCOME = new Object();
 
     public static DictionaryInitializerListener getInstance() {
         return INSTANCE;
@@ -157,6 +165,26 @@ public class DictionaryInitializerListener implements ServletContextListener {
             if (!DictionaryCache.isBorderCheckpointsLoaded()) loadBorderCheckpointsDictionary(guid);
         }
     }
+    public void ensureDiseaseHealthProblemLoaded(String guid) {
+        synchronized (LOCK_DISEASE_HEALTH_PROBLEM) {
+            if (!DictionaryCache.isDiseaseHealthProblemLoaded()) loadDiseaseHealthProblemDictionary(guid);
+        }
+    }
+    public void ensurePathogenKindLoaded(String guid) {
+        synchronized (LOCK_PATHOGEN_KIND) {
+            if (!DictionaryCache.isPathogenKindLoaded()) loadPathogenKindDictionary(guid);
+        }
+    }
+    public void ensureAgeGroupLoaded(String guid) {
+        synchronized (LOCK_AGE_GROUP) {
+            if (!DictionaryCache.isAgeGroupLoaded()) loadAgeGroupDictionary(guid);
+        }
+    }
+    public void ensureDiseaseOutcomeLoaded(String guid) {
+        synchronized (LOCK_DISEASE_OUTCOME) {
+            if (!DictionaryCache.isDiseaseOutcomeLoaded()) loadDiseaseOutcomeDictionary(guid);
+        }
+    }
     
     @Override
     public void contextDestroyed(ServletContextEvent sce) {
@@ -180,6 +208,10 @@ public class DictionaryInitializerListener implements ServletContextListener {
         DictionaryCache.clearIdentificationMethodsCache();
         DictionaryCache.clearConformityDocKindsCache();
         DictionaryCache.clearIdentityDocKindsCache();
+        DictionaryCache.clearDiseaseHealthProblemCache();
+        DictionaryCache.clearPathogenKindCache();
+        DictionaryCache.clearAgeGroupCache();
+        DictionaryCache.clearDiseaseOutcomeCache();
     }
     
     /**
@@ -728,6 +760,118 @@ public class DictionaryInitializerListener implements ServletContextListener {
             stmt.close();
         } catch (SQLException e) {
             System.err.println("[DictionaryInitializer] ERROR loading border checkpoints dictionary: " + e.getMessage());
+            e.printStackTrace();
+        } finally {
+            DatabaseUtil.closeConnection(conn);
+        }
+    }
+    
+    /**
+     * Загружает справочник болезней (DISEASEHEALTHPROBLEM) в кеш.
+     */
+    private void loadDiseaseHealthProblemDictionary(String guid) {
+        Connection conn = null;
+        try {
+            System.out.println("[DictionaryInitializer] Loading disease health problem dictionary...");
+            conn = DatabaseUtil.getConnectionForGuid(guid);
+            String sql = "SELECT NVL(DISEASEHEALTHPROBLEMICDCODE, TO_CHAR(DISEASEHEALTHPROBLEMID)) AS CCODE, DISEASEHEALTHPROBLEMNAME AS CNAME " +
+                        "FROM DISEASEHEALTHPROBLEM ORDER BY DISEASEHEALTHPROBLEMNAME";
+            PreparedStatement stmt = conn.prepareStatement(sql);
+            ResultSet rs = stmt.executeQuery();
+            List<DiseaseHealthProblemOption> list = new ArrayList<>();
+            while (rs.next()) {
+                list.add(new DiseaseHealthProblemOption(rs.getString("CCODE"), rs.getString("CNAME")));
+            }
+            DictionaryCache.setDiseaseHealthProblemCache(list);
+            System.out.println("[DictionaryInitializer] Loaded " + list.size() + " disease health problems into cache");
+            rs.close();
+            stmt.close();
+        } catch (SQLException e) {
+            System.err.println("[DictionaryInitializer] ERROR loading disease health problem dictionary: " + e.getMessage());
+            e.printStackTrace();
+        } finally {
+            DatabaseUtil.closeConnection(conn);
+        }
+    }
+    
+    /**
+     * Загружает справочник видов возбудителей (PATHOGENKIND) в кеш.
+     */
+    private void loadPathogenKindDictionary(String guid) {
+        Connection conn = null;
+        try {
+            System.out.println("[DictionaryInitializer] Loading pathogen kind dictionary...");
+            conn = DatabaseUtil.getConnectionForGuid(guid);
+            String sql = "SELECT PATHOGENKINDCODE, PATHOGENKINDNAME FROM PATHOGENKIND " +
+                        "WHERE PATHOGENKINDACTFL = 1 ORDER BY NVL(PATHOGENKINDSEQNUM, 999999), PATHOGENKINDNAME";
+            PreparedStatement stmt = conn.prepareStatement(sql);
+            ResultSet rs = stmt.executeQuery();
+            List<PathogenKindOption> list = new ArrayList<>();
+            while (rs.next()) {
+                list.add(new PathogenKindOption(rs.getString("PATHOGENKINDCODE"), rs.getString("PATHOGENKINDNAME")));
+            }
+            DictionaryCache.setPathogenKindCache(list);
+            System.out.println("[DictionaryInitializer] Loaded " + list.size() + " pathogen kinds into cache");
+            rs.close();
+            stmt.close();
+        } catch (SQLException e) {
+            System.err.println("[DictionaryInitializer] ERROR loading pathogen kind dictionary: " + e.getMessage());
+            e.printStackTrace();
+        } finally {
+            DatabaseUtil.closeConnection(conn);
+        }
+    }
+    
+    /**
+     * Загружает справочник возрастных групп (AGEGR) в кеш.
+     */
+    private void loadAgeGroupDictionary(String guid) {
+        Connection conn = null;
+        try {
+            System.out.println("[DictionaryInitializer] Loading age group dictionary...");
+            conn = DatabaseUtil.getConnectionForGuid(guid);
+            String sql = "SELECT AGEGRCODE, AGEGRNAME FROM AGEGR " +
+                        "WHERE AGEGRACTFL = 1 ORDER BY NVL(AGEGRSEQNUM, 999999), AGEGRNAME";
+            PreparedStatement stmt = conn.prepareStatement(sql);
+            ResultSet rs = stmt.executeQuery();
+            List<AgeGroupOption> list = new ArrayList<>();
+            while (rs.next()) {
+                list.add(new AgeGroupOption(rs.getString("AGEGRCODE"), rs.getString("AGEGRNAME")));
+            }
+            DictionaryCache.setAgeGroupCache(list);
+            System.out.println("[DictionaryInitializer] Loaded " + list.size() + " age groups into cache");
+            rs.close();
+            stmt.close();
+        } catch (SQLException e) {
+            System.err.println("[DictionaryInitializer] ERROR loading age group dictionary: " + e.getMessage());
+            e.printStackTrace();
+        } finally {
+            DatabaseUtil.closeConnection(conn);
+        }
+    }
+    
+    /**
+     * Загружает справочник исходов болезни (DISEASEOUTCOME) в кеш.
+     */
+    private void loadDiseaseOutcomeDictionary(String guid) {
+        Connection conn = null;
+        try {
+            System.out.println("[DictionaryInitializer] Loading disease outcome dictionary...");
+            conn = DatabaseUtil.getConnectionForGuid(guid);
+            String sql = "SELECT DISEASEOUTCOMECODE, DISEASEOUTCOMENAME FROM DISEASEOUTCOME " +
+                        "WHERE DISEASEOUTCOMEACTFL = 1 ORDER BY NVL(DISEASEOUTCOMESEQNUM, 999999), DISEASEOUTCOMENAME";
+            PreparedStatement stmt = conn.prepareStatement(sql);
+            ResultSet rs = stmt.executeQuery();
+            List<DiseaseOutcomeOption> list = new ArrayList<>();
+            while (rs.next()) {
+                list.add(new DiseaseOutcomeOption(rs.getString("DISEASEOUTCOMECODE"), rs.getString("DISEASEOUTCOMENAME")));
+            }
+            DictionaryCache.setDiseaseOutcomeCache(list);
+            System.out.println("[DictionaryInitializer] Loaded " + list.size() + " disease outcomes into cache");
+            rs.close();
+            stmt.close();
+        } catch (SQLException e) {
+            System.err.println("[DictionaryInitializer] ERROR loading disease outcome dictionary: " + e.getMessage());
             e.printStackTrace();
         } finally {
             DatabaseUtil.closeConnection(conn);

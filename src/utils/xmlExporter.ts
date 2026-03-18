@@ -497,8 +497,14 @@ function hasOrganizationContent(org: BusinessEntityDetails | undefined): boolean
   return false
 }
 
-function exportDetectionPlace(xmlParts: string[], place: DetectionPlaceData, indent: string) {
-  xmlParts.push(`${indent}<smcdo:DetectionPlaceDetails>`)
+/** Экспорт LocationDetailsType (место обнаружения или зона распространения). wrapperTag — имя элемента smcdo. */
+export function exportDetectionPlace(
+  xmlParts: string[],
+  place: DetectionPlaceData,
+  indent: string,
+  wrapperTag: 'DetectionPlaceDetails' | 'SpreadingZoneDetails' = 'DetectionPlaceDetails'
+) {
+  xmlParts.push(`${indent}<smcdo:${wrapperTag}>`)
   // Порядок по XSD LocationDetailsType: OrganizationDetails, BorderCheckpointDetails, ObjectAddressDetails, GeoCoordinateDetails, DescriptionText
   if (hasOrganizationContent(place.organization)) {
     xmlParts.push(`${indent}    <smcdo:OrganizationDetails>`)
@@ -558,7 +564,12 @@ function exportDetectionPlace(xmlParts: string[], place: DetectionPlaceData, ind
     xmlParts.push(`${indent}    <csdo:DescriptionText>${escapeXML(place.description)}</csdo:DescriptionText>`)
   }
   
-  xmlParts.push(`${indent}</smcdo:DetectionPlaceDetails>`)
+  xmlParts.push(`${indent}</smcdo:${wrapperTag}>`)
+}
+
+/** Экспорт зоны распространения (smcdo:SpreadingZoneDetails). Используется в PHA. */
+export function exportSpreadingZone(xmlParts: string[], place: DetectionPlaceData, indent: string) {
+  exportDetectionPlace(xmlParts, place, indent, 'SpreadingZoneDetails')
 }
 
 function exportSanitaryMeasure(xmlParts: string[], measure: SanitaryMeasure, indent: string) {

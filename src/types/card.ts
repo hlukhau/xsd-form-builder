@@ -34,6 +34,57 @@ export interface CardData {
 
   /** PHA: уведомления, являющиеся причиной данного случая (smcdo:IncidentAlertIdDetails). */
   phaCauseNotifications?: PhaCauseNotificationItem[]
+
+  /**
+   * PHA: признак инфекционной болезни (diseasehealthproblem.diseasehealthprobleminfectfl).
+   * При версии > 1 определяет допустимые коды вида уведомления: 1 — 3, 5; 0 — 4, 6.
+   */
+  phaFirstDiseaseInfectiousFlag?: 0 | 1
+
+  /** PHA: сведения о болезни (smcdo:PublicHealthIncidentDetails → DiseaseHealthProblemDetails, EventDate, EndDate, CrossborderSpreadRiskIndicator, PathogenDetails). */
+  phaDisease?: PhaDiseaseDetails
+
+  /** PHA: группы пациентов (smcdo:PatientGroupDetails внутри PublicHealthIncidentDetails). */
+  phaPatientGroups?: PhaPatientGroupItem[]
+
+  /** PHA: зона распространения (smcdo:SpreadingZoneDetails, LocationDetailsType — как Место обнаружения). */
+  spreadingZone?: DetectionPlaceData
+}
+
+/** PHA: группа пациентов (smcdo:PatientGroupDetails). */
+export interface PhaPatientGroupItem {
+  /** Количество человек в группе (smsdo:PersonQuantity). */
+  personQuantity?: string
+  /** Код возрастной группы (smsdo:AgeGroupCode); справочник agegr. */
+  ageGroupCode?: string
+  /** Код исхода болезни (smsdo:DiseaseOutcomeCode); справочник diseaseoutcome. */
+  diseaseOutcomeCode?: string
+  /** Наличие лабораторного подтверждения (smsdo:LaboratoryConfirmedIndicator): 0 — Нет, 1 — Да, null — Не указано. */
+  laboratoryConfirmedIndicator?: 0 | 1 | null
+}
+
+/** PHA: сведения о болезни (smcdo:DiseaseHealthProblemDetails + EventDate, EndDate, CrossborderSpreadRiskIndicator, таблица PathogenDetails). */
+export interface PhaDiseaseDetails {
+  /** Код болезни из справочника ЕЭК (smsdo:DiseaseHealthProblemCode); на данный момент не заполняется. */
+  diseaseCode?: string
+  /** Наименование болезни (smsdo:DiseaseHealthProblemName). Редактирование только для версии = 1. */
+  diseaseName?: string
+  /** Дата первого случая (csdo:EventDate). */
+  firstCaseDate?: string
+  /** Дата последнего случая (csdo:EndDate в блоке болезни). */
+  lastCaseDate?: string
+  /** Риск трансграничного распространения (smsdo:CrossborderSpreadRiskIndicator): 0 — Нет, 1 — Да, null/undefined — Не указано. */
+  crossborderSpreadRiskIndicator?: 0 | 1 | null
+  /** Таблица возбудителей (smcdo:PathogenDetails). */
+  pathogens?: PhaPathogenDetails[]
+}
+
+/** PHA: возбудитель (smcdo:PathogenDetails). */
+export interface PhaPathogenDetails {
+  /** Тип возбудителя (smsdo:PathogenKindName); справочник pathogenkind. */
+  pathogenKindName?: string
+  /** Наименование возбудителя (smsdo:PathogenName). */
+  pathogenName?: string
 }
 
 /** Элемент списка причинных уведомлений PHA (smcdo:IncidentAlertIdDetails): страна, рег. номер, вид, дата формирования. */

@@ -38,7 +38,7 @@ export interface AccessModalProps {
   data: AccessItem[]
   onClose: () => void
   onUpdate: (accessList: AccessItem[]) => void
-  /** При открытии карточки по DPAID — загрузка/сохранение в БД (SESDEV.TB_DEP, SESINT.DPADEPPERMIS) */
+  /** При открытии карточки по DPAID — загрузка/сохранение в БД (TB_DEP, DPADEPPERMIS) */
   dpaid?: string
   /** Источник сведений карты (Входящие / Исходящие / Данные ЕЭК) — для прав и списка по умолчанию */
   source?: string

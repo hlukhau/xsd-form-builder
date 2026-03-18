@@ -8,10 +8,13 @@ import { useIncidentAlertKindOptions } from '@/hooks/shared/useIncidentAlertKind
 import { useAuthorityOptions } from '@/hooks/shared/useAuthorityOptions'
 import { DATE_DISPLAY_FORMAT } from '@/constants/dateFormat'
 
-/** Коды вида для основного уведомления: версия 1 — 1,2; версия >1 — 3,4,5,6 (по признаку инфекционности уточняется на бэкенде). */
+/** Коды вида для основного уведомления: версия 1 — 1, 2 (справочник incidentalertkind). */
 const MAIN_KIND_CODES_VERSION_1 = ['1', '2']
-const MAIN_KIND_CODES_OTHER = ['3', '4', '5', '6']
-/** Коды вида для причинных уведомлений (IncidentAlertIdDetails). */
+/** Версия > 1: инфекционная (diseasehealthprobleminfectfl = 1) — 3, 5. */
+const MAIN_KIND_CODES_INFECTIOUS = ['3', '5']
+/** Версия > 1: неинфекционная (diseasehealthprobleminfectfl = 0) — 4, 6. */
+const MAIN_KIND_CODES_NON_INFECTIOUS = ['4', '6']
+/** Коды вида для причинных уведомлений (IncidentAlertIdDetails): 1, 2, 3, 4, 7, 8, 10, 11, 13, 14, 16, 17, 19. */
 const CAUSE_KIND_CODES = ['1', '2', '3', '4', '7', '8', '10', '11', '13', '14', '16', '17', '19']
 
 interface NotificationTabEditProps {
@@ -33,7 +36,16 @@ const NotificationTabEdit: React.FC<NotificationTabEditProps> = ({
   const { getSelectOptions: getAuthoritySelectOptions, getAuthorityByUid } = useAuthorityOptions(authorizedBodyCountryCode, true, undefined)
   const [selectedAuthorityUid, setSelectedAuthorityUid] = useState<string | undefined>(n.authorizedBody?.identifier)
 
-  const mainKindCodes = (data.version ?? 1) === 1 ? MAIN_KIND_CODES_VERSION_1 : MAIN_KIND_CODES_OTHER
+  const version = data.version ?? 1
+  const isVersion1 = version === 1
+  const infectiousFlag = data.phaFirstDiseaseInfectiousFlag
+  const mainKindCodes = isVersion1
+    ? MAIN_KIND_CODES_VERSION_1
+    : infectiousFlag === 1
+      ? MAIN_KIND_CODES_INFECTIOUS
+      : infectiousFlag === 0
+        ? MAIN_KIND_CODES_NON_INFECTIOUS
+        : ['3', '4', '5', '6']
   const mainKindOptions = getIncidentAlertKindSelectOptions().filter((o) => mainKindCodes.includes(String(o.value)))
   const causeKindOptions = getIncidentAlertKindSelectOptions().filter((o) => CAUSE_KIND_CODES.includes(String(o.value)))
 
@@ -92,6 +104,16 @@ const NotificationTabEdit: React.FC<NotificationTabEditProps> = ({
     })
   }
 
+  const setInfectiousFlag = (value: 0 | 1 | undefined) => {
+    const nextCodes = value === 1 ? MAIN_KIND_CODES_INFECTIOUS : value === 0 ? MAIN_KIND_CODES_NON_INFECTIOUS : ['3', '4', '5', '6']
+    const keepType = nextCodes.includes(String(n.type))
+    onChange({
+      ...data,
+      phaFirstDiseaseInfectiousFlag: value,
+      notification: { ...data.notification, type: keepType ? n.type : '' },
+    })
+  }
+
   const causeList = data.phaCauseNotifications ?? []
   const addCause = () => {
     onChange({
@@ -113,7 +135,7 @@ const NotificationTabEdit: React.FC<NotificationTabEditProps> = ({
 
   return (
     <Form form={form} layout="vertical" onValuesChange={handleFormValuesChange}>
-      <Form.Item label="Страна" name="country">
+      <Form.Item label="Страна" name="country" help="Страна регистрации случая (csdo:UnifiedCountryCode). Справочник стран (country, codeListId=2021).">
         <Select
           showSearch
           placeholder="Выберите страну"
@@ -122,25 +144,41 @@ const NotificationTabEdit: React.FC<NotificationTabEditProps> = ({
         />
       </Form.Item>
       <Form.Item label="Регистрационный номер" name="registrationNumber">
-        <Input readOnly={!!n.registrationNumber} />
+        <Input placeholder="smsdo:IncidentId" readOnly={!!n.registrationNumber} />
       </Form.Item>
-      <Form.Item label="Вид уведомления" name="type">
+      {!isVersion1 && (
+        <Form.Item label="Признак инфекционной болезни" help="Версия > 1: от этого зависят допустимые виды (3,5 или 4,6). По XSD: diseasehealthprobleminfectfl.">
+          <Select
+            placeholder="Выберите (инфекционная / неинфекционная)"
+            allowClear
+            value={infectiousFlag}
+            onChange={(v) => setInfectiousFlag(v as 0 | 1 | undefined)}
+            options={[
+              { value: 1, label: 'Инфекционная (вид 3, 5)' },
+              { value: 0, label: 'Неинфекционная (вид 4, 6)' },
+            ]}
+            style={{ width: '100%' }}
+          />
+        </Form.Item>
+      )}
+      <Form.Item label="Вид" name="type" help={isVersion1 ? 'Версия = 1: значения 1, 2. Справочник incidentalertkind.' : 'Версия > 1: 3, 5 (инфекционная) или 4, 6 (неинфекционная).'}>
         <Select
           showSearch
-          placeholder="Выберите вид"
+          placeholder="Вид уведомления (smsdo:IncidentKindCode)"
           options={mainKindOptions}
           filterOption={(input, option) => (option?.label ?? '').toLowerCase().includes(input.toLowerCase())}
         />
       </Form.Item>
-      <Form.Item label="Дата формирования" name="formationDate">
+      <Form.Item label="Дата формирования" name="formationDate" help="csdo:DocCreationDate. Заполняется текущей при отправке в ЕЭК.">
         <DatePicker format={DATE_DISPLAY_FORMAT} style={{ width: '100%' }} />
       </Form.Item>
-      <Form.Item label="Дата закрытия" name="endDate">
+      <Form.Item label="Дата закрытия" name="endDate" help="csdo:EndDate. Заполняется текущей при отправке в ЕЭК уведомления с видом 5 или 6, иначе пусто.">
         <DatePicker format={DATE_DISPLAY_FORMAT} style={{ width: '100%' }} allowClear />
       </Form.Item>
 
       <div style={{ marginTop: 16, padding: 12, border: '1px solid #d9d9d9', borderRadius: 4 }}>
-        <h4>Уполномоченный орган</h4>
+        <h4>Уполномоченный орган (ccdo:UnifiedAuthorityDetails)</h4>
+        <p style={{ fontSize: 12, color: '#8c8c8c', marginBottom: 8 }}>Для исходящих данных — справочник УО и КНО стран ЕАЭС (authority).</p>
         <Form.Item label="Страна">
           <Input readOnly value={authorizedBodyCountryCode ? getCountryDisplayLabel(authorizedBodyCountryCode) : '-'} />
         </Form.Item>
@@ -165,8 +203,8 @@ const NotificationTabEdit: React.FC<NotificationTabEditProps> = ({
       </div>
 
       <div style={{ marginTop: 24 }}>
-        <h4>Уведомления, являющиеся причиной</h4>
-        <p style={{ fontSize: 12, color: '#8c8c8c' }}>Вид: коды 1, 2, 3, 4, 7, 8, 10, 11, 13, 14, 16, 17, 19</p>
+        <h4>Информация по уведомлениям, являющимся причиной (smcdo:IncidentAlertIdDetails)</h4>
+        <p style={{ fontSize: 12, color: '#8c8c8c' }}>Вид: справочник incidentalertkind — 1, 2, 3, 4, 7, 8, 10, 11, 13, 14, 16, 17, 19.</p>
         <Button type="dashed" icon={<PlusOutlined />} onClick={addCause} style={{ marginBottom: 8 }}>
           Добавить
         </Button>

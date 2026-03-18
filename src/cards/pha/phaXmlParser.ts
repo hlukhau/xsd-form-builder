@@ -8,8 +8,9 @@
  * - smcdo:IncidentAlertIdDetails (IncidentAlertIdDetailsType): UnifiedCountryCode, IncidentId, IncidentKindCode, DocCreationDate.
  */
 
-import type { CardData, ElectronicDocument } from '@/types/card'
+import type { CardData, ElectronicDocument, PhaDiseaseDetails, PhaPathogenDetails, PhaPatientGroupItem } from '@/types/card'
 import { createNewCardData } from '@/utils/newCardData'
+import { parseDetectionPlaceDetails } from '@/utils/xmlParser'
 
 /** Извлекает текст первого найденного потомка по локальному имени (без учёта namespace). */
 function getTextByLocalName(parent: Element | null, localName: string): string | null {
@@ -122,6 +123,69 @@ export function parsePhaXmlToCardData(xmlText: string): CardData {
     formationDate: getTextByLocalName(el, 'DocCreationDate')?.trim() || '',
   }))
 
+  // smcdo:PublicHealthIncidentDetails — сведения о болезни (DiseaseHealthProblemDetails, EventDate, EndDate, CrossborderSpreadRiskIndicator, PathogenDetails).
+  let phaDisease: PhaDiseaseDetails | undefined
+  const incidentDetails = findElementByLocalName(firstCaseBlock, 'PublicHealthIncidentDetails')
+  if (incidentDetails) {
+    const diseaseBlock = findElementByLocalName(incidentDetails, 'DiseaseHealthProblemDetails')
+    const diseaseCode = diseaseBlock ? getTextByLocalName(diseaseBlock, 'DiseaseHealthProblemCode')?.trim() : undefined
+    const diseaseName = diseaseBlock ? getTextByLocalName(diseaseBlock, 'DiseaseHealthProblemName')?.trim() : undefined
+    const eventDate = getTextByLocalName(incidentDetails, 'EventDate')?.trim()
+    const incidentEndDate = getTextByLocalName(incidentDetails, 'EndDate')?.trim()
+    const crossborderRaw = getTextByLocalName(incidentDetails, 'CrossborderSpreadRiskIndicator')?.trim()
+    const crossborderSpreadRiskIndicator: 0 | 1 | undefined =
+      crossborderRaw === '1' ? 1 : crossborderRaw === '0' ? 0 : undefined
+
+    const pathogenNodes = diseaseBlock ? findAllElementsByLocalName(diseaseBlock, 'PathogenDetails') : []
+    const pathogens: PhaPathogenDetails[] = pathogenNodes.map((el) => ({
+      pathogenKindName: getTextByLocalName(el, 'PathogenKindName')?.trim(),
+      pathogenName: getTextByLocalName(el, 'PathogenName')?.trim(),
+    }))
+
+    phaDisease = {
+      diseaseCode: diseaseCode || undefined,
+      diseaseName: diseaseName || undefined,
+      firstCaseDate: eventDate || undefined,
+      lastCaseDate: incidentEndDate || undefined,
+      crossborderSpreadRiskIndicator,
+      pathogens: pathogens.length > 0 ? pathogens : undefined,
+    }
+  }
+
+  // smcdo:DetectionPlaceDetails — внутри PublicHealthIncidentDetails.
+  let detectionPlace = incidentDetails
+    ? (() => {
+        const placeEl = findElementByLocalName(incidentDetails, 'DetectionPlaceDetails')
+        return placeEl ? parseDetectionPlaceDetails(placeEl) : undefined
+      })()
+    : undefined
+
+  // smcdo:SpreadingZoneDetails — внутри PublicHealthIncidentDetails (0..n, берём первый; тот же LocationDetailsType).
+  let spreadingZone = incidentDetails
+    ? (() => {
+        const zoneEl = findElementByLocalName(incidentDetails, 'SpreadingZoneDetails')
+        return zoneEl ? parseDetectionPlaceDetails(zoneEl) : undefined
+      })()
+    : undefined
+
+  // smcdo:PatientGroupDetails — внутри PublicHealthIncidentDetails (0..n).
+  let phaPatientGroups: PhaPatientGroupItem[] | undefined
+  if (incidentDetails) {
+    const groupNodes = findAllElementsByLocalName(incidentDetails, 'PatientGroupDetails')
+    phaPatientGroups = groupNodes.map((el) => {
+      const labRaw = getTextByLocalName(el, 'LaboratoryConfirmedIndicator')?.trim()
+      const laboratoryConfirmedIndicator: 0 | 1 | undefined =
+        labRaw === '1' ? 1 : labRaw === '0' ? 0 : undefined
+      return {
+        personQuantity: getTextByLocalName(el, 'PersonQuantity')?.trim(),
+        ageGroupCode: getTextByLocalName(el, 'AgeGroupCode')?.trim(),
+        diseaseOutcomeCode: getTextByLocalName(el, 'DiseaseOutcomeCode')?.trim(),
+        laboratoryConfirmedIndicator: laboratoryConfirmedIndicator ?? undefined,
+      }
+    })
+    if (phaPatientGroups.length === 0) phaPatientGroups = undefined
+  }
+
   const base = createNewCardData(country, { registrationNumber: registrationNumber || undefined })
 
   const cardData: CardData = {
@@ -139,6 +203,10 @@ export function parsePhaXmlToCardData(xmlText: string): CardData {
       authorizedBody,
     },
     phaCauseNotifications: phaCauseNotifications.length > 0 ? phaCauseNotifications : undefined,
+    phaDisease: phaDisease ?? undefined,
+    phaPatientGroups: phaPatientGroups ?? undefined,
+    detectionPlace: detectionPlace ?? undefined,
+    spreadingZone: spreadingZone ?? undefined,
   }
 
   return cardData

@@ -7,11 +7,13 @@ import {
   NotificationTab,
   NotificationTabEdit,
   DiseaseTab,
+  DiseaseTabEdit,
   PatientGroupTab,
-  DetectionPlaceTab,
-  SpreadZoneTab,
+  PatientGroupTabEdit,
   SanitaryMeasuresTab,
 } from '@/components/tabs/pha'
+import DetectionPlaceTab from '@/components/tabs/dpa/DetectionPlaceTab'
+import DetectionPlaceTabEdit from '@/components/tabs/dpa/DetectionPlaceTabEdit'
 import { savePhaCard } from '@/cards/pha/phaApi'
 import { exportPhaCardDataToXML } from '@/cards/pha/phaXmlExporter'
 import { parsePhaXmlToCardData } from '@/cards/pha/phaXmlParser'
@@ -35,10 +37,10 @@ interface PhaCardProps {
 
 const PHA_TABS = [
   { key: 'notification', label: 'Уведомление', view: NotificationTab, edit: NotificationTabEdit },
-  { key: 'disease', label: 'Болезнь', view: DiseaseTab },
-  { key: 'patientGroup', label: 'Группа пациентов', view: PatientGroupTab },
-  { key: 'detectionPlace', label: 'Место обнаружения', view: DetectionPlaceTab },
-  { key: 'spreadZone', label: 'Зона распространения', view: SpreadZoneTab },
+  { key: 'disease', label: 'Болезнь', view: DiseaseTab, edit: DiseaseTabEdit },
+  { key: 'patientGroup', label: 'Группа пациентов', view: PatientGroupTab, edit: PatientGroupTabEdit },
+  { key: 'detectionPlace', label: 'Место обнаружения', view: DetectionPlaceTab, edit: DetectionPlaceTabEdit },
+  { key: 'spreadZone', label: 'Зона распространения', view: DetectionPlaceTab, edit: DetectionPlaceTabEdit },
   { key: 'sanitaryMeasures', label: 'Санитарные меры', view: SanitaryMeasuresTab },
 ]
 
@@ -56,14 +58,20 @@ const PhaCard: React.FC<PhaCardProps> = ({ data, phaid = '', guid, originalXML, 
   const [statusHistoryVisible, setStatusHistoryVisible] = useState(false)
   const [electronicDocumentVisible, setElectronicDocumentVisible] = useState(false)
 
+  // Обновляем editedData только при смене карты (другой registrationNumber/version), чтобы не терять правки при переключении в режим просмотра
   useEffect(() => {
-    setEditedData(data)
-  }, [data])
+    if (
+      data.registrationNumber !== editedData.registrationNumber ||
+      (data.version !== undefined && data.version !== editedData.version)
+    ) {
+      setEditedData(data)
+    }
+  }, [data, data.registrationNumber, data.version, editedData.registrationNumber, editedData.version])
 
-  const currentData = isEditMode ? editedData : data
+  // Как в DPA: для отображения всегда используем editedData, чтобы правки сохранялись при переключении вкладок и режима просмотра
+  const currentData = editedData
 
   const handleSwitchEdit = (checked: boolean) => {
-    if (!checked) setEditedData(data)
     setIsEditMode(checked)
   }
 
@@ -119,15 +127,40 @@ const PhaCard: React.FC<PhaCardProps> = ({ data, phaid = '', guid, originalXML, 
   const tabItems = PHA_TABS.map((item) => {
     const TabView = item.view
     const EditComponent = 'edit' in item ? item.edit : null
-    const children = isEditMode && item.key === 'notification' && EditComponent
-      ? (
-        <EditComponent
-          data={currentData}
-          onChange={setEditedData}
-          isNewCard={phaid === '-' || !phaid}
-        />
+    let children: React.ReactNode
+    if (isEditMode && EditComponent) {
+      if (item.key === 'detectionPlace') {
+        children = (
+          <EditComponent
+            data={currentData.detectionPlace ?? {}}
+            onChange={(place) => setEditedData((prev) => ({ ...prev, detectionPlace: place }))}
+          />
         )
-      : <TabView data={currentData} />
+      } else if (item.key === 'spreadZone') {
+        children = (
+          <EditComponent
+            data={currentData.spreadingZone ?? {}}
+            onChange={(zone) => setEditedData((prev) => ({ ...prev, spreadingZone: zone }))}
+          />
+        )
+      } else {
+        children = (
+          <EditComponent
+            data={currentData}
+            onChange={setEditedData}
+            {...(item.key === 'notification' ? { isNewCard: phaid === '-' || !phaid } : {})}
+          />
+        )
+      }
+    } else {
+      if (item.key === 'detectionPlace') {
+        children = <TabView data={currentData.detectionPlace} />
+      } else if (item.key === 'spreadZone') {
+        children = <TabView data={currentData.spreadingZone} />
+      } else {
+        children = <TabView data={currentData} />
+      }
+    }
     return { key: item.key, label: item.label, children }
   })
 

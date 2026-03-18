@@ -893,4 +893,22 @@ body {
   white-space: normal;
 }
 
+/* Счётчик символов (showCount) у TextArea — внутри поля в правом нижнем углу везде (DPA, PHA) */
+.ant-input-textarea-affix-wrapper.ant-input-textarea-show-count {
+  position: relative !important;
+}
+.ant-input-textarea-affix-wrapper.ant-input-textarea-show-count > textarea.ant-input {
+  padding-bottom: 28px !important;
+}
+.ant-input-textarea-affix-wrapper.ant-input-textarea-show-count .ant-input-data-count,
+.ant-input-textarea-affix-wrapper.ant-input-textarea-show-count .ant-input-textarea-suffix {
+  position: absolute !important;
+  bottom: 8px !important;
+  top: auto !important;
+  inset-inline-end: 12px !important;
+  inset-inline-start: auto !important;
+  margin: 0 !important;
+  line-height: 1 !important;
+  transform: none !important;
+}
 

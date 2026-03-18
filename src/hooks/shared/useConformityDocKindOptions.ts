@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react'
 import { getConformityDocKindOptions, type ConformityDocKindOption } from '@/utils/referenceDataApi'
 
 /**
- * Хук для загрузки справочника видов документов об оценке соответствия (SESINT.CONFDOCKIND, codeListId=2001)
+ * Хук для загрузки справочника видов документов об оценке соответствия (CONFDOCKIND, codeListId=2001)
  */
 export function useConformityDocKindOptions() {
   const [options, setOptions] = useState<ConformityDocKindOption[]>([])

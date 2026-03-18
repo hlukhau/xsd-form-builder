@@ -74,6 +74,16 @@ public class DictionaryCache {
     // Кеш видов документов, удостоверяющих личность (IDENTITYDOCKIND, codeListId=2053)
     private static final List<IdentityDocKindOption> identityDocKindsListCache = new ArrayList<>();
     
+    // Справочники PHA: DISEASEHEALTHPROBLEM, PATHOGENKIND, AGEGR, DISEASEOUTCOME
+    private static final List<DiseaseHealthProblemOption> diseaseHealthProblemListCache = new ArrayList<>();
+    private static final List<PathogenKindOption> pathogenKindListCache = new ArrayList<>();
+    private static final List<AgeGroupOption> ageGroupListCache = new ArrayList<>();
+    private static final List<DiseaseOutcomeOption> diseaseOutcomeListCache = new ArrayList<>();
+    private static volatile boolean diseaseHealthProblemLoaded = false;
+    private static volatile boolean pathogenKindLoaded = false;
+    private static volatile boolean ageGroupLoaded = false;
+    private static volatile boolean diseaseOutcomeLoaded = false;
+    
     // Флаги загрузки
     private static volatile boolean countriesLoaded = false;
     private static volatile boolean borderCheckpointsLoaded = false;
@@ -348,6 +358,43 @@ public class DictionaryCache {
         public String name;
         
         public IdentityDocKindOption(String code, String name) {
+            this.code = code != null ? code : "";
+            this.name = name != null ? name : "";
+        }
+    }
+    
+    /** Опция справочника болезней (DISEASEHEALTHPROBLEM) */
+    public static class DiseaseHealthProblemOption {
+        public String code;
+        public String name;
+        public DiseaseHealthProblemOption(String code, String name) {
+            this.code = code != null ? code : "";
+            this.name = name != null ? name : "";
+        }
+    }
+    /** Опция справочника видов возбудителей (PATHOGENKIND) */
+    public static class PathogenKindOption {
+        public String code;
+        public String name;
+        public PathogenKindOption(String code, String name) {
+            this.code = code != null ? code : "";
+            this.name = name != null ? name : "";
+        }
+    }
+    /** Опция справочника возрастных групп (AGEGR) */
+    public static class AgeGroupOption {
+        public String code;
+        public String name;
+        public AgeGroupOption(String code, String name) {
+            this.code = code != null ? code : "";
+            this.name = name != null ? name : "";
+        }
+    }
+    /** Опция справочника исходов болезни (DISEASEOUTCOME) */
+    public static class DiseaseOutcomeOption {
+        public String code;
+        public String name;
+        public DiseaseOutcomeOption(String code, String name) {
             this.code = code != null ? code : "";
             this.name = name != null ? name : "";
         }
@@ -1087,5 +1134,79 @@ public class DictionaryCache {
     public static boolean isIdentityDocKindsLoaded() {
         return identityDocKindsLoaded;
     }
+    
+    // ========== Справочники PHA (DISEASEHEALTHPROBLEM, PATHOGENKIND, AGEGR, DISEASEOUTCOME) ==========
+    
+    public static void clearDiseaseHealthProblemCache() {
+        synchronized (diseaseHealthProblemListCache) {
+            diseaseHealthProblemListCache.clear();
+            diseaseHealthProblemLoaded = false;
+        }
+    }
+    public static void setDiseaseHealthProblemCache(List<DiseaseHealthProblemOption> list) {
+        synchronized (diseaseHealthProblemListCache) {
+            diseaseHealthProblemListCache.clear();
+            diseaseHealthProblemListCache.addAll(list);
+            diseaseHealthProblemLoaded = true;
+        }
+    }
+    public static List<DiseaseHealthProblemOption> getDiseaseHealthProblemList() {
+        synchronized (diseaseHealthProblemListCache) { return new ArrayList<>(diseaseHealthProblemListCache); }
+    }
+    public static boolean isDiseaseHealthProblemLoaded() { return diseaseHealthProblemLoaded; }
+    
+    public static void clearPathogenKindCache() {
+        synchronized (pathogenKindListCache) {
+            pathogenKindListCache.clear();
+            pathogenKindLoaded = false;
+        }
+    }
+    public static void setPathogenKindCache(List<PathogenKindOption> list) {
+        synchronized (pathogenKindListCache) {
+            pathogenKindListCache.clear();
+            pathogenKindListCache.addAll(list);
+            pathogenKindLoaded = true;
+        }
+    }
+    public static List<PathogenKindOption> getPathogenKindList() {
+        synchronized (pathogenKindListCache) { return new ArrayList<>(pathogenKindListCache); }
+    }
+    public static boolean isPathogenKindLoaded() { return pathogenKindLoaded; }
+    
+    public static void clearAgeGroupCache() {
+        synchronized (ageGroupListCache) {
+            ageGroupListCache.clear();
+            ageGroupLoaded = false;
+        }
+    }
+    public static void setAgeGroupCache(List<AgeGroupOption> list) {
+        synchronized (ageGroupListCache) {
+            ageGroupListCache.clear();
+            ageGroupListCache.addAll(list);
+            ageGroupLoaded = true;
+        }
+    }
+    public static List<AgeGroupOption> getAgeGroupList() {
+        synchronized (ageGroupListCache) { return new ArrayList<>(ageGroupListCache); }
+    }
+    public static boolean isAgeGroupLoaded() { return ageGroupLoaded; }
+    
+    public static void clearDiseaseOutcomeCache() {
+        synchronized (diseaseOutcomeListCache) {
+            diseaseOutcomeListCache.clear();
+            diseaseOutcomeLoaded = false;
+        }
+    }
+    public static void setDiseaseOutcomeCache(List<DiseaseOutcomeOption> list) {
+        synchronized (diseaseOutcomeListCache) {
+            diseaseOutcomeListCache.clear();
+            diseaseOutcomeListCache.addAll(list);
+            diseaseOutcomeLoaded = true;
+        }
+    }
+    public static List<DiseaseOutcomeOption> getDiseaseOutcomeList() {
+        synchronized (diseaseOutcomeListCache) { return new ArrayList<>(diseaseOutcomeListCache); }
+    }
+    public static boolean isDiseaseOutcomeLoaded() { return diseaseOutcomeLoaded; }
 }
 

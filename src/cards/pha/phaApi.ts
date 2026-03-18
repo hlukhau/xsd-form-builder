@@ -33,6 +33,8 @@ export async function fetchPhaMetadata(phaid: string, guid?: string): Promise<{
   incidentId: string
   phaVersion: number
   alertCountryCode?: string
+  /** Источник: Входящие сведения, Исходящие сведения, Данные ЕЭК (VW_PHA + DATASOURCEKIND) */
+  dataSourceKindName?: string
   creationDateTime?: string
   modificationDateTime?: string
   phaStatusName?: string

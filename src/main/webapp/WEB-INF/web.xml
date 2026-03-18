@@ -242,6 +242,40 @@
         <url-pattern>/api/media-types/options</url-pattern>
     </servlet-mapping>
 
+    <!-- Справочники PHA: болезни, возбудители, возрастные группы, исходы болезни -->
+    <servlet>
+        <servlet-name>DiseaseHealthProblemOptionsServlet</servlet-name>
+        <servlet-class>com.eec.servlet.DiseaseHealthProblemOptionsServlet</servlet-class>
+    </servlet>
+    <servlet-mapping>
+        <servlet-name>DiseaseHealthProblemOptionsServlet</servlet-name>
+        <url-pattern>/api/disease-health-problem/options</url-pattern>
+    </servlet-mapping>
+    <servlet>
+        <servlet-name>PathogenKindOptionsServlet</servlet-name>
+        <servlet-class>com.eec.servlet.PathogenKindOptionsServlet</servlet-class>
+    </servlet>
+    <servlet-mapping>
+        <servlet-name>PathogenKindOptionsServlet</servlet-name>
+        <url-pattern>/api/pathogen-kind/options</url-pattern>
+    </servlet-mapping>
+    <servlet>
+        <servlet-name>AgeGroupOptionsServlet</servlet-name>
+        <servlet-class>com.eec.servlet.AgeGroupOptionsServlet</servlet-class>
+    </servlet>
+    <servlet-mapping>
+        <servlet-name>AgeGroupOptionsServlet</servlet-name>
+        <url-pattern>/api/age-group/options</url-pattern>
+    </servlet-mapping>
+    <servlet>
+        <servlet-name>DiseaseOutcomeOptionsServlet</servlet-name>
+        <servlet-class>com.eec.servlet.DiseaseOutcomeOptionsServlet</servlet-class>
+    </servlet>
+    <servlet-mapping>
+        <servlet-name>DiseaseOutcomeOptionsServlet</servlet-name>
+        <url-pattern>/api/disease-outcome/options</url-pattern>
+    </servlet-mapping>
+
     <!-- Проверка прав доступа (id — опциональный параметр запроса) -->
     <servlet>
         <servlet-name>AccessCheckServlet</servlet-name>
@@ -312,7 +346,7 @@
         <url-pattern>/api/dpa/electronic-docs/*</url-pattern>
     </servlet-mapping>
 
-    <!-- Подразделения (SESDEV.TB_DEP) для выбора в «Определить доступ» -->
+    <!-- Подразделения (TB_DEP) для выбора в «Определить доступ» -->
     <servlet>
         <servlet-name>DepOptionsServlet</servlet-name>
         <servlet-class>com.eec.servlet.DepOptionsServlet</servlet-class>
@@ -332,7 +366,7 @@
         <url-pattern>/api/dep/info</url-pattern>
     </servlet-mapping>
 
-    <!-- Доступ по DPAID: подразделения, связь SESINT.DPADEPPERMIS(DPAID, DEPID) -->
+    <!-- Доступ по DPAID: подразделения, связь DPADEPPERMIS(DPAID, DEPID) -->
     <servlet>
         <servlet-name>DpaAccessServlet</servlet-name>
         <servlet-class>com.eec.servlet.DpaAccessServlet</servlet-class>

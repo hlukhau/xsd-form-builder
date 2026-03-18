@@ -276,6 +276,8 @@ export function compareCardData(original: CardData, exported: CardData): {
   
   // Сравниваем detectionPlace
   compareValue('detectionPlace', original.detectionPlace, exported.detectionPlace)
+  // Сравниваем spreadingZone (PHA)
+  compareValue('spreadingZone', original.spreadingZone, exported.spreadingZone)
   
   // Сравниваем measures
   compareValue('measures', original.measures, exported.measures)
@@ -357,6 +359,7 @@ export function getCardDataReview(data: CardData): { filled: string[]; unfilled:
   walk('product', data.product)
   walk('tsd', data.tsd)
   walk('detectionPlace', data.detectionPlace)
+  walk('spreadingZone', data.spreadingZone)
   walk('measures', data.measures)
   walk('electronicDocument', data.electronicDocument)
   walk('statusHistory', data.statusHistory)

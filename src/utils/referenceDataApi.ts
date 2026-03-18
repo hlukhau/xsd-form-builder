@@ -7,6 +7,15 @@ import type { CardData } from '@/types/card'
 
 const BASE_URL = import.meta.env.BASE_URL || '/'
 
+/**
+ * Базовый URL для запросов общих справочников (countries, border-checkpoints, identification-methods и т.д.).
+ * При сборке PHA (base содержит xsd_form_builder_57) используем эндпоинты DPA, чтобы не дублировать код и данные.
+ */
+function getReferenceDataBaseUrl(): string {
+  if (BASE_URL.includes('xsd_form_builder_57')) return '/xsd_form_builder/'
+  return BASE_URL
+}
+
 const DICT_LOADING_KEY = 'dict-loading'
 const DICT_LOADING_DELAY_MS = 500
 let dictLoadingCount = 0
@@ -355,7 +364,7 @@ export async function fetchDpaXml(dpaid: string, guid?: string): Promise<string>
   return response.text()
 }
 
-/** Метаданные шапки карты из VW_DPA (GET /api/dpa/metadata/{DPAID}). УО — из БД (DPA.AUTHORITYID → SESINT.AUTHORITY). */
+/** Метаданные шапки карты из VW_DPA (GET /api/dpa/metadata/{DPAID}). УО — из БД (DPA.AUTHORITYID → AUTHORITY). */
 export interface DpaMetadata {
   incidentId: string | null
   /** Код страны из справочника COUNTRY (BY, RU, ...) */
@@ -447,7 +456,7 @@ export async function fetchDpaElectronicDocs(dpaid: string, guid?: string): Prom
  */
 export async function getCountries(): Promise<Country[]> {
   try {
-    const response = await fetch(withGuidUrl(`${BASE_URL}api/countries`))
+    const response = await fetch(withGuidUrl(`${getReferenceDataBaseUrl()}api/countries`))
     if (!response.ok) {
       throw new Error(`Ошибка загрузки стран: ${response.statusText}`)
     }
@@ -464,7 +473,7 @@ export async function getCountries(): Promise<Country[]> {
 export async function getCountryOptions(): Promise<CountryOption[]> {
   dictionaryLoadingStart()
   try {
-    const response = await fetch(withGuidUrl(`${BASE_URL}api/countries/options`))
+    const response = await fetch(withGuidUrl(`${getReferenceDataBaseUrl()}api/countries/options`))
     if (!response.ok) {
       throw new Error(`Ошибка загрузки опций стран: ${response.statusText}`)
     }
@@ -478,13 +487,13 @@ export async function getCountryOptions(): Promise<CountryOption[]> {
 }
 
 /**
- * Получить опции для выпадающего списка пунктов пропуска (SESINT.BORDERCHECKPOINT).
+ * Получить опции для выпадающего списка пунктов пропуска (BORDERCHECKPOINT).
  * Отображать в виде &lt;код&gt;-&lt;наименование&gt;.
  */
 export async function getBorderCheckpointOptions(): Promise<BorderCheckpointOption[]> {
   dictionaryLoadingStart()
   try {
-    const response = await fetch(withGuidUrl(`${BASE_URL}api/border-checkpoints/options`))
+    const response = await fetch(withGuidUrl(`${getReferenceDataBaseUrl()}api/border-checkpoints/options`))
     if (!response.ok) {
       if (response.status === 404) return []
       throw new Error(`Ошибка загрузки опций пунктов пропуска: ${response.statusText}`)
@@ -501,7 +510,7 @@ export async function getBorderCheckpointOptions(): Promise<BorderCheckpointOpti
 export async function getCommunicationChannelOptions(): Promise<CommunicationChannelOption[]> {
   dictionaryLoadingStart()
   try {
-    const response = await fetch(withGuidUrl(`${BASE_URL}api/communication-channels/options`))
+    const response = await fetch(withGuidUrl(`${getReferenceDataBaseUrl()}api/communication-channels/options`))
     if (!response.ok) {
       throw new Error(`Ошибка загрузки опций видов контакта: ${response.statusText}`)
     }
@@ -519,7 +528,7 @@ export async function getCommunicationChannelOptions(): Promise<CommunicationCha
  */
 export async function getCountryByCode(code: string): Promise<Country | null> {
   try {
-    const response = await fetch(withGuidUrl(`${BASE_URL}api/countries/${code}`))
+    const response = await fetch(withGuidUrl(`${getReferenceDataBaseUrl()}api/countries/${code}`))
     if (!response.ok) {
       if (response.status === 404) {
         return null
@@ -541,7 +550,7 @@ export async function checkCountryExists(code: string): Promise<boolean> {
     return false
   }
   try {
-    const response = await fetch(withGuidUrl(`${BASE_URL}api/countries/${code}/exists`))
+    const response = await fetch(withGuidUrl(`${getReferenceDataBaseUrl()}api/countries/${code}/exists`))
     if (!response.ok) {
       return false
     }
@@ -559,7 +568,7 @@ export async function checkCountryExists(code: string): Promise<boolean> {
 export async function getIncidentAlertKindOptions(): Promise<IncidentAlertKindOption[]> {
   dictionaryLoadingStart()
   try {
-    const response = await fetch(withGuidUrl(`${BASE_URL}api/incident-alert-kinds/options`))
+    const response = await fetch(withGuidUrl(`${getReferenceDataBaseUrl()}api/incident-alert-kinds/options`))
     if (!response.ok) {
       throw new Error(`Ошибка загрузки опций видов уведомлений: ${response.statusText}`)
     }
@@ -695,7 +704,7 @@ export async function requestLabProtocols(
   return data as LabProtocolsResponse
 }
 
-/** Список доступа по DPAID (SESINT.DPADEPPERMIS + TB_DEP + TB_DEPKIND) — GET /api/dpa/access?dpaid=...&source=incoming|outgoing|eec&creatorDepId=... */
+/** Список доступа по DPAID (DPADEPPERMIS + TB_DEP + TB_DEPKIND) — GET /api/dpa/access?dpaid=...&source=incoming|outgoing|eec&creatorDepId=... */
 export interface AccessItemDto {
   id: string
   name: string
@@ -858,7 +867,7 @@ export async function changeDpaStatus(
   return response.json()
 }
 
-/** Подразделение из SESDEV.TB_DEP + TB_DEPKIND (DEPKINDCODE) — GET /api/dep/options */
+/** Подразделение из TB_DEP + TB_DEPKIND (DEPKINDCODE) — GET /api/dep/options */
 export interface DepOption {
   id: string
   name: string
@@ -868,7 +877,7 @@ export interface DepOption {
 export async function fetchDepOptions(): Promise<DepOption[]> {
   dictionaryLoadingStart()
   try {
-    const response = await fetch(withGuidUrl(`${BASE_URL}api/dep/options`))
+    const response = await fetch(withGuidUrl(`${getReferenceDataBaseUrl()}api/dep/options`))
     if (!response.ok) {
       const text = await response.text()
       let errMsg = response.statusText
@@ -906,7 +915,7 @@ export async function getAuthorityOptions(
       params.set('depIds', createKeys.join(','))
     }
     const qs = params.toString()
-    const url = qs ? `${BASE_URL}api/authorities/options?${qs}` : `${BASE_URL}api/authorities/options`
+    const url = qs ? `${getReferenceDataBaseUrl()}api/authorities/options?${qs}` : `${getReferenceDataBaseUrl()}api/authorities/options`
     const response = await fetch(url)
     if (!response.ok) {
       throw new Error(`Ошибка загрузки опций уполномоченных органов: ${response.statusText}`)
@@ -926,7 +935,7 @@ export async function getAuthorityOptions(
 export async function getSanitaryProdTypeOptions(): Promise<SanitaryProdTypeOption[]> {
   dictionaryLoadingStart()
   try {
-    const response = await fetch(withGuidUrl(`${BASE_URL}api/sanitary-prod-types/options`))
+    const response = await fetch(withGuidUrl(`${getReferenceDataBaseUrl()}api/sanitary-prod-types/options`))
     if (!response.ok) {
       throw new Error(`Ошибка загрузки опций типов санитарной продукции: ${response.statusText}`)
     }
@@ -978,7 +987,7 @@ export async function getSanitaryProdTypeNameByCode(code: string): Promise<strin
 export async function getMeasurementUnitOptions(): Promise<MeasurementUnitOption[]> {
   dictionaryLoadingStart()
   try {
-    const response = await fetch(withGuidUrl(`${BASE_URL}api/measurement-units/options`))
+    const response = await fetch(withGuidUrl(`${getReferenceDataBaseUrl()}api/measurement-units/options`))
     if (!response.ok) {
       throw new Error(`Ошибка загрузки опций единиц измерения: ${response.statusText}`)
     }
@@ -1013,7 +1022,7 @@ export async function getMeasurementUnitByCode(code: string): Promise<Measuremen
 export async function getShipDocKindOptions(): Promise<ShipDocKindOption[]> {
   dictionaryLoadingStart()
   try {
-    const response = await fetch(withGuidUrl(`${BASE_URL}api/ship-doc-kinds/options`))
+    const response = await fetch(withGuidUrl(`${getReferenceDataBaseUrl()}api/ship-doc-kinds/options`))
     if (!response.ok) {
       throw new Error(`Ошибка загрузки опций видов товаросопроводительных документов: ${response.statusText}`)
     }
@@ -1026,7 +1035,7 @@ export async function getShipDocKindOptions(): Promise<ShipDocKindOption[]> {
   }
 }
 
-/** Опция справочника видов документов об оценке соответствия (SESINT.CONFDOCKIND, codeListId=2001) */
+/** Опция справочника видов документов об оценке соответствия (CONFDOCKIND, codeListId=2001) */
 export interface ConformityDocKindOption {
   code: string   // CONFDOCKINDCODE
   name: string  // CONFDOCKINDNAME
@@ -1034,7 +1043,7 @@ export interface ConformityDocKindOption {
 }
 
 /**
- * Опция справочника видов документов, удостоверяющих личность (SESINT.IDENTITYDOCKIND, codeListId=2053)
+ * Опция справочника видов документов, удостоверяющих личность (IDENTITYDOCKIND, codeListId=2053)
  */
 export interface IdentityDocKindOption {
   code: string
@@ -1047,7 +1056,7 @@ export interface IdentityDocKindOption {
 export async function getIdentityDocKindOptions(): Promise<IdentityDocKindOption[]> {
   dictionaryLoadingStart()
   try {
-    const response = await fetch(withGuidUrl(`${BASE_URL}api/identity-doc-kinds/options`))
+    const response = await fetch(withGuidUrl(`${getReferenceDataBaseUrl()}api/identity-doc-kinds/options`))
     if (!response.ok) {
       throw new Error(`Ошибка загрузки опций видов документов, удостоверяющих личность: ${response.statusText}`)
     }
@@ -1066,7 +1075,7 @@ export async function getIdentityDocKindOptions(): Promise<IdentityDocKindOption
 export async function getConformityDocKindOptions(): Promise<ConformityDocKindOption[]> {
   dictionaryLoadingStart()
   try {
-    const response = await fetch(withGuidUrl(`${BASE_URL}api/conformity-doc-kinds/options`))
+    const response = await fetch(withGuidUrl(`${getReferenceDataBaseUrl()}api/conformity-doc-kinds/options`))
     if (!response.ok) {
       throw new Error(`Ошибка загрузки опций видов документов об оценке соответствия: ${response.statusText}`)
     }
@@ -1112,7 +1121,7 @@ export async function getShipDocKindNameByCode(code: string): Promise<string | n
   }
 }
 
-/** Опция справочника организационно-правовых форм (SESINT.LEGALFORM, codeListId=2049) */
+/** Опция справочника организационно-правовых форм (LEGALFORM, codeListId=2049) */
 export interface LegalFormOption {
   code: string   // LEGALFORMCODE
   name: string   // LEGALFORMNAME
@@ -1128,7 +1137,7 @@ export async function getLegalFormOptions(countryCode?: string): Promise<LegalFo
     const params = withGuidParams(new URLSearchParams())
     if (countryCode) params.set('countryCode', countryCode)
     const qs = params.toString()
-    const url = qs ? `${BASE_URL}api/legal-forms/options?${qs}` : `${BASE_URL}api/legal-forms/options`
+    const url = qs ? `${getReferenceDataBaseUrl()}api/legal-forms/options?${qs}` : `${getReferenceDataBaseUrl()}api/legal-forms/options`
     const response = await fetch(url)
     if (!response.ok) {
       throw new Error(`Ошибка загрузки опций организационно-правовых форм: ${response.statusText}`)
@@ -1157,7 +1166,7 @@ export async function getLegalFormNameByCode(code: string, countryCode?: string)
   }
 }
 
-/** Опция справочника методов идентификации (SESINT.BUSENTKIND, kindId/codeListId=1033) */
+/** Опция справочника методов идентификации (BUSENTKIND, kindId/codeListId=1033) */
 export interface IdentificationMethodOption {
   code: string             // BUSENTKINDCODE (kindId)
   letterCode?: string     // BUSENTKINDLETTERCODE — буквенное обозначение
@@ -1165,7 +1174,7 @@ export interface IdentificationMethodOption {
 }
 
 /**
- * Получить опции справочника методов идентификации (SESINT.BUSENTKIND).
+ * Получить опции справочника методов идентификации (BUSENTKIND).
  * @param countryCode - код страны (COUNTRYCODE); при указании справочник фильтруется по стране
  */
 export async function getIdentificationMethodOptions(countryCode?: string): Promise<IdentificationMethodOption[]> {
@@ -1174,7 +1183,7 @@ export async function getIdentificationMethodOptions(countryCode?: string): Prom
     const params = withGuidParams(new URLSearchParams())
     if (countryCode) params.set('countryCode', countryCode)
     const qs = params.toString()
-    const url = qs ? `${BASE_URL}api/identification-methods/options?${qs}` : `${BASE_URL}api/identification-methods/options`
+    const url = qs ? `${getReferenceDataBaseUrl()}api/identification-methods/options?${qs}` : `${getReferenceDataBaseUrl()}api/identification-methods/options`
     const response = await fetch(url)
     if (!response.ok) {
       throw new Error(`Ошибка загрузки опций методов идентификации: ${response.statusText}`)
@@ -1194,7 +1203,7 @@ export async function getIdentificationMethodOptions(countryCode?: string): Prom
 export async function getSupplyChainPartyKindOptions(): Promise<SupplyChainPartyKindOption[]> {
   dictionaryLoadingStart()
   try {
-    const response = await fetch(withGuidUrl(`${BASE_URL}api/supply-chain-party-kinds/options`))
+    const response = await fetch(withGuidUrl(`${getReferenceDataBaseUrl()}api/supply-chain-party-kinds/options`))
     if (!response.ok) {
       throw new Error(`Ошибка загрузки опций видов участников цепи поставки: ${response.statusText}`)
     }
@@ -1246,7 +1255,7 @@ export async function getSupplyChainPartyKindNameByCode(code: string): Promise<s
 export async function getTechRegulOptions(): Promise<TechRegulOption[]> {
   dictionaryLoadingStart()
   try {
-    const response = await fetch(withGuidUrl(`${BASE_URL}api/tech-reguls/options`))
+    const response = await fetch(withGuidUrl(`${getReferenceDataBaseUrl()}api/tech-reguls/options`))
     if (!response.ok) {
       throw new Error(`Ошибка загрузки опций технических регламентов: ${response.statusText}`)
     }
@@ -1298,7 +1307,7 @@ export async function getTechRegulNameByCode(code: string): Promise<string | nul
 export async function getSanitaryMeasureObjKindOptions(): Promise<SanitaryMeasureObjKindOption[]> {
   dictionaryLoadingStart()
   try {
-    const response = await fetch(withGuidUrl(`${BASE_URL}api/sanitary-measure-obj-kinds/options`))
+    const response = await fetch(withGuidUrl(`${getReferenceDataBaseUrl()}api/sanitary-measure-obj-kinds/options`))
     if (!response.ok) {
       throw new Error(`Ошибка загрузки опций видов объектов действия мер: ${response.statusText}`)
     }
@@ -1350,7 +1359,7 @@ export async function getSanitaryMeasureObjKindNameByCode(code: string): Promise
 export async function getSanitaryMeasureOptions(): Promise<SanitaryMeasureOption[]> {
   dictionaryLoadingStart()
   try {
-    const response = await fetch(withGuidUrl(`${BASE_URL}api/sanitary-measures/options`))
+    const response = await fetch(withGuidUrl(`${getReferenceDataBaseUrl()}api/sanitary-measures/options`))
     if (!response.ok) {
       throw new Error(`Ошибка загрузки опций санитарных мер: ${response.statusText}`)
     }
@@ -1407,7 +1416,7 @@ export interface MediaTypeOption {
 export async function getMediaTypeOptions(): Promise<MediaTypeOption[]> {
   dictionaryLoadingStart()
   try {
-    const response = await fetch(withGuidUrl(`${BASE_URL}api/media-types/options`))
+    const response = await fetch(withGuidUrl(`${getReferenceDataBaseUrl()}api/media-types/options`))
     if (!response.ok) {
       throw new Error(`Ошибка загрузки опций форматов данных: ${response.statusText}`)
     }
@@ -1432,5 +1441,65 @@ export async function getMediaTypeNameByCode(code: string): Promise<string | nul
     console.error('Ошибка получения названия формата данных:', error)
     return null
   }
+}
+
+// ——— Справочники PHA (DISEASEHEALTHPROBLEM, PATHOGENKIND, AGEGR, DISEASEOUTCOME): ленивая загрузка + кеш на фронте (TTL 5 мин)
+const PHA_REF_CACHE_TTL_MS = 5 * 60 * 1000
+const phaRefCache: Record<string, { data: unknown[]; ts: number }> = {}
+
+async function fetchPhaRefOptions<T>(cacheKey: string, path: string): Promise<T[]> {
+  const now = Date.now()
+  const hit = phaRefCache[cacheKey]
+  if (hit && now - hit.ts < PHA_REF_CACHE_TTL_MS) return hit.data as T[]
+  dictionaryLoadingStart()
+  try {
+    const response = await fetch(withGuidUrl(`${BASE_URL}api/${path}`))
+    if (!response.ok) throw new Error(`Ошибка загрузки: ${response.statusText}`)
+    const data = (await response.json()) as T[]
+    phaRefCache[cacheKey] = { data, ts: now }
+    return data
+  } finally {
+    dictionaryLoadingEnd()
+  }
+}
+
+export interface DiseaseHealthProblemOption {
+  code: string
+  name: string
+}
+
+export interface PathogenKindOption {
+  code: string
+  name: string
+}
+
+export interface AgeGroupOption {
+  code: string
+  name: string
+}
+
+export interface DiseaseOutcomeOption {
+  code: string
+  name: string
+}
+
+/** Опции справочника болезней (DISEASEHEALTHPROBLEM) */
+export async function getDiseaseHealthProblemOptions(): Promise<DiseaseHealthProblemOption[]> {
+  return fetchPhaRefOptions<DiseaseHealthProblemOption>('diseaseHealthProblem', 'disease-health-problem/options')
+}
+
+/** Опции справочника видов возбудителей (PATHOGENKIND) */
+export async function getPathogenKindOptions(): Promise<PathogenKindOption[]> {
+  return fetchPhaRefOptions<PathogenKindOption>('pathogenKind', 'pathogen-kind/options')
+}
+
+/** Опции справочника возрастных групп (AGEGR) */
+export async function getAgeGroupOptions(): Promise<AgeGroupOption[]> {
+  return fetchPhaRefOptions<AgeGroupOption>('ageGroup', 'age-group/options')
+}
+
+/** Опции справочника исходов болезни (DISEASEOUTCOME) */
+export async function getDiseaseOutcomeOptions(): Promise<DiseaseOutcomeOption[]> {
+  return fetchPhaRefOptions<DiseaseOutcomeOption>('diseaseOutcome', 'disease-outcome/options')
 }
 

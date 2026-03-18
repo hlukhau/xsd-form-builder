@@ -5,7 +5,7 @@ import {
 } from '@/utils/referenceDataApi'
 
 /**
- * Хук для загрузки справочника методов идентификации (SESINT.BUSENTKIND, kindId/codeListId=1033).
+ * Хук для загрузки справочника методов идентификации (BUSENTKIND, kindId/codeListId=1033).
  * @param countryCode - код страны (COUNTRYCODE); при указании список фильтруется по стране
  */
 export function useIdentificationMethodOptions(countryCode?: string) {

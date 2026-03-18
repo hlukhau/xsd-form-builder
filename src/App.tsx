@@ -328,6 +328,7 @@ function PhaAppContent() {
           registrationNumber: meta.incidentId ?? card.registrationNumber,
           country: meta.alertCountryCode ?? card.country,
           version: meta.phaVersion ?? card.version,
+          source: meta.dataSourceKindName ?? card.source,
           createdAt: meta.creationDateTime ?? card.createdAt,
           modifiedAt: meta.modificationDateTime ?? card.modifiedAt,
           status: meta.phaStatusName ?? card.status,

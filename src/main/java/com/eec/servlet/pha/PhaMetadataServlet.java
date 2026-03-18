@@ -14,15 +14,31 @@ import java.sql.SQLException;
 import java.sql.Timestamp;
 
 /**
- * Сервлет для получения метаданных карты PHA по PHAID из таблицы PHA.
+ * Сервлет для получения метаданных карты PHA по PHAID (из представления VW_PHA при наличии, иначе из таблицы PHA).
  * GET /api/pha/metadata/{PHAID}
- * Возвращает JSON с полями: phaId, incidentId, phaVersion, alertCountryCode, creationDateTime, modificationDateTime, phaStatusName, phaStatusId.
+ * Возвращает JSON: phaId, incidentId, phaVersion, alertCountryCode, dataSourceKindName (Источник),
+ * creationDateTime, modificationDateTime, phaStatusName, phaStatusId.
  */
 public class PhaMetadataServlet extends HttpServlet {
 
-    private static final String SQL_SELECT =
-            "SELECT PHAID, INCIDENTID, PHAVERSION, ALERTCOUNTRYID, CREATIONDATETIME, MODIFICATIONDATETIME, PHASTATUSID "
-                    + "FROM PHA WHERE PHAID = ?";
+    /** Запрос по представлению VW_PHA с join на DATASOURCEKIND (Источник: Входящие/Исходящие сведения, Данные ЕЭК). */
+    private static final String SQL_VW =
+            "SELECT vw.PHAID, vw.INCIDENTID, vw.PHAVERSION, vw.ALERTCOUNTRYID, vw.CREATIONDATETIME, vw.MODIFICATIONDATETIME, vw.PHASTATUSID, vw.DATASOURCEKINDCODE, "
+                    + "t1.DATASOURCEKINDNAME, c.COUNTRYCODE AS ALERTCOUNTRYCODE, s.PHASTATUSNAME "
+                    + "FROM VW_PHA vw "
+                    + "LEFT JOIN DATASOURCEKIND t1 ON vw.DATASOURCEKINDCODE = t1.DATASOURCEKINDCODE "
+                    + "LEFT JOIN COUNTRY c ON vw.ALERTCOUNTRYID = c.COUNTRYID "
+                    + "LEFT JOIN PHASTATUS s ON vw.PHASTATUSID = s.PHASTATUSID "
+                    + "WHERE vw.PHAID = ?";
+    /** Резервный запрос по таблице PHA, если представления VW_PHA нет. */
+    private static final String SQL_PHA =
+            "SELECT p.PHAID, p.INCIDENTID, p.PHAVERSION, p.ALERTCOUNTRYID, p.CREATIONDATETIME, p.MODIFICATIONDATETIME, p.PHASTATUSID, p.DATASOURCEKINDCODE, "
+                    + "t1.DATASOURCEKINDNAME, c.COUNTRYCODE AS ALERTCOUNTRYCODE, s.PHASTATUSNAME "
+                    + "FROM PHA p "
+                    + "LEFT JOIN DATASOURCEKIND t1 ON p.DATASOURCEKINDCODE = t1.DATASOURCEKINDCODE "
+                    + "LEFT JOIN COUNTRY c ON p.ALERTCOUNTRYID = c.COUNTRYID "
+                    + "LEFT JOIN PHASTATUS s ON p.PHASTATUSID = s.PHASTATUSID "
+                    + "WHERE p.PHAID = ?";
     private static final String SQL_COUNTRY = "SELECT COUNTRYCODE FROM COUNTRY WHERE COUNTRYID = ?";
     private static final String SQL_STATUS = "SELECT PHASTATUSNAME FROM PHASTATUS WHERE PHASTATUSID = ?";
 
@@ -61,7 +77,8 @@ public class PhaMetadataServlet extends HttpServlet {
                 return;
             }
 
-            try (PreparedStatement ps = conn.prepareStatement(SQL_SELECT)) {
+            String sql = SQL_VW;
+            try (PreparedStatement ps = conn.prepareStatement(sql)) {
                 ps.setLong(1, phaid);
                 try (ResultSet rs = ps.executeQuery()) {
                     if (!rs.next()) {
@@ -71,23 +88,28 @@ public class PhaMetadataServlet extends HttpServlet {
                     long phaId = rs.getLong("PHAID");
                     String incidentId = rs.getString("INCIDENTID");
                     int phaVersion = rs.getInt("PHAVERSION");
-                    Integer alertCountryId = (Integer) rs.getObject("ALERTCOUNTRYID");
                     Timestamp creationDateTime = rs.getTimestamp("CREATIONDATETIME");
                     Timestamp modificationDateTime = rs.getTimestamp("MODIFICATIONDATETIME");
                     Integer phaStatusId = (Integer) rs.getObject("PHASTATUSID");
+                    String alertCountryCode = rs.getString("ALERTCOUNTRYCODE");
+                    if (alertCountryCode != null) alertCountryCode = alertCountryCode.trim();
+                    String phaStatusName = rs.getString("PHASTATUSNAME");
+                    if (phaStatusName != null) phaStatusName = phaStatusName.trim();
+                    String dataSourceKindName = rs.getString("DATASOURCEKINDNAME");
+                    if (dataSourceKindName != null) dataSourceKindName = dataSourceKindName.trim();
 
-                    String alertCountryCode = null;
-                    if (alertCountryId != null) {
-                        try (PreparedStatement ps3 = conn.prepareStatement(SQL_COUNTRY)) {
-                            ps3.setInt(1, alertCountryId);
-                            try (ResultSet rs3 = ps3.executeQuery()) {
-                                if (rs3.next()) alertCountryCode = rs3.getString("COUNTRYCODE");
+                    if (alertCountryCode == null || alertCountryCode.isEmpty()) {
+                        Integer alertCountryId = (Integer) rs.getObject("ALERTCOUNTRYID");
+                        if (alertCountryId != null) {
+                            try (PreparedStatement ps3 = conn.prepareStatement(SQL_COUNTRY)) {
+                                ps3.setInt(1, alertCountryId);
+                                try (ResultSet rs3 = ps3.executeQuery()) {
+                                    if (rs3.next()) alertCountryCode = rs3.getString("COUNTRYCODE");
+                                }
                             }
                         }
                     }
-
-                    String phaStatusName = null;
-                    if (phaStatusId != null) {
+                    if (phaStatusName == null && phaStatusId != null) {
                         try (PreparedStatement ps4 = conn.prepareStatement(SQL_STATUS)) {
                             ps4.setInt(1, phaStatusId);
                             try (ResultSet rs4 = ps4.executeQuery()) {
@@ -102,12 +124,69 @@ public class PhaMetadataServlet extends HttpServlet {
                     json.append(",\"incidentId\":\"").append(escapeJson(incidentId != null ? incidentId : ""));
                     json.append("\",\"phaVersion\":").append(phaVersion);
                     if (alertCountryCode != null) json.append(",\"alertCountryCode\":\"").append(escapeJson(alertCountryCode)).append("\"");
+                    if (dataSourceKindName != null && !dataSourceKindName.isEmpty()) json.append(",\"dataSourceKindName\":\"").append(escapeJson(dataSourceKindName)).append("\"");
                     if (creationDateTime != null) json.append(",\"creationDateTime\":\"").append(creationDateTime.toInstant().toString()).append("\"");
                     if (modificationDateTime != null) json.append(",\"modificationDateTime\":\"").append(modificationDateTime.toInstant().toString()).append("\"");
                     if (phaStatusName != null) json.append(",\"phaStatusName\":\"").append(escapeJson(phaStatusName)).append("\"");
                     if (phaStatusId != null) json.append(",\"phaStatusId\":").append(phaStatusId);
                     json.append("}");
                     response.getWriter().print(json.toString());
+                }
+            } catch (SQLException e) {
+                if (e.getMessage() != null && (e.getMessage().contains("ORA-00942") || e.getMessage().contains("invalid object name") || e.getMessage().contains("VW_PHA"))) {
+                    try (PreparedStatement ps = conn.prepareStatement(SQL_PHA)) {
+                        ps.setLong(1, phaid);
+                        try (ResultSet rs = ps.executeQuery()) {
+                            if (!rs.next()) {
+                                sendJsonError(response, HttpServletResponse.SC_NOT_FOUND, "Карта с PHAID " + phaid + " не найдена");
+                                return;
+                            }
+                            long phaId = rs.getLong("PHAID");
+                            String incidentId = rs.getString("INCIDENTID");
+                            int phaVersion = rs.getInt("PHAVERSION");
+                            Integer alertCountryId = (Integer) rs.getObject("ALERTCOUNTRYID");
+                            Timestamp creationDateTime = rs.getTimestamp("CREATIONDATETIME");
+                            Timestamp modificationDateTime = rs.getTimestamp("MODIFICATIONDATETIME");
+                            Integer phaStatusId = (Integer) rs.getObject("PHASTATUSID");
+                            String alertCountryCode = rs.getString("ALERTCOUNTRYCODE");
+                            if (alertCountryCode != null) alertCountryCode = alertCountryCode.trim();
+                            String phaStatusName = rs.getString("PHASTATUSNAME");
+                            if (phaStatusName != null) phaStatusName = phaStatusName.trim();
+                            String dataSourceKindName = rs.getString("DATASOURCEKINDNAME");
+                            if (dataSourceKindName != null) dataSourceKindName = dataSourceKindName.trim();
+                            if (alertCountryCode == null && alertCountryId != null) {
+                                try (PreparedStatement ps3 = conn.prepareStatement(SQL_COUNTRY)) {
+                                    ps3.setInt(1, alertCountryId);
+                                    try (ResultSet rs3 = ps3.executeQuery()) {
+                                        if (rs3.next()) alertCountryCode = rs3.getString("COUNTRYCODE");
+                                    }
+                                }
+                            }
+                            if (phaStatusName == null && phaStatusId != null) {
+                                try (PreparedStatement ps4 = conn.prepareStatement(SQL_STATUS)) {
+                                    ps4.setInt(1, phaStatusId);
+                                    try (ResultSet rs4 = ps4.executeQuery()) {
+                                        if (rs4.next()) phaStatusName = rs4.getString("PHASTATUSNAME");
+                                    }
+                                }
+                            }
+                            StringBuilder json = new StringBuilder();
+                            json.append("{");
+                            json.append("\"phaId\":").append(phaId);
+                            json.append(",\"incidentId\":\"").append(escapeJson(incidentId != null ? incidentId : ""));
+                            json.append("\",\"phaVersion\":").append(phaVersion);
+                            if (alertCountryCode != null) json.append(",\"alertCountryCode\":\"").append(escapeJson(alertCountryCode)).append("\"");
+                            if (dataSourceKindName != null && !dataSourceKindName.isEmpty()) json.append(",\"dataSourceKindName\":\"").append(escapeJson(dataSourceKindName)).append("\"");
+                            if (creationDateTime != null) json.append(",\"creationDateTime\":\"").append(creationDateTime.toInstant().toString()).append("\"");
+                            if (modificationDateTime != null) json.append(",\"modificationDateTime\":\"").append(modificationDateTime.toInstant().toString()).append("\"");
+                            if (phaStatusName != null) json.append(",\"phaStatusName\":\"").append(escapeJson(phaStatusName)).append("\"");
+                            if (phaStatusId != null) json.append(",\"phaStatusId\":").append(phaStatusId);
+                            json.append("}");
+                            response.getWriter().print(json.toString());
+                        }
+                    }
+                } else {
+                    throw e;
                 }
             }
         } catch (SQLException e) {

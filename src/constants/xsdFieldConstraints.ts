@@ -127,6 +127,11 @@ export const XSD_FIELD_CONSTRAINTS: Record<string, FieldConstraint> = {
     messagePattern: 'Введите число: до 18 цифр целой части и до 6 после точки (например 0.0042). Разделитель — только точка.',
   },
 
+  // PHA: группа пациентов (smcdo:PatientGroupDetails)
+  personQuantity: { maxLength: 10, messageMaxLength: 'Не более 10 символов (smsdo:PersonQuantity, Quantity4Type)' },
+  ageGroupCode: { maxLength: 10, messageMaxLength: 'Не более 10 символов (smsdo:AgeGroupCode, csdo:Code10Type)' },
+  diseaseOutcomeCode: { maxLength: 10, messageMaxLength: 'Не более 10 символов (smsdo:DiseaseOutcomeCode, csdo:Code10Type)' },
+
   // ТСД: партия, примечание, числовые значения мер (количество)
   batchId: { maxLength: 50, messageMaxLength: 'Не более 50 символов (csdo:Id50Type)' },
   note: { maxLength: 4000, messageMaxLength: 'Не более 4000 символов (csdo:NoteText/Text4000Type)' },
