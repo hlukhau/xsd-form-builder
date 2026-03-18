@@ -67,12 +67,30 @@ const MeasuresTab: React.FC<MeasuresTabProps> = ({ data }) => {
       key: 'expand',
       width: 40,
       align: 'center' as const,
-      render: (_: any, __: SanitaryMeasure, index: number) =>
-        selectedMeasureIndex === index ? (
-          <CaretDownOutlined aria-label="Свернуть детализацию" />
-        ) : (
-          <CaretRightOutlined aria-label="Развернуть детализацию" />
-        ),
+      render: (_: any, __: SanitaryMeasure, index: number) => (
+        <span
+          role="button"
+          tabIndex={0}
+          onClick={(e) => {
+            e.stopPropagation()
+            setSelectedMeasureIndex(selectedMeasureIndex === index ? null : index)
+          }}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter' || e.key === ' ') {
+              e.preventDefault()
+              setSelectedMeasureIndex(selectedMeasureIndex === index ? null : index)
+            }
+          }}
+          style={{ cursor: 'pointer' }}
+          aria-label={selectedMeasureIndex === index ? 'Свернуть детализацию' : 'Развернуть детализацию'}
+        >
+          {selectedMeasureIndex === index ? (
+            <CaretDownOutlined />
+          ) : (
+            <CaretRightOutlined />
+          )}
+        </span>
+      ),
     },
     {
       title: 'Язык',
@@ -124,26 +142,6 @@ const MeasuresTab: React.FC<MeasuresTabProps> = ({ data }) => {
         </div>
       ),
     },
-    {
-      title: 'Обоснование',
-      key: 'justification',
-      width: 200,
-      render: (_: any, record: SanitaryMeasure) => (
-        <div style={{ wordWrap: 'break-word', whiteSpace: 'normal' }}>
-          {record.measureJustificationText || '-'}
-        </div>
-      ),
-    },
-    {
-      title: 'Описание',
-      key: 'description',
-      width: 200,
-      render: (_: any, record: SanitaryMeasure) => (
-        <div style={{ wordWrap: 'break-word', whiteSpace: 'normal' }}>
-          {record.description || '-'}
-        </div>
-      ),
-    },
   ]
 
   if (!data || !data.measures || data.measures.length === 0) {
@@ -152,6 +150,10 @@ const MeasuresTab: React.FC<MeasuresTabProps> = ({ data }) => {
 
   const renderMeasureDetail = (measure: SanitaryMeasure) => (
     <div style={{ padding: '12px 24px 12px 0', background: '#fafafa' }}>
+      <Descriptions column={1} bordered size="small" style={{ marginBottom: 12 }}>
+        <Descriptions.Item label="Обоснование">{measure.measureJustificationText || '—'}</Descriptions.Item>
+        <Descriptions.Item label="Описание">{measure.description || '—'}</Descriptions.Item>
+      </Descriptions>
       <Collapse
         defaultActiveKey={['measureDoc', 'initialMeasureDoc', 'basis', 'implementation']}
         expandIconPosition="end"
@@ -187,19 +189,14 @@ const MeasuresTab: React.FC<MeasuresTabProps> = ({ data }) => {
 
   return (
     <div>
-      <p style={{ marginBottom: 8, color: '#666', fontSize: '12px' }}>Нажмите на строку меры для просмотра детализации (документы, мероприятия).</p>
+      <p style={{ marginBottom: 8, color: '#666', fontSize: '12px' }}>Нажмите на иконку раскрытия (▶) у строки меры для просмотра детализации (обоснование, описание, документы, мероприятия).</p>
       <Table
         dataSource={data.measures}
         columns={columns}
         rowKey={(record, index) => `measure-${index}`}
         pagination={false}
         scroll={{ x: 'max-content' }}
-        onRow={(record, index) => ({
-          onClick: () => {
-            setSelectedMeasureIndex(selectedMeasureIndex === index ? null : index)
-          },
-          style: { cursor: 'pointer' },
-        })}
+        onRow={() => ({})}
         rowClassName={(record, index) => selectedMeasureIndex === index ? 'ant-table-row-selected' : ''}
         expandable={{
           expandedRowKeys: selectedMeasureIndex !== null ? [`measure-${selectedMeasureIndex}`] : [],

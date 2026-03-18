@@ -401,12 +401,30 @@ const MeasuresTabEdit: React.FC<MeasuresTabEditProps> = ({ data, onChange }) => 
       key: 'expand',
       width: 40,
       align: 'center' as const,
-      render: (_: any, __: SanitaryMeasure, index: number) =>
-        selectedMeasureIndex === index ? (
-          <CaretDownOutlined aria-label="Свернуть" />
-        ) : (
-          <CaretRightOutlined aria-label="Развернуть" />
-        ),
+      render: (_: any, __: SanitaryMeasure, index: number) => (
+        <span
+          role="button"
+          tabIndex={0}
+          onClick={(e) => {
+            e.stopPropagation()
+            setSelectedMeasureIndex(selectedMeasureIndex === index ? null : index)
+          }}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter' || e.key === ' ') {
+              e.preventDefault()
+              setSelectedMeasureIndex(selectedMeasureIndex === index ? null : index)
+            }
+          }}
+          style={{ cursor: 'pointer' }}
+          aria-label={selectedMeasureIndex === index ? 'Свернуть детализацию' : 'Развернуть детализацию'}
+        >
+          {selectedMeasureIndex === index ? (
+            <CaretDownOutlined />
+          ) : (
+            <CaretRightOutlined />
+          )}
+        </span>
+      ),
     },
     {
       title: labelWithHelp('Код языка', FIELD_HELP.languageCode),
@@ -545,36 +563,6 @@ const MeasuresTabEdit: React.FC<MeasuresTabEditProps> = ({ data, onChange }) => 
           value={record.endDate ? dayjs(record.endDate) : null}
           onChange={(date) => handleMeasureChange(index, 'endDate', date ? date.format('YYYY-MM-DD') : '')}
           style={{ width: '100%' }}
-        />
-      ),
-    },
-    {
-      title: labelWithHelp('Обоснование меры', FIELD_HELP.measureJustification),
-      key: 'justification',
-      width: 200,
-      render: (_: any, record: SanitaryMeasure, index: number) => (
-        <Input.TextArea
-          rows={2}
-          value={record.measureJustificationText || ''}
-          onChange={(e) => handleMeasureChange(index, 'measureJustificationText', e.target.value)}
-          placeholder="Текстовое описание обоснования"
-          maxLength={getMaxLength('measureJustification')}
-          showCount
-        />
-      ),
-    },
-    {
-      title: 'Описание',
-      key: 'description',
-      width: 200,
-      render: (_: any, record: SanitaryMeasure, index: number) => (
-        <Input.TextArea
-          rows={2}
-          value={record.description || ''}
-          onChange={(e) => handleMeasureChange(index, 'description', e.target.value)}
-          placeholder="Содержание (описание) вводимой меры"
-          maxLength={getMaxLength('description')}
-          showCount
         />
       ),
     },
@@ -825,10 +813,7 @@ const MeasuresTabEdit: React.FC<MeasuresTabEditProps> = ({ data, onChange }) => 
         rowKey={(record, index) => `measure-${index}`}
         pagination={false}
         scroll={{ x: 'max-content' }}
-        onRow={(record, index) => ({
-          onClick: () => setSelectedMeasureIndex(selectedMeasureIndex === index ? null : index),
-          style: { cursor: 'pointer' },
-        })}
+        onRow={() => ({})}
         rowClassName={(record, index) => selectedMeasureIndex === index ? 'ant-table-row-selected' : ''}
         expandable={{
           expandedRowKeys: selectedMeasureIndex !== null ? [`measure-${selectedMeasureIndex}`] : [],
