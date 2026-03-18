@@ -5,7 +5,8 @@ import type { StatusButtonConfig } from '@/utils/statusButtonConfig'
 
 interface CardActionsProps {
   data: CardData
-  onDefineAccess: () => void
+  /** Определить доступ (DPA). При отсутствии кнопка не показывается. */
+  onDefineAccess?: () => void
   onOpenAllVersions: () => void
   statusButton: StatusButtonConfig | null
   statusButtonComment?: string
@@ -73,7 +74,9 @@ const CardActions: React.FC<CardActionsProps> = ({
   return (
     <div style={{ marginTop: 0, marginBottom: 4 }} className="card-actions-row">
       <Space size="small" wrap>
-        <Button size="small" onClick={onDefineAccess}>Определить доступ</Button>
+        {onDefineAccess != null && (
+          <Button size="small" onClick={onDefineAccess}>Определить доступ</Button>
+        )}
         <Button size="small" onClick={onOpenAllVersions}>Открыть все версии</Button>
         {onShowRightsDebug && (
           <Tooltip title="Отладка: JSON карты прав доступа по текущему GUID">

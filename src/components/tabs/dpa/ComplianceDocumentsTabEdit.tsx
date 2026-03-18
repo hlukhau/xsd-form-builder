@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { Form, Input, Button, Table, Space, DatePicker, Modal, Descriptions, Collapse, Select, message } from 'antd'
-import { PlusOutlined, DeleteOutlined, EyeOutlined } from '@ant-design/icons'
+import { PlusOutlined, DeleteOutlined, EyeOutlined, DownloadOutlined } from '@ant-design/icons'
 import dayjs from 'dayjs'
 import { format } from 'date-fns'
 import { ru } from 'date-fns/locale'
@@ -8,11 +8,24 @@ import { labelWithHelp } from '@/components/common/FieldHelp'
 import { FIELD_HELP } from '@/constants/fieldDescriptions'
 import { getMaxLength } from '@/constants/xsdFieldConstraints'
 import { DATE_DISPLAY_FORMAT } from '@/constants/dateFormat'
-import type { ComplianceDocument, TSDData, ProductBatchDetails } from '@/types/card'
+import type { ComplianceDocument, TSDData, ProductBatchDetails, LaboratoryProtocolsData, LaboratoryProtocol, LaboratoryDetails } from '@/types/card'
+import { LaboratoryBlockContent } from './ComplianceDocumentsTab'
 import { useCountryOptions } from '@/hooks/shared/useCountryOptions'
 import { useConformityDocKindOptions } from '@/hooks/shared/useConformityDocKindOptions'
+import { useShipDocKindOptions } from '@/hooks/shared/useShipDocKindOptions'
+import { useLegalFormOptions } from '@/hooks/shared/useLegalFormOptions'
+import { useIdentificationMethodOptions } from '@/hooks/shared/useIdentificationMethodOptions'
+import { useMediaTypeOptions } from '@/hooks/shared/useMediaTypeOptions'
 import CountrySelect from '@/components/common/CountrySelect'
 import { requestLabProtocols } from '@/utils/referenceDataApi'
+import { parseLabProtocolsXml } from '@/utils/labProtocolsXmlParser'
+import {
+  getAddressListFromParty,
+  formatAddressList,
+  formatAddressLine,
+  getDefaultAddressKindName,
+  getDefaultCountryName,
+} from '@/utils/addressFormatUtils'
 
 interface ComplianceDocumentsTabEditProps {
   tsd: TSDData
@@ -28,13 +41,54 @@ const ComplianceDocumentsTabEdit: React.FC<ComplianceDocumentsTabEditProps> = ({
   const [protocolsModalVisible, setProtocolsModalVisible] = useState(false)
   const [protocolsLoading, setProtocolsLoading] = useState(false)
   const [protocolsError, setProtocolsError] = useState<'local' | 'source' | null>(null)
-  const { countryOptions, loading: loadingCountries, normalizeCountryCode } = useCountryOptions()
+  const [protocolsData, setProtocolsData] = useState<LaboratoryProtocolsData | null>(null)
+  const [expandedLabCountry, setExpandedLabCountry] = useState<string>('')
+  const { countryOptions, loading: loadingCountries, normalizeCountryCode, getDisplayLabel: getCountryDisplayLabel } = useCountryOptions()
   const { getSelectOptions: getConformityDocKindSelectOptions, loading: loadingConformityDocKinds } = useConformityDocKindOptions()
+  const labCountry = expandedLabCountry
+  const { getDisplayLabel: getShipDocKindDisplayLabel } = useShipDocKindOptions()
+  const { getNameByCode: getMediaTypeNameByCode } = useMediaTypeOptions()
+  const { getNameByCode: getLegalFormNameByCode } = useLegalFormOptions(labCountry)
+  const { getDisplayLabel: getIdentificationMethodDisplayLabel } = useIdentificationMethodOptions(labCountry)
+  const getCountryNameForAddress = (code?: string) => getCountryDisplayLabel(code) || getDefaultCountryName(code) || '—'
+  const formatDate = (date: string | null | undefined) => {
+    if (!date) return '—'
+    const d = new Date(date)
+    return isNaN(d.getTime()) ? date : format(d, 'dd.MM.yyyy', { locale: ru })
+  }
 
   const formatDateShort = (date: string | null | undefined) => {
     if (!date) return '-'
     const d = new Date(date)
     return isNaN(d.getTime()) ? date : format(d, 'dd.MM.yyyy', { locale: ru })
+  }
+
+  const renderLaboratoryBlock = (lab: LaboratoryDetails | null, options?: { showTitle?: boolean }) => {
+    if (!lab) {
+      return (
+        <div style={{ border: '1px solid #d9d9d9', borderRadius: 4, padding: 12, margin: '8px 0', background: '#fafafa' }}>
+          {(options?.showTitle !== false) && <div style={{ fontWeight: 600, marginBottom: 8 }}>Лаборатория</div>}
+          <Descriptions column={1} bordered size="small">
+            <Descriptions.Item label="Документ в бинарном виде">—</Descriptions.Item>
+          </Descriptions>
+        </div>
+      )
+    }
+    const addressList = getAddressListFromParty(lab)
+    const addressLines = formatAddressList(addressList, getDefaultAddressKindName, getCountryNameForAddress)
+    const certs = lab.accreditationCertificates ?? (lab.accreditationCertificate ? [lab.accreditationCertificate] : [])
+    return (
+      <LaboratoryBlockContent
+        lab={lab}
+        addressLines={addressLines}
+        certs={certs}
+        formatDate={formatDate}
+        getIdentificationMethodDisplayLabel={getIdentificationMethodDisplayLabel}
+        getLegalFormNameByCode={getLegalFormNameByCode}
+        getMediaTypeNameByCode={getMediaTypeNameByCode}
+        showTitle={options?.showTitle !== false}
+      />
+    )
   }
 
   const updateBatchCompliance = (batchIndex: number, docs: ComplianceDocument[]) => {
@@ -97,20 +151,15 @@ const ComplianceDocumentsTabEdit: React.FC<ComplianceDocumentsTabEditProps> = ({
         message.warning(res.message ?? 'Запрошенные сведения отсутствуют у первоисточника.')
       } else if (res.status === 'with_info' && res.xml) {
         setProtocolsError(null)
-        setProtocolsModalVisible(false)
-        const escaped = res.xml.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
-        const w = window.open('', '_blank', 'width=900,height=700,scrollbars=yes')
-        if (w) {
-          w.document.write(
-            '<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Протоколы лабораторных исследований</title></head><body><pre style="white-space:pre-wrap;font-family:monospace;padding:12px;">' +
-            escaped +
-            '</pre></body></html>'
-          )
-          w.document.close()
-        } else {
-          setProtocolsModalVisible(true)
-          message.info('Разрешите всплывающие окна для просмотра протоколов')
+        try {
+          const parsed = parseLabProtocolsXml(res.xml)
+          setProtocolsData(parsed)
+        } catch (parseErr) {
+          console.error('Ошибка разбора XML протоколов:', parseErr)
+          message.error('Ошибка разбора XML протоколов. Проверьте формат документа.')
+          setProtocolsData(null)
         }
+        setProtocolsModalVisible(true)
       }
     } catch (err) {
       message.error(err instanceof Error ? err.message : 'Ошибка при запросе протоколов')
@@ -261,16 +310,108 @@ const ComplianceDocumentsTabEdit: React.FC<ComplianceDocumentsTabEditProps> = ({
       <Modal
         title="Протоколы лабораторных исследований"
         open={protocolsModalVisible}
-        onCancel={() => { setProtocolsModalVisible(false); setProtocolsError(null) }}
-        footer={[<Button key="close" onClick={() => { setProtocolsModalVisible(false); setProtocolsError(null) }}>OK</Button>]}
-        width={500}
+        onCancel={() => { setProtocolsModalVisible(false); setProtocolsError(null); setProtocolsData(null) }}
+        footer={[<Button key="close" onClick={() => { setProtocolsModalVisible(false); setProtocolsError(null); setProtocolsData(null) }}>OK</Button>]}
+        width={1000}
       >
         {protocolsLoading ? (
           <div>Загрузка данных...</div>
         ) : protocolsError === 'local' ? (
-          <p>Запрошенные сведения отсутствуют в локальной базе данных. Выполнен запрос сведений к первоисточнику.</p>
+          <div style={{ padding: 20, textAlign: 'center' }}>
+            <p>Запрошенные сведения отсутствуют в локальной базе данных. Выполнен запрос сведений к первоисточнику.</p>
+          </div>
         ) : protocolsError === 'source' ? (
-          <p>Запрошенные сведения отсутствуют у первоисточника.</p>
+          <div style={{ padding: 20, textAlign: 'center' }}>
+            <p>Запрошенные сведения отсутствуют у первоисточника.</p>
+          </div>
+        ) : protocolsData ? (
+          <div>
+            {protocolsData.product && (
+              <div style={{ marginBottom: 24 }}>
+                <h3>Набор атрибутов по продукции</h3>
+                <Descriptions column={1} bordered size="small">
+                  <Descriptions.Item label="Идентификатор продукции">{protocolsData.product.productId || '—'}</Descriptions.Item>
+                  <Descriptions.Item label="Наименование продукции">{protocolsData.product.productName || '—'}</Descriptions.Item>
+                  <Descriptions.Item label="Описание">{protocolsData.product.description || '—'}</Descriptions.Item>
+                  <Descriptions.Item label="Код ТН ВЭД ЕАЭС">{protocolsData.product.commodityCode || '—'}</Descriptions.Item>
+                  {protocolsData.product.technicalDocs?.length ? (
+                    <Descriptions.Item label="Техническая документация">
+                      {protocolsData.product.technicalDocs.map((doc, idx) => (
+                        <div key={idx}>{[doc.docName, doc.docId, doc.docCreationDate].filter(Boolean).join(', ') || '—'}</div>
+                      ))}
+                    </Descriptions.Item>
+                  ) : null}
+                  <Descriptions.Item label="Назначение">{protocolsData.product.productPurpose || '—'}</Descriptions.Item>
+                  <Descriptions.Item label="Способ применения">{protocolsData.product.applicationMethod || '—'}</Descriptions.Item>
+                  <Descriptions.Item label="Форма выпуска">{protocolsData.product.releaseForm || '—'}</Descriptions.Item>
+                  <Descriptions.Item label="Условия хранения">{protocolsData.product.storageCondition || '—'}</Descriptions.Item>
+                  <Descriptions.Item label="Информация с этикетки">{protocolsData.product.labelText || '—'}</Descriptions.Item>
+                </Descriptions>
+              </div>
+            )}
+            <div style={{ marginBottom: 24 }}>
+              <h3>Протоколы</h3>
+              <Table
+                dataSource={protocolsData.protocols}
+                size="small"
+                rowKey={(_, i) => `protocol-${i}`}
+                pagination={false}
+                columns={[
+                  { title: 'Вид', key: 'docKind', render: (_: unknown, r: LaboratoryProtocol) => r.docKindCode ? (getShipDocKindDisplayLabel(r.docKindCode) || r.docKindName || r.docKindCode) : (r.docKindName ?? '') },
+                  { title: 'Наименование', dataIndex: 'docName', key: 'docName', render: (t: string) => t || '—' },
+                  { title: 'Номер', dataIndex: 'docId', key: 'docId', render: (t: string) => t || '—' },
+                  { title: 'Дата', dataIndex: 'docCreationDate', key: 'docCreationDate', render: (d: string) => formatDate(d) },
+                  {
+                    title: 'Документ в бинарном виде',
+                    key: 'docBinaryText',
+                    width: 120,
+                    render: (_: unknown, r: LaboratoryProtocol) =>
+                      r.docBinaryText?.content ? (
+                        <Button
+                          type="link"
+                          size="small"
+                          icon={<DownloadOutlined />}
+                          onClick={() => {
+                            const bin = r.docBinaryText
+                            if (bin?.content) {
+                              try {
+                                const blob = new Blob([Uint8Array.from(atob(bin.content), (c) => c.charCodeAt(0))], { type: bin.mediaTypeCode || 'application/octet-stream' })
+                                const a = document.createElement('a')
+                                a.href = URL.createObjectURL(blob)
+                                a.download = `document.${bin.mediaTypeCode?.split('/')[1] || 'bin'}`
+                                a.click()
+                                URL.revokeObjectURL(a.href)
+                              } catch {
+                                message.warning('Не удалось скачать документ')
+                              }
+                            }
+                          }}
+                        >
+                          Скачать{r.docBinaryText?.mediaTypeCode ? ` (${getMediaTypeNameByCode(r.docBinaryText.mediaTypeCode) || r.docBinaryText.mediaTypeCode})` : ''}
+                        </Button>
+                      ) : '—',
+                  },
+                ]}
+                expandable={{
+                  onExpand: (expanded, record) => {
+                    if (expanded && record.laboratory) setExpandedLabCountry(record.laboratory.registrationAddress?.country ?? record.laboratory.actualAddress?.country ?? record.laboratory.mailingAddress?.country ?? '')
+                  },
+                  expandedRowRender: (record: LaboratoryProtocol) =>
+                    record.laboratory
+                      ? renderLaboratoryBlock(record.laboratory, { showTitle: true })
+                      : (
+                        <div style={{ border: '1px solid #d9d9d9', borderRadius: 4, padding: 12, margin: '8px 0', background: '#fafafa' }}>
+                          <div style={{ fontWeight: 600, marginBottom: 8 }}>Лаборатория</div>
+                          <div style={{ color: '#999', marginBottom: 12 }}>Нет данных по лаборатории</div>
+                          <Descriptions column={1} bordered size="small">
+                            <Descriptions.Item label="Документ в бинарном виде">—</Descriptions.Item>
+                          </Descriptions>
+                        </div>
+                      ),
+                }}
+              />
+            </div>
+          </div>
         ) : null}
       </Modal>
     </div>

@@ -1,19 +1,25 @@
 import { useState } from 'react'
 import { Table, Descriptions, Button, Modal, message, Collapse } from 'antd'
-import { EyeOutlined } from '@ant-design/icons'
+import { EyeOutlined, DownloadOutlined } from '@ant-design/icons'
 import { format } from 'date-fns'
 import { ru } from 'date-fns/locale'
-import type { ComplianceDocument, TSDData } from '@/types/card'
+import type { ComplianceDocument, TSDData, LaboratoryProtocol, LaboratoryDetails, AccreditationCertificateDetails } from '@/types/card'
 import {
   getAddressListFromParty,
   formatAddressList,
+  formatAddressLine,
   getDefaultAddressKindName,
   getDefaultCountryName,
 } from '@/utils/addressFormatUtils'
 import { useIdentificationMethodOptions } from '@/hooks/shared/useIdentificationMethodOptions'
 import { useConformityDocKindOptions } from '@/hooks/shared/useConformityDocKindOptions'
 import { useCountryOptions } from '@/hooks/shared/useCountryOptions'
+import { useShipDocKindOptions } from '@/hooks/shared/useShipDocKindOptions'
+import { useLegalFormOptions } from '@/hooks/shared/useLegalFormOptions'
+import { useMediaTypeOptions } from '@/hooks/shared/useMediaTypeOptions'
 import { requestLabProtocols } from '@/utils/referenceDataApi'
+import { parseLabProtocolsXml } from '@/utils/labProtocolsXmlParser'
+import type { LaboratoryProtocolsData } from '@/types/card'
 
 interface ComplianceDocumentsTabProps {
   /** По XSD документы соответствия только в tsd.batches[].complianceDocuments */
@@ -21,6 +27,125 @@ interface ComplianceDocumentsTabProps {
   hasEditPermission?: boolean // dangerousProductIn:edit
   /** GUID для запроса протоколов лабораторных исследований (подключение к БД, userId) */
   guid?: string | null
+}
+
+export interface LaboratoryBlockContentProps {
+  lab: LaboratoryDetails
+  addressLines: string[]
+  certs: AccreditationCertificateDetails[]
+  formatDate: (date: string | null | undefined) => string
+  getIdentificationMethodDisplayLabel: (code: string) => string
+  getLegalFormNameByCode: (code: string) => string | null
+  getMediaTypeNameByCode: (code: string | undefined) => string | null
+  showTitle: boolean
+}
+
+export const LaboratoryBlockContent: React.FC<LaboratoryBlockContentProps> = ({
+  lab,
+  addressLines,
+  certs,
+  formatDate,
+  getIdentificationMethodDisplayLabel,
+  getLegalFormNameByCode,
+  getMediaTypeNameByCode,
+  showTitle,
+}) => {
+  const [certIndex, setCertIndex] = useState(0)
+  const cert = certs[certIndex] ?? null
+  return (
+    <div style={{ border: '1px solid #d9d9d9', borderRadius: 4, padding: 12, margin: '8px 0', background: '#fafafa' }}>
+      {showTitle && <div style={{ fontWeight: 600, marginBottom: 8 }}>Лаборатория</div>}
+      <Descriptions column={1} bordered size="small">
+        <Descriptions.Item label="Идентификатор субъекта">{lab.subjectId || '—'}</Descriptions.Item>
+        <Descriptions.Item label="Метод идентификации">
+          {lab.identificationMethod ? getIdentificationMethodDisplayLabel(lab.identificationMethod) : '—'}
+        </Descriptions.Item>
+        <Descriptions.Item label="Организационно-правовая форма">
+          {lab.businessEntityTypeCode && lab.businessEntityTypeCodeListId === '2049'
+            ? (getLegalFormNameByCode(lab.businessEntityTypeCode)
+                ? `${lab.businessEntityTypeCode} — ${getLegalFormNameByCode(lab.businessEntityTypeCode)}`
+                : lab.organizationalForm || lab.businessEntityTypeCode)
+            : (lab.organizationalForm || '—')}
+        </Descriptions.Item>
+        <Descriptions.Item label="Наименование субъекта">{lab.businessEntityName || '—'}</Descriptions.Item>
+        <Descriptions.Item label="Адреса">
+          {addressLines.length > 0 ? (
+            <ul style={{ margin: 0, paddingLeft: 20 }}>
+              {addressLines.map((line, idx) => (
+                <li key={idx}>{line}</li>
+              ))}
+            </ul>
+          ) : (
+            '—'
+          )}
+        </Descriptions.Item>
+        {certs.length > 0 && (
+          <>
+            {certs.length >= 1 && (
+              <Descriptions.Item label="Аттестаты аккредитации">
+                <div style={{ display: 'flex', alignItems: 'center', gap: 4, flexWrap: 'wrap' }}>
+                  <Button type="link" size="small" disabled={certIndex === 0} onClick={() => setCertIndex((i) => Math.max(0, i - 1))}>
+                    &lt;&lt; Предыдущая запись
+                  </Button>
+                  {certs.map((_, i) => (
+                    <Button key={i} type={certIndex === i ? 'primary' : 'link'} size="small" onClick={() => setCertIndex(i)}>
+                      {i + 1}
+                    </Button>
+                  ))}
+                  <Button type="link" size="small" disabled={certIndex >= certs.length - 1} onClick={() => setCertIndex((i) => Math.min(certs.length - 1, i + 1))}>
+                    Следующая запись &gt;&gt;
+                  </Button>
+                </div>
+              </Descriptions.Item>
+            )}
+            {cert && (
+              <>
+                <Descriptions.Item label="Наименование аттестата аккредитации">{cert.docKindName || '—'}</Descriptions.Item>
+                <Descriptions.Item label="Номер документа">{cert.docId || '—'}</Descriptions.Item>
+                <Descriptions.Item label="Дата документа">{formatDate(cert.eventDate)}</Descriptions.Item>
+                <Descriptions.Item label="Срок действия. Начало">{formatDate(cert.docStartDate)}</Descriptions.Item>
+                <Descriptions.Item label="Срок действия. Окончание">{formatDate(cert.docValidityDate)}</Descriptions.Item>
+                <Descriptions.Item label="Документ в бинарном виде">
+                  {cert.docBinaryText?.content ? (
+                    <Button
+                      type="link"
+                      size="small"
+                      icon={<DownloadOutlined />}
+                      onClick={() => {
+                        const bin = cert.docBinaryText
+                        if (bin?.content) {
+                          try {
+                            const blob = new Blob([Uint8Array.from(atob(bin.content), (c) => c.charCodeAt(0))], {
+                              type: bin.mediaTypeCode || 'application/octet-stream',
+                            })
+                            const url = URL.createObjectURL(blob)
+                            const a = document.createElement('a')
+                            a.href = url
+                            a.download = `document.${bin.mediaTypeCode?.split('/')[1] || 'bin'}`
+                            a.click()
+                            URL.revokeObjectURL(url)
+                          } catch {
+                            message.warning('Не удалось скачать бинарный документ')
+                          }
+                        }
+                      }}
+                    >
+                      Скачать{cert.docBinaryText?.mediaTypeCode ? ` (${getMediaTypeNameByCode(cert.docBinaryText.mediaTypeCode) || cert.docBinaryText.mediaTypeCode})` : ''}
+                    </Button>
+                  ) : (
+                    '—'
+                  )}
+                </Descriptions.Item>
+              </>
+            )}
+          </>
+        )}
+        {certs.length === 0 && (
+          <Descriptions.Item label="Документ в бинарном виде">—</Descriptions.Item>
+        )}
+      </Descriptions>
+    </div>
+  )
 }
 
 const ComplianceDocumentsTab: React.FC<ComplianceDocumentsTabProps> = ({
@@ -32,14 +157,16 @@ const ComplianceDocumentsTab: React.FC<ComplianceDocumentsTabProps> = ({
   const [authorityModalVisible, setAuthorityModalVisible] = useState(false)
   const [protocolsModalVisible, setProtocolsModalVisible] = useState(false)
   const [protocolsLoading, setProtocolsLoading] = useState(false)
-  const [protocolsData, setProtocolsData] = useState<any>(null)
+  const [protocolsData, setProtocolsData] = useState<LaboratoryProtocolsData | null>(null)
   const [protocolsError, setProtocolsError] = useState<'local' | 'source' | null>(null)
-  const [selectedLaboratory, setSelectedLaboratory] = useState<any>(null)
-  const [laboratoryModalVisible, setLaboratoryModalVisible] = useState(false)
-  const labCountry = selectedLaboratory?.registrationAddress?.country ?? selectedLaboratory?.actualAddress?.country ?? selectedLaboratory?.mailingAddress?.country ?? ''
+  const [expandedLabCountry, setExpandedLabCountry] = useState<string>('')
+  const labCountry = expandedLabCountry
   const { getDisplayLabel: getIdentificationMethodDisplayLabel } = useIdentificationMethodOptions(labCountry)
+  const { getNameByCode: getMediaTypeNameByCode } = useMediaTypeOptions()
   const { getDisplayLabel: getCountryDisplayLabel } = useCountryOptions()
   const { getDisplayLabel: getConformityDocKindDisplayLabel } = useConformityDocKindOptions()
+  const { getDisplayLabel: getShipDocKindDisplayLabel } = useShipDocKindOptions()
+  const { getNameByCode: getLegalFormNameByCode } = useLegalFormOptions(labCountry)
   const getCountryNameForAddress = (code?: string) => getCountryDisplayLabel(code) || getDefaultCountryName(code) || '-'
 
   const formatDate = (date: string | null | undefined) => {
@@ -47,6 +174,34 @@ const ComplianceDocumentsTab: React.FC<ComplianceDocumentsTabProps> = ({
     const dateObj = new Date(date)
     if (isNaN(dateObj.getTime())) return date
     return format(dateObj, 'dd.MM.yyyy', { locale: ru })
+  }
+
+  const renderLaboratoryBlock = (lab: LaboratoryDetails | null, options?: { showTitle?: boolean }) => {
+    if (!lab) {
+      return (
+        <div style={{ border: '1px solid #d9d9d9', borderRadius: 4, padding: 12, margin: '8px 0', background: '#fafafa' }}>
+          {(options?.showTitle !== false) && <div style={{ fontWeight: 600, marginBottom: 8 }}>Лаборатория</div>}
+          <Descriptions column={1} bordered size="small">
+            <Descriptions.Item label="Документ в бинарном виде">—</Descriptions.Item>
+          </Descriptions>
+        </div>
+      )
+    }
+    const addressList = getAddressListFromParty(lab)
+    const addressLines = formatAddressList(addressList, getDefaultAddressKindName, getCountryNameForAddress)
+    const certs = lab.accreditationCertificates ?? (lab.accreditationCertificate ? [lab.accreditationCertificate] : [])
+    return (
+      <LaboratoryBlockContent
+        lab={lab}
+        addressLines={addressLines}
+        certs={certs}
+        formatDate={formatDate}
+        getIdentificationMethodDisplayLabel={getIdentificationMethodDisplayLabel}
+        getLegalFormNameByCode={getLegalFormNameByCode}
+        getMediaTypeNameByCode={getMediaTypeNameByCode}
+        showTitle={options?.showTitle !== false}
+      />
+    )
   }
 
   const handleViewAuthority = (doc: ComplianceDocument) => {
@@ -82,19 +237,15 @@ const ComplianceDocumentsTab: React.FC<ComplianceDocumentsTabProps> = ({
         message.warning(res.message ?? 'Запрошенные сведения отсутствуют у первоисточника.')
       } else if (res.status === 'with_info' && res.xml) {
         setProtocolsError(null)
-        const escaped = res.xml.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
-        const w = window.open('', '_blank', 'width=900,height=700,scrollbars=yes')
-        if (w) {
-          w.document.write(
-            '<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Протоколы лабораторных исследований</title></head><body><pre style="white-space:pre-wrap;font-family:monospace;padding:12px;">' +
-            escaped +
-            '</pre></body></html>'
-          )
-          w.document.close()
-        } else {
-          setProtocolsData({ xml: res.xml })
-          setProtocolsModalVisible(true)
+        try {
+          const parsed = parseLabProtocolsXml(res.xml)
+          setProtocolsData(parsed)
+        } catch (parseErr) {
+          console.error('Ошибка разбора XML протоколов:', parseErr)
+          message.error('Ошибка разбора XML протоколов. Проверьте формат документа.')
+          setProtocolsData(null)
         }
+        setProtocolsModalVisible(true)
       }
     } catch (err) {
       message.error(err instanceof Error ? err.message : 'Ошибка при запросе протоколов')
@@ -266,6 +417,7 @@ const ComplianceDocumentsTab: React.FC<ComplianceDocumentsTabProps> = ({
           setSelectedDocument(null)
           setProtocolsData(null)
           setProtocolsError(null)
+          setExpandedProtocolKeys([])
         }}
         footer={[
           <Button key="close" onClick={() => {
@@ -273,6 +425,7 @@ const ComplianceDocumentsTab: React.FC<ComplianceDocumentsTabProps> = ({
             setSelectedDocument(null)
             setProtocolsData(null)
             setProtocolsError(null)
+            setExpandedProtocolKeys([])
           }}>
             OK
           </Button>,
@@ -291,56 +444,66 @@ const ComplianceDocumentsTab: React.FC<ComplianceDocumentsTabProps> = ({
           </div>
         ) : protocolsData ? (
           <div>
-            {/* XML протоколов (если открытие в новом окне заблокировано) */}
-            {protocolsData.xml && !protocolsData.protocols && (
-              <pre style={{ whiteSpace: 'pre-wrap', fontFamily: 'monospace', fontSize: 12, maxHeight: 500, overflow: 'auto' }}>
-                {protocolsData.xml}
-              </pre>
-            )}
-            {/* Информация о продукции */}
+            {/* Набор атрибутов по продукции (ProductDetails) */}
             {protocolsData.product && (
-              <div style={{ marginBottom: '24px' }}>
+              <div style={{ marginBottom: 24 }}>
                 <h3>Набор атрибутов по продукции</h3>
-                <Descriptions column={1} bordered>
+                <Descriptions column={1} bordered size="small">
                   <Descriptions.Item label="Идентификатор продукции">
-                    {protocolsData.product.productId || '-'}
+                    {protocolsData.product.productId || '—'}
                   </Descriptions.Item>
                   <Descriptions.Item label="Наименование продукции">
-                    {protocolsData.product.productName || '-'}
+                    {protocolsData.product.productName || '—'}
                   </Descriptions.Item>
                   <Descriptions.Item label="Описание">
-                    {protocolsData.product.description || '-'}
+                    {protocolsData.product.description || '—'}
                   </Descriptions.Item>
                   <Descriptions.Item label="Код ТН ВЭД ЕАЭС">
-                    {protocolsData.product.commodityCode || '-'}
+                    {protocolsData.product.commodityCode || '—'}
                   </Descriptions.Item>
+                  {protocolsData.product.technicalDocs && protocolsData.product.technicalDocs.length > 0 && (
+                    <Descriptions.Item label="Техническая документация">
+                      {protocolsData.product.technicalDocs.map((doc, idx) => (
+                        <div key={idx}>
+                          {[doc.docName, doc.docId, doc.docCreationDate].filter(Boolean).join(', ') || '—'}
+                        </div>
+                      ))}
+                    </Descriptions.Item>
+                  )}
+                  <Descriptions.Item label="Назначение">{protocolsData.product.productPurpose || '—'}</Descriptions.Item>
+                  <Descriptions.Item label="Способ применения">{protocolsData.product.applicationMethod || '—'}</Descriptions.Item>
+                  <Descriptions.Item label="Форма выпуска">{protocolsData.product.releaseForm || '—'}</Descriptions.Item>
+                  <Descriptions.Item label="Условия хранения">{protocolsData.product.storageCondition || '—'}</Descriptions.Item>
+                  <Descriptions.Item label="Информация с этикетки">{protocolsData.product.labelText || '—'}</Descriptions.Item>
                 </Descriptions>
               </div>
             )}
 
-            {/* Таблица протоколов */}
-            <div style={{ marginBottom: '24px' }}>
+            {/* Протоколы — при раскрытии строки показывается блок «Лаборатория» (DocBinaryText, AnyDetails/XML только если вложены) */}
+            <div style={{ marginBottom: 24 }}>
               <h3>Протоколы</h3>
               <Table
                 dataSource={protocolsData.protocols}
                 columns={[
                   {
                     title: 'Вид',
-                    dataIndex: 'docKindName',
-                    key: 'docKindName',
-                    render: (text: string) => text || '-',
+                    key: 'docKind',
+                    render: (_: unknown, record: LaboratoryProtocol) =>
+                      record.docKindCode
+                        ? (getShipDocKindDisplayLabel(record.docKindCode) || record.docKindName || record.docKindCode)
+                        : (record.docKindName ?? ''),
                   },
                   {
                     title: 'Наименование',
                     dataIndex: 'docName',
                     key: 'docName',
-                    render: (text: string) => text || '-',
+                    render: (text: string) => text || '—',
                   },
                   {
                     title: 'Номер',
                     dataIndex: 'docId',
                     key: 'docId',
-                    render: (text: string) => text || '-',
+                    render: (text: string) => text || '—',
                   },
                   {
                     title: 'Дата',
@@ -349,111 +512,73 @@ const ComplianceDocumentsTab: React.FC<ComplianceDocumentsTabProps> = ({
                     render: (date: string) => formatDate(date),
                   },
                   {
-                    title: 'Действия',
-                    key: 'actions',
-                    render: (_: any, record: any) => (
-                      <Button
-                        type="link"
-                        onClick={() => {
-                          setSelectedLaboratory(record.laboratory)
-                          setLaboratoryModalVisible(true)
-                        }}
-                      >
-                        Лаборатория
-                      </Button>
-                    ),
+                    title: 'Документ в бинарном виде',
+                    key: 'docBinaryText',
+                    width: 120,
+                    render: (_: unknown, record: LaboratoryProtocol) =>
+                      record.docBinaryText?.content ? (
+                        <Button
+                          type="link"
+                          size="small"
+                          icon={<DownloadOutlined />}
+                          onClick={() => {
+                            const bin = record.docBinaryText
+                            if (bin?.content) {
+                              try {
+                                const blob = new Blob([Uint8Array.from(atob(bin.content), (c) => c.charCodeAt(0))], {
+                                  type: bin.mediaTypeCode || 'application/octet-stream',
+                                })
+                                const url = URL.createObjectURL(blob)
+                                const a = document.createElement('a')
+                                a.href = url
+                                a.download = `document.${bin.mediaTypeCode?.split('/')[1] || 'bin'}`
+                                a.click()
+                                URL.revokeObjectURL(url)
+                              } catch {
+                                message.warning('Не удалось скачать документ')
+                              }
+                            }
+                          }}
+                        >
+                          Скачать{record.docBinaryText?.mediaTypeCode ? ` (${getMediaTypeNameByCode(record.docBinaryText.mediaTypeCode) || record.docBinaryText.mediaTypeCode})` : ''}
+                        </Button>
+                      ) : (
+                        '—'
+                      ),
                   },
                 ]}
                 rowKey={(record, index) => `protocol-${index}`}
                 pagination={false}
+                size="small"
+                expandable={{
+                  onExpand: (expanded, record) => {
+                    if (expanded && record.laboratory) {
+                      const c =
+                        record.laboratory.registrationAddress?.country ??
+                        record.laboratory.actualAddress?.country ??
+                        record.laboratory.mailingAddress?.country ??
+                        ''
+                      setExpandedLabCountry(c)
+                    }
+                  },
+                  expandedRowRender: (record: LaboratoryProtocol) =>
+                    record.laboratory
+                      ? renderLaboratoryBlock(record.laboratory, { showTitle: true })
+                      : (
+                        <div style={{ border: '1px solid #d9d9d9', borderRadius: 4, padding: 12, margin: '8px 0', background: '#fafafa' }}>
+                          <div style={{ fontWeight: 600, marginBottom: 8 }}>Лаборатория</div>
+                          <div style={{ color: '#999', marginBottom: 12 }}>Нет данных по лаборатории</div>
+                          <Descriptions column={1} bordered size="small">
+                            <Descriptions.Item label="Документ в бинарном виде">—</Descriptions.Item>
+                            <Descriptions.Item label="XML">—</Descriptions.Item>
+                          </Descriptions>
+                        </div>
+                      ),
+                }}
               />
             </div>
           </div>
         ) : null}
-      </Modal>
-
-      {/* Модальное окно с деталями лаборатории */}
-      <Modal
-        title="Лаборатория"
-        open={laboratoryModalVisible}
-        onCancel={() => {
-          setLaboratoryModalVisible(false)
-          setSelectedLaboratory(null)
-        }}
-        footer={[
-          <Button key="close" onClick={() => {
-            setLaboratoryModalVisible(false)
-            setSelectedLaboratory(null)
-          }}>
-            Закрыть
-          </Button>,
-        ]}
-        width={800}
-      >
-        {selectedLaboratory && (
-          <Descriptions column={1} bordered>
-            <Descriptions.Item label="Идентификатор субъекта">
-              {selectedLaboratory.subjectId || '-'}
-            </Descriptions.Item>
-            <Descriptions.Item label="Метод идентификации">
-              {selectedLaboratory.identificationMethod ? getIdentificationMethodDisplayLabel(selectedLaboratory.identificationMethod) : '-'}
-            </Descriptions.Item>
-            <Descriptions.Item label="Организационно-правовая форма">
-              {selectedLaboratory.organizationalForm || '-'}
-            </Descriptions.Item>
-            <Descriptions.Item label="Наименование субъекта">
-              {selectedLaboratory.businessEntityName || '-'}
-            </Descriptions.Item>
-            {(() => {
-              const addressList = getAddressListFromParty(selectedLaboratory)
-              const addressLines = formatAddressList(addressList, getDefaultAddressKindName, getCountryNameForAddress)
-              return addressLines.length > 0 ? (
-                <Descriptions.Item label="Адреса">
-                  <ul style={{ margin: 0, paddingLeft: '20px' }}>
-                    {addressLines.map((line, idx) => (
-                      <li key={idx} style={{ marginBottom: '4px' }}>{line}</li>
-                    ))}
-                  </ul>
-                </Descriptions.Item>
-              ) : null
-            })()}
-            {selectedLaboratory.accreditationCertificate && (
-              <>
-                <Descriptions.Item label="Наименование аттестата аккредитации">
-                  {selectedLaboratory.accreditationCertificate.docKindName || '-'}
-                </Descriptions.Item>
-                <Descriptions.Item label="Номер документа">
-                  {selectedLaboratory.accreditationCertificate.docId || '-'}
-                </Descriptions.Item>
-                <Descriptions.Item label="Дата документа">
-                  {formatDate(selectedLaboratory.accreditationCertificate.eventDate)}
-                </Descriptions.Item>
-                <Descriptions.Item label="Срок действия. Начало">
-                  {formatDate(selectedLaboratory.accreditationCertificate.docStartDate)}
-                </Descriptions.Item>
-                <Descriptions.Item label="Срок действия. Окончание">
-                  {formatDate(selectedLaboratory.accreditationCertificate.docValidityDate)}
-                </Descriptions.Item>
-                {selectedLaboratory.accreditationCertificate.docBinaryText && (
-                  <Descriptions.Item label="Документ в бинарном виде">
-                    <div style={{ display: 'flex', gap: '8px' }}>
-                      {selectedLaboratory.accreditationCertificate.docBinaryText.mediaTypeCode && (
-                        <Button type="link" size="small">
-                          Скачать ({selectedLaboratory.accreditationCertificate.docBinaryText.mediaTypeCode})
-                        </Button>
-                      )}
-                      {selectedLaboratory.accreditationCertificate.xmlDocument && (
-                        <Button type="link" size="small">
-                          Скачать XML
-                        </Button>
-                      )}
-                    </div>
-                  </Descriptions.Item>
-                )}
-              </>
-            )}
-          </Descriptions>
-        )}
       </Modal>
     </div>
   )

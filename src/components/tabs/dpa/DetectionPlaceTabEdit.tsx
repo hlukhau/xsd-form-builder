@@ -202,8 +202,11 @@ const DetectionPlaceTabEdit: React.FC<DetectionPlaceTabEditProps> = ({ data, onC
             label: 'Пункт пропуска',
             children: (
               <Form layout="vertical" className="field-tag-form">
+                <p style={{ marginBottom: 12, color: '#666', fontSize: 13 }}>
+                  Укажите оба атрибута (код вида пункта пропуска и наименование пункта пропуска) или оставьте оба пустыми.
+                </p>
                 <Form.Item
-                  label="Код вида пункта пропуска"
+                  label="Код вида пункта пропуска (csdo:BorderCheckpointCode)"
                   validateStatus={checkpointValidationError ? 'error' : undefined}
                   help={checkpointValidationError}
                 >
@@ -217,12 +220,14 @@ const DetectionPlaceTabEdit: React.FC<DetectionPlaceTabEditProps> = ({ data, onC
                         onChange({ ...data, borderCheckpoint: undefined })
                         return
                       }
-                      const opts = getCheckpointSelectOptions()
-                      const opt = opts.find((o) => o.value === code)
-                      const name = opt?.label != null ? opt.label.split(' - ').slice(1).join(' - ') : ''
+                      // Подставляем только код в csdo:BorderCheckpointCode; наименование вида только в выпадающем списке (код — наименование), в данные не пишем
                       onChange({
                         ...data,
-                        borderCheckpoint: { checkpointCode: code, checkpointName: name },
+                        borderCheckpoint: {
+                          ...data.borderCheckpoint,
+                          checkpointCode: code,
+                          checkpointName: data.borderCheckpoint?.checkpointName ?? '',
+                        },
                       })
                     }}
                     filterOption={(input, option) =>
@@ -234,12 +239,12 @@ const DetectionPlaceTabEdit: React.FC<DetectionPlaceTabEditProps> = ({ data, onC
                   />
                 </Form.Item>
                 <Form.Item
-                  label="Наименование пункта пропуска"
+                  label="Наименование пункта пропуска (csdo:BorderCheckpointName)"
+                  help={checkpointValidationError ?? 'Текстовое поле, вносится пользователем (csdo:Name250Type).'}
                   validateStatus={checkpointValidationError ? 'error' : undefined}
-                  help={checkpointValidationError}
                 >
                   <Input
-                    placeholder="Наименование пункта пропуска"
+                    placeholder="Введите наименование пункта пропуска"
                     value={data.borderCheckpoint?.checkpointName ?? ''}
                     onChange={(e) => handleCheckpointChange('checkpointName', e.target.value)}
                     maxLength={getMaxLength('checkpointName')}

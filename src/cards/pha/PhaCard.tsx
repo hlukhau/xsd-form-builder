@@ -1,8 +1,8 @@
 import { useState, useEffect } from 'react'
-import { Card, Tabs, Switch, Button, Space, message } from 'antd'
+import { Tabs, Switch, Button, Space, message } from 'antd'
 import { EditOutlined, EyeOutlined, DownloadOutlined } from '@ant-design/icons'
 import type { CardData } from '@/types/card'
-import { CardHeader } from '@/cards/shared'
+import { CardHeader, CardActions } from '@/cards/shared'
 import {
   NotificationTab,
   NotificationTabEdit,
@@ -18,6 +18,8 @@ import { parsePhaXmlToCardData } from '@/cards/pha/phaXmlParser'
 import { compareCardData } from '@/utils/cardDataComparator'
 import { getEmptyTagsWarnings } from '@/utils/xmlExporter'
 import XMLComparisonModal, { type ComparisonResultShape } from '@/components/modals/dpa/XMLComparisonModal'
+import StatusHistoryModal from '@/components/modals/dpa/StatusHistoryModal'
+import ElectronicDocumentModal from '@/components/modals/dpa/ElectronicDocumentModal'
 
 interface PhaCardProps {
   data: CardData
@@ -51,6 +53,8 @@ const PhaCard: React.FC<PhaCardProps> = ({ data, phaid = '', guid, originalXML, 
   const [saving, setSaving] = useState(false)
   const [comparisonResult, setComparisonResult] = useState<ComparisonResultShape | null>(null)
   const [comparisonModalVisible, setComparisonModalVisible] = useState(false)
+  const [statusHistoryVisible, setStatusHistoryVisible] = useState(false)
+  const [electronicDocumentVisible, setElectronicDocumentVisible] = useState(false)
 
   useEffect(() => {
     setEditedData(data)
@@ -128,38 +132,101 @@ const PhaCard: React.FC<PhaCardProps> = ({ data, phaid = '', guid, originalXML, 
   })
 
   return (
-    <Card
-      title={phaid ? `Карта сведений об обнаружении болезней ${phaid}` : 'Карта сведений об обнаружении болезней'}
-      className="pha-card"
-      extra={
-        <Space wrap>
-          <Switch
-            checked={isEditMode}
-            onChange={handleSwitchEdit}
-            checkedChildren={<EditOutlined />}
-            unCheckedChildren={<EyeOutlined />}
-          />
-          <span style={{ fontSize: 12, color: '#666' }}>Режим редактирования</span>
-          {isEditMode && (
-            <>
-              <Button type="primary" onClick={handleSave} loading={saving}>Сохранить</Button>
-              <Button icon={<DownloadOutlined />} onClick={handleExportXML}>Экспорт XML</Button>
-              <Button onClick={handleCompareXML}>Сравнить с исходным</Button>
-            </>
-          )}
-        </Space>
-      }
-    >
-      <CardHeader data={currentData} onStatusClick={() => {}} />
-      <Tabs style={{ marginTop: 16 }} items={tabItems} />
-      {comparisonResult && (
-        <XMLComparisonModal
-          visible={comparisonModalVisible}
-          comparisonResult={comparisonResult}
-          onClose={() => setComparisonModalVisible(false)}
+    <div style={{ padding: 0, display: 'flex', flexDirection: 'column', minHeight: '100vh' }} className="fade-in card-page-layout">
+      <div
+        className="card-sticky-header"
+        style={{
+          position: 'sticky',
+          top: 0,
+          zIndex: 100,
+          background: '#ffffff',
+          boxShadow: '0 1px 2px rgba(0,0,0,0.06)',
+          padding: '0 24px 2px 24px',
+          isolation: 'isolate',
+          display: 'flex',
+          flexDirection: 'column',
+          height: '100vh',
+          maxHeight: '100vh',
+          overflow: 'hidden',
+        }}
+      >
+        <div className="card-sticky-header-title-row">
+          <span className="card-sticky-header-title">
+            {phaid ? `Карта сведений об обнаружении болезни ${phaid}` : 'Карта сведений об обнаружении болезни'}
+          </span>
+          <Space size="small" wrap>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+              <Switch
+                checked={isEditMode}
+                onChange={handleSwitchEdit}
+                checkedChildren={<EditOutlined />}
+                unCheckedChildren={<EyeOutlined />}
+              />
+              <span className="card-sticky-header-mode-label">Режим редактирования</span>
+            </div>
+            {isEditMode && (
+              <>
+                <Button type="primary" onClick={handleSave} loading={saving}>Сохранить</Button>
+                <Button icon={<DownloadOutlined />} onClick={handleExportXML}>Экспорт XML</Button>
+                <Button onClick={handleCompareXML}>Сравнить с исходным</Button>
+              </>
+            )}
+            <Button
+              onClick={() => {
+                if (typeof window !== 'undefined') {
+                  window.parent.postMessage({ code: 'exit' }, '*')
+                }
+              }}
+            >
+              {phaid === '-' || !phaid ? 'Отменить создание' : 'Закрыть карту'}
+            </Button>
+          </Space>
+        </div>
+        <CardHeader
+          data={currentData}
+          onStatusClick={() => setStatusHistoryVisible(true)}
         />
-      )}
-    </Card>
+        <CardActions
+          data={currentData}
+          onOpenAllVersions={() => {
+            const payload = {
+              code: 'all_version' as const,
+              INCIDENTID: currentData.registrationNumber ?? '',
+              COUNTRY: currentData.country ?? '',
+            }
+            if (typeof window !== 'undefined') {
+              window.parent.postMessage(payload, '*')
+            }
+          }}
+          statusButton={null}
+          onStatusAction={() => {}}
+          onElectronicDocumentClick={() => setElectronicDocumentVisible(true)}
+        />
+        <div className="card-tabs-wrapper">
+          <Tabs defaultActiveKey="notification" items={tabItems} />
+        </div>
+      </div>
+
+      <>
+        <StatusHistoryModal
+          visible={statusHistoryVisible}
+          data={currentData.statusHistory ?? []}
+          onClose={() => setStatusHistoryVisible(false)}
+        />
+        <ElectronicDocumentModal
+          visible={electronicDocumentVisible}
+          data={currentData.electronicDocument ? [currentData.electronicDocument] : []}
+          onClose={() => setElectronicDocumentVisible(false)}
+        />
+        {comparisonResult && (
+          <XMLComparisonModal
+            visible={comparisonModalVisible}
+            comparisonResult={comparisonResult}
+            onClose={() => setComparisonModalVisible(false)}
+          />
+        )}
+      </>
+    </div>
   )
 }
 

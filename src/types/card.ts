@@ -237,17 +237,28 @@ export interface LaboratoryProtocol {
   docName?: string
   docId?: string
   docCreationDate?: string
+  /** Документ в бинарном виде на уровне протокола (smcdo:ComplianceDocDetails → csdo:DocBinaryText) */
+  docBinaryText?: { content?: string; mediaTypeCode?: string }
   laboratory?: LaboratoryDetails
 }
 
 export interface LaboratoryDetails {
   subjectId?: string
   identificationMethod?: string
+  /** Наименование организационно-правовой формы (свободный текст или из справочника) */
   organizationalForm?: string
+  /** Код организационно-правовой формы (справочник legalform, codeListId=2049) — для отображения по справочнику */
+  businessEntityTypeCode?: string
+  businessEntityTypeCodeListId?: string
   businessEntityName?: string
+  /** Адреса лаборатории (ccdo:SubjectAddressDetails) — массив для отображения списком */
+  addresses?: AddressDetails[]
   registrationAddress?: AddressDetails
   actualAddress?: AddressDetails
   mailingAddress?: AddressDetails
+  /** Аттестаты аккредитации — может быть несколько экземпляров */
+  accreditationCertificates?: AccreditationCertificateDetails[]
+  /** @deprecated используйте accreditationCertificates[0] */
   accreditationCertificate?: AccreditationCertificateDetails
 }
 
