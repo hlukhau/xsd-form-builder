@@ -15,7 +15,7 @@ const CardHeader: React.FC<CardHeaderProps> = ({ data, onStatusClick }) => {
   const formatDateTime = (dateTime: string | null | undefined) => {
     if (!dateTime) return '-'
     const date = new Date(dateTime)
-    if (isNaN(date.getTime())) return dateTime // Возвращаем исходное значение, если дата невалидна
+    if (isNaN(date.getTime())) return dateTime
     return format(date, DATE_TIME_DISPLAY_FORMAT_DATEFNS, { locale: ru })
   }
 
@@ -51,4 +51,3 @@ const CardHeader: React.FC<CardHeaderProps> = ({ data, onStatusClick }) => {
 }
 
 export default CardHeader
-

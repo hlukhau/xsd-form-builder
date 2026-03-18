@@ -7,11 +7,11 @@ import {
   getDefaultAddressKindName,
   getDefaultCountryName,
 } from '@/utils/addressFormatUtils'
-import { useLegalFormOptions } from '@/hooks/useLegalFormOptions'
-import { useIdentificationMethodOptions } from '@/hooks/useIdentificationMethodOptions'
-import { useCountryOptions } from '@/hooks/useCountryOptions'
-import { useSupplyChainPartyKindOptions } from '@/hooks/useSupplyChainPartyKindOptions'
-import { useCommunicationChannelOptions } from '@/hooks/useCommunicationChannelOptions'
+import { useLegalFormOptions } from '@/hooks/shared/useLegalFormOptions'
+import { useIdentificationMethodOptions } from '@/hooks/shared/useIdentificationMethodOptions'
+import { useCountryOptions } from '@/hooks/shared/useCountryOptions'
+import { useSupplyChainPartyKindOptions } from '@/hooks/shared/useSupplyChainPartyKindOptions'
+import { useCommunicationChannelOptions } from '@/hooks/shared/useCommunicationChannelOptions'
 
 const LEGAL_FORM_CODE_LIST_ID = '2049'
 

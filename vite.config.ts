@@ -10,10 +10,10 @@ export default defineConfig({
       '@': path.resolve(__dirname, './src'),
     },
   },
-  // Base path для развертывания на Tomcat
-  // Если приложение будет развернуто в корне контекста, используйте '/'
-  // Если в подпути (например /xsd-form-builder), используйте '/xsd-form-builder/'
-  base: '/xsd_form_builder/',
+  // Base path для развертывания на Tomcat.
+  // DPA: /xsd_form_builder/  |  PHA: /xsd_form_builder_57/
+  // Задать при сборке: VITE_APP_BASE=/xsd_form_builder_57/ npm run build:pha
+  base: process.env.VITE_APP_BASE || '/xsd_form_builder/',
   // Директория для сборки (будет скопирована в WAR)
   build: {
     outDir: 'dist',

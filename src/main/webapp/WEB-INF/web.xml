@@ -255,7 +255,7 @@
     <!-- XML по DPAID из таблицы DPAXML -->
     <servlet>
         <servlet-name>DpaXmlServlet</servlet-name>
-        <servlet-class>com.eec.servlet.DpaXmlServlet</servlet-class>
+        <servlet-class>com.eec.servlet.dpa.DpaXmlServlet</servlet-class>
     </servlet>
     <servlet-mapping>
         <servlet-name>DpaXmlServlet</servlet-name>
@@ -265,17 +265,37 @@
     <!-- Метаданные карты из VW_DPA (GET /api/dpa/metadata/{DPAID}) -->
     <servlet>
         <servlet-name>DpaMetadataServlet</servlet-name>
-        <servlet-class>com.eec.servlet.DpaMetadataServlet</servlet-class>
+        <servlet-class>com.eec.servlet.dpa.DpaMetadataServlet</servlet-class>
     </servlet>
     <servlet-mapping>
         <servlet-name>DpaMetadataServlet</servlet-name>
         <url-pattern>/api/dpa/metadata/*</url-pattern>
     </servlet-mapping>
 
+    <!-- Карта PHA: XML по PHAID из PHAXML -->
+    <servlet>
+        <servlet-name>PhaXmlServlet</servlet-name>
+        <servlet-class>com.eec.servlet.pha.PhaXmlServlet</servlet-class>
+    </servlet>
+    <servlet-mapping>
+        <servlet-name>PhaXmlServlet</servlet-name>
+        <url-pattern>/api/pha/xml/*</url-pattern>
+    </servlet-mapping>
+
+    <!-- Метаданные карты PHA из таблицы PHA -->
+    <servlet>
+        <servlet-name>PhaMetadataServlet</servlet-name>
+        <servlet-class>com.eec.servlet.pha.PhaMetadataServlet</servlet-class>
+    </servlet>
+    <servlet-mapping>
+        <servlet-name>PhaMetadataServlet</servlet-name>
+        <url-pattern>/api/pha/metadata/*</url-pattern>
+    </servlet-mapping>
+
     <!-- История смены статусов из DPASTATUSHIST -->
     <servlet>
         <servlet-name>DpaStatusHistoryServlet</servlet-name>
-        <servlet-class>com.eec.servlet.DpaStatusHistoryServlet</servlet-class>
+        <servlet-class>com.eec.servlet.dpa.DpaStatusHistoryServlet</servlet-class>
     </servlet>
     <servlet-mapping>
         <servlet-name>DpaStatusHistoryServlet</servlet-name>
@@ -285,7 +305,7 @@
     <!-- Электронные документы и запись общего ресурса по DPAID (EDOC + VW_PACKAGEMESSAGE) -->
     <servlet>
         <servlet-name>DpaElectronicDocsServlet</servlet-name>
-        <servlet-class>com.eec.servlet.DpaElectronicDocsServlet</servlet-class>
+        <servlet-class>com.eec.servlet.dpa.DpaElectronicDocsServlet</servlet-class>
     </servlet>
     <servlet-mapping>
         <servlet-name>DpaElectronicDocsServlet</servlet-name>
@@ -325,7 +345,7 @@
     <!-- Смена статуса карты (входящие: Завершение обработки, Закрытие карты) -->
     <servlet>
         <servlet-name>DpaStatusChangeServlet</servlet-name>
-        <servlet-class>com.eec.servlet.DpaStatusChangeServlet</servlet-class>
+        <servlet-class>com.eec.servlet.dpa.DpaStatusChangeServlet</servlet-class>
     </servlet>
     <servlet-mapping>
         <servlet-name>DpaStatusChangeServlet</servlet-name>
@@ -335,7 +355,7 @@
     <!-- Следующий уникальный регистрационный номер для страны (при создании карты) -->
     <servlet>
         <servlet-name>DpaNextRegNumberServlet</servlet-name>
-        <servlet-class>com.eec.servlet.DpaNextRegNumberServlet</servlet-class>
+        <servlet-class>com.eec.servlet.dpa.DpaNextRegNumberServlet</servlet-class>
     </servlet>
     <servlet-mapping>
         <servlet-name>DpaNextRegNumberServlet</servlet-name>
@@ -345,7 +365,7 @@
     <!-- Сохранение новой карты в DPA и DPAXML (исходящий, статус Черновик) -->
     <servlet>
         <servlet-name>DpaSaveServlet</servlet-name>
-        <servlet-class>com.eec.servlet.DpaSaveServlet</servlet-class>
+        <servlet-class>com.eec.servlet.dpa.DpaSaveServlet</servlet-class>
     </servlet>
     <servlet-mapping>
         <servlet-name>DpaSaveServlet</servlet-name>
@@ -355,7 +375,7 @@
     <!-- Удаление карты исходящих (только черновик, с проверкой права dangerousProductOut:edit по подразделениям DPADEPPERMIS) -->
     <servlet>
         <servlet-name>DpaDeleteServlet</servlet-name>
-        <servlet-class>com.eec.servlet.DpaDeleteServlet</servlet-class>
+        <servlet-class>com.eec.servlet.dpa.DpaDeleteServlet</servlet-class>
     </servlet>
     <servlet-mapping>
         <servlet-name>DpaDeleteServlet</servlet-name>
@@ -365,7 +385,7 @@
     <!-- Проверка возможности создания новой версии карты (кнопка «Сделать копию») -->
     <servlet>
         <servlet-name>DpaCanCreateNewVersionServlet</servlet-name>
-        <servlet-class>com.eec.servlet.DpaCanCreateNewVersionServlet</servlet-class>
+        <servlet-class>com.eec.servlet.dpa.DpaCanCreateNewVersionServlet</servlet-class>
     </servlet>
     <servlet-mapping>
         <servlet-name>DpaCanCreateNewVersionServlet</servlet-name>
@@ -385,7 +405,7 @@
     <!-- Список резолюций по карте (какие уровни уже наложили резолюцию) -->
     <servlet>
         <servlet-name>DpaResolutionsServlet</servlet-name>
-        <servlet-class>com.eec.servlet.DpaResolutionsServlet</servlet-class>
+        <servlet-class>com.eec.servlet.dpa.DpaResolutionsServlet</servlet-class>
     </servlet>
     <servlet-mapping>
         <servlet-name>DpaResolutionsServlet</servlet-name>

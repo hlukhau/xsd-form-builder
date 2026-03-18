@@ -1,0 +1,6 @@
+export { default as NotificationTab } from './NotificationTab'
+export { default as DiseaseTab } from './DiseaseTab'
+export { default as PatientGroupTab } from './PatientGroupTab'
+export { default as DetectionPlaceTab } from './DetectionPlaceTab'
+export { default as SpreadZoneTab } from './SpreadZoneTab'
+export { default as SanitaryMeasuresTab } from './SanitaryMeasuresTab'

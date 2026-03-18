@@ -1,0 +1,47 @@
+/**
+ * API для карты PHA (сведений об обнаружении болезней).
+ * Базовый URL задаётся при сборке (base: /xsd_form_builder_57/).
+ * Эндпоинты: /api/pha/xml/{PHAID}, /api/pha/metadata/{PHAID} и т.д.
+ */
+
+const BASE = import.meta.env.BASE_URL || '/'
+
+function getApiUrl(path: string): string {
+  const base = BASE.endsWith('/') ? BASE.slice(0, -1) : BASE
+  const p = path.startsWith('/') ? path : `/${path}`
+  return `${base}${p}`
+}
+
+export async function fetchPhaXml(phaid: string, guid?: string): Promise<string> {
+  const url = getApiUrl(`/api/pha/xml/${phaid}`)
+  const res = await fetch(url, {
+    method: 'GET',
+    headers: guid ? { 'X-GUID': guid } : {},
+    credentials: 'same-origin',
+  })
+  if (!res.ok) {
+    const text = await res.text()
+    throw new Error(res.status === 404 ? `Карта PHA с PHAID ${phaid} не найдена` : (text || res.statusText))
+  }
+  return res.text()
+}
+
+export async function fetchPhaMetadata(phaid: string, guid?: string): Promise<{
+  phaId: number
+  incidentId: string
+  phaVersion: number
+  alertCountryCode?: string
+  creationDateTime?: string
+  modificationDateTime?: string
+  phaStatusName?: string
+  phaStatusId?: number
+}> {
+  const url = getApiUrl(`/api/pha/metadata/${phaid}`)
+  const res = await fetch(url, {
+    method: 'GET',
+    headers: guid ? { 'X-GUID': guid } : {},
+    credentials: 'same-origin',
+  })
+  if (!res.ok) throw new Error(await res.text().catch(() => res.statusText))
+  return res.json()
+}

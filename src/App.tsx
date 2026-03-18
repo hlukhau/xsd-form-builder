@@ -1,9 +1,13 @@
 import { useState, useEffect } from 'react'
 import { Routes, Route, useParams, useSearchParams, useNavigate, useLocation } from 'react-router-dom'
 import { message, Spin } from 'antd'
-import DangerousProductCard from './components/card/DangerousProductCard'
+import { isPhaApp } from './cards/config'
+import { DangerousProductCard } from './cards/dpa'
+import { PhaCard } from './cards/pha'
 import type { CardData } from './types/card'
 import { fetchDpaXml, fetchDpaMetadata, fetchNextRegistrationNumber } from './utils/referenceDataApi'
+import { fetchPhaXml, fetchPhaMetadata } from './cards/pha/phaApi'
+import { parsePhaXmlToCardData } from './cards/pha/phaXmlParser'
 import { parseXMLToCardData, validateAndEnrichCardData, getTextContent } from './utils/xmlParser'
 import { createNewCardData } from './utils/newCardData'
 
@@ -288,12 +292,71 @@ function AppContent() {
   )
 }
 
+/** Контент приложения для карты PHA (путь /xsd_form_builder_57/{PHAID}/{GUID}) */
+function PhaAppContent() {
+  const [cardData, setCardData] = useState<CardData | null>(null)
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const { dpaid: phaidParam, guid } = useParams<{ dpaid: string; guid?: string }>()
+  const phaid = phaidParam ?? ''
+
+  useEffect(() => {
+    if (!phaid || phaid === '-') {
+      setLoading(false)
+      setError(null)
+      setCardData(createNewCardData('BY', { registrationNumber: '' }))
+      return
+    }
+    let cancelled = false
+    setLoading(true)
+    setError(null)
+    setCardData(null)
+    ;(async () => {
+      try {
+        const [xmlText, meta] = await Promise.all([
+          fetchPhaXml(phaid, guid),
+          fetchPhaMetadata(phaid, guid).catch(() => null),
+        ])
+        if (cancelled) return
+        const card = parsePhaXmlToCardData(xmlText)
+        const enriched = meta ? {
+          ...card,
+          registrationNumber: meta.incidentId ?? card.registrationNumber,
+          country: meta.alertCountryCode ?? card.country,
+          version: meta.phaVersion ?? card.version,
+          createdAt: meta.creationDateTime ?? card.createdAt,
+          modifiedAt: meta.modificationDateTime ?? card.modifiedAt,
+          status: meta.phaStatusName ?? card.status,
+          statusId: meta.phaStatusId ?? card.statusId,
+        } : card
+        setCardData(enriched)
+        setError(null)
+        message.success('Данные карты PHA загружены')
+      } catch (err) {
+        if (!cancelled) {
+          setError(err instanceof Error ? err.message : 'Ошибка загрузки')
+          message.error(err instanceof Error ? err.message : 'Ошибка загрузки')
+        }
+      } finally {
+        if (!cancelled) setLoading(false)
+      }
+    })()
+    return () => { cancelled = true }
+  }, [phaid, guid])
+
+  if (loading) return <div style={{ textAlign: 'center', padding: 16 }}><Spin size="large" tip="Загрузка карты PHA..." /></div>
+  if (error) return <div className="empty-state"><div style={{ color: '#ff4d4f' }}>{error}</div></div>
+  if (cardData) return <PhaCard data={cardData} phaid={phaid} guid={guid} />
+  return <div className="empty-state"><div>Нет данных. Откройте карту по PHAID или создайте новую.</div></div>
+}
+
 function App() {
+  const isPHA = isPhaApp()
   return (
     <Routes>
-      <Route path="/" element={<AppContent />} />
-      <Route path="/:dpaid" element={<AppContent />} />
-      <Route path="/:dpaid/:guid" element={<AppContent />} />
+      <Route path="/" element={isPHA ? <PhaAppContent /> : <AppContent />} />
+      <Route path="/:dpaid" element={isPHA ? <PhaAppContent /> : <AppContent />} />
+      <Route path="/:dpaid/:guid" element={isPHA ? <PhaAppContent /> : <AppContent />} />
     </Routes>
   )
 }

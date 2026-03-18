@@ -1,12 +1,16 @@
 #!/bin/bash
 # Manual WAR build without Maven (using javac) — Linux
-# Использование: ./build-manual.sh
+# Использование:
+#   ./build-manual.sh              — DPA: frontend из dist/, WAR xsd_form_builder.war
+#   ./build-manual.sh xsd_form_builder_57   — PHA: frontend из dist/ (сборка build:pha), WAR xsd_form_builder_57.war
+# Переменная DEPLOY=0 — только собрать WAR, не останавливать/разворачивать Tomcat.
 
 set -e
 
 PROJECT_DIR="$(cd "$(dirname "$0")" && pwd)"
 cd "$PROJECT_DIR"
 
+APP_NAME="${1:-xsd_form_builder}"
 TOMCAT_HOME="${TOMCAT_HOME:-/opt/tomcat8}"
 if [ -z "$JAVA_HOME" ]; then
     if [ -x "$TOMCAT_HOME/java/bin/java" ]; then
@@ -19,12 +23,12 @@ if [ -z "$JAVA_HOME" ]; then
         JAVA_HOME="$TOMCAT_HOME/java"
     fi
 fi
-APP_NAME="xsd_form_builder"
 WAR_FILE="$PROJECT_DIR/target/$APP_NAME.war"
 WEBAPPS_PATH="$TOMCAT_HOME/webapps"
 APP_PATH="$WEBAPPS_PATH/$APP_NAME"
 SRC_DIR="$PROJECT_DIR/src/main/java"
 CLASS_DIR="$PROJECT_DIR/target/$APP_NAME/WEB-INF/classes"
+DEPLOY="${DEPLOY:-1}"
 
 # Check Java
 if [ ! -x "$JAVA_HOME/bin/javac" ]; then
@@ -167,7 +171,11 @@ WAR_SIZE=$(stat -c%s "$WAR_FILE" 2>/dev/null || stat -f%z "$WAR_FILE" 2>/dev/nul
 echo "[OK] WAR file created: $WAR_FILE ($(($WAR_SIZE / 1048576)) MB)"
 echo ""
 
-# [6/6] Stop Tomcat, deploy, start Tomcat
+# [6/6] Stop Tomcat, deploy, start Tomcat (пропускается при DEPLOY=0)
+if [ "$DEPLOY" != "1" ]; then
+    echo "[6/6] Skipping deploy (DEPLOY=$DEPLOY). WAR: $WAR_FILE"
+    exit 0
+fi
 # Tomcat scripts expect CATALINA_HOME, CATALINA_BASE and JAVA_HOME
 export CATALINA_HOME="$TOMCAT_HOME"
 export CATALINA_BASE="${CATALINA_BASE:-$TOMCAT_HOME}"
