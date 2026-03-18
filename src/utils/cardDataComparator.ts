@@ -248,7 +248,15 @@ export function compareCardData(original: CardData, exported: CardData): {
     if (o === e) return true
     // Не выводить различия, где одна из сторон пустая — не засорять список
     if (o === '' || e === '') return true
-    differences.push(`Разное значение на пути ${path}: "${originalVal}" vs "${exportedVal}"`)
+    // Если значения совпадают при замене запятой на точку — несоответствие из-за разделителя дробной части
+    const oNorm = o.replace(/,/g, '.')
+    const eNorm = e.replace(/,/g, '.')
+    const isDecimalSeparatorMismatch = oNorm === eNorm && (o.includes(',') || e.includes(','))
+    if (isDecimalSeparatorMismatch) {
+      differences.push(`Разное значение на пути ${path}: "${originalVal}" vs "${exportedVal}". Несоответствие: в числовом поле использована запятая как разделитель дробной части; допускается только точка.`)
+    } else {
+      differences.push(`Разное значение на пути ${path}: "${originalVal}" vs "${exportedVal}"`)
+    }
     return false
   }
 

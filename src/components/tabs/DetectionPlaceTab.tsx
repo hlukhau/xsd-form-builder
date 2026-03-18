@@ -57,11 +57,72 @@ const DetectionPlaceTab: React.FC<DetectionPlaceTabProps> = ({ data }) => {
         )}
       </Descriptions>
 
-      {/* Раскрывающиеся секции - всегда показываем, даже если пустые */}
+      {/* Раскрывающиеся секции - Организация, Пункт пропуска, Географические координаты */}
       <Collapse
         defaultActiveKey={[]}
         expandIconPosition="end"
         items={[
+          // Организация
+          {
+            key: 'organization',
+            label: 'Организация',
+            children: data.organization ? (
+              <Descriptions column={1} bordered size="small">
+                <Descriptions.Item label="Страна">
+                  {getCountryDisplayLabel(data.organization.country)}
+                </Descriptions.Item>
+                <Descriptions.Item label="Наименование субъекта">
+                  {data.organization.businessEntityName || '-'}
+                </Descriptions.Item>
+                <Descriptions.Item label="Краткое наименование">
+                  {data.organization.businessEntityBriefName || '-'}
+                </Descriptions.Item>
+                <Descriptions.Item label="Организационно-правовая форма">
+                  {data.organization.businessEntityTypeName || '-'}
+                </Descriptions.Item>
+                <Descriptions.Item label="Идентификатор субъекта">
+                  {data.organization.businessEntityId || '-'}
+                </Descriptions.Item>
+                <Descriptions.Item label="Метод идентификации">
+                  {data.organization.identificationMethod ? getIdentificationMethodDisplayLabel(data.organization.identificationMethod) : '-'}
+                </Descriptions.Item>
+                <Descriptions.Item label="Таможенный номер">
+                  {data.organization.customsNumber || '-'}
+                </Descriptions.Item>
+                <Descriptions.Item label="Идентификатор налогоплательщика">
+                  {data.organization.taxpayerId || '-'}
+                </Descriptions.Item>
+                {(() => {
+                  const list = getAddressListFromOrganization(data.organization)
+                  const lines = formatAddressList(list, getDefaultAddressKindName, getCountryNameForAddress)
+                  return lines.length > 0 ? (
+                    <Descriptions.Item label="Адреса">
+                      <ul style={{ margin: 0, paddingLeft: '20px' }}>
+                        {lines.map((line, idx) => (
+                          <li key={idx} style={{ marginBottom: '4px' }}>{line}</li>
+                        ))}
+                      </ul>
+                    </Descriptions.Item>
+                  ) : null
+                })()}
+                {data.organization.contacts && data.organization.contacts.length > 0 && (
+                  <Descriptions.Item label="Контактный реквизит">
+                    <div>
+                      {data.organization.contacts.map((contact, index) => (
+                        <div key={index} style={{ marginBottom: '4px' }}>
+                          {contact.contactKind || ''}: {contact.contactValue || ''}
+                        </div>
+                      ))}
+                    </div>
+                  </Descriptions.Item>
+                )}
+              </Descriptions>
+            ) : (
+              <div style={{ color: '#999', fontStyle: 'italic' }}>
+                Данные об организации не указаны
+              </div>
+            ),
+          },
           // Пункт пропуска
           {
             key: 'checkpoint',
@@ -105,63 +166,6 @@ const DetectionPlaceTab: React.FC<DetectionPlaceTabProps> = ({ data }) => {
           },
         ]}
       />
-
-      {/* Детальная информация об организации (отдельный блок внизу) */}
-      {data.organization && (
-        <div style={{ marginTop: '24px' }}>
-          <h3 style={{ marginBottom: '16px' }}>Организация</h3>
-          <Descriptions column={1} bordered>
-            <Descriptions.Item label="Страна">
-              {getCountryDisplayLabel(data.organization.country)}
-            </Descriptions.Item>
-            <Descriptions.Item label="Наименование субъекта">
-              {data.organization.businessEntityName || '-'}
-            </Descriptions.Item>
-            <Descriptions.Item label="Краткое наименование">
-              {data.organization.businessEntityBriefName || '-'}
-            </Descriptions.Item>
-            <Descriptions.Item label="Организационно-правовая форма">
-              {data.organization.businessEntityTypeName || '-'}
-            </Descriptions.Item>
-            <Descriptions.Item label="Идентификатор субъекта">
-              {data.organization.businessEntityId || '-'}
-            </Descriptions.Item>
-            <Descriptions.Item label="Метод идентификации">
-              {data.organization.identificationMethod ? getIdentificationMethodDisplayLabel(data.organization.identificationMethod) : '-'}
-            </Descriptions.Item>
-            <Descriptions.Item label="Таможенный номер">
-              {data.organization.customsNumber || '-'}
-            </Descriptions.Item>
-            <Descriptions.Item label="Идентификатор налогоплательщика">
-              {data.organization.taxpayerId || '-'}
-            </Descriptions.Item>
-            {(() => {
-              const list = getAddressListFromOrganization(data.organization)
-              const lines = formatAddressList(list, getDefaultAddressKindName, getCountryNameForAddress)
-              return lines.length > 0 ? (
-                <Descriptions.Item label="Адреса">
-                  <ul style={{ margin: 0, paddingLeft: '20px' }}>
-                    {lines.map((line, idx) => (
-                      <li key={idx} style={{ marginBottom: '4px' }}>{line}</li>
-                    ))}
-                  </ul>
-                </Descriptions.Item>
-              ) : null
-            })()}
-            {data.organization.contacts && data.organization.contacts.length > 0 && (
-              <Descriptions.Item label="Контактный реквизит">
-                <div>
-                  {data.organization.contacts.map((contact, index) => (
-                    <div key={index} style={{ marginBottom: '4px' }}>
-                      {contact.contactKind || ''}: {contact.contactValue || ''}
-                    </div>
-                  ))}
-                </div>
-              </Descriptions.Item>
-            )}
-          </Descriptions>
-        </div>
-      )}
     </div>
   )
 }

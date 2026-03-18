@@ -43,6 +43,30 @@ function toISODateTimeForXml(dateTime: string | null | undefined): string {
 }
 
 /**
+ * Возвращает предупреждения о пустых элементах, которые не включаются в XML при экспорте.
+ * Результат можно добавить в warnings при сравнении.
+ */
+export function getEmptyTagsWarnings(data: CardData): string[] {
+  const warnings: string[] = []
+  if (data.tsd?.batches) {
+    let emptyShippingCount = 0
+    let emptyBatchDetailsCount = 0
+    for (const batch of data.tsd.batches) {
+      const withoutContent = batch.shippingDocuments?.filter(doc => !hasShippingDocumentContent(doc)) ?? []
+      emptyShippingCount += withoutContent.length
+      if (!hasBatchDetailsContent(batch)) emptyBatchDetailsCount++
+    }
+    if (emptyShippingCount > 0) {
+      warnings.push(`Обнаружены пустые товаросопроводительные документы (${emptyShippingCount}): они не включены в XML и при сравнении будут удалены.`)
+    }
+    if (emptyBatchDetailsCount > 0) {
+      warnings.push(`Обнаружены партии без сведений о серии/партии (BatchDetails) (${emptyBatchDetailsCount}): тег smcdo:BatchDetails не включён в XML.`)
+    }
+  }
+  return warnings
+}
+
+/**
  * Экспортирует CardData в XML формат с полной структурой
  */
 export function exportCardDataToXML(data: CardData): string {
@@ -141,25 +165,27 @@ export function exportCardDataToXML(data: CardData): string {
     if (hasBatches) {
       data.tsd!.batches.forEach((batch) => {
         xmlParts.push('            <smcdo:NonCompliantSanitaryProductBatchDetails>')
-        xmlParts.push('                <smcdo:BatchDetails>')
-        if (batch.batchId) {
-          xmlParts.push(`                    <smsdo:BatchId>${escapeXML(batch.batchId)}</smsdo:BatchId>`)
+        if (hasBatchDetailsContent(batch)) {
+          xmlParts.push('                <smcdo:BatchDetails>')
+          if (batch.batchId) {
+            xmlParts.push(`                    <smsdo:BatchId>${escapeXML(batch.batchId)}</smsdo:BatchId>`)
+          }
+          if (batch.manufactureDate) {
+            xmlParts.push(`                    <csdo:ManufactureDate>${escapeXML(batch.manufactureDate)}</csdo:ManufactureDate>`)
+          }
+          if (batch.productShelfLifeEndDate) {
+            xmlParts.push(`                    <csdo:ProductShelfLifeEndDate>${escapeXML(batch.productShelfLifeEndDate)}</csdo:ProductShelfLifeEndDate>`)
+          }
+          if (batch.commodityMeasure) {
+            const unitAttrs = batch.commodityMeasure.unitCode ? ` measurementUnitCode="${escapeXML(batch.commodityMeasure.unitCode)}"` : ''
+            const unitListId = batch.commodityMeasure.unitCodeListId ? ` measurementUnitCodeListId="${escapeXML(batch.commodityMeasure.unitCodeListId)}"` : ''
+            xmlParts.push(`                    <csdo:UnifiedCommodityMeasure${unitAttrs}${unitListId}>${escapeXML(batch.commodityMeasure.value)}</csdo:UnifiedCommodityMeasure>`)
+          }
+          if (batch.note) {
+            xmlParts.push(`                    <csdo:NoteText>${escapeXML(batch.note)}</csdo:NoteText>`)
+          }
+          xmlParts.push('                </smcdo:BatchDetails>')
         }
-        if (batch.manufactureDate) {
-          xmlParts.push(`                    <csdo:ManufactureDate>${escapeXML(batch.manufactureDate)}</csdo:ManufactureDate>`)
-        }
-        if (batch.productShelfLifeEndDate) {
-          xmlParts.push(`                    <csdo:ProductShelfLifeEndDate>${escapeXML(batch.productShelfLifeEndDate)}</csdo:ProductShelfLifeEndDate>`)
-        }
-        if (batch.commodityMeasure) {
-          const unitAttrs = batch.commodityMeasure.unitCode ? ` measurementUnitCode="${escapeXML(batch.commodityMeasure.unitCode)}"` : ''
-          const unitListId = batch.commodityMeasure.unitCodeListId ? ` measurementUnitCodeListId="${escapeXML(batch.commodityMeasure.unitCodeListId)}"` : ''
-          xmlParts.push(`                    <csdo:UnifiedCommodityMeasure${unitAttrs}${unitListId}>${escapeXML(batch.commodityMeasure.value)}</csdo:UnifiedCommodityMeasure>`)
-        }
-        if (batch.note) {
-          xmlParts.push(`                    <csdo:NoteText>${escapeXML(batch.note)}</csdo:NoteText>`)
-        }
-        xmlParts.push('                </smcdo:BatchDetails>')
         if (batch.consignmentId) {
           xmlParts.push(`                <smsdo:ConsignmentId>${escapeXML(batch.consignmentId)}</smsdo:ConsignmentId>`)
         }
@@ -167,8 +193,9 @@ export function exportCardDataToXML(data: CardData): string {
           const unitAttrs = batch.batchCommodityMeasure.unitCode ? ` measurementUnitCode="${escapeXML(batch.batchCommodityMeasure.unitCode)}"` : ''
           xmlParts.push(`                <csdo:CommodityMeasure${unitAttrs}>${escapeXML(batch.batchCommodityMeasure.value)}</csdo:CommodityMeasure>`)
         }
-        if (batch.shippingDocuments && batch.shippingDocuments.length > 0) {
-          batch.shippingDocuments.forEach(doc => {
+        const docsWithContent = batch.shippingDocuments?.filter(hasShippingDocumentContent) ?? []
+        if (docsWithContent.length > 0) {
+          docsWithContent.forEach(doc => {
             exportShippingDocument(xmlParts, doc, '                ')
           })
         }
@@ -343,6 +370,27 @@ function exportAddress(
   xmlParts.push(`${indent}</ccdo:${wrapper}>`)
 }
 
+/** Есть ли хотя бы один заполненный атрибут smcdo:BatchDetails (не выводить пустой тег). */
+function hasBatchDetailsContent(batch: ProductBatchDetails): boolean {
+  if (batch.batchId?.trim()) return true
+  if (batch.manufactureDate?.trim()) return true
+  if (batch.productShelfLifeEndDate?.trim()) return true
+  if (batch.note?.trim()) return true
+  if (batch.commodityMeasure?.value?.trim()) return true
+  return false
+}
+
+/** Есть ли хотя бы одно заполненное поле в товаросопроводительном документе (не выводить пустой тег). */
+function hasShippingDocumentContent(doc: ShippingDocument): boolean {
+  if (doc.docKindCode?.trim()) return true
+  if (doc.docName?.trim()) return true
+  if (doc.docCreationDate?.trim()) return true
+  if (doc.docId?.trim()) return true
+  if (doc.products?.length) return true
+  if (doc.supplyChainParties?.length) return true
+  return false
+}
+
 function exportShippingDocument(xmlParts: string[], doc: ShippingDocument, indent: string) {
   xmlParts.push(`${indent}<smcdo:ShippingDocumentDetails>`)
   if (doc.docKindCode) {
@@ -436,10 +484,23 @@ function exportViolations(xmlParts: string[], violations: ViolationsData, indent
   xmlParts.push(`${indent}</smcdo:RequirementViolationDetails>`)
 }
 
+function hasOrganizationContent(org: BusinessEntityDetails | undefined): boolean {
+  if (!org) return false
+  if (org.country?.trim()) return true
+  if (org.businessEntityName?.trim()) return true
+  if (org.businessEntityBriefName?.trim()) return true
+  if (org.businessEntityTypeName?.trim()) return true
+  if (org.businessEntityId?.trim()) return true
+  if (org.taxpayerId?.trim()) return true
+  if (org.addresses?.length) return true
+  if (org.contacts?.length) return true
+  return false
+}
+
 function exportDetectionPlace(xmlParts: string[], place: DetectionPlaceData, indent: string) {
   xmlParts.push(`${indent}<smcdo:DetectionPlaceDetails>`)
   // Порядок по XSD LocationDetailsType: OrganizationDetails, BorderCheckpointDetails, ObjectAddressDetails, GeoCoordinateDetails, DescriptionText
-  if (place.organization) {
+  if (hasOrganizationContent(place.organization)) {
     xmlParts.push(`${indent}    <smcdo:OrganizationDetails>`)
     if (place.organization.country) {
       xmlParts.push(`${indent}        <csdo:UnifiedCountryCode codeListId="2021">${escapeXML(place.organization.country)}</csdo:UnifiedCountryCode>`)
@@ -472,7 +533,7 @@ function exportDetectionPlace(xmlParts: string[], place: DetectionPlaceData, ind
     }
     xmlParts.push(`${indent}    </smcdo:OrganizationDetails>`)
   }
-  if (place.borderCheckpoint) {
+  if (place.borderCheckpoint && (place.borderCheckpoint.checkpointCode?.trim() || place.borderCheckpoint.checkpointName?.trim())) {
     xmlParts.push(`${indent}    <smcdo:BorderCheckpointDetails>`)
     if (place.borderCheckpoint.checkpointCode) xmlParts.push(`${indent}        <csdo:BorderCheckpointCode>${escapeXML(place.borderCheckpoint.checkpointCode)}</csdo:BorderCheckpointCode>`)
     if (place.borderCheckpoint.checkpointName) xmlParts.push(`${indent}        <csdo:BorderCheckpointName>${escapeXML(place.borderCheckpoint.checkpointName)}</csdo:BorderCheckpointName>`)
@@ -736,7 +797,43 @@ function escapeXML(str: string | undefined | null): string {
 }
 
 /**
- * Сравнивает два XML документа и возвращает результат сравнения
+ * Удаляет из XML пустые элементы (без дочерних элементов и без текста).
+ * Возвращает очищенный XML и список имён удалённых тегов для предупреждения.
+ */
+export function stripEmptyTagsFromXML(xml: string): { xml: string; strippedTagNames: string[] } {
+  const stripped: string[] = []
+  const parser = new DOMParser()
+  const doc = parser.parseFromString(xml, 'text/xml')
+  if (doc.querySelector('parsererror')) return { xml, strippedTagNames: [] }
+
+  let changed = true
+  while (changed) {
+    changed = false
+    const all: Element[] = []
+    doc.querySelectorAll('*').forEach(el => all.push(el))
+    const byDepth = (a: Element, b: Element) => {
+      let d = 0; let e: Element | null = b; while (e) { d++; e = e.parentElement }
+      let d2 = 0; e = a; while (e) { d2++; e = e.parentElement }
+      return d - d2
+    }
+    all.sort(byDepth)
+    for (const el of all) {
+      if (el.children.length === 0 && !el.textContent?.trim()) {
+        const name = el.localName || el.tagName || ''
+        if (name) stripped.push(name)
+        el.remove()
+        changed = true
+      }
+    }
+  }
+
+  const serializer = new XMLSerializer()
+  return { xml: serializer.serializeToString(doc), strippedTagNames: [...new Set(stripped)] }
+}
+
+/**
+ * Сравнивает два XML документа и возвращает результат сравнения.
+ * В экспортированном XML пустые теги удаляются перед сравнением; при их наличии добавляется предупреждение.
  */
 export function compareXML(originalXML: string, exportedXML: string): {
   isIdentical: boolean
@@ -747,9 +844,14 @@ export function compareXML(originalXML: string, exportedXML: string): {
   const warnings: string[] = []
   
   try {
+    const { xml: cleanedExportedXML, strippedTagNames } = stripEmptyTagsFromXML(exportedXML)
+    if (strippedTagNames.length > 0) {
+      warnings.push(`В экспортированном XML обнаружены пустые теги (${strippedTagNames.join(', ')}). Они удалены для корректного сравнения.`)
+    }
+
     const parser = new DOMParser()
     const originalDoc = parser.parseFromString(originalXML, 'text/xml')
-    const exportedDoc = parser.parseFromString(exportedXML, 'text/xml')
+    const exportedDoc = parser.parseFromString(cleanedExportedXML, 'text/xml')
     
     // Проверка на ошибки парсинга
     const originalError = originalDoc.querySelector('parsererror')

@@ -76,94 +76,6 @@ const DetectionPlaceTabEdit: React.FC<DetectionPlaceTabEditProps> = ({ data, onC
   return (
     <div>
       <Form layout="vertical" className="field-tag-form">
-        <h4 style={{ marginTop: 0 }}>Адрес</h4>
-        <div style={{ border: '1px solid #d9d9d9', borderRadius: 4, padding: 16, marginBottom: 16 }}>
-          <Space direction="vertical" style={{ width: '100%' }}>
-          <Form.Item label="Страна" style={{ marginBottom: 0 }}>
-            <CountrySelect
-              placeholder="Страна"
-              loading={loading}
-              value={data.address?.country}
-              onChange={(value) => handleAddressChange('country', value || '')}
-              countryOptions={countryOptions}
-              normalizeCountryCode={normalizeCountryCode}
-            />
-          </Form.Item>
-          <Form.Item label="Код территории" style={{ marginBottom: 0 }}>
-            <Input
-              placeholder="Код территории"
-              value={data.address?.territoryCode}
-              onChange={(e) => handleAddressChange('territoryCode', e.target.value)}
-              maxLength={getMaxLength('territoryCode')}
-              showCount
-            />
-          </Form.Item>
-          <Form.Item label="Регион" style={{ marginBottom: 0 }}>
-            <Input
-              placeholder="Например: Витебская область"
-              value={data.address?.regionName}
-              onChange={(e) => handleAddressChange('regionName', e.target.value)}
-              maxLength={getMaxLength('regionName')}
-              showCount
-            />
-          </Form.Item>
-          <Form.Item label="Район" style={{ marginBottom: 0 }}>
-            <Input
-              placeholder="Район"
-              value={data.address?.districtName}
-              onChange={(e) => handleAddressChange('districtName', e.target.value)}
-              maxLength={getMaxLength('districtName')}
-              showCount
-            />
-          </Form.Item>
-          <Form.Item label="Город" style={{ marginBottom: 0 }}>
-            <Input
-              placeholder="Город"
-              value={data.address?.cityName}
-              onChange={(e) => handleAddressChange('cityName', e.target.value)}
-              maxLength={getMaxLength('cityName')}
-              showCount
-            />
-          </Form.Item>
-          <Form.Item label="Населённый пункт" style={{ marginBottom: 0 }}>
-            <Input
-              placeholder="Например: г.п. Ушачи"
-              value={data.address?.settlementName}
-              onChange={(e) => handleAddressChange('settlementName', e.target.value)}
-              maxLength={getMaxLength('settlementName')}
-              showCount
-            />
-          </Form.Item>
-          <Form.Item label="Улица" style={{ marginBottom: 0 }}>
-            <Input
-              placeholder="Улица"
-              value={data.address?.streetName}
-              onChange={(e) => handleAddressChange('streetName', e.target.value)}
-              maxLength={getMaxLength('streetName')}
-              showCount
-            />
-          </Form.Item>
-          <Form.Item label="Номер здания" style={{ marginBottom: 0 }}>
-            <Input
-              placeholder="Номер дома, корпус"
-              value={data.address?.buildingNumberId}
-              onChange={(e) => handleAddressChange('buildingNumberId', e.target.value)}
-              maxLength={getMaxLength('buildingNumberId')}
-              showCount
-            />
-          </Form.Item>
-          <Form.Item label="Номер помещения" style={{ marginBottom: 0 }}>
-            <Input
-              placeholder="Квартира, офис, кабинет"
-              value={data.address?.roomNumberId}
-              onChange={(e) => handleAddressChange('roomNumberId', e.target.value)}
-              maxLength={getMaxLength('roomNumberId')}
-              showCount
-            />
-          </Form.Item>
-          </Space>
-        </div>
-
         <Form.Item label="Описание">
           <Input.TextArea
             rows={3}
@@ -175,17 +87,116 @@ const DetectionPlaceTabEdit: React.FC<DetectionPlaceTabEditProps> = ({ data, onC
         </Form.Item>
       </Form>
 
-      <h4 style={{ marginTop: 16 }}>Организация места обнаружения</h4>
-      <ManufacturerDetailsEdit
-        data={(data.organization ?? { country: '' }) as SupplyChainPartyDetails}
-        onChange={(org) => handleFieldChange('organization', org)}
-        title="Организация"
-        hideKindField
-      />
-
       <Collapse
-        defaultActiveKey={['checkpoint', 'coordinates']}
+        defaultActiveKey={['address', 'organization', 'checkpoint', 'coordinates']}
         items={[
+          {
+            key: 'address',
+            label: 'Адрес',
+            children: (
+              <Form layout="vertical" className="field-tag-form">
+                <div style={{ border: '1px solid #d9d9d9', borderRadius: 4, padding: 16, marginBottom: 0 }}>
+                  <Space direction="vertical" style={{ width: '100%' }}>
+                    <Form.Item label="Страна" style={{ marginBottom: 0 }}>
+                      <CountrySelect
+                        placeholder="Страна"
+                        loading={loading}
+                        value={data.address?.country}
+                        onChange={(value) => handleAddressChange('country', value || '')}
+                        countryOptions={countryOptions}
+                        normalizeCountryCode={normalizeCountryCode}
+                      />
+                    </Form.Item>
+                    <Form.Item label="Код территории" style={{ marginBottom: 0 }}>
+                      <Input
+                        placeholder="Код территории"
+                        value={data.address?.territoryCode}
+                        onChange={(e) => handleAddressChange('territoryCode', e.target.value)}
+                        maxLength={getMaxLength('territoryCode')}
+                        showCount
+                      />
+                    </Form.Item>
+                    <Form.Item label="Регион" style={{ marginBottom: 0 }}>
+                      <Input
+                        placeholder="Например: Витебская область"
+                        value={data.address?.regionName}
+                        onChange={(e) => handleAddressChange('regionName', e.target.value)}
+                        maxLength={getMaxLength('regionName')}
+                        showCount
+                      />
+                    </Form.Item>
+                    <Form.Item label="Район" style={{ marginBottom: 0 }}>
+                      <Input
+                        placeholder="Район"
+                        value={data.address?.districtName}
+                        onChange={(e) => handleAddressChange('districtName', e.target.value)}
+                        maxLength={getMaxLength('districtName')}
+                        showCount
+                      />
+                    </Form.Item>
+                    <Form.Item label="Город" style={{ marginBottom: 0 }}>
+                      <Input
+                        placeholder="Город"
+                        value={data.address?.cityName}
+                        onChange={(e) => handleAddressChange('cityName', e.target.value)}
+                        maxLength={getMaxLength('cityName')}
+                        showCount
+                      />
+                    </Form.Item>
+                    <Form.Item label="Населённый пункт" style={{ marginBottom: 0 }}>
+                      <Input
+                        placeholder="Например: г.п. Ушачи"
+                        value={data.address?.settlementName}
+                        onChange={(e) => handleAddressChange('settlementName', e.target.value)}
+                        maxLength={getMaxLength('settlementName')}
+                        showCount
+                      />
+                    </Form.Item>
+                    <Form.Item label="Улица" style={{ marginBottom: 0 }}>
+                      <Input
+                        placeholder="Улица"
+                        value={data.address?.streetName}
+                        onChange={(e) => handleAddressChange('streetName', e.target.value)}
+                        maxLength={getMaxLength('streetName')}
+                        showCount
+                      />
+                    </Form.Item>
+                    <Form.Item label="Номер здания" style={{ marginBottom: 0 }}>
+                      <Input
+                        placeholder="Номер дома, корпус"
+                        value={data.address?.buildingNumberId}
+                        onChange={(e) => handleAddressChange('buildingNumberId', e.target.value)}
+                        maxLength={getMaxLength('buildingNumberId')}
+                        showCount
+                      />
+                    </Form.Item>
+                    <Form.Item label="Номер помещения" style={{ marginBottom: 0 }}>
+                      <Input
+                        placeholder="Квартира, офис, кабинет"
+                        value={data.address?.roomNumberId}
+                        onChange={(e) => handleAddressChange('roomNumberId', e.target.value)}
+                        maxLength={getMaxLength('roomNumberId')}
+                        showCount
+                      />
+                    </Form.Item>
+                  </Space>
+                </div>
+              </Form>
+            ),
+          },
+          {
+            key: 'organization',
+            label: 'Организация',
+            children: (
+              <ManufacturerDetailsEdit
+                data={(data.organization ?? { country: '' }) as SupplyChainPartyDetails}
+                onChange={(org) => handleFieldChange('organization', org)}
+                title=""
+                hideKindField
+                embeddedInCollapse
+              />
+            ),
+          },
           {
             key: 'checkpoint',
             label: 'Пункт пропуска',

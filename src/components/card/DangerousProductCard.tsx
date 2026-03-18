@@ -20,7 +20,7 @@ import ComplianceDocumentsTab from '../tabs/ComplianceDocumentsTab'
 import ViolationsTab from '../tabs/ViolationsTab'
 import DetectionPlaceTab from '../tabs/DetectionPlaceTab'
 import MeasuresTab from '../tabs/MeasuresTab'
-import { exportCardDataToXML } from '@/utils/xmlExporter'
+import { exportCardDataToXML, getEmptyTagsWarnings } from '@/utils/xmlExporter'
 import { parseXMLToCardData } from '@/utils/xmlParser'
 import { compareCardData, getCardDataReview } from '@/utils/cardDataComparator'
 import { fetchDpaStatusHistory, fetchDpaElectronicDocs, changeDpaStatus, checkAccessRight, fetchCurrentUser, fetchDpaResolutions, fetchRightsByGuid, fetchRightsByGuidRaw, getCreateAuthorityIdsFromRights, fetchDepInfo, saveDpaCard, buildSaveMetadataFromCardData, deleteDpaCard, canCreateNewVersion, type DpaSaveMetadata, type RightsJson } from '@/utils/referenceDataApi'
@@ -440,17 +440,21 @@ const DangerousProductCard: React.FC<DangerousProductCardProps> = ({
       // иначе при нескольких нарушениях в партии парсер сливает все в одно и сравнение даёт
       // ложные различия (violations[0].violatedRequirements 1 vs 2 и т.п.)
       const result = compareCardData(originalData, editedData)
+      const emptyTagsWarnings = getEmptyTagsWarnings(editedData)
+      const resultWithWarnings = emptyTagsWarnings.length > 0
+        ? { ...result, warnings: [...(result.warnings ?? []), ...emptyTagsWarnings] }
+        : result
       console.log('[handleCompareXML] Результат сравнения:', result)
       console.log('[handleCompareXML] Количество различий:', result.differences.length)
-      console.log('[handleCompareXML] Количество предупреждений:', result.warnings.length)
-      if (result.warnings.length > 0) {
-        console.log('[handleCompareXML] Предупреждения:', result.warnings)
+      console.log('[handleCompareXML] Количество предупреждений:', resultWithWarnings.warnings.length)
+      if (resultWithWarnings.warnings.length > 0) {
+        console.log('[handleCompareXML] Предупреждения:', resultWithWarnings.warnings)
       }
       if (result.differences.length > 0) {
         console.log('[handleCompareXML] Различия:', result.differences)
       }
       
-      setComparisonResult(result)
+      setComparisonResult(resultWithWarnings)
       setComparisonModalVisible(true)
     } catch (error) {
       console.error('[handleCompareXML] Ошибка при сравнении:', error)
@@ -499,10 +503,20 @@ const DangerousProductCard: React.FC<DangerousProductCardProps> = ({
         // Сравниваем с текущим состоянием формы (editedData), а не с повторно распарсенным XML,
         // чтобы корректно учитывать несколько нарушений в партии и не получать ложные различия
         const result = compareCardData(originalData, editedData)
-        setComparisonResult(result)
+        const emptyTagsWarnings = getEmptyTagsWarnings(editedData)
+        const resultWithWarnings = emptyTagsWarnings.length > 0
+          ? { ...result, warnings: [...(result.warnings ?? []), ...emptyTagsWarnings] }
+          : result
+        setComparisonResult(resultWithWarnings)
         setComparisonModalVisible(true)
       } catch {
-        setComparisonResult({ isIdentical: true, differences: [], warnings: [], added: [] })
+        const emptyTagsWarnings = getEmptyTagsWarnings(editedData)
+        setComparisonResult({
+          isIdentical: true,
+          differences: [],
+          warnings: emptyTagsWarnings,
+          added: [],
+        })
         setComparisonModalVisible(true)
       }
     }

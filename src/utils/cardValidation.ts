@@ -544,6 +544,8 @@ export function collectFormatValidationErrors(data: CardData): FormatValidationE
       pushFormatError(errors, `${batchPath} → Номер серии`, 'batchId', batch.batchId)
       pushFormatError(errors, `${batchPath} → Примечание`, 'note', batch.note)
       pushFormatError(errors, `${batchPath} → Номер товарной партии`, 'consignmentId', batch.consignmentId)
+      pushFormatError(errors, `${batchPath} → Количество товара (значение)`, 'measureValue', batch.commodityMeasure?.value)
+      pushFormatError(errors, `${batchPath} → Количество товара в партии (значение)`, 'measureValue', batch.batchCommodityMeasure?.value)
       ;(batch.complianceDocuments ?? []).forEach((d, i) => {
         pushFormatError(errors, `${batchPath} → Документ соответствия ${i + 1} → Наименование`, 'docName', d.docName)
         pushFormatError(errors, `${batchPath} → Документ соответствия ${i + 1} → Номер`, 'docId', d.docId)

@@ -27,11 +27,14 @@ export interface FieldConstraint {
 /** Код ТН ВЭД ЕАЭС: 2, 4, 6 или 8–10 цифр (csdo:CommodityCodeType). Пустая строка допустима (поле необязательное). */
 export const COMMODITY_CODE_PATTERN = /^$|^\d{2}$|^\d{4}$|^\d{6}$|^\d{8,10}$/
 
-/** Десятичное число: целая часть до 18 цифр, дробная до 6 (PhysicalMeasureType). Пустая строка допустима. */
-export const DECIMAL_18_6_PATTERN = /^$|^-?\d{1,18}([.,]\d{1,6})?$/
+/** Десятичное число: целая часть до 18 цифр, дробная до 6 (PhysicalMeasureType). Разделитель дробной части — только точка. Пустая строка допустима. */
+export const DECIMAL_18_6_PATTERN = /^$|^-?\d{1,18}(\.\d{1,6})?$/
 
-/** Географическая координата ISO 6709: макс. 11 цифр всего, макс. 8 дробных (GeoCoordinateMeasureType). Пустая строка допустима. */
-export const GEO_COORDINATE_PATTERN = /^$|^-?\d{1,3}([.,]\d{1,8})?$/
+/** Географическая координата ISO 6709: макс. 11 цифр всего, макс. 8 дробных (GeoCoordinateMeasureType). Разделитель — только точка. Пустая строка допустима. */
+export const GEO_COORDINATE_PATTERN = /^$|^-?\d{1,3}(\.\d{1,8})?$/
+
+/** Сообщение о недопустимости запятой в числовых полях (допускается только точка). */
+export const DECIMAL_SEPARATOR_COMMA_MESSAGE = 'Для числовых полей допускается только точка как разделитель дробной части; запятая не допускается.'
 
 /** Маппинг ключей полей формы на ограничения XSD. */
 export const XSD_FIELD_CONSTRAINTS: Record<string, FieldConstraint> = {
@@ -90,8 +93,8 @@ export const XSD_FIELD_CONSTRAINTS: Record<string, FieldConstraint> = {
   // Географические координаты (ISO 6709: макс. 11 цифр, макс. 8 дробных)
   geoCoordinate: {
     pattern: GEO_COORDINATE_PATTERN,
-    formatHint: 'Число в формате ISO 6709: макс. 11 цифр всего, макс. 8 знаков после запятой (например 27,56123456)',
-    messagePattern: 'Введите число: макс. 11 цифр всего, макс. 8 знаков после запятой (ISO 6709)',
+    formatHint: 'Число в формате ISO 6709: макс. 11 цифр всего, макс. 8 знаков после точки (например 27.56123456)',
+    messagePattern: 'Введите число: макс. 11 цифр всего, макс. 8 знаков после точки (ISO 6709). Разделитель — только точка.',
   },
 
   // Документы (соответствия, меры, уведомления)
@@ -120,14 +123,21 @@ export const XSD_FIELD_CONSTRAINTS: Record<string, FieldConstraint> = {
     pattern: DECIMAL_18_6_PATTERN,
     totalDigits: 24,
     fractionDigits: 6,
-    formatHint: 'Число: до 18 цифр до запятой и до 6 после запятой (например 0,0042 или 123,456789)',
-    messagePattern: 'Введите число в формате: до 18 цифр до запятой и до 6 после запятой (например 0,0042)',
+    formatHint: 'Число: до 18 цифр целой части и до 6 после точки (например 0.0042 или 123.456789). Разделитель — только точка.',
+    messagePattern: 'Введите число: до 18 цифр целой части и до 6 после точки (например 0.0042). Разделитель — только точка.',
   },
 
-  // ТСД: партия, примечание
+  // ТСД: партия, примечание, числовые значения мер (количество)
   batchId: { maxLength: 50, messageMaxLength: 'Не более 50 символов (csdo:Id50Type)' },
   note: { maxLength: 4000, messageMaxLength: 'Не более 4000 символов (csdo:NoteText/Text4000Type)' },
   consignmentId: { maxLength: 50, messageMaxLength: 'Не более 50 символов (csdo:Id50Type)' },
+  /** Значение величины измерения (PhysicalMeasureType: до 18 цифр целой части, до 6 после точки). Разделитель — только точка. */
+  measureValue: {
+    pattern: DECIMAL_18_6_PATTERN,
+    fractionDigits: 6,
+    messagePattern: 'Введите число: до 18 цифр целой части и до 6 после точки. Разделитель — только точка.',
+    formatHint: 'Число: разделитель дробной части — только точка (например 123.45)',
+  },
 }
 
 /**
@@ -184,13 +194,22 @@ export function getFormRules(fieldKey: string, options?: { required?: boolean })
   return rules
 }
 
+/** Ключи полей, в которых вводятся десятичные числа (разделитель дробной части — только точка). */
+const NUMERIC_DECIMAL_FIELD_KEYS = new Set<string>(['geoCoordinate', 'indicatorValue', 'measureValue'])
+
 /**
  * Валидирует значение по ограничениям поля. Возвращает сообщение об ошибке или null.
+ * Для числовых полей запятая как разделитель считается несоответствием (допускается только точка).
  */
 export function validateFieldValue(fieldKey: string, value: string | undefined): string | null {
   if (value == null || value === '') return null
   const c = XSD_FIELD_CONSTRAINTS[fieldKey]
   if (!c) return null
+  const trimmed = value.trim()
+  if (trimmed === '') return null
+  if (trimmed.includes(',') && (NUMERIC_DECIMAL_FIELD_KEYS.has(fieldKey) || c.fractionDigits != null)) {
+    return DECIMAL_SEPARATOR_COMMA_MESSAGE
+  }
   if (c.maxLength != null && value.length > c.maxLength) {
     return c.messageMaxLength ?? `Не более ${c.maxLength} символов`
   }

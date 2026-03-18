@@ -26,6 +26,8 @@ interface ManufacturerDetailsEditProps {
   fixedSupplyChainPartyKindCode?: string
   /** Скрыть поле «Вид» (для организации в месте обнаружения — вид не указывается). */
   hideKindField?: boolean
+  /** Встроен в панель Collapse снаружи — не рендерить свой Collapse, только содержимое (избегаем вложенного Collapse без названия). */
+  embeddedInCollapse?: boolean
 }
 
 const ManufacturerDetailsEdit: React.FC<ManufacturerDetailsEditProps> = ({
@@ -34,6 +36,7 @@ const ManufacturerDetailsEdit: React.FC<ManufacturerDetailsEditProps> = ({
   title = 'Изготовитель продукции',
   fixedSupplyChainPartyKindCode,
   hideKindField = false,
+  embeddedInCollapse = false,
 }) => {
   const [isOpen, setIsOpen] = useState(false)
   const [form] = Form.useForm()
@@ -214,22 +217,13 @@ const ManufacturerDetailsEdit: React.FC<ManufacturerDetailsEditProps> = ({
     onChange({ ...data, contacts: updatedContacts })
   }
 
-  return (
-    <div style={{ marginTop: '16px' }}>
-      <Collapse
-        activeKey={isOpen ? ['1'] : []}
-        onChange={(keys) => setIsOpen(keys.length > 0)}
-        items={[
-          {
-            key: '1',
-            label: title,
-            children: (
-              <Form
-                form={form}
-                layout="vertical"
-                className="field-tag-form"
-                onValuesChange={handleValuesChange}
-              >
+  const formContent = (
+    <Form
+      form={form}
+      layout="vertical"
+      className="field-tag-form"
+      onValuesChange={handleValuesChange}
+    >
                 <Form.Item label="Страна" name="country">
                   <CountrySelect
                     loading={loading}
@@ -506,11 +500,20 @@ const ManufacturerDetailsEdit: React.FC<ManufacturerDetailsEditProps> = ({
                     Добавить контакт
                   </Button>
                 </div>
-              </Form>
-            ),
-          },
-        ]}
-      />
+    </Form>
+  )
+
+  return (
+    <div style={{ marginTop: embeddedInCollapse ? 0 : '16px' }}>
+      {embeddedInCollapse ? (
+        formContent
+      ) : (
+        <Collapse
+          activeKey={isOpen ? ['1'] : []}
+          onChange={(keys) => setIsOpen(keys.length > 0)}
+          items={[{ key: '1', label: title, children: formContent }]}
+        />
+      )}
     </div>
   )
 }
