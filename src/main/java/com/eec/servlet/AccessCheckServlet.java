@@ -11,7 +11,9 @@ import java.io.PrintWriter;
 
 /**
  * API проверки прав доступа.
- * GET /api/access/check?id=...&right=... — id опционален; right — код права (dangerousProductIn:access, dangerousProductOut:access, dangerousProductDB:access).
+ * GET /api/access/check?id=...&right=... — id опционален (GUID для JSON прав); right — код права
+ * (dangerousProductIn:access, dangerousProductOut:access, dangerousProductDB:access;
+ *  publicHealthIn:view, publicHealthOut:view, publicHealthDB:view для PHA).
  * Ответ: { "allowed": true }
  */
 public class AccessCheckServlet extends HttpServlet {
@@ -51,6 +53,15 @@ public class AccessCheckServlet extends HttpServlet {
                     break;
                 case "dangerousProductOut:edit":
                     allowed = AccessRightService.hasDangerousProductOutEdit(rightsJson);
+                    break;
+                case "publicHealthIn:view":
+                    allowed = AccessRightService.hasPublicHealthInView(rightsJson);
+                    break;
+                case "publicHealthOut:view":
+                    allowed = AccessRightService.hasPublicHealthOutView(rightsJson);
+                    break;
+                case "publicHealthDB:view":
+                    allowed = AccessRightService.hasPublicHealthDBView(rightsJson);
                     break;
                 default:
                     allowed = AccessRightService.hasAccess(id);

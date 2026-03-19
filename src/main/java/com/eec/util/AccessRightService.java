@@ -47,7 +47,9 @@ public final class AccessRightService {
     }
 
     /**
-     * Ищет в JSON блок up.{section} и внутри него объект с ключом "access", содержащий хотя бы один ключ.
+     * Ищет в JSON блок up.{section} и внутри него объект с ключом rightKey (например "view", "access"),
+     * содержащий хотя бы один ключ. Поиск rightKey ведётся только внутри значения section,
+     * чтобы не принять ключ из следующего блока (например "view" из publicHealthIn при проверке publicHealthDB).
      */
     private static boolean hasAccessRightInJson(String json, String section, String rightKey) {
         if (json == null || json.trim().isEmpty()) return false;
@@ -55,19 +57,36 @@ public final class AccessRightService {
         if (upStart < 0) return false;
         int sectionStart = json.indexOf("\"" + section + "\"", upStart);
         if (sectionStart < 0) return false;
-        int rightStart = json.indexOf("\"" + rightKey + "\"", sectionStart);
-        if (rightStart < 0) return false;
-        int braceStart = json.indexOf('{', rightStart);
-        if (braceStart < 0) return false;
+        // Границы значения section: после "section" идёт ": { ... }" — ищем только внутри этого объекта
+        int colonAfterSection = json.indexOf(':', sectionStart);
+        if (colonAfterSection < 0) return false;
+        int sectionValueStart = json.indexOf('{', colonAfterSection);
+        if (sectionValueStart < 0) return false;
         int depth = 1;
-        int i = braceStart + 1;
+        int i = sectionValueStart + 1;
         while (i < json.length() && depth > 0) {
             char c = json.charAt(i);
             if (c == '{') depth++;
             else if (c == '}') depth--;
             i++;
         }
-        String block = (depth == 0 && i <= json.length()) ? json.substring(braceStart, i) : "";
+        int sectionValueEnd = (depth == 0 && i <= json.length()) ? i - 1 : -1;
+        if (sectionValueEnd < 0) return false;
+        String sectionBody = json.substring(sectionValueStart, sectionValueEnd + 1);
+        // Ищем rightKey только внутри этого блока
+        int rightStart = sectionBody.indexOf("\"" + rightKey + "\"");
+        if (rightStart < 0) return false;
+        int braceStart = sectionBody.indexOf('{', rightStart);
+        if (braceStart < 0) return false;
+        depth = 1;
+        i = braceStart + 1;
+        while (i < sectionBody.length() && depth > 0) {
+            char c = sectionBody.charAt(i);
+            if (c == '{') depth++;
+            else if (c == '}') depth--;
+            i++;
+        }
+        String block = (depth == 0 && i <= sectionBody.length()) ? sectionBody.substring(braceStart, i) : "";
         Pattern keyP = Pattern.compile("\"([^\"]+)\"\\s*:");
         Matcher keyM = keyP.matcher(block);
         return keyM.find();
@@ -136,5 +155,28 @@ public final class AccessRightService {
      */
     public static boolean hasDangerousProductOutEdit(String rightsJson) {
         return hasAccessRightInJson(rightsJson, "dangerousProductOut", "edit");
+    }
+
+    // ——— PHA (сведения об обнаружении болезней): просмотр по источнику
+
+    /**
+     * Просмотр входящих сведений PHA — publicHealthIn:view.
+     */
+    public static boolean hasPublicHealthInView(String rightsJson) {
+        return hasAccessRightInJson(rightsJson, "publicHealthIn", "view");
+    }
+
+    /**
+     * Просмотр исходящих сведений PHA — publicHealthOut:view.
+     */
+    public static boolean hasPublicHealthOutView(String rightsJson) {
+        return hasAccessRightInJson(rightsJson, "publicHealthOut", "view");
+    }
+
+    /**
+     * Просмотр данных ЕЭК PHA — publicHealthDB:view.
+     */
+    public static boolean hasPublicHealthDBView(String rightsJson) {
+        return hasAccessRightInJson(rightsJson, "publicHealthDB", "view");
     }
 }

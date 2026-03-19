@@ -637,6 +637,12 @@ export interface RightsJson {
       status?: Record<string, unknown>
       send?: Record<string, unknown>
     }
+    /** PHA: просмотр входящих сведений об обнаружении болезней */
+    publicHealthIn?: { view?: Record<string, unknown> }
+    /** PHA: просмотр исходящих сведений */
+    publicHealthOut?: { view?: Record<string, unknown> }
+    /** PHA: просмотр данных ЕЭК */
+    publicHealthDB?: { view?: Record<string, unknown> }
   }
 }
 
@@ -727,6 +733,25 @@ export function cardSourceToAccessRight(source: string): 'dangerousProductIn:acc
   if (api === 'incoming') return 'dangerousProductIn:access'
   if (api === 'outgoing') return 'dangerousProductOut:access'
   if (api === 'eec') return 'dangerousProductDB:access'
+  return undefined
+}
+
+/** Источник карты PHA в параметр API (входящие / исходящие / еэк). */
+export function phaSourceToApiSource(source: string): 'incoming' | 'outgoing' | 'eec' | undefined {
+  if (!source || !source.trim()) return undefined
+  const s = source.trim().toLowerCase()
+  if (s.includes('входящ')) return 'incoming'
+  if (s.includes('исходящ')) return 'outgoing'
+  if (s.includes('еэк') || s.includes('ээк')) return 'eec'
+  return undefined
+}
+
+/** Право на просмотр карты PHA по источнику: publicHealthIn:view, publicHealthOut:view, publicHealthDB:view. */
+export function phaSourceToViewRight(source: string): 'publicHealthIn:view' | 'publicHealthOut:view' | 'publicHealthDB:view' | undefined {
+  const api = phaSourceToApiSource(source)
+  if (api === 'incoming') return 'publicHealthIn:view'
+  if (api === 'outgoing') return 'publicHealthOut:view'
+  if (api === 'eec') return 'publicHealthDB:view'
   return undefined
 }
 

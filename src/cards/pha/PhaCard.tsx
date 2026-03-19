@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { Tabs, Switch, Button, Space, message } from 'antd'
+import { Tabs, Switch, Button, Space, message, Modal, Spin } from 'antd'
 import { EditOutlined, EyeOutlined, DownloadOutlined } from '@ant-design/icons'
 import type { CardData } from '@/types/card'
 import { CardHeader, CardActions } from '@/cards/shared'
@@ -20,6 +20,7 @@ import { exportPhaCardDataToXML } from '@/cards/pha/phaXmlExporter'
 import { parsePhaXmlToCardData } from '@/cards/pha/phaXmlParser'
 import { compareCardData } from '@/utils/cardDataComparator'
 import { getEmptyTagsWarnings } from '@/utils/xmlExporter'
+import { fetchRightsByGuid, fetchRightsByGuidRaw, type RightsJson } from '@/utils/referenceDataApi'
 import XMLComparisonModal, { type ComparisonResultShape } from '@/components/modals/dpa/XMLComparisonModal'
 import StatusHistoryModal from '@/components/modals/dpa/StatusHistoryModal'
 import ElectronicDocumentModal from '@/components/modals/dpa/ElectronicDocumentModal'
@@ -58,6 +59,11 @@ const PhaCard: React.FC<PhaCardProps> = ({ data, phaid = '', guid, originalXML, 
   const [comparisonModalVisible, setComparisonModalVisible] = useState(false)
   const [statusHistoryVisible, setStatusHistoryVisible] = useState(false)
   const [electronicDocumentVisible, setElectronicDocumentVisible] = useState(false)
+  const [rightsDebugVisible, setRightsDebugVisible] = useState(false)
+  const [rightsDebugData, setRightsDebugData] = useState<RightsJson | null>(null)
+  const [rightsDebugLoading, setRightsDebugLoading] = useState(false)
+  const [rightsDebugError, setRightsDebugError] = useState<string | null>(null)
+  const [rightsDebugRawText, setRightsDebugRawText] = useState<string | null>(null)
 
   // Обновляем editedData только при смене карты (другой registrationNumber/version), чтобы не терять правки при переключении в режим просмотра
   useEffect(() => {
@@ -222,6 +228,35 @@ const PhaCard: React.FC<PhaCardProps> = ({ data, phaid = '', guid, originalXML, 
         />
         <CardActions
           data={currentData}
+          onShowRightsDebug={() => {
+            setRightsDebugVisible(true)
+            setRightsDebugError(null)
+            setRightsDebugRawText(null)
+            setRightsDebugData(null)
+            if (guid) {
+              setRightsDebugLoading(true)
+              fetchRightsByGuid(guid)
+                .then((data) => {
+                  setRightsDebugData(data)
+                  setRightsDebugError(null)
+                  setRightsDebugRawText(null)
+                })
+                .catch(async (e) => {
+                  setRightsDebugError(e instanceof Error ? e.message : 'Ошибка загрузки')
+                  setRightsDebugData(null)
+                  try {
+                    const raw = await fetchRightsByGuidRaw(guid)
+                    setRightsDebugRawText(raw.text)
+                  } catch {
+                    setRightsDebugRawText(null)
+                  }
+                })
+                .finally(() => setRightsDebugLoading(false))
+            } else {
+              setRightsDebugError('GUID не задан')
+              setRightsDebugLoading(false)
+            }
+          }}
           onOpenAllVersions={() => {
             const payload = {
               code: 'all_version' as const,
@@ -252,6 +287,79 @@ const PhaCard: React.FC<PhaCardProps> = ({ data, phaid = '', guid, originalXML, 
           data={currentData.electronicDocument ? [currentData.electronicDocument] : []}
           onClose={() => setElectronicDocumentVisible(false)}
         />
+        <Modal
+          title="Карта прав доступа (отладка)"
+          open={rightsDebugVisible}
+          onCancel={() => {
+            setRightsDebugVisible(false)
+            setRightsDebugData(null)
+            setRightsDebugError(null)
+            setRightsDebugRawText(null)
+          }}
+          footer={[
+            <Button
+              key="close"
+              onClick={() => {
+                setRightsDebugVisible(false)
+                setRightsDebugData(null)
+                setRightsDebugError(null)
+                setRightsDebugRawText(null)
+              }}
+            >
+              Закрыть
+            </Button>,
+            rightsDebugData != null && (
+              <Button
+                key="copy"
+                type="primary"
+                onClick={() => {
+                  navigator.clipboard.writeText(JSON.stringify(rightsDebugData, null, 2)).then(
+                    () => message.success('Скопировано в буфер обмена'),
+                    () => message.error('Не удалось скопировать')
+                  )
+                }}
+              >
+                Копировать JSON
+              </Button>
+            ),
+            rightsDebugRawText != null && (
+              <Button
+                key="copyRaw"
+                onClick={() => {
+                  navigator.clipboard.writeText(rightsDebugRawText).then(
+                    () => message.success('Сырой ответ скопирован'),
+                    () => message.error('Не удалось скопировать')
+                  )
+                }}
+              >
+                Копировать сырой ответ
+              </Button>
+            ),
+          ].filter(Boolean)}
+          width={640}
+          destroyOnClose
+        >
+          {rightsDebugLoading ? (
+            <div style={{ padding: 24, textAlign: 'center' }}>
+              <Spin tip="Загрузка карты прав..." />
+            </div>
+          ) : rightsDebugError != null ? (
+            <div>
+              <div style={{ color: '#ff4d4f', marginBottom: 8 }}>{rightsDebugError}</div>
+              {rightsDebugRawText != null && (
+                <pre style={{ margin: 0, padding: 12, background: '#fff2f0', borderRadius: 4, maxHeight: 360, overflow: 'auto', fontSize: 11 }}>
+                  {rightsDebugRawText}
+                </pre>
+              )}
+            </div>
+          ) : rightsDebugData != null ? (
+            <pre style={{ margin: 0, padding: 12, background: '#f5f5f5', borderRadius: 4, maxHeight: 400, overflow: 'auto', fontSize: 12 }}>
+              {JSON.stringify(rightsDebugData, null, 2)}
+            </pre>
+          ) : (
+            <span>Нет данных</span>
+          )}
+        </Modal>
         {comparisonResult && (
           <XMLComparisonModal
             visible={comparisonModalVisible}

@@ -5,7 +5,7 @@ import { isPhaApp } from './cards/config'
 import { DangerousProductCard } from './cards/dpa'
 import { PhaCard } from './cards/pha'
 import type { CardData } from './types/card'
-import { fetchDpaXml, fetchDpaMetadata, fetchNextRegistrationNumber } from './utils/referenceDataApi'
+import { fetchDpaXml, fetchDpaMetadata, fetchNextRegistrationNumber, checkAccessRight, phaSourceToViewRight } from './utils/referenceDataApi'
 import { fetchPhaXml, fetchPhaMetadata } from './cards/pha/phaApi'
 import { parsePhaXmlToCardData } from './cards/pha/phaXmlParser'
 import { parseXMLToCardData, validateAndEnrichCardData, getTextContent } from './utils/xmlParser'
@@ -298,6 +298,8 @@ function PhaAppContent() {
   const [originalXML, setOriginalXML] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  /** Блокировка просмотра: нет права publicHealthIn/Out/DB:view для источника карты */
+  const [viewDenied, setViewDenied] = useState(false)
   const { dpaid: phaidParam, guid } = useParams<{ dpaid: string; guid?: string }>()
   const phaid = phaidParam ?? ''
 
@@ -305,6 +307,7 @@ function PhaAppContent() {
     if (!phaid || phaid === '-') {
       setLoading(false)
       setError(null)
+      setViewDenied(false)
       setCardData(createNewCardData('BY', { registrationNumber: '' }))
       setOriginalXML(null)
       return
@@ -312,6 +315,7 @@ function PhaAppContent() {
     let cancelled = false
     setLoading(true)
     setError(null)
+    setViewDenied(false)
     setCardData(null)
     setOriginalXML(null)
     ;(async () => {
@@ -349,8 +353,29 @@ function PhaAppContent() {
     return () => { cancelled = true }
   }, [phaid, guid])
 
+  // Проверка права просмотра PHA по источнику: publicHealthIn:view, publicHealthOut:view, publicHealthDB:view
+  useEffect(() => {
+    if (!cardData || !phaid || phaid === '-' || !guid?.trim()) {
+      setViewDenied(false)
+      return
+    }
+    const viewRight = phaSourceToViewRight(cardData.source ?? '')
+    if (!viewRight) {
+      setViewDenied(false)
+      return
+    }
+    checkAccessRight(guid, viewRight)
+      .then((allowed) => { setViewDenied(!allowed) })
+      .catch(() => { setViewDenied(true) })
+  }, [cardData, phaid, guid])
+
   if (loading) return <div style={{ textAlign: 'center', padding: 16 }}><Spin size="large" tip="Загрузка карты PHA..." /></div>
   if (error) return <div className="empty-state"><div style={{ color: '#ff4d4f' }}>{error}</div></div>
+  if (viewDenied) return (
+    <div className="empty-state">
+      <div style={{ color: '#ff4d4f', fontSize: 16 }}>Просмотр невозможен, недостаточно прав</div>
+    </div>
+  )
   if (cardData) return (
     <PhaCard
       data={cardData}
