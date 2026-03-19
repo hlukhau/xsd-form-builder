@@ -358,7 +358,9 @@ const TSDTabEdit: React.FC<TSDTabEditProps> = ({ data, onChange }) => {
           options={getShipDocKindSelectOptions()}
           allowClear
           status={docKindErrors.get(docKindErrorKey(batchIndex, docIndex)) ? 'error' : undefined}
-          style={{ width: '100%', minWidth: 100 }}
+          style={{ width: '100%', minWidth: 100, maxWidth: 280 }}
+          dropdownStyle={{ maxWidth: 400 }}
+          dropdownMatchSelectWidth={false}
           size="small"
         />
       ),

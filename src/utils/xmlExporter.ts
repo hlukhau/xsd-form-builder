@@ -63,6 +63,15 @@ export function getEmptyTagsWarnings(data: CardData): string[] {
       warnings.push(`Обнаружены партии без сведений о серии/партии (BatchDetails) (${emptyBatchDetailsCount}): тег smcdo:BatchDetails не включён в XML.`)
     }
   }
+  // Нарушения: при заполненном значении показателя обязательно указывать единицу измерения (csdo:UnifiedMeasurementUnitCode)
+  if (data.violations?.violatedIndicators?.length) {
+    const missingUnit = data.violations.violatedIndicators.filter(
+      ind => (ind.indicatorValue?.trim() ?? '') !== '' && !(ind.unitCode?.trim() ?? '')
+    )
+    if (missingUnit.length > 0) {
+      warnings.push(`Перечень нарушенных показателей: при указании значения показателя необходимо заполнить единицу измерения (показателей без единицы: ${missingUnit.length}).`)
+    }
+  }
   return warnings
 }
 
@@ -394,8 +403,7 @@ function hasShippingDocumentContent(doc: ShippingDocument): boolean {
 function exportShippingDocument(xmlParts: string[], doc: ShippingDocument, indent: string) {
   xmlParts.push(`${indent}<smcdo:ShippingDocumentDetails>`)
   if (doc.docKindCode) {
-    const codeListId = doc.docKindCodeListId ? ` codeListId="${escapeXML(doc.docKindCodeListId)}"` : ''
-    xmlParts.push(`${indent}    <csdo:DocKindCode${codeListId}>${escapeXML(doc.docKindCode)}</csdo:DocKindCode>`)
+    xmlParts.push(`${indent}    <csdo:DocKindCode codeListId="2009">${escapeXML(doc.docKindCode)}</csdo:DocKindCode>`)
   }
   if (doc.docName) xmlParts.push(`${indent}    <csdo:DocName>${escapeXML(doc.docName)}</csdo:DocName>`)
   if (doc.docCreationDate) xmlParts.push(`${indent}    <csdo:DocCreationDate>${escapeXML(doc.docCreationDate)}</csdo:DocCreationDate>`)
@@ -466,14 +474,17 @@ function exportViolations(xmlParts: string[], violations: ViolationsData, indent
     xmlParts.push(`${inner}<smcdo:RequirementsDocDetails></smcdo:RequirementsDocDetails>`)
   }
 
-  // 3) Список DiscrepancyOfQualityIndexDetails
+  // 3) Список DiscrepancyOfQualityIndexDetails. Признак нормативного показателя — true/false. Единица измерения — в csdo:UnifiedMeasurementUnitCode с codeListId=2001.
   inds.forEach(indicator => {
-    xmlParts.push(`${inner}<smcdo:DiscrepancyOfQualityIndexDetails${indicator.isNormative ? ' normativeDiscrepancyOfQualityIndexIndicator="1"' : ''}>`)
+    const normativeAttr = indicator.isNormative === true ? ' normativeDiscrepancyOfQualityIndexIndicator="true"' : (indicator.isNormative === false ? ' normativeDiscrepancyOfQualityIndexIndicator="false"' : '')
+    xmlParts.push(`${inner}<smcdo:DiscrepancyOfQualityIndexDetails${normativeAttr}>`)
     if (indicator.indicatorCode) xmlParts.push(`${inner}  <smsdo:DiscrepancyOfQualityIndexCode>${escapeXML(indicator.indicatorCode)}</smsdo:DiscrepancyOfQualityIndexCode>`)
     if (indicator.indicatorName) xmlParts.push(`${inner}  <smsdo:DiscrepancyOfQualityIndexName>${escapeXML(indicator.indicatorName)}</smsdo:DiscrepancyOfQualityIndexName>`)
     if (indicator.indicatorValue) {
-      const unitAttrs = indicator.unitCode ? ` measurementUnitCode="${escapeXML(indicator.unitCode)}"` : ''
-      xmlParts.push(`${inner}  <smsdo:DiscrepancyOfQualityIndexValue${unitAttrs}>${escapeXML(indicator.indicatorValue)}</smsdo:DiscrepancyOfQualityIndexValue>`)
+      xmlParts.push(`${inner}  <smsdo:DiscrepancyOfQualityIndexValue>${escapeXML(indicator.indicatorValue)}</smsdo:DiscrepancyOfQualityIndexValue>`)
+    }
+    if (indicator.unitCode?.trim()) {
+      xmlParts.push(`${inner}  <csdo:UnifiedMeasurementUnitCode codeListId="2001">${escapeXML(indicator.unitCode)}</csdo:UnifiedMeasurementUnitCode>`)
     }
     if (indicator.note) {
       xmlParts.push(`${inner}  <csdo:NoteText>${escapeXML(indicator.note)}</csdo:NoteText>`)
@@ -541,7 +552,7 @@ export function exportDetectionPlace(
   }
   if (place.borderCheckpoint && (place.borderCheckpoint.checkpointCode?.trim() || place.borderCheckpoint.checkpointName?.trim())) {
     xmlParts.push(`${indent}    <smcdo:BorderCheckpointDetails>`)
-    if (place.borderCheckpoint.checkpointCode) xmlParts.push(`${indent}        <csdo:BorderCheckpointCode>${escapeXML(place.borderCheckpoint.checkpointCode)}</csdo:BorderCheckpointCode>`)
+    if (place.borderCheckpoint.checkpointCode) xmlParts.push(`${indent}        <csdo:BorderCheckpointCode codeListId="2052">${escapeXML(place.borderCheckpoint.checkpointCode)}</csdo:BorderCheckpointCode>`)
     if (place.borderCheckpoint.checkpointName) xmlParts.push(`${indent}        <csdo:BorderCheckpointName>${escapeXML(place.borderCheckpoint.checkpointName)}</csdo:BorderCheckpointName>`)
     xmlParts.push(`${indent}    </smcdo:BorderCheckpointDetails>`)
   }
@@ -772,16 +783,15 @@ function exportComplianceDocuments(xmlParts: string[], compliance: ComplianceDoc
   if (compliance.documents && compliance.documents.length > 0) {
     compliance.documents.forEach(doc => {
       xmlParts.push(`${indent}<smcdo:ConformityDocDetails>`)
-      if (doc.docKindCode) {
-        const codeListId = doc.docKindCodeListId ? ` codeListId="${escapeXML(doc.docKindCodeListId)}"` : ''
-        xmlParts.push(`${indent}    <csdo:DocKindCode${codeListId}>${escapeXML(doc.docKindCode)}</csdo:DocKindCode>`)
-      }
-      if (doc.docName) xmlParts.push(`${indent}    <csdo:DocName>${escapeXML(doc.docName)}</csdo:DocName>`)
-      if (doc.docId) xmlParts.push(`${indent}    <csdo:DocId>${escapeXML(doc.docId)}</csdo:DocId>`)
-      if (doc.docCreationDate) xmlParts.push(`${indent}    <csdo:DocCreationDate>${escapeXML(doc.docCreationDate)}</csdo:DocCreationDate>`)
-      if (doc.docStartDate) xmlParts.push(`${indent}    <csdo:DocStartDate>${escapeXML(doc.docStartDate)}</csdo:DocStartDate>`)
-      if (doc.authority) {
-        xmlParts.push(`${indent}    <ccdo:UnifiedAuthorityDetails>`)
+  if (doc.docKindCode) {
+    xmlParts.push(`${indent}    <csdo:DocKindCode codeListId="2001">${escapeXML(doc.docKindCode)}</csdo:DocKindCode>`)
+  }
+  if (doc.docName) xmlParts.push(`${indent}    <csdo:DocName>${escapeXML(doc.docName)}</csdo:DocName>`)
+  if (doc.docId) xmlParts.push(`${indent}    <csdo:DocId>${escapeXML(doc.docId)}</csdo:DocId>`)
+  if (doc.docCreationDate) xmlParts.push(`${indent}    <csdo:DocCreationDate>${escapeXML(doc.docCreationDate)}</csdo:DocCreationDate>`)
+  if (doc.docStartDate) xmlParts.push(`${indent}    <csdo:DocStartDate>${escapeXML(doc.docStartDate)}</csdo:DocStartDate>`)
+  if (doc.authority) {
+    xmlParts.push(`${indent}    <ccdo:UnifiedAuthorityDetails>`)
         if (doc.authority.country) {
           xmlParts.push(`${indent}        <csdo:UnifiedCountryCode codeListId="2021">${escapeXML(doc.authority.country)}</csdo:UnifiedCountryCode>`)
         }
