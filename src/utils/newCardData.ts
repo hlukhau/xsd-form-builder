@@ -24,10 +24,12 @@ export function buildNewRegistrationNumber(
  * - Код страны: из параметра
  * - Вид уведомления: IncidentKindCode = 7
  * - Дата формирования: текущая дата
+ * - Статус: для DPA — «Черновик» (DPASTATUS); для PHA не задаётся (статусы из PHASTATUS, задаются при сохранении).
  */
 export function createNewCardData(
   countryCode: string = 'BY',
-  serialOrOptions?: string | { serialInYear?: string; registrationNumber?: string }
+  serialOrOptions?: string | { serialInYear?: string; registrationNumber?: string },
+  options?: { forPha?: boolean }
 ): CardData {
   const now = new Date()
   const formationDate = now.toISOString().slice(0, 10) // YYYY-MM-DD
@@ -41,6 +43,8 @@ export function createNewCardData(
           typeof serialOrOptions === 'object' ? serialOrOptions?.serialInYear : serialOrOptions
         )
 
+  const forPha = options?.forPha === true
+
   return {
     country,
     registrationNumber,
@@ -48,8 +52,9 @@ export function createNewCardData(
     source: 'исходящие',
     createdAt: documentDateTime,
     modifiedAt: documentDateTime,
-    status: 'Черновик',
-    statusId: 5, // DPASTATUSID для исходящих «Черновик» (DRAFT)
+    ...(forPha
+      ? {}
+      : { status: 'Черновик' as const, statusId: 5 }), // DPA: DPASTATUSID для исходящих «Черновик» (DRAFT). PHA: статусы из PHASTATUS.
 
     electronicDocument: {
       messageCode: '',

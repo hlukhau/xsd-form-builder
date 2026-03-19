@@ -78,6 +78,9 @@ export function compareCardData(original: CardData, exported: CardData): {
   const compareValue = (path: string, originalVal: any, exportedVal: any) => {
     if (originalVal === exportedVal) return true
 
+    // unitName — только для отображения, выводится из справочника по unitCode; в XML идёт только код (measurementUnitCode)
+    if (path.endsWith('.unitName')) return true
+
     // Поля country: код (BY) и название (БЕЛАРУСЬ) из БД считаем совпадающими
     if (path === 'country' || path.endsWith('.country')) {
       const o = originalVal != null ? String(originalVal).trim() : ''

@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { Form, Input, Button, Table, Space, DatePicker, Collapse, Select, Row, Col } from 'antd'
+import { Form, Input, Button, Table, Space, DatePicker, Collapse, Select, Row, Col, Modal } from 'antd'
 import { PlusOutlined, DeleteOutlined, CaretRightOutlined, CaretDownOutlined } from '@ant-design/icons'
 import dayjs from 'dayjs'
 import { format } from 'date-fns'
@@ -313,14 +313,23 @@ const TSDTabEdit: React.FC<TSDTabEditProps> = ({ data, onChange }) => {
   }
 
   const handleRemoveBatch = (batchIndex: number) => {
-    const newBatches = batches.filter((_, i) => i !== batchIndex)
-    if (selectedBatchIndex === batchIndex) {
-      setSelectedBatchIndex(null)
-      setSelectedDocumentIndex(null)
-    } else if (selectedBatchIndex !== null && selectedBatchIndex > batchIndex) {
-      setSelectedBatchIndex(selectedBatchIndex - 1)
-    }
-    onChange({ ...data, batches: newBatches.length ? newBatches : [{ shippingDocuments: [] }] })
+    Modal.confirm({
+      title: 'Удалить партию?',
+      content: 'Информация по партии будет удалена на закладках «ТСД», «Документы соответствия» и «Нарушения». Вы уверены?',
+      okText: 'Удалить',
+      okType: 'danger',
+      cancelText: 'Отмена',
+      onOk: () => {
+        const newBatches = batches.filter((_, i) => i !== batchIndex)
+        if (selectedBatchIndex === batchIndex) {
+          setSelectedBatchIndex(null)
+          setSelectedDocumentIndex(null)
+        } else if (selectedBatchIndex !== null && selectedBatchIndex > batchIndex) {
+          setSelectedBatchIndex(selectedBatchIndex - 1)
+        }
+        onChange({ ...data, batches: newBatches.length ? newBatches : [{ shippingDocuments: [] }] })
+      },
+    })
   }
 
   const handleDocKindSelect = (batchIndex: number, docIndex: number, code: string) => {
@@ -799,7 +808,11 @@ const TSDTabEdit: React.FC<TSDTabEditProps> = ({ data, onChange }) => {
               showCount
             />
           </Form.Item>
-          <Form.Item label={labelWithHelp('Количество товара', FIELD_HELP.commodityMeasure)}>
+          <Form.Item
+            label={labelWithHelp('Количество товара', FIELD_HELP.commodityMeasure)}
+            validateStatus={(batch.commodityMeasure?.value ?? '').trim() && !(batch.commodityMeasure?.unitCode ?? '').trim() ? 'error' : undefined}
+            help={(batch.commodityMeasure?.value ?? '').trim() && !(batch.commodityMeasure?.unitCode ?? '').trim() ? 'Обязательно укажите единицу измерения' : undefined}
+          >
             <Row gutter={8}>
               <Col span={16}>
                 <Input
@@ -820,6 +833,7 @@ const TSDTabEdit: React.FC<TSDTabEditProps> = ({ data, onChange }) => {
                   filterOption={(input, option) =>
                     (option?.label ?? '').toLowerCase().includes(input.toLowerCase())
                   }
+                  status={(batch.commodityMeasure?.value ?? '').trim() && !(batch.commodityMeasure?.unitCode ?? '').trim() ? 'error' : undefined}
                 />
               </Col>
             </Row>
@@ -832,7 +846,11 @@ const TSDTabEdit: React.FC<TSDTabEditProps> = ({ data, onChange }) => {
               showCount
             />
           </Form.Item>
-          <Form.Item label={labelWithHelp('Количество товара в партии', FIELD_HELP.batchCommodityMeasure)}>
+          <Form.Item
+            label={labelWithHelp('Количество товара в партии', FIELD_HELP.batchCommodityMeasure)}
+            validateStatus={(batch.batchCommodityMeasure?.value ?? '').trim() && !(batch.batchCommodityMeasure?.unitCode ?? '').trim() ? 'error' : undefined}
+            help={(batch.batchCommodityMeasure?.value ?? '').trim() && !(batch.batchCommodityMeasure?.unitCode ?? '').trim() ? 'Обязательно укажите единицу измерения' : undefined}
+          >
             <Row gutter={8}>
               <Col span={16}>
                 <Input
@@ -853,6 +871,7 @@ const TSDTabEdit: React.FC<TSDTabEditProps> = ({ data, onChange }) => {
                   filterOption={(input, option) =>
                     (option?.label ?? '').toLowerCase().includes(input.toLowerCase())
                   }
+                  status={(batch.batchCommodityMeasure?.value ?? '').trim() && !(batch.batchCommodityMeasure?.unitCode ?? '').trim() ? 'error' : undefined}
                 />
               </Col>
             </Row>
@@ -866,11 +885,9 @@ const TSDTabEdit: React.FC<TSDTabEditProps> = ({ data, onChange }) => {
               <Button type="dashed" icon={<PlusOutlined />} onClick={() => handleAddDocument(batchIndex)}>
                 Добавить документ
               </Button>
-              {batches.length > 1 && (
-                <Button type="link" danger onClick={() => handleRemoveBatch(batchIndex)}>
-                  Удалить партию
-                </Button>
-              )}
+              <Button type="link" danger onClick={() => handleRemoveBatch(batchIndex)}>
+                Удалить партию
+              </Button>
             </Space>
           </div>
           <Table

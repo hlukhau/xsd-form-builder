@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import { Form, Input, Button, Collapse, Space, Select } from 'antd'
 import { PlusOutlined, DeleteOutlined } from '@ant-design/icons'
 import ManufacturerDetailsEdit from '../../common/ManufacturerDetailsEdit'
@@ -24,12 +25,12 @@ const DetectionPlaceTabEdit: React.FC<DetectionPlaceTabEditProps> = ({ data, onC
   }
 
   const handleAddressChange = (field: keyof AddressDetails, value: string) => {
+    const next = { ...data.address, [field]: value || undefined }
+    if (field === 'cityName' && (value ?? '').trim()) next.settlementName = ''
+    if (field === 'settlementName' && (value ?? '').trim()) next.cityName = ''
     onChange({
       ...data,
-      address: {
-        ...data.address,
-        [field]: value || undefined,
-      },
+      address: next,
     })
   }
 
@@ -93,11 +94,19 @@ const DetectionPlaceTabEdit: React.FC<DetectionPlaceTabEditProps> = ({ data, onC
           {
             key: 'address',
             label: 'Адрес',
-            children: (
+            children: (() => {
+              const addr = data.address
+              const s = (v: string | undefined) => (v ?? '').trim()
+              const addrHasContent = addr && !!(s(addr.country) || s(addr.territoryCode) || s(addr.regionName) || s(addr.districtName) || s(addr.cityName) || s(addr.settlementName) || s(addr.streetName) || s(addr.buildingNumberId) || s(addr.roomNumberId) || s(addr.postOfficeBoxId) || s(addr.postCode) || s(addr.fullAddress))
+              const addrCountryError = addrHasContent && !s(addr?.country) ? 'При заполнении адреса обязательно укажите Страну' : undefined
+              const hasCity = !!(addr?.cityName && addr.cityName.trim())
+              const hasSettlement = !!(addr?.settlementName && addr.settlementName.trim())
+              const addrCitySettlementError = addrHasContent ? (hasCity && hasSettlement ? 'Укажите только один — Город или Населенный пункт' : (!hasCity && !hasSettlement ? 'При заполнении адреса обязательно укажите Город или Населенный пункт' : undefined)) : undefined
+              return (
               <Form layout="vertical" className="field-tag-form">
                 <div style={{ border: '1px solid #d9d9d9', borderRadius: 4, padding: 16, marginBottom: 0 }}>
                   <Space direction="vertical" style={{ width: '100%' }}>
-                    <Form.Item label="Страна" style={{ marginBottom: 0 }}>
+                    <Form.Item label="Страна" style={{ marginBottom: 0 }} validateStatus={addrCountryError ? 'error' : undefined} help={addrCountryError}>
                       <CountrySelect
                         placeholder="Страна"
                         loading={loading}
@@ -134,7 +143,7 @@ const DetectionPlaceTabEdit: React.FC<DetectionPlaceTabEditProps> = ({ data, onC
                         showCount
                       />
                     </Form.Item>
-                    <Form.Item label="Город" style={{ marginBottom: 0 }}>
+                    <Form.Item label="Город" style={{ marginBottom: 0 }} validateStatus={addrCitySettlementError ? 'error' : undefined} help={addrCitySettlementError}>
                       <Input
                         placeholder="Город"
                         value={data.address?.cityName}
@@ -143,7 +152,7 @@ const DetectionPlaceTabEdit: React.FC<DetectionPlaceTabEditProps> = ({ data, onC
                         showCount
                       />
                     </Form.Item>
-                    <Form.Item label="Населённый пункт" style={{ marginBottom: 0 }}>
+                    <Form.Item label="Населённый пункт" style={{ marginBottom: 0 }} validateStatus={addrCitySettlementError ? 'error' : undefined}>
                       <Input
                         placeholder="Например: г.п. Ушачи"
                         value={data.address?.settlementName}
@@ -182,7 +191,8 @@ const DetectionPlaceTabEdit: React.FC<DetectionPlaceTabEditProps> = ({ data, onC
                   </Space>
                 </div>
               </Form>
-            ),
+              )
+            })(),
           },
           {
             key: 'organization',
@@ -206,7 +216,7 @@ const DetectionPlaceTabEdit: React.FC<DetectionPlaceTabEditProps> = ({ data, onC
                   Укажите оба атрибута (код вида пункта пропуска и наименование пункта пропуска) или оставьте оба пустыми.
                 </p>
                 <Form.Item
-                  label="Код вида пункта пропуска (csdo:BorderCheckpointCode)"
+                  label="Код вида пункта пропуска"
                   validateStatus={checkpointValidationError ? 'error' : undefined}
                   help={checkpointValidationError}
                 >
@@ -239,8 +249,8 @@ const DetectionPlaceTabEdit: React.FC<DetectionPlaceTabEditProps> = ({ data, onC
                   />
                 </Form.Item>
                 <Form.Item
-                  label="Наименование пункта пропуска (csdo:BorderCheckpointName)"
-                  help={checkpointValidationError ?? 'Текстовое поле, вносится пользователем (csdo:Name250Type).'}
+                  label="Наименование пункта пропуска"
+                  help={checkpointValidationError}
                   validateStatus={checkpointValidationError ? 'error' : undefined}
                 >
                   <Input
@@ -260,7 +270,7 @@ const DetectionPlaceTabEdit: React.FC<DetectionPlaceTabEditProps> = ({ data, onC
             children: (
               <Form layout="vertical" className="field-tag-form">
                 <p style={{ marginBottom: 8, color: '#666' }}>{getFormatHint('geoCoordinate')}</p>
-                <p style={{ marginBottom: 8, color: '#666' }}>Укажите обе координаты (широту и долготу) для каждой записи. Пустые записи сохранять нельзя.</p>
+                <p style={{ marginBottom: 8, color: '#666' }}>Укажите обе координаты (широту и долготу) для каждой записи.</p>
                 {geoList.map((coord, idx) => {
                   const hasLon = (coord.longitude ?? '').trim() !== ''
                   const hasLat = (coord.latitude ?? '').trim() !== ''

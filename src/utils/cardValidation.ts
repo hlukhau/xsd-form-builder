@@ -467,8 +467,25 @@ function pushFormatError(errors: string[], path: string, fieldKey: string, value
   errors.push(path ? `${path}: ${displayMsg}` : displayMsg)
 }
 
+function addressHasContent(addr: AddressDetails): boolean {
+  const s = (v: string | undefined) => (v ?? '').trim()
+  return !!(s(addr.country) || s(addr.territoryCode) || s(addr.regionName) || s(addr.districtName) || s(addr.cityName) || s(addr.settlementName) || s(addr.streetName) || s(addr.buildingNumberId) || s(addr.roomNumberId) || s(addr.postOfficeBoxId) || s(addr.postCode) || s(addr.fullAddress))
+}
+
 function checkAddress(errors: string[], path: string, addr: AddressDetails | undefined): void {
   if (!addr) return
+  if (addressHasContent(addr)) {
+    if (!(addr.country ?? '').trim()) {
+      errors.push(`${path}: при заполнении адреса обязательно укажите Страну.`)
+    }
+    const hasCity = (addr.cityName ?? '').trim() !== ''
+    const hasSettlement = (addr.settlementName ?? '').trim() !== ''
+    if (hasCity && hasSettlement) {
+      errors.push(`${path}: укажите только один атрибут — Город или Населенный пункт.`)
+    } else if (!hasCity && !hasSettlement) {
+      errors.push(`${path}: при заполнении адреса обязательно укажите Город или Населенный пункт.`)
+    }
+  }
   for (const key of ADDRESS_FIELD_KEYS) {
     const v = addr[key]
     if (v !== undefined && v !== '') pushFormatError(errors, `${path} → ${getFieldLabel(key)}`, key, v)
@@ -545,7 +562,13 @@ export function collectFormatValidationErrors(data: CardData): FormatValidationE
       pushFormatError(errors, `${batchPath} → Примечание`, 'note', batch.note)
       pushFormatError(errors, `${batchPath} → Номер товарной партии`, 'consignmentId', batch.consignmentId)
       pushFormatError(errors, `${batchPath} → Количество товара (значение)`, 'measureValue', batch.commodityMeasure?.value)
+      if ((batch.commodityMeasure?.value ?? '').trim() && !(batch.commodityMeasure?.unitCode ?? '').trim()) {
+        errors.push(`${batchPath}: при указании «Количество товара» необходимо указать «Единица измерения»`)
+      }
       pushFormatError(errors, `${batchPath} → Количество товара в партии (значение)`, 'measureValue', batch.batchCommodityMeasure?.value)
+      if ((batch.batchCommodityMeasure?.value ?? '').trim() && !(batch.batchCommodityMeasure?.unitCode ?? '').trim()) {
+        errors.push(`${batchPath}: при указании «Количество товара в партии» необходимо указать «Единица измерения»`)
+      }
       ;(batch.complianceDocuments ?? []).forEach((d, i) => {
         pushFormatError(errors, `${batchPath} → Документ соответствия ${i + 1} → Наименование`, 'docName', d.docName)
         pushFormatError(errors, `${batchPath} → Документ соответствия ${i + 1} → Номер`, 'docId', d.docId)
@@ -571,6 +594,9 @@ export function collectFormatValidationErrors(data: CardData): FormatValidationE
         ;(v.violatedIndicators ?? []).forEach((ind, ii) => {
           pushFormatError(errors, `${vPath} → Показатель ${ii + 1} → Наименование`, 'indicatorName', ind.indicatorName)
           pushFormatError(errors, `${vPath} → Показатель ${ii + 1} → Значение`, 'indicatorValue', ind.indicatorValue)
+          if ((ind.indicatorValue ?? '').trim() && !(ind.unitCode ?? '').trim()) {
+            errors.push(`${vPath} → Показатель ${ii + 1}: при заполненном значении показателя обязательно указывать единицу измерения (csdo:UnifiedMeasurementUnitCode).`)
+          }
           pushFormatError(errors, `${vPath} → Показатель ${ii + 1} → Примечание`, 'noteText', ind.note)
         })
       })

@@ -197,7 +197,7 @@ export function parsePhaXmlToCardData(xmlText: string): CardData {
     if (phaPatientGroups.length === 0) phaPatientGroups = undefined
   }
 
-  const base = createNewCardData(country, { registrationNumber: registrationNumber || undefined })
+  const base = createNewCardData(country, { registrationNumber: registrationNumber || undefined }, { forPha: true })
 
   const cardData: CardData = {
     ...base,

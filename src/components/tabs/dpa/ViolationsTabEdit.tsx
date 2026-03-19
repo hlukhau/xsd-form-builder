@@ -128,11 +128,21 @@ const ViolationsTabEdit: React.FC<ViolationsTabEditProps> = ({ tsd, onTsdChange 
       updated[index] = { ...updated[index], [field]: value }
       onVChange({ ...vData, violatedIndicators: updated })
     }
-    const handleMeasurementUnitSelect = (index: number, code: string) => {
+    const handleMeasurementUnitSelect = (index: number, code: string | undefined) => {
+      const updated = [...(vData.violatedIndicators || [])]
+      if (!code) {
+        updated[index] = { ...updated[index], unitCode: '', unitCodeListId: undefined, unitName: '' }
+        onVChange({ ...vData, violatedIndicators: updated })
+        return
+      }
       const unit = getUnitByCode(code)
-      handleIndicatorChange(index, 'unitCode', code)
-      handleIndicatorChange(index, 'unitCodeListId', '1025')
-      if (unit) handleIndicatorChange(index, 'unitName', unit.name)
+      updated[index] = {
+        ...updated[index],
+        unitCode: code,
+        unitCodeListId: '2064',
+        unitName: unit?.name ?? updated[index].unitName,
+      }
+      onVChange({ ...vData, violatedIndicators: updated })
     }
 
     const requirementsColumns = [
@@ -175,7 +185,32 @@ const ViolationsTabEdit: React.FC<ViolationsTabEditProps> = ({ tsd, onTsdChange 
           )
         },
       },
-      { title: 'Единица измерения', key: 'unit', width: 200, render: (_: any, record: ViolatedIndicator, index: number) => (<Select showSearch placeholder="Выберите единицу измерения" loading={loadingMeasurementUnits} value={record.unitCode || undefined} onChange={(code) => handleMeasurementUnitSelect(index, code)} filterOption={(input, option) => (option?.label ?? '').toLowerCase().includes(input.toLowerCase())} options={getMeasurementUnitSelectOptions()} allowClear style={{ width: '100%' }} />) },
+      {
+        title: labelWithHelp('Единица измерения', 'Обязательна при указании значения показателя'),
+        key: 'unit',
+        width: 200,
+        render: (_: any, record: ViolatedIndicator, index: number) => {
+          const hasValue = (record.indicatorValue ?? '').trim() !== ''
+          const missingUnit = hasValue && !(record.unitCode ?? '').trim()
+          return (
+            <div>
+              <Select
+                showSearch
+                placeholder="Выберите единицу измерения"
+                loading={loadingMeasurementUnits}
+                value={record.unitCode || undefined}
+                onChange={(code) => handleMeasurementUnitSelect(index, code)}
+                filterOption={(input, option) => (option?.label ?? '').toLowerCase().includes(input.toLowerCase())}
+                options={getMeasurementUnitSelectOptions()}
+                allowClear
+                style={{ width: '100%' }}
+                status={missingUnit ? 'error' : undefined}
+              />
+              {missingUnit && <div style={{ fontSize: 12, color: '#ff4d4f', marginTop: 2 }}>Обязательно укажите единицу измерения при указании значения показателя</div>}
+            </div>
+          )
+        },
+      },
       { title: labelWithHelp('Примечание', FIELD_HELP.indicatorNote), key: 'note', width: 300, render: (_: any, record: ViolatedIndicator, index: number) => (<Input.TextArea value={record.note} onChange={(e) => handleIndicatorChange(index, 'note', e.target.value)} rows={2} maxLength={getMaxLength('noteText')} showCount />) },
       { title: 'Действия', key: 'actions', width: 100, render: (_: any, record: ViolatedIndicator, index: number) => (<Button type="link" danger icon={<DeleteOutlined />} onClick={() => handleRemoveIndicator(index)}>Удалить</Button>) },
     ]

@@ -33,7 +33,7 @@ const CardHeader: React.FC<CardHeaderProps> = ({ data, onStatusClick }) => {
       <Descriptions.Item label="Источник">{data.source || '—'}</Descriptions.Item>
       <Descriptions.Item label="Дата и время создания">{formatDateTime(data.createdAt)}</Descriptions.Item>
       <Descriptions.Item label="Дата и время изменения">{formatDateTime(data.modifiedAt)}</Descriptions.Item>
-      {data.source != null && !String(data.source).includes('ЕЭК') && (
+      {data.source != null && !String(data.source).toLowerCase().includes('еэк') && (
         <Descriptions.Item label="Статус">
           <a onClick={onStatusClick} style={{ cursor: 'pointer' }}>{data.status || '—'}</a>
         </Descriptions.Item>

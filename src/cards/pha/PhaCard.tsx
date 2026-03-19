@@ -1,7 +1,7 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { Tabs, Switch, Button, Space, message, Modal, Spin } from 'antd'
 import { EditOutlined, EyeOutlined, DownloadOutlined } from '@ant-design/icons'
-import type { CardData } from '@/types/card'
+import type { CardData, StatusHistoryItem } from '@/types/card'
 import { CardHeader, CardActions } from '@/cards/shared'
 import {
   NotificationTab,
@@ -15,7 +15,7 @@ import {
 } from '@/components/tabs/pha'
 import DetectionPlaceTab from '@/components/tabs/dpa/DetectionPlaceTab'
 import DetectionPlaceTabEdit from '@/components/tabs/dpa/DetectionPlaceTabEdit'
-import { savePhaCard } from '@/cards/pha/phaApi'
+import { savePhaCard, fetchPhaStatusHistory } from '@/cards/pha/phaApi'
 import { exportPhaCardDataToXML } from '@/cards/pha/phaXmlExporter'
 import { parsePhaXmlToCardData } from '@/cards/pha/phaXmlParser'
 import { compareCardData } from '@/utils/cardDataComparator'
@@ -58,6 +58,8 @@ const PhaCard: React.FC<PhaCardProps> = ({ data, phaid = '', guid, originalXML, 
   const [comparisonResult, setComparisonResult] = useState<ComparisonResultShape | null>(null)
   const [comparisonModalVisible, setComparisonModalVisible] = useState(false)
   const [statusHistoryVisible, setStatusHistoryVisible] = useState(false)
+  const [statusHistoryModalData, setStatusHistoryModalData] = useState<StatusHistoryItem[]>([])
+  const [statusHistoryLoading, setStatusHistoryLoading] = useState(false)
   const [electronicDocumentVisible, setElectronicDocumentVisible] = useState(false)
   const [rightsDebugVisible, setRightsDebugVisible] = useState(false)
   const [rightsDebugData, setRightsDebugData] = useState<RightsJson | null>(null)
@@ -77,6 +79,10 @@ const PhaCard: React.FC<PhaCardProps> = ({ data, phaid = '', guid, originalXML, 
 
   // Как в DPA: для отображения всегда используем editedData, чтобы правки сохранялись при переключении вкладок и режима просмотра
   const currentData = editedData
+  const currentDataRef = useRef(editedData)
+  useEffect(() => {
+    currentDataRef.current = editedData
+  }, [editedData])
 
   const handleSwitchEdit = (checked: boolean) => {
     setIsEditMode(checked)
@@ -224,7 +230,31 @@ const PhaCard: React.FC<PhaCardProps> = ({ data, phaid = '', guid, originalXML, 
         </div>
         <CardHeader
           data={currentData}
-          onStatusClick={() => setStatusHistoryVisible(true)}
+            onStatusClick={() => {
+            setStatusHistoryVisible(true)
+            setStatusHistoryModalData([])
+            if (phaid && phaid !== '-') {
+              setStatusHistoryLoading(true)
+              fetchPhaStatusHistory(phaid, guid)
+                .then((list) => {
+                  setStatusHistoryModalData(list)
+                  // Если в шапке статус пустой, а в истории есть записи — подставить последний статус из истории (метаданные могли не вернуть phaStatusName)
+                  if (list.length > 0) {
+                    const latest = list[list.length - 1]
+                    const cur = currentDataRef.current
+                    if (latest?.status?.trim() && (!cur.status || !String(cur.status).trim())) {
+                      const updated = { ...cur, status: latest.status }
+                      setEditedData(updated)
+                      onUpdate?.(updated)
+                    }
+                  }
+                })
+                .catch(() => setStatusHistoryModalData([]))
+                .finally(() => setStatusHistoryLoading(false))
+            } else {
+              setStatusHistoryLoading(false)
+            }
+          }}
         />
         <CardActions
           data={currentData}
@@ -279,8 +309,9 @@ const PhaCard: React.FC<PhaCardProps> = ({ data, phaid = '', guid, originalXML, 
       <>
         <StatusHistoryModal
           visible={statusHistoryVisible}
-          data={currentData.statusHistory ?? []}
+          data={statusHistoryModalData}
           onClose={() => setStatusHistoryVisible(false)}
+          loading={statusHistoryLoading}
         />
         <ElectronicDocumentModal
           visible={electronicDocumentVisible}

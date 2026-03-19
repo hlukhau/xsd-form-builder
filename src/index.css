@@ -245,6 +245,24 @@ body {
   height: 100%;
 }
 
+/* Фиксация размера и начертания текста вкладок — без смены font-weight при активации, чтобы не дергалось */
+.card-sticky-header .card-tabs-wrapper .ant-tabs .ant-tabs-nav .ant-tabs-nav-list .ant-tabs-tab .ant-tabs-tab-btn,
+.card-sticky-header .card-tabs-wrapper .ant-tabs .ant-tabs-nav .ant-tabs-nav-list .ant-tabs-tab-active .ant-tabs-tab-btn {
+  font-weight: 500 !important;
+  font-size: 13px !important;
+  line-height: 1.4 !important;
+  letter-spacing: 0 !important;
+  text-shadow: none !important;
+  font-family: inherit !important;
+  min-height: 1.4em;
+}
+.card-sticky-header .card-tabs-wrapper .ant-tabs .ant-tabs-nav .ant-tabs-nav-list .ant-tabs-tab {
+  transition: background-color 0.2s ease, border-color 0.2s ease !important;
+}
+.card-sticky-header .card-tabs-wrapper .ant-tabs .ant-tabs-nav .ant-tabs-nav-list .ant-tabs-tab .ant-tabs-tab-btn {
+  transition: color 0.2s ease !important;
+}
+
 .field-tag-form .ant-form-item {
   margin-bottom: 12px;
 }
@@ -340,12 +358,12 @@ body {
 }
 
 .ant-tabs-tab {
-  font-weight: 500;
-  font-size: 13px;
+  font-weight: 500 !important;
+  font-size: 13px !important;
   padding: 6px 12px !important;
   margin: 0 2px 0 0 !important;
   border-radius: var(--radius-md) var(--radius-md) 0 0;
-  transition: all 0.2s ease;
+  transition: background-color 0.2s ease, border-color 0.2s ease, color 0.2s ease !important;
   color: var(--text-secondary) !important;
   position: relative;
   border: 1px solid #d9d9d9 !important;
@@ -385,6 +403,8 @@ body {
   border: none !important;
   box-shadow: none !important;
   outline: none !important;
+  font-weight: 500 !important;
+  font-size: 13px !important;
 }
 
 .ant-tabs-tab:hover {
@@ -418,8 +438,8 @@ body {
 
 .ant-tabs-tab-active .ant-tabs-tab-btn {
   color: var(--primary-color) !important;
-  font-weight: 600;
-  font-size: 13px;
+  font-weight: 500 !important;
+  font-size: 13px !important;
 }
 
 .ant-tabs-ink-bar {

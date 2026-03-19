@@ -161,7 +161,10 @@ const ManufacturerDetailsEdit: React.FC<ManufacturerDetailsEditProps> = ({
   const handleAddressChange = (index: number, field: keyof AddressDetails, value: string | undefined) => {
     const list = [...addressList]
     if (!list[index]) return
-    list[index] = { ...list[index], [field]: value }
+    const next = { ...list[index], [field]: value }
+    if (field === 'cityName' && (value ?? '').trim()) next.settlementName = ''
+    if (field === 'settlementName' && (value ?? '').trim()) next.cityName = ''
+    list[index] = next
     syncAddressesToParty(list)
   }
 
@@ -351,14 +354,22 @@ const ManufacturerDetailsEdit: React.FC<ManufacturerDetailsEditProps> = ({
                           </Button>
                         </Space>
                         <FieldTagBlock label="Страна">
-                          <CountrySelect
-                            placeholder="Страна"
-                            loading={loading}
-                            value={addr.country}
-                            onChange={(value) => handleAddressChange(index, 'country', value || undefined)}
-                            countryOptions={countryOptions}
-                            normalizeCountryCode={normalizeCountryCode}
-                          />
+                          <div>
+                            <CountrySelect
+                              placeholder="Страна"
+                              loading={loading}
+                              value={addr.country}
+                              onChange={(value) => handleAddressChange(index, 'country', value || undefined)}
+                              countryOptions={countryOptions}
+                              normalizeCountryCode={normalizeCountryCode}
+                            />
+                            {(() => {
+                              const s = (v: string | undefined) => (v ?? '').trim()
+                              const hasContent = !!(s(addr.country) || s(addr.territoryCode) || s(addr.regionName) || s(addr.districtName) || s(addr.cityName) || s(addr.settlementName) || s(addr.streetName) || s(addr.buildingNumberId) || s(addr.roomNumberId) || s(addr.postOfficeBoxId) || s(addr.postCode) || s(addr.fullAddress))
+                              if (!hasContent || s(addr.country)) return null
+                              return <div style={{ fontSize: 12, color: '#ff4d4f', marginTop: 2 }}>При заполнении адреса обязательно укажите Страну</div>
+                            })()}
+                          </div>
                         </FieldTagBlock>
                         <FieldTagBlock label="Почтовый индекс">
                           <div>
@@ -395,7 +406,26 @@ const ManufacturerDetailsEdit: React.FC<ManufacturerDetailsEditProps> = ({
                           <Input placeholder="Район" value={addr.districtName} onChange={(e) => handleAddressChange(index, 'districtName', e.target.value || undefined)} maxLength={getMaxLength('districtName')} showCount />
                         </FieldTagBlock>
                         <FieldTagBlock label="Город">
-                          <Input placeholder="Город" value={addr.cityName} onChange={(e) => handleAddressChange(index, 'cityName', e.target.value || undefined)} maxLength={getMaxLength('cityName')} showCount />
+                          <div>
+                            <Input placeholder="Город" value={addr.cityName} onChange={(e) => handleAddressChange(index, 'cityName', e.target.value || undefined)} maxLength={getMaxLength('cityName')} showCount status={(() => {
+                              const s = (v: string | undefined) => (v ?? '').trim()
+                              const hasContent = !!(s(addr.country) || s(addr.territoryCode) || s(addr.regionName) || s(addr.districtName) || s(addr.cityName) || s(addr.settlementName) || s(addr.streetName) || s(addr.buildingNumberId) || s(addr.roomNumberId) || s(addr.postOfficeBoxId) || s(addr.postCode) || s(addr.fullAddress))
+                              const hasCity = !!s(addr.cityName)
+                              const hasSettlement = !!s(addr.settlementName)
+                              const err = hasContent && (hasCity && hasSettlement ? true : !hasCity && !hasSettlement)
+                              return err ? 'error' : undefined
+                            })()} />
+                            {(() => {
+                              const s = (v: string | undefined) => (v ?? '').trim()
+                              const hasContent = !!(s(addr.country) || s(addr.territoryCode) || s(addr.regionName) || s(addr.districtName) || s(addr.cityName) || s(addr.settlementName) || s(addr.streetName) || s(addr.buildingNumberId) || s(addr.roomNumberId) || s(addr.postOfficeBoxId) || s(addr.postCode) || s(addr.fullAddress))
+                              const hasCity = !!s(addr.cityName)
+                              const hasSettlement = !!s(addr.settlementName)
+                              if (!hasContent) return null
+                              if (hasCity && hasSettlement) return <div style={{ fontSize: 12, color: '#ff4d4f', marginTop: 2 }}>Укажите только один — Город или Населенный пункт</div>
+                              if (!hasCity && !hasSettlement) return <div style={{ fontSize: 12, color: '#ff4d4f', marginTop: 2 }}>При заполнении адреса обязательно укажите Город или Населенный пункт</div>
+                              return null
+                            })()}
+                          </div>
                         </FieldTagBlock>
                         <FieldTagBlock label="Населённый пункт">
                           <Input placeholder="Населённый пункт" value={addr.settlementName} onChange={(e) => handleAddressChange(index, 'settlementName', e.target.value || undefined)} maxLength={getMaxLength('settlementName')} showCount />

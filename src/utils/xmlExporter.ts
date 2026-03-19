@@ -51,16 +51,31 @@ export function getEmptyTagsWarnings(data: CardData): string[] {
   if (data.tsd?.batches) {
     let emptyShippingCount = 0
     let emptyBatchDetailsCount = 0
+    let unifiedCommodityMeasureOmittedCount = 0
+    let commodityMeasureOmittedCount = 0
+    let emptyBatchesCount = 0
     for (const batch of data.tsd.batches) {
       const withoutContent = batch.shippingDocuments?.filter(doc => !hasShippingDocumentContent(doc)) ?? []
       emptyShippingCount += withoutContent.length
       if (!hasBatchDetailsContent(batch)) emptyBatchDetailsCount++
+      if (batch.commodityMeasure && !(batch.commodityMeasure.value ?? '').trim()) unifiedCommodityMeasureOmittedCount++
+      if (batch.batchCommodityMeasure && !(batch.batchCommodityMeasure.value ?? '').trim()) commodityMeasureOmittedCount++
+      if (!hasBatchContent(batch)) emptyBatchesCount++
     }
     if (emptyShippingCount > 0) {
       warnings.push(`Обнаружены пустые товаросопроводительные документы (${emptyShippingCount}): они не включены в XML и при сравнении будут удалены.`)
     }
     if (emptyBatchDetailsCount > 0) {
       warnings.push(`Обнаружены партии без сведений о серии/партии (BatchDetails) (${emptyBatchDetailsCount}): тег smcdo:BatchDetails не включён в XML.`)
+    }
+    if (unifiedCommodityMeasureOmittedCount > 0) {
+      warnings.push(`Количество товара не указано у ${unifiedCommodityMeasureOmittedCount} партий: тег csdo:UnifiedCommodityMeasure не включён в XML и при сравнении будет удалён.`)
+    }
+    if (commodityMeasureOmittedCount > 0) {
+      warnings.push(`Количество товара в партии не указано у ${commodityMeasureOmittedCount} партий: тег csdo:CommodityMeasure не включён в XML и при сравнении будет удалён.`)
+    }
+    if (emptyBatchesCount > 0) {
+      warnings.push(`Обнаружены пустые партии (${emptyBatchesCount}): тег smcdo:NonCompliantSanitaryProductBatchDetails не включён в XML и при сравнении будет удалён.`)
     }
   }
   // Нарушения: при заполненном значении показателя обязательно указывать единицу измерения (csdo:UnifiedMeasurementUnitCode)
@@ -173,6 +188,7 @@ export function exportCardDataToXML(data: CardData): string {
 
     if (hasBatches) {
       data.tsd!.batches.forEach((batch) => {
+        if (!hasBatchContent(batch)) return
         xmlParts.push('            <smcdo:NonCompliantSanitaryProductBatchDetails>')
         if (hasBatchDetailsContent(batch)) {
           xmlParts.push('                <smcdo:BatchDetails>')
@@ -185,10 +201,9 @@ export function exportCardDataToXML(data: CardData): string {
           if (batch.productShelfLifeEndDate) {
             xmlParts.push(`                    <csdo:ProductShelfLifeEndDate>${escapeXML(batch.productShelfLifeEndDate)}</csdo:ProductShelfLifeEndDate>`)
           }
-          if (batch.commodityMeasure) {
-            const unitAttrs = batch.commodityMeasure.unitCode ? ` measurementUnitCode="${escapeXML(batch.commodityMeasure.unitCode)}"` : ''
-            const unitListId = batch.commodityMeasure.unitCodeListId ? ` measurementUnitCodeListId="${escapeXML(batch.commodityMeasure.unitCodeListId)}"` : ''
-            xmlParts.push(`                    <csdo:UnifiedCommodityMeasure${unitAttrs}${unitListId}>${escapeXML(batch.commodityMeasure.value)}</csdo:UnifiedCommodityMeasure>`)
+          if ((batch.commodityMeasure?.value ?? '').trim()) {
+            const unitAttrs = batch.commodityMeasure?.unitCode ? ` measurementUnitCode="${escapeXML(batch.commodityMeasure.unitCode)}" measurementUnitCodeListId="2064"` : ''
+            xmlParts.push(`                    <csdo:UnifiedCommodityMeasure${unitAttrs}>${escapeXML(batch.commodityMeasure!.value)}</csdo:UnifiedCommodityMeasure>`)
           }
           if (batch.note) {
             xmlParts.push(`                    <csdo:NoteText>${escapeXML(batch.note)}</csdo:NoteText>`)
@@ -198,9 +213,9 @@ export function exportCardDataToXML(data: CardData): string {
         if (batch.consignmentId) {
           xmlParts.push(`                <smsdo:ConsignmentId>${escapeXML(batch.consignmentId)}</smsdo:ConsignmentId>`)
         }
-        if (batch.batchCommodityMeasure) {
-          const unitAttrs = batch.batchCommodityMeasure.unitCode ? ` measurementUnitCode="${escapeXML(batch.batchCommodityMeasure.unitCode)}"` : ''
-          xmlParts.push(`                <csdo:CommodityMeasure${unitAttrs}>${escapeXML(batch.batchCommodityMeasure.value)}</csdo:CommodityMeasure>`)
+        if ((batch.batchCommodityMeasure?.value ?? '').trim()) {
+          const unitAttrs = batch.batchCommodityMeasure?.unitCode ? ` measurementUnitCode="${escapeXML(batch.batchCommodityMeasure.unitCode)}"` : ''
+          xmlParts.push(`                <csdo:CommodityMeasure${unitAttrs}>${escapeXML(batch.batchCommodityMeasure!.value)}</csdo:CommodityMeasure>`)
         }
         const docsWithContent = batch.shippingDocuments?.filter(hasShippingDocumentContent) ?? []
         if (docsWithContent.length > 0) {
@@ -208,11 +223,12 @@ export function exportCardDataToXML(data: CardData): string {
             exportShippingDocument(xmlParts, doc, '                ')
           })
         }
-        if (batch.complianceDocuments?.length) {
-          exportComplianceDocuments(xmlParts, { documents: batch.complianceDocuments }, '                ')
+        const complianceWithContent = batch.complianceDocuments?.filter(hasComplianceDocumentContent) ?? []
+        if (complianceWithContent.length > 0) {
+          exportComplianceDocuments(xmlParts, { documents: complianceWithContent }, '                ')
         }
         const violationsList = Array.isArray(batch.violations) ? batch.violations : (batch.violations ? [batch.violations] : [])
-        violationsList.forEach((v) => {
+        violationsList.filter(hasViolationsContent).forEach((v) => {
           exportViolations(xmlParts, v, '                ')
         })
         xmlParts.push('            </smcdo:NonCompliantSanitaryProductBatchDetails>')
@@ -228,14 +244,15 @@ export function exportCardDataToXML(data: CardData): string {
   
   // Measures (на уровне DangerousProductAlertDetails)
   console.log('[exportCardDataToXML] measures:', data.measures)
-  if (data.measures && data.measures.measures && data.measures.measures.length > 0) {
-    console.log('[exportCardDataToXML] Экспортируем SanitaryMeasureBaseDetails, количество:', data.measures.measures.length)
-    data.measures.measures.forEach((measure, index) => {
+  const measuresWithContent = (data.measures?.measures ?? []).filter(hasMeasureContent)
+  if (measuresWithContent.length > 0) {
+    console.log('[exportCardDataToXML] Экспортируем SanitaryMeasureBaseDetails, количество:', measuresWithContent.length)
+    measuresWithContent.forEach((measure, index) => {
       console.log(`[exportCardDataToXML] Мера ${index}:`, measure)
       exportSanitaryMeasure(xmlParts, measure, '        ')
     })
   } else {
-    console.warn('[exportCardDataToXML] SanitaryMeasureBaseDetails не экспортируются: measures отсутствует или пуст')
+    console.warn('[exportCardDataToXML] SanitaryMeasureBaseDetails не экспортируются: measures отсутствует, пуст или все меры без контента')
   }
   
   // ResourceItemStatusDetails (если есть данные о validityPeriod)
@@ -280,9 +297,10 @@ function exportProductDetails(xmlParts: string[], details: ProductDetails, inden
   if (details.storageCondition) xmlParts.push(`${indent}<smsdo:StorageConditionText>${escapeXML(details.storageCondition)}</smsdo:StorageConditionText>`)
   if (details.labelText) xmlParts.push(`${indent}<smsdo:ProductLabelText>${escapeXML(details.labelText)}</smsdo:ProductLabelText>`)
   
-  if (details.technicalDocs && details.technicalDocs.length > 0) {
-    console.log('[exportProductDetails] Экспортируем technicalDocs, количество:', details.technicalDocs.length)
-    details.technicalDocs.forEach((doc, index) => {
+  const technicalDocsWithContent = (details.technicalDocs ?? []).filter(hasTechnicalDocContent)
+  if (technicalDocsWithContent.length > 0) {
+    console.log('[exportProductDetails] Экспортируем technicalDocs, количество:', technicalDocsWithContent.length)
+    technicalDocsWithContent.forEach((doc, index) => {
       console.log(`[exportProductDetails] Doc ${index}:`, doc)
       xmlParts.push(`${indent}<ccdo:DocReferenceDetails>`)
       if (doc.docKindCode) {
@@ -324,16 +342,18 @@ function exportSupplyChainParty(xmlParts: string[], party: SupplyChainPartyDetai
   if (party.taxpayerId) xmlParts.push(`${indent}  <csdo:TaxpayerId>${escapeXML(party.taxpayerId)}</csdo:TaxpayerId>`)
   if (party.taxRegistrationReasonCode) xmlParts.push(`${indent}  <csdo:TaxRegistrationReasonCode>${escapeXML(party.taxRegistrationReasonCode)}</csdo:TaxRegistrationReasonCode>`)
   
-  if (party.addresses && party.addresses.length > 0) {
-    party.addresses.forEach((addr) => exportAddress(xmlParts, addr, addr.addressKindCode || '1', `${indent}  `))
+  const addrs = party.addresses ?? []
+  if (addrs.length > 0) {
+    addrs.filter(hasAddressContent).forEach((addr) => exportAddress(xmlParts, addr, addr.addressKindCode || '1', `${indent}  `))
   } else {
-    if (party.registrationAddress) exportAddress(xmlParts, party.registrationAddress, '1', `${indent}  `)
-    if (party.actualAddress) exportAddress(xmlParts, party.actualAddress, '2', `${indent}  `)
-    if (party.mailingAddress) exportAddress(xmlParts, party.mailingAddress, '3', `${indent}  `)
+    if (hasAddressContent(party.registrationAddress)) exportAddress(xmlParts, party.registrationAddress!, '1', `${indent}  `)
+    if (hasAddressContent(party.actualAddress)) exportAddress(xmlParts, party.actualAddress!, '2', `${indent}  `)
+    if (hasAddressContent(party.mailingAddress)) exportAddress(xmlParts, party.mailingAddress!, '3', `${indent}  `)
   }
-  
-  if (party.contacts && party.contacts.length > 0) {
-    party.contacts.forEach(contact => {
+
+  const contactsWithContent = (party.contacts ?? []).filter(hasContactContent)
+  if (contactsWithContent.length > 0) {
+    contactsWithContent.forEach(contact => {
       xmlParts.push(`${indent}  <ccdo:CommunicationDetails>`)
       if (contact.communicationChannelCode) xmlParts.push(`${indent}    <csdo:CommunicationChannelCode>${escapeXML(contact.communicationChannelCode)}</csdo:CommunicationChannelCode>`)
       if (contact.communicationChannelName) xmlParts.push(`${indent}    <csdo:CommunicationChannelName>${escapeXML(contact.communicationChannelName)}</csdo:CommunicationChannelName>`)
@@ -343,7 +363,7 @@ function exportSupplyChainParty(xmlParts: string[], party: SupplyChainPartyDetai
       xmlParts.push(`${indent}  </ccdo:CommunicationDetails>`)
     })
   }
-  
+
   xmlParts.push(`${indent}</ccdo:SupplyChainPartyDetails>`)
 }
 
@@ -365,8 +385,12 @@ function exportAddress(
   if (address.territoryCode) xmlParts.push(`${indent}    <csdo:TerritoryCode>${escapeXML(address.territoryCode)}</csdo:TerritoryCode>`)
   if (address.regionName) xmlParts.push(`${indent}    <csdo:RegionName>${escapeXML(address.regionName)}</csdo:RegionName>`)
   if (address.districtName) xmlParts.push(`${indent}    <csdo:DistrictName>${escapeXML(address.districtName)}</csdo:DistrictName>`)
-  if (address.cityName) xmlParts.push(`${indent}    <csdo:CityName>${escapeXML(address.cityName)}</csdo:CityName>`)
-  if (address.settlementName) xmlParts.push(`${indent}    <csdo:SettlementName>${escapeXML(address.settlementName)}</csdo:SettlementName>`)
+  // Только один из двух: Город или Населенный пункт (взаимоисключающие атрибуты)
+  if (address.cityName?.trim()) {
+    xmlParts.push(`${indent}    <csdo:CityName>${escapeXML(address.cityName)}</csdo:CityName>`)
+  } else if (address.settlementName?.trim()) {
+    xmlParts.push(`${indent}    <csdo:SettlementName>${escapeXML(address.settlementName)}</csdo:SettlementName>`)
+  }
   if (address.streetName) xmlParts.push(`${indent}    <csdo:StreetName>${escapeXML(address.streetName)}</csdo:StreetName>`)
   if (address.buildingNumberId) xmlParts.push(`${indent}    <csdo:BuildingNumberId>${escapeXML(address.buildingNumberId)}</csdo:BuildingNumberId>`)
   if (address.roomNumberId) xmlParts.push(`${indent}    <csdo:RoomNumberId>${escapeXML(address.roomNumberId)}</csdo:RoomNumberId>`)
@@ -389,14 +413,155 @@ function hasBatchDetailsContent(batch: ProductBatchDetails): boolean {
   return false
 }
 
-/** Есть ли хотя бы одно заполненное поле в товаросопроводительном документе (не выводить пустой тег). */
+/** Есть ли хотя бы одно заполненное поле в товаросопроводительном документе (не выводить пустой тег). Учитываются вложенные продукты и участники с контентом. */
 function hasShippingDocumentContent(doc: ShippingDocument): boolean {
   if (doc.docKindCode?.trim()) return true
   if (doc.docName?.trim()) return true
   if (doc.docCreationDate?.trim()) return true
   if (doc.docId?.trim()) return true
-  if (doc.products?.length) return true
-  if (doc.supplyChainParties?.length) return true
+  if ((doc.products ?? []).some(hasProductDetailsContent)) return true
+  if ((doc.supplyChainParties ?? []).some(hasSupplyChainPartyContent)) return true
+  return false
+}
+
+/** Есть ли хотя бы одно заполненное поле в документе соответствия (не выводить пустой smcdo:ConformityDocDetails). */
+function hasComplianceDocumentContent(doc: ComplianceDocument): boolean {
+  if (doc.docKindCode?.trim()) return true
+  if (doc.docName?.trim()) return true
+  if (doc.docId?.trim()) return true
+  if (doc.docCreationDate?.trim()) return true
+  if (doc.docStartDate?.trim()) return true
+  if (doc.authority && (doc.authority.country?.trim() || doc.authority.authorityName?.trim() || doc.authority.authorityBriefName?.trim())) return true
+  return false
+}
+
+/** Есть ли контент в блоке нарушений (описание или хотя бы одно требование/показатель с контентом). */
+function hasViolationsContent(v: ViolationsData): boolean {
+  if (v.generalDescription?.trim()) return true
+  if ((v.violatedRequirements ?? []).some(hasRequirementContent)) return true
+  if ((v.violatedIndicators ?? []).some(hasIndicatorContent)) return true
+  return false
+}
+
+/** Партия имеет контент с учётом вложенных элементов: после фильтрации пустых документов/блоков что-то остаётся. */
+function hasBatchContent(batch: ProductBatchDetails): boolean {
+  if (hasBatchDetailsContent(batch)) return true
+  if (batch.consignmentId?.trim()) return true
+  if ((batch.batchCommodityMeasure?.value ?? '').trim()) return true
+  const docsWithContent = batch.shippingDocuments?.filter(hasShippingDocumentContent) ?? []
+  if (docsWithContent.length > 0) return true
+  const complianceWithContent = batch.complianceDocuments?.filter(hasComplianceDocumentContent) ?? []
+  if (complianceWithContent.length > 0) return true
+  const violationsList = Array.isArray(batch.violations) ? batch.violations : (batch.violations ? [batch.violations] : [])
+  if (violationsList.some(hasViolationsContent)) return true
+  return false
+}
+
+/** Есть ли контент в адресе (хотя бы одно поле). */
+function hasAddressContent(addr: AddressDetails | undefined): boolean {
+  if (!addr) return false
+  const s = (v: string | undefined) => (v ?? '').trim()
+  return !!(s(addr.country) || s(addr.territoryCode) || s(addr.regionName) || s(addr.districtName) || s(addr.cityName) || s(addr.settlementName) || s(addr.streetName) || s(addr.buildingNumberId) || s(addr.roomNumberId) || s(addr.postOfficeBoxId) || s(addr.postCode) || s(addr.fullAddress))
+}
+
+/** Есть ли контент в контакте (хотя бы одно поле). */
+function hasContactContent(contact: ContactDetails | undefined): boolean {
+  if (!contact) return false
+  const s = (v: string | undefined) => (v ?? '').trim()
+  return !!(s(contact.contactKind) || s(contact.contactValue) || s(contact.communicationChannelCode) || s(contact.communicationChannelName) || s(contact.communicationChannelId))
+}
+
+/** Есть ли контент в техническом документе (ProductDetails.technicalDocs). */
+function hasTechnicalDocContent(doc: TechnicalDocument | undefined): boolean {
+  if (!doc) return false
+  const s = (v: string | undefined) => (v ?? '').trim()
+  return !!(s(doc.docKindCode) || s(doc.docName) || s(doc.docId) || s(doc.docCreationDate) || s(doc.docStartDate))
+}
+
+/** Есть ли контент в ProductDetails (собственные поля или технические документы с контентом). */
+function hasProductDetailsContent(details: ProductDetails | undefined): boolean {
+  if (!details) return false
+  const s = (v: string | undefined) => (v ?? '').trim()
+  if (s(details.productId) || s(details.productName) || s(details.description) || s(details.commodityCode) || s(details.productPurpose) || s(details.applicationMethod) || s(details.releaseForm) || s(details.storageCondition) || s(details.labelText)) return true
+  const tradeNames = details.tradeNames?.length ? details.tradeNames : (details.tradeName ? [details.tradeName] : [])
+  if (tradeNames.some(t => (t ?? '').trim())) return true
+  const withContent = (details.technicalDocs ?? []).filter(hasTechnicalDocContent)
+  return withContent.length > 0
+}
+
+/** Есть ли контент у участника цепи поставки (собственные поля или адреса/контакты с контентом). */
+function hasSupplyChainPartyContent(party: SupplyChainPartyDetails | undefined): boolean {
+  if (!party) return false
+  const s = (v: string | undefined) => (v ?? '').trim()
+  if (s(party.country) || s(party.businessEntityName) || s(party.shortName) || s(party.organizationalForm) || s(party.businessEntityTypeCode) || s(party.subjectIdentifier) || s(party.customsNumber) || s(party.taxpayerId) || s(party.taxRegistrationReasonCode) || s(party.supplyChainPartyKindCode)) return true
+  const addrs = party.addresses ?? []
+  if (addrs.length === 0 && (party.registrationAddress || party.actualAddress || party.mailingAddress)) {
+    if (hasAddressContent(party.registrationAddress) || hasAddressContent(party.actualAddress) || hasAddressContent(party.mailingAddress)) return true
+  }
+  if (addrs.some(hasAddressContent)) return true
+  if ((party.contacts ?? []).some(hasContactContent)) return true
+  return false
+}
+
+/** Есть ли контент в нарушенном требовании (RequirementsDocDetails). */
+function hasRequirementContent(req: ViolatedRequirement | undefined): boolean {
+  if (!req) return false
+  const s = (v: string | undefined) => (v ?? '').trim()
+  if (s(req.technicalRegulationId) || s(req.technicalRegulationName) || s(req.registrationNumber) || s(req.description)) return true
+  if ((req.structuralElements ?? []).some(se => s(se.elementName) || s(se.elementId))) return true
+  if (req.approvingDocument && (s(req.approvingDocument.docName) || s(req.approvingDocument.docId) || s(req.approvingDocument.docCreationDate) || s(req.approvingDocument.docStartDate))) return true
+  return false
+}
+
+/** Есть ли контент в нарушенном показателе (DiscrepancyOfQualityIndexDetails). */
+function hasIndicatorContent(ind: ViolatedIndicator | undefined): boolean {
+  if (!ind) return false
+  const s = (v: string | undefined) => (v ?? '').trim()
+  return !!(s(ind.indicatorCode) || s(ind.indicatorName) || s(ind.indicatorValue) || s(ind.unitCode) || s(ind.note))
+}
+
+/** Есть ли контент у места обнаружения/зоны распространения (с учётом вложенных пустых). */
+function hasDetectionPlaceContent(place: DetectionPlaceData | undefined): boolean {
+  if (!place) return false
+  if (place.organization && hasOrganizationContent(place.organization)) return true
+  if (place.borderCheckpoint && (place.borderCheckpoint.checkpointCode?.trim() || place.borderCheckpoint.checkpointName?.trim())) return true
+  if (place.address && hasAddressContent(place.address)) return true
+  if (place.geoCoordinates?.some(c => (c.longitude ?? '').trim() || (c.latitude ?? '').trim())) return true
+  if (place.description?.trim()) return true
+  return false
+}
+
+/** Есть ли контент в основании применения меры (MeasureInitiationBasisDetails). */
+function hasBasisContent(basis: MeasureInitiationBasisItem | undefined): boolean {
+  if (!basis) return false
+  const s = (v: string | undefined) => (v ?? '').trim()
+  return !!(s(basis.docKindName) || s(basis.docName) || s(basis.docId) || s(basis.docCreationDate))
+}
+
+/** Есть ли контент в блоке реализации меры (MeasureImplementationDetails). */
+function hasImplementationContent(impl: MeasureImplementationItem | undefined): boolean {
+  if (!impl) return false
+  const s = (v: string | undefined) => (v ?? '').trim()
+  if (s(impl.country) || s(impl.startDate) || s(impl.endDate) || s(impl.description)) return true
+  if (impl.measureAffectedObjectKindCode?.trim()) return true
+  if (impl.authority && (s(impl.authority.country) || s(impl.authority.authorityName) || s(impl.authority.authorityBriefName))) return true
+  if (impl.subjectDetails) return true
+  if (impl.documentDetails) return true
+  if (impl.placeDetails && (s(impl.placeDetails.regionName) || s(impl.placeDetails.borderCheckpointCode) || s(impl.placeDetails.borderCheckpointName))) return true
+  return false
+}
+
+/** Есть ли контент у меры (собственные поля или вложенные блоки с контентом). */
+function hasMeasureContent(measure: SanitaryMeasure | undefined): boolean {
+  if (!measure) return false
+  const s = (v: string | undefined) => (v ?? '').trim()
+  if (s(measure.languageCode) || s(measure.measureCode) || s(measure.measureName) || s(measure.measureAffectedObjectKindCode) || s(measure.startDate) || s(measure.endDate) || s(measure.measureJustificationText)) return true
+  if (measure.measureDocDetails) return true
+  if (measure.initialMeasureDocDetails) return true
+  const basisWithContent = (measure.measureInitiationBasisDetails ?? []).filter(hasBasisContent)
+  if (basisWithContent.length > 0) return true
+  const implWithContent = (measure.measureImplementationDetails ?? []).filter(hasImplementationContent)
+  if (implWithContent.length > 0) return true
   return false
 }
 
@@ -409,16 +574,18 @@ function exportShippingDocument(xmlParts: string[], doc: ShippingDocument, inden
   if (doc.docCreationDate) xmlParts.push(`${indent}    <csdo:DocCreationDate>${escapeXML(doc.docCreationDate)}</csdo:DocCreationDate>`)
   if (doc.docId) xmlParts.push(`${indent}    <csdo:DocId>${escapeXML(doc.docId)}</csdo:DocId>`)
   
-  if (doc.products && doc.products.length > 0) {
-    doc.products.forEach(product => {
+  const productsWithContent = (doc.products ?? []).filter(hasProductDetailsContent)
+  if (productsWithContent.length > 0) {
+    productsWithContent.forEach(product => {
       xmlParts.push(`${indent}    <smcdo:ProductDetails>`)
       exportProductDetails(xmlParts, product, `${indent}        `)
       xmlParts.push(`${indent}    </smcdo:ProductDetails>`)
     })
   }
-  
-  if (doc.supplyChainParties && doc.supplyChainParties.length > 0) {
-    doc.supplyChainParties.forEach((party, index) => {
+
+  const partiesWithContent = (doc.supplyChainParties ?? []).filter(hasSupplyChainPartyContent)
+  if (partiesWithContent.length > 0) {
+    partiesWithContent.forEach((party, index) => {
       const kindCode = party.supplyChainPartyKindCode || party.subjectIdentifier || String(index)
       exportSupplyChainParty(xmlParts, party, kindCode, `${indent}    `)
     })
@@ -430,8 +597,8 @@ function exportShippingDocument(xmlParts: string[], doc: ShippingDocument, inden
 function exportViolations(xmlParts: string[], violations: ViolationsData, indent: string) {
   // По XSD: один RequirementViolationDetails содержит:
   // DescriptionText? → RequirementsDocDetails+ → DiscrepancyOfQualityIndexDetails*
-  const reqs = violations.violatedRequirements ?? []
-  const inds = violations.violatedIndicators ?? []
+  const reqsWithContent = (violations.violatedRequirements ?? []).filter(hasRequirementContent)
+  const indsWithContent = (violations.violatedIndicators ?? []).filter(hasIndicatorContent)
   const hasGeneralDesc = !!(violations.generalDescription && violations.generalDescription.trim())
 
   xmlParts.push(`${indent}<smcdo:RequirementViolationDetails>`)
@@ -443,14 +610,15 @@ function exportViolations(xmlParts: string[], violations: ViolationsData, indent
   }
 
   // 2) Список RequirementsDocDetails (обязателен минимум один по XSD)
-  if (reqs.length > 0) {
-    reqs.forEach((req) => {
+  if (reqsWithContent.length > 0) {
+    reqsWithContent.forEach((req) => {
       xmlParts.push(`${inner}<smcdo:RequirementsDocDetails>`)
       if (req.technicalRegulationId) xmlParts.push(`${inner}  <smsdo:TechnicalRegulationId>${escapeXML(req.technicalRegulationId)}</smsdo:TechnicalRegulationId>`)
       if (req.technicalRegulationName) xmlParts.push(`${inner}  <csdo:DocName>${escapeXML(req.technicalRegulationName)}</csdo:DocName>`)
       if (req.registrationNumber) xmlParts.push(`${inner}  <csdo:DocId>${escapeXML(req.registrationNumber)}</csdo:DocId>`)
-      if (req.structuralElements && req.structuralElements.length > 0) {
-        req.structuralElements.forEach(structEl => {
+      const structWithContent = (req.structuralElements ?? []).filter(se => (se.elementName ?? '').trim() || (se.elementId ?? '').trim())
+      if (structWithContent.length > 0) {
+        structWithContent.forEach(structEl => {
           xmlParts.push(`${inner}  <smcdo:DocStructuralElementDetails>`)
           if (structEl.elementName) xmlParts.push(`${inner}    <smsdo:DocStructuralElementName>${escapeXML(structEl.elementName)}</smsdo:DocStructuralElementName>`)
           if (structEl.elementId) xmlParts.push(`${inner}    <smsdo:DocStructuralElementId>${escapeXML(structEl.elementId)}</smsdo:DocStructuralElementId>`)
@@ -474,8 +642,8 @@ function exportViolations(xmlParts: string[], violations: ViolationsData, indent
     xmlParts.push(`${inner}<smcdo:RequirementsDocDetails></smcdo:RequirementsDocDetails>`)
   }
 
-  // 3) Список DiscrepancyOfQualityIndexDetails. Признак нормативного показателя — true/false. Единица измерения — в csdo:UnifiedMeasurementUnitCode с codeListId=2001.
-  inds.forEach(indicator => {
+  // 3) Список DiscrepancyOfQualityIndexDetails. Признак нормативного показателя — true/false. Единица измерения — в csdo:UnifiedMeasurementUnitCode с codeListId=2064.
+  indsWithContent.forEach(indicator => {
     const normativeAttr = indicator.isNormative === true ? ' normativeDiscrepancyOfQualityIndexIndicator="true"' : (indicator.isNormative === false ? ' normativeDiscrepancyOfQualityIndexIndicator="false"' : '')
     xmlParts.push(`${inner}<smcdo:DiscrepancyOfQualityIndexDetails${normativeAttr}>`)
     if (indicator.indicatorCode) xmlParts.push(`${inner}  <smsdo:DiscrepancyOfQualityIndexCode>${escapeXML(indicator.indicatorCode)}</smsdo:DiscrepancyOfQualityIndexCode>`)
@@ -484,7 +652,7 @@ function exportViolations(xmlParts: string[], violations: ViolationsData, indent
       xmlParts.push(`${inner}  <smsdo:DiscrepancyOfQualityIndexValue>${escapeXML(indicator.indicatorValue)}</smsdo:DiscrepancyOfQualityIndexValue>`)
     }
     if (indicator.unitCode?.trim()) {
-      xmlParts.push(`${inner}  <csdo:UnifiedMeasurementUnitCode codeListId="2001">${escapeXML(indicator.unitCode)}</csdo:UnifiedMeasurementUnitCode>`)
+      xmlParts.push(`${inner}  <csdo:UnifiedMeasurementUnitCode codeListId="2064">${escapeXML(indicator.unitCode)}</csdo:UnifiedMeasurementUnitCode>`)
     }
     if (indicator.note) {
       xmlParts.push(`${inner}  <csdo:NoteText>${escapeXML(indicator.note)}</csdo:NoteText>`)
@@ -503,21 +671,22 @@ function hasOrganizationContent(org: BusinessEntityDetails | undefined): boolean
   if (org.businessEntityTypeName?.trim()) return true
   if (org.businessEntityId?.trim()) return true
   if (org.taxpayerId?.trim()) return true
-  if (org.addresses?.length) return true
-  if (org.contacts?.length) return true
+  if ((org.addresses ?? []).some(hasAddressContent)) return true
+  if ((org.contacts ?? []).some(hasContactContent)) return true
   return false
 }
 
-/** Экспорт LocationDetailsType (место обнаружения или зона распространения). wrapperTag — имя элемента smcdo. */
+/** Экспорт LocationDetailsType (место обнаружения или зона распространения). wrapperTag — имя элемента smcdo. Пустой блок не выводится. */
 export function exportDetectionPlace(
   xmlParts: string[],
   place: DetectionPlaceData,
   indent: string,
   wrapperTag: 'DetectionPlaceDetails' | 'SpreadingZoneDetails' = 'DetectionPlaceDetails'
 ) {
+  if (!hasDetectionPlaceContent(place)) return
   xmlParts.push(`${indent}<smcdo:${wrapperTag}>`)
   // Порядок по XSD LocationDetailsType: OrganizationDetails, BorderCheckpointDetails, ObjectAddressDetails, GeoCoordinateDetails, DescriptionText
-  if (hasOrganizationContent(place.organization)) {
+  if (place.organization && hasOrganizationContent(place.organization)) {
     xmlParts.push(`${indent}    <smcdo:OrganizationDetails>`)
     if (place.organization.country) {
       xmlParts.push(`${indent}        <csdo:UnifiedCountryCode codeListId="2021">${escapeXML(place.organization.country)}</csdo:UnifiedCountryCode>`)
@@ -534,13 +703,15 @@ export function exportDetectionPlace(
       }
     }
     if (place.organization.taxpayerId) xmlParts.push(`${indent}        <csdo:TaxpayerId>${escapeXML(place.organization.taxpayerId)}</csdo:TaxpayerId>`)
-    if (place.organization.addresses && place.organization.addresses.length > 0) {
-      place.organization.addresses.forEach(addr => {
+    const addrsWithContent = (place.organization.addresses ?? []).filter(hasAddressContent)
+    if (addrsWithContent.length > 0) {
+      addrsWithContent.forEach(addr => {
         exportAddress(xmlParts, addr, addr.addressKindCode || '1', `${indent}        `)
       })
     }
-    if (place.organization.contacts && place.organization.contacts.length > 0) {
-      place.organization.contacts.forEach(contact => {
+    const contactsWithContent = (place.organization.contacts ?? []).filter(hasContactContent)
+    if (contactsWithContent.length > 0) {
+      contactsWithContent.forEach(contact => {
         xmlParts.push(`${indent}        <ccdo:CommunicationDetails>`)
         if (contact.communicationChannelCode) xmlParts.push(`${indent}          <csdo:CommunicationChannelCode>${escapeXML(contact.communicationChannelCode)}</csdo:CommunicationChannelCode>`)
         if (contact.communicationChannelName) xmlParts.push(`${indent}          <csdo:CommunicationChannelName>${escapeXML(contact.communicationChannelName)}</csdo:CommunicationChannelName>`)
@@ -556,7 +727,7 @@ export function exportDetectionPlace(
     if (place.borderCheckpoint.checkpointName) xmlParts.push(`${indent}        <csdo:BorderCheckpointName>${escapeXML(place.borderCheckpoint.checkpointName)}</csdo:BorderCheckpointName>`)
     xmlParts.push(`${indent}    </smcdo:BorderCheckpointDetails>`)
   }
-  if (place.address) {
+  if (place.address && hasAddressContent(place.address)) {
     exportAddress(xmlParts, place.address, '1', `${indent}    `, { wrapperTag: 'ObjectAddressDetails' })
   }
   
@@ -608,8 +779,9 @@ function exportSanitaryMeasure(xmlParts: string[], measure: SanitaryMeasure, ind
     exportMeasureDocDetails(xmlParts, measure.initialMeasureDocDetails, 'InitialMeasureDocDetails', `${indent}  `)
   }
   
-  if (measure.measureInitiationBasisDetails && measure.measureInitiationBasisDetails.length > 0) {
-    measure.measureInitiationBasisDetails.forEach(basis => {
+  const basisWithContent = (measure.measureInitiationBasisDetails ?? []).filter(hasBasisContent)
+  if (basisWithContent.length > 0) {
+    basisWithContent.forEach(basis => {
       xmlParts.push(`${indent}  <smcdo:MeasureInitiationBasisDetails>`)
       if (basis.docKindName) xmlParts.push(`${indent}    <csdo:DocKindName>${escapeXML(basis.docKindName)}</csdo:DocKindName>`)
       if (basis.docName) xmlParts.push(`${indent}    <csdo:DocName>${escapeXML(basis.docName)}</csdo:DocName>`)
@@ -618,9 +790,10 @@ function exportSanitaryMeasure(xmlParts: string[], measure: SanitaryMeasure, ind
       xmlParts.push(`${indent}  </smcdo:MeasureInitiationBasisDetails>`)
     })
   }
-  
-  if (measure.measureImplementationDetails && measure.measureImplementationDetails.length > 0) {
-    measure.measureImplementationDetails.forEach(impl => {
+
+  const implWithContent = (measure.measureImplementationDetails ?? []).filter(hasImplementationContent)
+  if (implWithContent.length > 0) {
+    implWithContent.forEach(impl => {
       exportMeasureImplementation(xmlParts, impl, `${indent}  `)
     })
   }
@@ -780,8 +953,9 @@ function exportMeasureImplementation(xmlParts: string[], impl: MeasureImplementa
 }
 
 function exportComplianceDocuments(xmlParts: string[], compliance: ComplianceDocumentsData, indent: string) {
-  if (compliance.documents && compliance.documents.length > 0) {
-    compliance.documents.forEach(doc => {
+  const docsWithContent = (compliance.documents ?? []).filter(hasComplianceDocumentContent)
+  if (docsWithContent.length > 0) {
+    docsWithContent.forEach(doc => {
       xmlParts.push(`${indent}<smcdo:ConformityDocDetails>`)
   if (doc.docKindCode) {
     xmlParts.push(`${indent}    <csdo:DocKindCode codeListId="2001">${escapeXML(doc.docKindCode)}</csdo:DocKindCode>`)

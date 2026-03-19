@@ -6,7 +6,7 @@ import { DangerousProductCard } from './cards/dpa'
 import { PhaCard } from './cards/pha'
 import type { CardData } from './types/card'
 import { fetchDpaXml, fetchDpaMetadata, fetchNextRegistrationNumber, checkAccessRight, phaSourceToViewRight } from './utils/referenceDataApi'
-import { fetchPhaXml, fetchPhaMetadata } from './cards/pha/phaApi'
+import { fetchPhaXml, fetchPhaMetadata, fetchPhaStatusHistory } from './cards/pha/phaApi'
 import { parsePhaXmlToCardData } from './cards/pha/phaXmlParser'
 import { parseXMLToCardData, validateAndEnrichCardData, getTextContent } from './utils/xmlParser'
 import { createNewCardData } from './utils/newCardData'
@@ -308,7 +308,7 @@ function PhaAppContent() {
       setLoading(false)
       setError(null)
       setViewDenied(false)
-      setCardData(createNewCardData('BY', { registrationNumber: '' }))
+      setCardData(createNewCardData('BY', { registrationNumber: '' }, { forPha: true }))
       setOriginalXML(null)
       return
     }
@@ -327,7 +327,7 @@ function PhaAppContent() {
         if (cancelled) return
         setOriginalXML(xmlText)
         const card = parsePhaXmlToCardData(xmlText)
-        const enriched = meta ? {
+        let enriched: CardData = meta ? {
           ...card,
           registrationNumber: meta.incidentId ?? card.registrationNumber,
           country: meta.alertCountryCode ?? card.country,
@@ -338,6 +338,19 @@ function PhaAppContent() {
           status: meta.phaStatusName ?? card.status,
           statusId: meta.phaStatusId ?? card.statusId,
         } : card
+        // Если метаданные не вернули статус — взять последний из истории смены статусов (PHASTATUSHIST)
+        if (!(enriched.status ?? '').trim()) {
+          try {
+            const history = await fetchPhaStatusHistory(phaid, guid)
+            if (history.length > 0) {
+              const latest = history[history.length - 1]
+              if (latest?.status?.trim()) enriched = { ...enriched, status: latest.status }
+            }
+          } catch {
+            // история недоступна — оставляем статус пустым
+          }
+        }
+        if (cancelled) return
         setCardData(enriched)
         setError(null)
         message.success('Данные карты PHA загружены')

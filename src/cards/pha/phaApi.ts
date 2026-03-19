@@ -50,6 +50,31 @@ export async function fetchPhaMetadata(phaid: string, guid?: string): Promise<{
   return res.json()
 }
 
+/** Элемент истории смены статусов PHA (ответ /api/pha/status-history/{PHAID}). */
+export interface PhaStatusHistoryItem {
+  status: string
+  dateTime: string
+  employee: string | null
+}
+
+/**
+ * История смены статусов карты PHA из таблицы PHASTATUSHIST.
+ * GET /api/pha/status-history/{PHAID}
+ */
+export async function fetchPhaStatusHistory(phaid: string, guid?: string): Promise<PhaStatusHistoryItem[]> {
+  const url = getApiUrl(`/api/pha/status-history/${phaid}`)
+  const res = await fetch(url, {
+    method: 'GET',
+    headers: guid ? { 'X-GUID': guid } : {},
+    credentials: 'same-origin',
+  })
+  if (!res.ok) {
+    const text = await res.text()
+    throw new Error(res.status === 404 ? `История статусов для PHAID ${phaid} не найдена` : (text || res.statusText))
+  }
+  return res.json()
+}
+
 /** Тело запроса сохранения карты PHA (JSON). */
 export interface SavePhaCardPayload {
   phaid: string

@@ -326,6 +326,16 @@
         <url-pattern>/api/pha/metadata/*</url-pattern>
     </servlet-mapping>
 
+    <!-- История смены статусов PHA из PHASTATUSHIST -->
+    <servlet>
+        <servlet-name>PhaStatusHistoryServlet</servlet-name>
+        <servlet-class>com.eec.servlet.pha.PhaStatusHistoryServlet</servlet-class>
+    </servlet>
+    <servlet-mapping>
+        <servlet-name>PhaStatusHistoryServlet</servlet-name>
+        <url-pattern>/api/pha/status-history/*</url-pattern>
+    </servlet-mapping>
+
     <!-- История смены статусов из DPASTATUSHIST -->
     <servlet>
         <servlet-name>DpaStatusHistoryServlet</servlet-name>
@@ -369,7 +379,7 @@
     <!-- Доступ по DPAID: подразделения, связь DPADEPPERMIS(DPAID, DEPID) -->
     <servlet>
         <servlet-name>DpaAccessServlet</servlet-name>
-        <servlet-class>com.eec.servlet.DpaAccessServlet</servlet-class>
+        <servlet-class>com.eec.servlet.dpa.DpaAccessServlet</servlet-class>
     </servlet>
     <servlet-mapping>
         <servlet-name>DpaAccessServlet</servlet-name>

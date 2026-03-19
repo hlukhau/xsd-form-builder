@@ -1706,7 +1706,8 @@ function parseMeasure(parent: Element | null, tagName: string): MeasureWithUnit 
     value,
     unitCode,
     unitCodeListId,
-    unitName: unitCode ? (unitNameMap[unitCode] || unitCode) : undefined,
+    // Не подставлять unitCode в unitName: в measurementUnitCode должен быть только код (например 212), наименование — только из справочника
+    unitName: unitCode ? (unitNameMap[unitCode] ?? undefined) : undefined,
   }
 }
 
@@ -2152,19 +2153,28 @@ function parseViolatedIndicator(indicatorElement: Element): ViolatedIndicator | 
   const indicatorValue = getTextContent(indicatorElement, 'DiscrepancyOfQualityIndexValue') || undefined
   const note = getTextContent(indicatorElement, 'NoteText') || undefined
   
-  // Единица измерения из атрибутов
-  const valueElement = indicatorElement.querySelector('DiscrepancyOfQualityIndexValue') ||
-    Array.from(indicatorElement.getElementsByTagName('*')).find(el => {
-      const localName = el.localName || el.tagName.split(':').pop()?.toLowerCase()
-      return localName === 'discrepancyofqualityindexvalue'
-    })
-  
+  // Единица измерения: элемент csdo:UnifiedMeasurementUnitCode (codeListId="2064") или атрибуты у DiscrepancyOfQualityIndexValue (старый формат)
   let unitCode: string | undefined = undefined
   let unitCodeListId: string | undefined = undefined
-  
-  if (valueElement) {
-    unitCode = valueElement.getAttribute('measurementUnitCode') || undefined
-    unitCodeListId = valueElement.getAttribute('measurementUnitCodeListId') || undefined
+  const unitEl = indicatorElement.querySelector('UnifiedMeasurementUnitCode') ||
+    Array.from(indicatorElement.getElementsByTagName('*')).find(el => {
+      const localName = el.localName || el.tagName.split(':').pop()?.toLowerCase()
+      return localName === 'unifiedmeasurementunitcode'
+    })
+  if (unitEl) {
+    unitCode = (unitEl.textContent ?? '').trim() || undefined
+    unitCodeListId = unitEl.getAttribute('codeListId') || undefined
+  }
+  if (!unitCode) {
+    const valueElement = indicatorElement.querySelector('DiscrepancyOfQualityIndexValue') ||
+      Array.from(indicatorElement.getElementsByTagName('*')).find(el => {
+        const localName = el.localName || el.tagName.split(':').pop()?.toLowerCase()
+        return localName === 'discrepancyofqualityindexvalue'
+      })
+    if (valueElement) {
+      unitCode = valueElement.getAttribute('measurementUnitCode') || undefined
+      unitCodeListId = valueElement.getAttribute('measurementUnitCodeListId') || undefined
+    }
   }
   
   // В реальном приложении здесь обращение к справочнику единиц измерения
@@ -2175,7 +2185,7 @@ function parseViolatedIndicator(indicatorElement: Element): ViolatedIndicator | 
     'C62': 'мг/кг',
     'M1': '%',
   }
-  const unitName = unitCode ? (unitNameMap[unitCode] || unitCode) : undefined
+  const unitName = unitCode ? (unitNameMap[unitCode] ?? undefined) : undefined
   
   if (!indicatorCode && !indicatorName && !indicatorValue) {
     return null
