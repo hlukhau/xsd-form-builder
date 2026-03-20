@@ -774,13 +774,15 @@ public class DictionaryInitializerListener implements ServletContextListener {
         try {
             System.out.println("[DictionaryInitializer] Loading disease health problem dictionary...");
             conn = DatabaseUtil.getConnectionForGuid(guid);
-            String sql = "SELECT NVL(DISEASEHEALTHPROBLEMICDCODE, TO_CHAR(DISEASEHEALTHPROBLEMID)) AS CCODE, DISEASEHEALTHPROBLEMNAME AS CNAME " +
+            String sql = "SELECT NVL(DISEASEHEALTHPROBLEMICDCODE, TO_CHAR(DISEASEHEALTHPROBLEMID)) AS CCODE, DISEASEHEALTHPROBLEMNAME AS CNAME, DISEASEHEALTHPROBLEMINFECTFL AS CINFECT " +
                         "FROM DISEASEHEALTHPROBLEM ORDER BY DISEASEHEALTHPROBLEMNAME";
             PreparedStatement stmt = conn.prepareStatement(sql);
             ResultSet rs = stmt.executeQuery();
             List<DiseaseHealthProblemOption> list = new ArrayList<>();
             while (rs.next()) {
-                list.add(new DiseaseHealthProblemOption(rs.getString("CCODE"), rs.getString("CNAME")));
+                Object infectObj = rs.getObject("CINFECT");
+                Integer infect = infectObj != null ? rs.getInt("CINFECT") : null;
+                list.add(new DiseaseHealthProblemOption(rs.getString("CCODE"), rs.getString("CNAME"), infect));
             }
             DictionaryCache.setDiseaseHealthProblemCache(list);
             System.out.println("[DictionaryInitializer] Loaded " + list.size() + " disease health problems into cache");

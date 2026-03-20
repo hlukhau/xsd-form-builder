@@ -5,7 +5,7 @@ import { isPhaApp } from './cards/config'
 import { DangerousProductCard } from './cards/dpa'
 import { PhaCard } from './cards/pha'
 import type { CardData } from './types/card'
-import { fetchDpaXml, fetchDpaMetadata, fetchNextRegistrationNumber, checkAccessRight, phaSourceToViewRight } from './utils/referenceDataApi'
+import { fetchDpaXml, fetchDpaMetadata, fetchNextRegistrationNumber, fetchPhaNextRegistrationNumber, checkAccessRight, phaSourceToViewRight } from './utils/referenceDataApi'
 import { fetchPhaXml, fetchPhaMetadata, fetchPhaStatusHistory, postPhaStatus } from './cards/pha/phaApi'
 import { isPhaIncomingSource } from './utils/phaStatusButtonConfig'
 import { parsePhaXmlToCardData } from './cards/pha/phaXmlParser'
@@ -309,16 +309,25 @@ function PhaAppContent() {
 
   useEffect(() => {
     if (!phaid || phaid === '-') {
+      const state = location.state as { newVersionFrom?: number; initialCardData?: CardData } | null
+      if (state?.newVersionFrom != null && state?.initialCardData) {
+        setCardData(state.initialCardData)
+        setOriginalXML(null)
+        setViewDenied(false)
+        setError(null)
+        setLoading(false)
+        return
+      }
       setViewDenied(false)
       setOriginalXML(null)
       setCardData(null)
       setError(null)
       let cancelled = false
-      const country = searchParams.get('country')?.trim()?.toUpperCase().slice(0, 2) || 'BY'
+      const country = 'BY'
       setLoading(true)
       ;(async () => {
         try {
-          const { registrationNumber } = await fetchNextRegistrationNumber(country, guid)
+          const { registrationNumber } = await fetchPhaNextRegistrationNumber(country, guid)
           if (cancelled) return
           setCardData(createNewCardData(country, { registrationNumber }, { forPha: true }))
           setLoading(false)
@@ -420,7 +429,7 @@ function PhaAppContent() {
       }
     })()
     return () => { cancelled = true }
-  }, [phaid, guid, searchParams])
+  }, [phaid, guid, searchParams, location.state])
 
   // Проверка права просмотра PHA по источнику: publicHealthIn:view, publicHealthOut:view, publicHealthDB:view
   useEffect(() => {
@@ -464,6 +473,9 @@ function PhaAppContent() {
         setCardData(null)
         setOriginalXML(null)
         navigate('/', { replace: true, state: { cardDeleted: true } })
+      }}
+      onMakeCopy={(initialCardData, sourcePhaid) => {
+        navigate(`/-/${guid ?? ''}`, { state: { newVersionFrom: sourcePhaid, initialCardData } })
       }}
     />
   )

@@ -345,6 +345,19 @@ export async function fetchNextRegistrationNumber(countryCode: string, guid?: st
   return response.json()
 }
 
+/** GET /api/pha/next-registration-number?country=BY → { registrationNumber: "BY-PH00001-26" } */
+export async function fetchPhaNextRegistrationNumber(countryCode: string, guid?: string): Promise<{ registrationNumber: string }> {
+  const country = (countryCode || 'BY').trim().toUpperCase().slice(0, 2) || 'BY'
+  const params = withGuidParams(new URLSearchParams({ country }), guid)
+  const url = `${BASE_URL}api/pha/next-registration-number?${params.toString()}`
+  const response = await fetch(url)
+  const text = await response.text()
+  if (!response.ok) {
+    throw new Error(text || response.statusText)
+  }
+  return JSON.parse(text) as { registrationNumber: string }
+}
+
 /**
  * Загрузить XML по DPAID из таблицы DPAXML (GET /api/dpa/xml/{DPAID})
  */
@@ -1496,6 +1509,7 @@ async function fetchPhaRefOptions<T>(cacheKey: string, path: string): Promise<T[
 export interface DiseaseHealthProblemOption {
   code: string
   name: string
+  infectFl?: 0 | 1 | null
 }
 
 export interface PathogenKindOption {

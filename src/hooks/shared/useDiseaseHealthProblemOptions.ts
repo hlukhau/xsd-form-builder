@@ -37,7 +37,7 @@ export function useDiseaseHealthProblemOptions() {
   }
 
   const getSelectOptions = () =>
-    options.map(opt => ({ value: opt.name || opt.code, label: opt.name || opt.code }))
+    options.map(opt => ({ value: opt.name || opt.code, label: opt.name || opt.code, infectFl: opt.infectFl ?? null }))
 
   return { options, loading, error, getNameByCode, getSelectOptions }
 }

@@ -14,6 +14,8 @@ import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Types;
+import java.util.HashSet;
+import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -46,6 +48,18 @@ public class PhaSaveServlet extends HttpServlet {
 
     private static final String SQL_UPDATE_PHAXML = "UPDATE PHAXML SET PHAXMLBODY = ? WHERE PHAID = ?";
     private static final String SQL_UPDATE_PHA_MOD = "UPDATE PHA SET MODIFICATIONDATETIME = SYSDATE WHERE PHAID = ?";
+    private static final String SQL_CURRENT_PHA = ""
+            + "SELECT DATASOURCEKINDCODE, PHASTATUSID FROM PHA WHERE PHAID = ?";
+    private static final String SQL_PHA_DEPS = "SELECT DEPID FROM PHADEPPERMIS WHERE PHAID = ?";
+    private static final String SQL_DISEASE_ID_BY_NAME = ""
+            + "SELECT DISEASEHEALTHPROBLEMID FROM DISEASEHEALTHPROBLEM "
+            + "WHERE UPPER(TRIM(DISEASEHEALTHPROBLEMNAME)) = UPPER(TRIM(?))";
+    private static final String SQL_UPDATE_PHA_META = ""
+            + "UPDATE PHA SET INCIDENTALERTKINDCODE = ?, "
+            + "DISEASEHEALTHPROBLEMID = ?, DISEASEHEALTHPROBLEMNAME = ?, "
+            + "INCIDENTEVENTDATE = ?, INCIDENTENDDATE = ?, "
+            + "CROSSBOARDERRISKFL = ?, MODIFICATIONDATETIME = SYSDATE "
+            + "WHERE PHAID = ?";
 
     @Override
     protected void doPost(HttpServletRequest request, HttpServletResponse response)
@@ -83,6 +97,10 @@ public class PhaSaveServlet extends HttpServlet {
         String countryCode = extractJsonString(metaBlock, "countryCode");
         String docCreationDate = extractJsonString(metaBlock, "docCreationDate");
         String incidentAlertKindCode = extractJsonString(metaBlock, "incidentAlertKindCode");
+        String diseaseName = extractJsonString(metaBlock, "diseaseName");
+        String firstCaseDate = extractJsonString(metaBlock, "firstCaseDate");
+        String lastCaseDate = extractJsonString(metaBlock, "lastCaseDate");
+        Integer crossborderRiskFl = extractJsonInt(metaBlock, "crossborderRiskFl");
 
         Integer userId = getUserIdFromRightsByGuid(guid);
 
@@ -160,6 +178,21 @@ public class PhaSaveServlet extends HttpServlet {
                     return;
                 }
                 long phaid = phaidParam;
+                if (userId == null) {
+                    sendJsonError(response, HttpServletResponse.SC_BAD_REQUEST,
+                            "Укажите guid (в карте прав должен быть userId)");
+                    return;
+                }
+                String rightsJson = (guid != null && !guid.isEmpty()) ? RightsJsonStore.guidMap.get(guid) : null;
+                if (rightsJson == null || rightsJson.isEmpty()) {
+                    sendJsonError(response, HttpServletResponse.SC_FORBIDDEN, "Права по GUID не найдены");
+                    return;
+                }
+                if (!isAllowedToEditOutgoing(conn, phaid, rightsJson)) {
+                    sendJsonError(response, HttpServletResponse.SC_FORBIDDEN,
+                            "Нет права на редактирование исходящих сведений (publicHealthOut:edit) в пределах подразделений доступа к карте или карта недоступна для редактирования");
+                    return;
+                }
                 try (PreparedStatement ps = conn.prepareStatement(SQL_UPDATE_PHAXML)) {
                     Clob clob = conn.createClob();
                     clob.setString(1, xmlBody);
@@ -171,9 +204,37 @@ public class PhaSaveServlet extends HttpServlet {
                         return;
                     }
                 }
-                try (PreparedStatement ps = conn.prepareStatement(SQL_UPDATE_PHA_MOD)) {
-                    ps.setLong(1, phaid);
+                Integer diseaseId = resolveDiseaseIdByName(conn, diseaseName);
+                try (PreparedStatement ps = conn.prepareStatement(SQL_UPDATE_PHA_META)) {
+                    ps.setString(1, trimToEmpty(incidentAlertKindCode));
+                    if (diseaseId != null) ps.setInt(2, diseaseId);
+                    else ps.setNull(2, Types.INTEGER);
+                    ps.setString(3, trimToEmpty(diseaseName));
+                    setDateOrNull(ps, 4, firstCaseDate);
+                    setDateOrNull(ps, 5, lastCaseDate);
+                    if (crossborderRiskFl == null) ps.setNull(6, Types.INTEGER);
+                    else ps.setInt(6, crossborderRiskFl);
+                    ps.setLong(7, phaid);
                     ps.executeUpdate();
+                }
+                int prevStatus = loadCurrentStatusId(conn, phaid);
+                if (prevStatus == 8 || prevStatus == 9) {
+                    try (PreparedStatement ps = conn.prepareStatement("UPDATE PHA SET PHASTATUSID = ? WHERE PHAID = ?")) {
+                        ps.setInt(1, PHA_STATUS_NEW_ID);
+                        ps.setLong(2, phaid);
+                        ps.executeUpdate();
+                    }
+                    try (PreparedStatement ps = conn.prepareStatement(SQL_INSERT_HIST)) {
+                        ps.setLong(1, phaid);
+                        ps.setInt(2, PHA_STATUS_NEW_ID);
+                        ps.setInt(3, userId);
+                        ps.executeUpdate();
+                    }
+                } else {
+                    try (PreparedStatement ps = conn.prepareStatement(SQL_UPDATE_PHA_MOD)) {
+                        ps.setLong(1, phaid);
+                        ps.executeUpdate();
+                    }
                 }
                 conn.commit();
                 response.getWriter().print("{\"success\":true,\"phaid\":" + phaid + "}");
@@ -243,6 +304,95 @@ public class PhaSaveServlet extends HttpServlet {
         m = Pattern.compile("\"depId\"\\s*:\\s*(\\d+)").matcher(json);
         if (m.find()) try { return Integer.parseInt(m.group(1)); } catch (NumberFormatException e) { return null; }
         return null;
+    }
+
+    private static Integer extractJsonInt(String json, String key) {
+        if (json == null) return null;
+        Matcher m = Pattern.compile("\"" + Pattern.quote(key) + "\"\\s*:\\s*(-?\\d+)").matcher(json);
+        if (m.find()) {
+            try {
+                return Integer.parseInt(m.group(1));
+            } catch (NumberFormatException ignored) {
+                return null;
+            }
+        }
+        return null;
+    }
+
+    private static int loadCurrentStatusId(Connection conn, long phaid) throws SQLException {
+        try (PreparedStatement ps = conn.prepareStatement("SELECT PHASTATUSID FROM PHA WHERE PHAID = ?")) {
+            ps.setLong(1, phaid);
+            try (ResultSet rs = ps.executeQuery()) {
+                if (rs.next()) return rs.getInt(1);
+            }
+        }
+        return -1;
+    }
+
+    private static Integer resolveDiseaseIdByName(Connection conn, String diseaseName) throws SQLException {
+        if (diseaseName == null || diseaseName.trim().isEmpty()) return null;
+        try (PreparedStatement ps = conn.prepareStatement(SQL_DISEASE_ID_BY_NAME)) {
+            ps.setString(1, diseaseName.trim());
+            try (ResultSet rs = ps.executeQuery()) {
+                if (rs.next()) return rs.getInt(1);
+            }
+        }
+        return null;
+    }
+
+    private static boolean isAllowedToEditOutgoing(Connection conn, long phaid, String rightsJson) throws SQLException {
+        String dsCode = null;
+        int statusId = -1;
+        try (PreparedStatement ps = conn.prepareStatement(SQL_CURRENT_PHA)) {
+            ps.setLong(1, phaid);
+            try (ResultSet rs = ps.executeQuery()) {
+                if (!rs.next()) return false;
+                dsCode = rs.getString("DATASOURCEKINDCODE");
+                statusId = rs.getInt("PHASTATUSID");
+            }
+        }
+        if (dsCode == null || !DATASOURCE_OUTGOING.equals(dsCode.trim())) return false;
+        if (statusId != 5 && statusId != 8 && statusId != 9) return false;
+
+        Set<String> cardDepIds = new HashSet<>();
+        try (PreparedStatement ps = conn.prepareStatement(SQL_PHA_DEPS)) {
+            ps.setLong(1, phaid);
+            try (ResultSet rs = ps.executeQuery()) {
+                while (rs.next()) {
+                    String d = rs.getString(1);
+                    if (d != null && !d.trim().isEmpty()) cardDepIds.add(d.trim());
+                }
+            }
+        }
+        if (cardDepIds.isEmpty()) return false;
+        Set<String> userEditDepIds = parsePublicHealthOutEditDepIds(rightsJson);
+        for (String depId : userEditDepIds) {
+            if (cardDepIds.contains(depId)) return true;
+        }
+        return false;
+    }
+
+    private static Set<String> parsePublicHealthOutEditDepIds(String json) {
+        Set<String> out = new HashSet<>();
+        if (json == null) return out;
+        int outStart = json.indexOf("\"publicHealthOut\"");
+        if (outStart < 0) return out;
+        int editStart = json.indexOf("\"edit\"", outStart);
+        if (editStart < 0) return out;
+        int braceStart = json.indexOf('{', editStart);
+        if (braceStart < 0) return out;
+        int depth = 1;
+        int i = braceStart + 1;
+        while (i < json.length() && depth > 0) {
+            char c = json.charAt(i);
+            if (c == '{') depth++;
+            else if (c == '}') depth--;
+            i++;
+        }
+        String editBlock = depth == 0 ? json.substring(braceStart, i) : "";
+        Matcher m = Pattern.compile("\"([^\"]+)\"\\s*:").matcher(editBlock);
+        while (m.find()) out.add(m.group(1).trim());
+        return out;
     }
 
     private static Integer getUserIdFromRightsByGuid(String guid) {

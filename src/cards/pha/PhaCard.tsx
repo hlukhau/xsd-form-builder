@@ -21,6 +21,7 @@ import {
   deletePhaCard,
   fetchPhaStatusHistory,
   postPhaStatus,
+  canCreatePhaNewVersion,
 } from '@/cards/pha/phaApi'
 import { exportPhaCardDataToXML } from '@/cards/pha/phaXmlExporter'
 import { parsePhaXmlToCardData } from '@/cards/pha/phaXmlParser'
@@ -57,14 +58,14 @@ interface PhaCardProps {
   onSaveNewCard?: (newPhaid: number) => void
   /** После удаления карты — закрыть форму и показать сообщение (как DPA) */
   onCardDeleted?: () => void
+  /** Создание новой версии исходящей карты PHA */
+  onMakeCopy?: (initialCardData: CardData, sourcePhaid: number) => void
 }
 
 /** Исходящие PHA: редактирование недоступно в терминальных / «ожидает отправки» статусах */
 function phaOutgoingAllowsEdit(status: string | undefined): boolean {
   const s = (status ?? '').trim().toLowerCase()
-  if (s.includes('заверш')) return false
-  if (s.includes('ожидает отправки') || s.includes('отправлено')) return false
-  return true
+  return s === 'новое' || s.includes('не удалась') || s.includes('ошибка обработки')
 }
 
 /** Сервер publicHealthIn:status и пересечение с PHADEPPERMIS, если в карте есть phaAccessibleDepIds. */
@@ -92,6 +93,19 @@ function canApplyPublicHealthOutStatusForCard(
   const statusMap = rights?.up?.publicHealthOut?.status
   if (!statusMap || typeof statusMap !== 'object') return false
   return cardDepIds.some((id) => Object.prototype.hasOwnProperty.call(statusMap, String(id)))
+}
+
+function canApplyPublicHealthOutEditForCard(
+  serverAllows: boolean,
+  rights: RightsJson | null,
+  cardDepIds: string[] | undefined
+): boolean {
+  if (!serverAllows) return false
+  if (cardDepIds === undefined) return true
+  if (cardDepIds.length === 0) return false
+  const editMap = rights?.up?.publicHealthOut?.edit
+  if (!editMap || typeof editMap !== 'object') return false
+  return cardDepIds.some((id) => Object.prototype.hasOwnProperty.call(editMap, String(id)))
 }
 
 function canApplyPublicHealthOutSendForCard(
@@ -130,6 +144,7 @@ const PhaCard: React.FC<PhaCardProps> = ({
   initialEditMode = false,
   onSaveNewCard,
   onCardDeleted,
+  onMakeCopy,
 }) => {
   const [savedPhaid, setSavedPhaid] = useState<number | null>(null)
   const effectivePhaid =
@@ -177,8 +192,14 @@ const PhaCard: React.FC<PhaCardProps> = ({
     sourceFromData.toLowerCase().includes('исходящ') ||
     sourceFromData === '2'
   const isIncomingPha = isPhaIncomingSource(editedData.source)
+  const outgoingStatusId = editedData.statusId ?? data.statusId
   const canEditByStatus =
-    !isOutgoingPha || isIncomingPha || phaOutgoingAllowsEdit(editedData.status ?? data.status)
+    !isOutgoingPha ||
+    isIncomingPha ||
+    outgoingStatusId === 5 ||
+    outgoingStatusId === 8 ||
+    outgoingStatusId === 9 ||
+    phaOutgoingAllowsEdit(editedData.status ?? data.status)
 
   // Обновляем editedData только при смене карты (другой registrationNumber/version), чтобы не терять правки при переключении в режим просмотра
   useEffect(() => {
@@ -241,7 +262,7 @@ const PhaCard: React.FC<PhaCardProps> = ({
           const depIds = editedData.phaAccessibleDepIds ?? data.phaAccessibleDepIds
           setHasPhaStatusRight(canApplyPublicHealthOutStatusForCard(status, rights, depIds))
           setHasPhaSendRight(canApplyPublicHealthOutSendForCard(send, rights, depIds))
-          setHasPhaEditRight(edit)
+          setHasPhaEditRight(canApplyPublicHealthOutEditForCard(edit, rights, depIds))
           const depid = rights.department?.depid != null ? String(rights.department.depid) : null
           const hasRightInMap = (map: Record<string, unknown> | undefined | null): boolean => {
             if (!depid || !map || typeof map !== 'object') return false
@@ -332,6 +353,15 @@ const PhaCard: React.FC<PhaCardProps> = ({
     hasPhaEditRight &&
     effectivePhaid !== '-' &&
     !!guid
+
+  const showCopyButton =
+    isOutgoingPha &&
+    hasPhaEditRight &&
+    effectivePhaid !== '-' &&
+    effectivePhaid != null &&
+    !!guid &&
+    !!onMakeCopy &&
+    (editedData.statusId ?? data.statusId) === 10
 
   const normIncomingStatus = (currentData.status ?? '').trim().toLowerCase()
   const isIncomingProcessingStatus =
@@ -516,6 +546,35 @@ const PhaCard: React.FC<PhaCardProps> = ({
         }
       },
     })
+  }
+
+  const handleCopy = async () => {
+    if (!effectivePhaid || !guid || !onMakeCopy) return
+    try {
+      const res = await canCreatePhaNewVersion(String(effectivePhaid), guid)
+      if (!res.allowed) {
+        message.error(res.reason ?? 'Создание новой версии недоступно')
+        return
+      }
+      const nowIso = new Date().toISOString()
+      const today = nowIso.slice(0, 10)
+      const initialCardData: CardData = {
+        ...currentData,
+        version: (currentData.version ?? 1) + 1,
+        status: 'Новое',
+        statusId: 5,
+        createdAt: nowIso,
+        modifiedAt: nowIso,
+        notification: {
+          ...currentData.notification!,
+          formationDate: today,
+          type: '',
+        },
+      }
+      onMakeCopy(initialCardData, Number(effectivePhaid))
+    } catch (e) {
+      message.error(e instanceof Error ? e.message : 'Ошибка проверки возможности создания новой версии')
+    }
   }
 
   const handlePhaStatusAction = (action: string) => {
@@ -817,6 +876,9 @@ const PhaCard: React.FC<PhaCardProps> = ({
             )}
             {showClosePhaCardHeaderButton && (
               <Button onClick={confirmClosePhaCard}>Закрыть карту</Button>
+            )}
+            {showCopyButton && (
+              <Button onClick={handleCopy}>Новая версия</Button>
             )}
             <Button
               onClick={() => {

@@ -35,7 +35,8 @@ public class DiseaseHealthProblemOptionsServlet extends HttpServlet {
                 first = false;
                 String code = o.code != null ? o.code.replace("\\", "\\\\").replace("\"", "\\\"") : "";
                 String name = o.name != null ? o.name.replace("\\", "\\\\").replace("\"", "\\\"") : "";
-                out.print("{\"code\":\"" + code + "\",\"name\":\"" + name + "\"}");
+                out.print("{\"code\":\"" + code + "\",\"name\":\"" + name + "\",\"infectFl\":"
+                        + (o.infectFl == null ? "null" : String.valueOf(o.infectFl)) + "}");
             }
             out.print("]");
         } catch (Exception e) {

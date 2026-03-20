@@ -1,6 +1,6 @@
 import { useState } from 'react'
-import { Form, Input, Button, Table, Space, DatePicker, Collapse, Select, Upload, message } from 'antd'
-import { PlusOutlined, DeleteOutlined, UploadOutlined, CaretRightOutlined, CaretDownOutlined } from '@ant-design/icons'
+import { Form, Input, Button, Table, Space, DatePicker, Collapse, Select, Upload, message, Modal } from 'antd'
+import { PlusOutlined, DeleteOutlined, UploadOutlined, CaretRightOutlined, CaretDownOutlined, DownloadOutlined } from '@ant-design/icons'
 import dayjs from 'dayjs'
 import { useCountryOptions } from '@/hooks/shared/useCountryOptions'
 import { useSanitaryMeasureObjKindOptions } from '@/hooks/shared/useSanitaryMeasureObjKindOptions'
@@ -41,6 +41,45 @@ const MeasureDocDetailsEditStandalone: React.FC<{
   loadingMediaTypes: boolean
   getMediaTypeSelectOptions: () => Array<{ value: string; label: string }>
 }> = ({ doc, onChange, title, loadingCountries, countryOptions, normalizeCountryCode, loadingMediaTypes, getMediaTypeSelectOptions }) => {
+  const [uploadedFileName, setUploadedFileName] = useState<string>('')
+
+  const detectMediaType = (file: File): { mime: string; ext: string } => {
+    const ext = file.name.split('.').pop()?.toLowerCase() ?? ''
+    const byExt: Record<string, string> = {
+      pdf: 'application/pdf',
+      doc: 'application/msword',
+      docx: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+      xls: 'application/vnd.ms-excel',
+      xlsx: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      jpg: 'image/jpeg',
+      jpeg: 'image/jpeg',
+      png: 'image/png',
+      gif: 'image/gif',
+      txt: 'text/plain',
+      xml: 'application/xml',
+    }
+    return { mime: byExt[ext] || file.type || 'application/octet-stream', ext }
+  }
+
+  const downloadBinary = () => {
+    const bin = doc.docBinaryText
+    if (!bin?.content) return
+    try {
+      const bytes = Uint8Array.from(atob(bin.content), (c) => c.charCodeAt(0))
+      const blob = new Blob([bytes], { type: bin.mediaTypeCode || 'application/octet-stream' })
+      const link = document.createElement('a')
+      link.href = URL.createObjectURL(blob)
+      const ext = (bin.mediaTypeCode || '').split('/').pop() || 'bin'
+      link.download = uploadedFileName || `document.${ext}`
+      document.body.appendChild(link)
+      link.click()
+      document.body.removeChild(link)
+      URL.revokeObjectURL(link.href)
+    } catch {
+      message.error('Не удалось скачать файл')
+    }
+  }
+
   if (!doc) {
     return (
       <Button
@@ -170,50 +209,39 @@ const MeasureDocDetailsEditStandalone: React.FC<{
       </Form.Item>
       <Form.Item label="Документ в бинарном виде">
         <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-          <Select
-            showSearch
-            placeholder="Выберите формат данных"
-            loading={loadingMediaTypes}
-            value={doc.docBinaryText?.mediaTypeCode}
-            onChange={(value) => onChange({
-              ...doc,
-              docBinaryText: {
-                ...doc.docBinaryText,
-                mediaTypeCode: value,
-              },
-            })}
-            filterOption={(input, option) =>
-              (option?.label ?? '').toLowerCase().includes(input.toLowerCase())
-            }
-            options={getMediaTypeSelectOptions()}
-            style={{ width: '100%' }}
-            allowClear
-          />
           <Upload
             beforeUpload={(file) => {
+              const detected = detectMediaType(file)
+              const allowed = getMediaTypeSelectOptions()
+              const allowedCodes = new Set(allowed.map((o) => String(o.value)))
+              const mimeToCode: Record<string, string> = {
+                'application/pdf': 'pdf',
+                'application/msword': 'doc',
+                'application/vnd.openxmlformats-officedocument.wordprocessingml.document': 'docx',
+                'application/zip': 'zip',
+                'application/x-zip-compressed': 'zip',
+                'image/jpeg': 'jpeg',
+                'image/png': 'png',
+                'image/tiff': 'tiff',
+              }
+              const normalizedCode =
+                (detected.ext && allowedCodes.has(detected.ext) ? detected.ext : undefined) ||
+                mimeToCode[detected.mime]
+              if (!normalizedCode || !allowedCodes.has(normalizedCode)) {
+                Modal.warning({
+                  title: 'Файл не может быть загружен',
+                  content: `Недопустимый тип файла: ${detected.mime}. Допустимые типы: ${allowed.map((o) => String(o.value)).join(', ')}`,
+                })
+                return false
+              }
               const reader = new FileReader()
               reader.onload = (e) => {
                 const result = e.target?.result as string
                 const base64Content = result.includes(',') ? result.split(',')[1] : result
-                const fileExtension = file.name.split('.').pop()?.toLowerCase()
-                let detectedMediaType = doc.docBinaryText?.mediaTypeCode
-                if (!detectedMediaType) {
-                  const mimeTypeMap: Record<string, string> = {
-                    'pdf': 'application/pdf',
-                    'doc': 'application/msword',
-                    'docx': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-                    'xls': 'application/vnd.ms-excel',
-                    'xlsx': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-                    'jpg': 'image/jpeg',
-                    'jpeg': 'image/jpeg',
-                    'png': 'image/png',
-                    'gif': 'image/gif',
-                  }
-                  detectedMediaType = mimeTypeMap[fileExtension || ''] || file.type || 'application/octet-stream'
-                }
+                setUploadedFileName(file.name)
                 onChange({
                   ...doc,
-                  docBinaryText: { content: base64Content, mediaTypeCode: detectedMediaType },
+                  docBinaryText: { content: base64Content, mediaTypeCode: normalizedCode },
                 })
                 message.success(`Файл "${file.name}" загружен`)
               }
@@ -226,25 +254,24 @@ const MeasureDocDetailsEditStandalone: React.FC<{
             <Button icon={<UploadOutlined />}>Загрузить файл</Button>
           </Upload>
           {doc.docBinaryText?.content && (
-            <div style={{ fontSize: '12px', color: '#999' }}>
-              Документ загружен ({doc.docBinaryText.content.length} символов base64)
+            <div style={{ fontSize: '12px', color: '#999', display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+              <span style={{ color: '#1677ff', fontWeight: 600 }}>
+                Документ загружен: {uploadedFileName || 'файл'} ({doc.docBinaryText.mediaTypeCode || 'тип не указан'})
+              </span>
+              <Button size="small" icon={<DownloadOutlined />} onClick={downloadBinary}>Скачать</Button>
+              <Button
+                size="small"
+                danger
+                icon={<DeleteOutlined />}
+                onClick={() => {
+                  setUploadedFileName('')
+                  onChange({ ...doc, docBinaryText: undefined })
+                }}
+              >
+                Удалить
+              </Button>
             </div>
           )}
-          <Input.TextArea
-            rows={4}
-            placeholder="Или введите содержимое документа в бинарном формате (base64) вручную"
-            value={doc.docBinaryText?.content || ''}
-            onChange={(e) => onChange({
-              ...doc,
-              docBinaryText: {
-                ...doc.docBinaryText,
-                content: e.target.value,
-                mediaTypeCode: doc.docBinaryText?.mediaTypeCode,
-              },
-            })}
-            maxLength={getMaxLength('description')}
-            showCount
-          />
         </div>
       </Form.Item>
       <Form.Item label="XML-документ">

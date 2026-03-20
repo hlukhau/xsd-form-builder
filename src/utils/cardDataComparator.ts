@@ -61,6 +61,15 @@ function normalizeCountry(val: string): string {
   return v
 }
 
+function formatValueForDiff(path: string, value: unknown): string {
+  const s = value == null ? '' : String(value)
+  const isBinary = path.includes('docBinaryText.content')
+  const limit = isBinary ? 24 : 120
+  if (s.length <= limit) return s
+  const preview = s.slice(0, limit)
+  return `${preview}… (длина ${s.length})`
+}
+
 /**
  * Сравнивает два объекта CardData и возвращает список различий
  */
@@ -95,7 +104,9 @@ export function compareCardData(original: CardData, exported: CardData): {
       if (path.endsWith('.addressKindCode') && exportedVal === '1') return false
       // В экспорте есть значение — атрибут не был задан в оригинале, считаем добавленным
       if (exportedVal != null && (typeof exportedVal !== 'string' || String(exportedVal).trim() !== '')) {
-        const displayVal = typeof exportedVal === 'string' ? exportedVal : JSON.stringify(exportedVal)
+        const displayVal = typeof exportedVal === 'string'
+          ? formatValueForDiff(path, exportedVal)
+          : formatValueForDiff(path, JSON.stringify(exportedVal))
         added.push(`Добавлен атрибут ${path}: ${displayVal}`)
         return false
       }
@@ -256,9 +267,9 @@ export function compareCardData(original: CardData, exported: CardData): {
     const eNorm = e.replace(/,/g, '.')
     const isDecimalSeparatorMismatch = oNorm === eNorm && (o.includes(',') || e.includes(','))
     if (isDecimalSeparatorMismatch) {
-      differences.push(`Разное значение на пути ${path}: "${originalVal}" vs "${exportedVal}". Несоответствие: в числовом поле использована запятая как разделитель дробной части; допускается только точка.`)
+      differences.push(`Разное значение на пути ${path}: "${formatValueForDiff(path, originalVal)}" vs "${formatValueForDiff(path, exportedVal)}". Несоответствие: в числовом поле использована запятая как разделитель дробной части; допускается только точка.`)
     } else {
-      differences.push(`Разное значение на пути ${path}: "${originalVal}" vs "${exportedVal}"`)
+      differences.push(`Разное значение на пути ${path}: "${formatValueForDiff(path, originalVal)}" vs "${formatValueForDiff(path, exportedVal)}"`)
     }
     return false
   }

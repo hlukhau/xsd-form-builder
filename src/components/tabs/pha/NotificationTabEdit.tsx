@@ -60,6 +60,41 @@ const NotificationTabEdit: React.FC<NotificationTabEditProps> = ({
     setSelectedAuthorityUid(n.authorizedBody?.identifier)
   }, [n, form])
 
+  useEffect(() => {
+    if (!isNewCard) return
+    if ((n.country ?? '').trim() !== 'BY') {
+      handleNotificationChange({ country: 'BY' })
+    }
+  }, [isNewCard, n.country])
+
+  useEffect(() => {
+    if (!isNewCard) return
+    const curId = (n.authorizedBody?.identifier ?? '').trim()
+    if (curId === '006' && (n.authorizedBody?.name ?? '').trim() !== '') return
+    const a = getAuthorityByUid('006')
+    if (!a) {
+      if (curId !== '006' || (n.authorizedBody?.country ?? '').trim() !== 'BY') {
+        handleNotificationChange({
+          authorizedBody: {
+            country: 'BY',
+            identifier: '006',
+            name: n.authorizedBody?.name ?? '',
+            shortName: n.authorizedBody?.shortName ?? '',
+          },
+        })
+      }
+      return
+    }
+    handleNotificationChange({
+      authorizedBody: {
+        country: a.countryCode ?? 'BY',
+        identifier: a.uid,
+        name: a.name,
+        shortName: a.briefName ?? '',
+      },
+    })
+  }, [isNewCard, getAuthorityByUid, n.authorizedBody?.identifier, n.authorizedBody?.name, n.authorizedBody?.country, n.authorizedBody?.shortName])
+
   const handleNotificationChange = (partial: Partial<Notification>) => {
     onChange({
       ...data,
@@ -140,6 +175,7 @@ const NotificationTabEdit: React.FC<NotificationTabEditProps> = ({
           showSearch
           placeholder="Выберите страну"
           options={getCountrySelectOptions()}
+          disabled={isNewCard}
           filterOption={(input, option) => (option?.label ?? '').toLowerCase().includes(input.toLowerCase())}
         />
       </Form.Item>
@@ -170,7 +206,7 @@ const NotificationTabEdit: React.FC<NotificationTabEditProps> = ({
         />
       </Form.Item>
       <Form.Item label="Дата формирования" name="formationDate" help="csdo:DocCreationDate. Заполняется текущей при отправке в ЕЭК.">
-        <DatePicker format={DATE_DISPLAY_FORMAT} style={{ width: '100%' }} />
+        <DatePicker format={DATE_DISPLAY_FORMAT} style={{ width: '100%' }} disabled={isNewCard} />
       </Form.Item>
       <Form.Item label="Дата закрытия" name="endDate" help="csdo:EndDate. Заполняется текущей при отправке в ЕЭК уведомления с видом 5 или 6, иначе пусто.">
         <DatePicker format={DATE_DISPLAY_FORMAT} style={{ width: '100%' }} allowClear />
@@ -189,6 +225,7 @@ const NotificationTabEdit: React.FC<NotificationTabEditProps> = ({
             value={selectedAuthorityUid}
             onChange={handleAuthoritySelect}
             allowClear
+            disabled={isNewCard}
             filterOption={(input, option) => (option?.label ?? '').toLowerCase().includes(input.toLowerCase())}
             options={getAuthoritySelectOptions()}
             style={{ width: '100%' }}

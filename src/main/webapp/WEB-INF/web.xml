@@ -366,6 +366,26 @@
         <url-pattern>/api/pha/delete</url-pattern>
     </servlet-mapping>
 
+    <!-- Следующий регистрационный номер PHA (XX-PHNNNNN-YY) -->
+    <servlet>
+        <servlet-name>PhaNextRegNumberServlet</servlet-name>
+        <servlet-class>com.eec.servlet.pha.PhaNextRegNumberServlet</servlet-class>
+    </servlet>
+    <servlet-mapping>
+        <servlet-name>PhaNextRegNumberServlet</servlet-name>
+        <url-pattern>/api/pha/next-registration-number</url-pattern>
+    </servlet-mapping>
+
+    <!-- Проверка возможности создания новой версии PHA -->
+    <servlet>
+        <servlet-name>PhaCanCreateNewVersionServlet</servlet-name>
+        <servlet-class>com.eec.servlet.pha.PhaCanCreateNewVersionServlet</servlet-class>
+    </servlet>
+    <servlet-mapping>
+        <servlet-name>PhaCanCreateNewVersionServlet</servlet-name>
+        <url-pattern>/api/pha/can-create-new-version</url-pattern>
+    </servlet-mapping>
+
     <!-- История смены статусов из DPASTATUSHIST -->
     <servlet>
         <servlet-name>DpaStatusHistoryServlet</servlet-name>

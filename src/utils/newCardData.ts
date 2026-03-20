@@ -38,7 +38,8 @@ export function createNewCardData(
   const now = new Date()
   const formationDate = now.toISOString().slice(0, 10) // YYYY-MM-DD
   const documentDateTime = now.toISOString() // ISO 8601
-  const country = countryCode.toUpperCase().slice(0, 2)
+  const forPha = options?.forPha === true
+  const country = forPha ? 'BY' : countryCode.toUpperCase().slice(0, 2)
   const registrationNumber =
     typeof serialOrOptions === 'object' && serialOrOptions?.registrationNumber
       ? serialOrOptions.registrationNumber
@@ -46,8 +47,6 @@ export function createNewCardData(
           countryCode,
           typeof serialOrOptions === 'object' ? serialOrOptions?.serialInYear : serialOrOptions
         )
-
-  const forPha = options?.forPha === true
 
   return {
     country,
@@ -61,9 +60,9 @@ export function createNewCardData(
       : { status: 'Черновик' as const, statusId: 5 }), // DPA: черновик исходящих. PHA: см. PHA_NEW_STATUS_*.
 
     electronicDocument: {
-      messageCode: '',
-      documentCode: '',
-      documentId: '',
+      messageCode: forPha ? 'token' : '',
+      documentCode: forPha ? 'R.SM.SS.08.001' : '',
+      documentId: forPha ? 'token' : '',
       documentDate: documentDateTime,
       language: 'ru',
       sourceDocumentId: '',
@@ -74,12 +73,12 @@ export function createNewCardData(
     notification: {
       country,
       registrationNumber,
-      type: DEFAULT_INCIDENT_KIND_CODE, // smsdo:IncidentKindCode = 7
+      type: forPha ? '' : DEFAULT_INCIDENT_KIND_CODE,
       formationDate, // csdo:DocCreationDate
       endDate: null,
       authorizedBody: {
-        country: '',
-        identifier: '',
+        country: forPha ? 'BY' : '',
+        identifier: forPha ? '006' : '',
         name: '',
         shortName: '',
       },

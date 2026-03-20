@@ -26,8 +26,17 @@ const DiseaseTabEdit: React.FC<DiseaseTabEditProps> = ({ data, onChange }) => {
   const d = data.phaDisease ?? ({} as PhaDiseaseDetails)
   const version = data.version ?? 1
   const isVersion1 = version === 1
+  const kind = (data.notification?.type ?? '').trim()
   const pathogens = d.pathogens ?? []
   const { getSelectOptions: getDiseaseSelectOptions, loading: diseaseOptionsLoading } = useDiseaseHealthProblemOptions()
+  const diseaseOptionsRaw = getDiseaseSelectOptions() as Array<{ value: string; label: string; infectFl?: number | null }>
+  const diseaseOptions = isVersion1
+    ? diseaseOptionsRaw.filter((o) => {
+        if (kind === '1') return o.infectFl === 1
+        if (kind === '2') return o.infectFl === 0
+        return true
+      })
+    : diseaseOptionsRaw
   const { getSelectOptions: getPathogenKindSelectOptions, loading: pathogenKindLoading } = usePathogenKindOptions()
 
   const updateDisease = (partial: Partial<PhaDiseaseDetails>) => {
@@ -63,12 +72,24 @@ const DiseaseTabEdit: React.FC<DiseaseTabEditProps> = ({ data, onChange }) => {
           label="Наименование болезни"
           help="smsdo:DiseaseHealthProblemName. Для исходящих — справочник болезней (diseasehealthproblem). Редактирование доступно только для версии = 1."
         >
-          <Input
-            placeholder="Введите наименование или выберите из справочника"
-            value={d.diseaseName ?? ''}
-            onChange={(e) => setDiseaseField('diseaseName', e.target.value)}
-            disabled={!isVersion1}
-          />
+          {isVersion1 ? (
+            <Select
+              showSearch
+              allowClear
+              placeholder="Выберите болезнь из справочника"
+              loading={diseaseOptionsLoading}
+              optionFilterProp="label"
+              options={diseaseOptions}
+              value={d.diseaseName ?? undefined}
+              onChange={(v) => setDiseaseField('diseaseName', (v ?? '') as string)}
+            />
+          ) : (
+            <Input
+              placeholder="Наименование болезни"
+              value={d.diseaseName ?? ''}
+              disabled
+            />
+          )}
         </Form.Item>
         <Form.Item label="Дата первого случая" help="csdo:EventDate — дата первого случая болезни.">
           <DatePicker

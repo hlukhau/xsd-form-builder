@@ -87,6 +87,10 @@ export interface PhaSaveMetadata {
   countryCode: string | null
   docCreationDate?: string | null
   incidentAlertKindCode?: string | null
+  diseaseName?: string | null
+  firstCaseDate?: string | null
+  lastCaseDate?: string | null
+  crossborderRiskFl?: number | null
 }
 
 /**
@@ -146,12 +150,45 @@ export function buildPhaSaveMetadataFromCardData(data: CardData): PhaSaveMetadat
     countryCode: countryCode ? String(countryCode).trim() : null,
     docCreationDate,
     incidentAlertKindCode,
+    diseaseName: data.phaDisease?.diseaseName?.trim() || null,
+    firstCaseDate: data.phaDisease?.firstCaseDate?.trim() || null,
+    lastCaseDate: data.phaDisease?.lastCaseDate?.trim() || null,
+    crossborderRiskFl:
+      data.phaDisease?.crossborderSpreadRiskIndicator === 0 || data.phaDisease?.crossborderSpreadRiskIndicator === 1
+        ? data.phaDisease.crossborderSpreadRiskIndicator
+        : null,
   }
 }
 
 export interface PhaDeleteResponse {
   success: boolean
   registrationNumber?: string
+}
+
+/** Проверка возможности создания новой версии карты PHA. */
+export interface CanCreatePhaNewVersionResponse {
+  allowed: boolean
+  reason?: string
+}
+
+export async function canCreatePhaNewVersion(phaid: string, guid?: string): Promise<CanCreatePhaNewVersionResponse> {
+  const params = new URLSearchParams({ phaid })
+  if (guid?.trim()) params.set('guid', guid.trim())
+  const url = getApiUrl(`/api/pha/can-create-new-version?${params.toString()}`)
+  const res = await fetch(url, {
+    method: 'GET',
+    headers: guid ? { 'X-GUID': guid } : {},
+    credentials: 'same-origin',
+  })
+  const text = await res.text()
+  if (!res.ok) {
+    return { allowed: false, reason: text || res.statusText }
+  }
+  try {
+    return JSON.parse(text) as CanCreatePhaNewVersionResponse
+  } catch {
+    return { allowed: false, reason: text || 'Не удалось проверить условия создания новой версии' }
+  }
 }
 
 /**

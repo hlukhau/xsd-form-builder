@@ -367,9 +367,14 @@ public class DictionaryCache {
     public static class DiseaseHealthProblemOption {
         public String code;
         public String name;
+        public Integer infectFl;
         public DiseaseHealthProblemOption(String code, String name) {
+            this(code, name, null);
+        }
+        public DiseaseHealthProblemOption(String code, String name, Integer infectFl) {
             this.code = code != null ? code : "";
             this.name = name != null ? name : "";
+            this.infectFl = infectFl;
         }
     }
     /** Опция справочника видов возбудителей (PATHOGENKIND) */
