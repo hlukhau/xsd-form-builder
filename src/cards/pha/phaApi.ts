@@ -33,12 +33,18 @@ export async function fetchPhaMetadata(phaid: string, guid?: string): Promise<{
   incidentId: string
   phaVersion: number
   alertCountryCode?: string
+  /** Код источника PHA (DATASOURCEKINDCODE): 1 — входящие, 2 — исходящие */
+  dataSourceKindCode?: string
   /** Источник: Входящие сведения, Исходящие сведения, Данные ЕЭК (VW_PHA + DATASOURCEKIND) */
   dataSourceKindName?: string
   creationDateTime?: string
   modificationDateTime?: string
   phaStatusName?: string
   phaStatusId?: number
+  /** DEPID из PHADEPPERMIS */
+  phaAccessibleDepIds?: string[]
+  /** PHA.ENDDATE (дата закрытия ситуации), YYYY-MM-DD */
+  situationEndDate?: string
 }> {
   const url = getApiUrl(`/api/pha/metadata/${phaid}`)
   const res = await fetch(url, {
@@ -58,7 +64,7 @@ export interface PhaStatusHistoryItem {
 }
 
 /**
- * История смены статусов карты PHA из таблицы PHASTATUSHIST.
+ * История смены статусов карты PHA (PHASTATUSHIST + наименования из PHASTATUS).
  * GET /api/pha/status-history/{PHAID}
  */
 export async function fetchPhaStatusHistory(phaid: string, guid?: string): Promise<PhaStatusHistoryItem[]> {
@@ -75,28 +81,150 @@ export async function fetchPhaStatusHistory(phaid: string, guid?: string): Promi
   return res.json()
 }
 
-/** Тело запроса сохранения карты PHA (JSON). */
-export interface SavePhaCardPayload {
-  phaid: string
-  guid?: string
-  data: CardData
+/** Метаданные для POST /api/pha/save (поля PHA / справочники). */
+export interface PhaSaveMetadata {
+  incidentId: string | null
+  countryCode: string | null
+  docCreationDate?: string | null
+  incidentAlertKindCode?: string | null
 }
 
 /**
  * Сохранение карты PHA. POST /api/pha/save.
- * При отсутствии бэкенда (404/501) выбрасывает ошибку с сообщением «Сохранение PHA в разработке».
  */
-export async function savePhaCard(payload: SavePhaCardPayload): Promise<void> {
+export async function savePhaCard(payload: {
+  isNew: boolean
+  xmlBody: string
+  metadata: PhaSaveMetadata
+  phaid?: number
+  guid?: string
+}): Promise<{ success: boolean; phaid: number }> {
   const url = getApiUrl('/api/pha/save')
+  const body: Record<string, unknown> = {
+    isNew: payload.isNew,
+    xmlBody: payload.xmlBody,
+    metadata: payload.metadata,
+  }
+  if (payload.guid) body.guid = payload.guid
+  if (!payload.isNew && payload.phaid != null) body.phaid = payload.phaid
+
   const res = await fetch(url, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', ...(payload.guid ? { 'X-GUID': payload.guid } : {}) },
+    headers: {
+      'Content-Type': 'application/json; charset=UTF-8',
+      ...(payload.guid ? { 'X-GUID': payload.guid } : {}),
+    },
     credentials: 'same-origin',
-    body: JSON.stringify({ phaid: payload.phaid, guid: payload.guid, data: payload.data }),
+    body: JSON.stringify(body),
   })
+  const text = await res.text()
   if (!res.ok) {
-    const text = await res.text()
-    if (res.status === 404 || res.status === 501) throw new Error('Сохранение PHA в разработке')
-    throw new Error(text || res.statusText)
+    let errMsg = res.statusText
+    try {
+      const j = JSON.parse(text) as { error?: string }
+      if (j.error) errMsg = j.error
+    } catch {
+      if (text) errMsg = text.slice(0, 400)
+    }
+    throw new Error(errMsg)
+  }
+  return JSON.parse(text) as { success: boolean; phaid: number }
+}
+
+/** Собрать metadata для сохранения PHA из CardData. */
+export function buildPhaSaveMetadataFromCardData(data: CardData): PhaSaveMetadata {
+  const notification = data.notification
+  const countryCode = data.country || notification?.country || null
+  const incidentId =
+    (data.registrationNumber || notification?.registrationNumber || '').trim() || null
+  const docCreationDate = notification?.formationDate?.trim() || null
+  const typeRaw = notification?.type
+  const incidentAlertKindCode =
+    typeof typeRaw === 'string' && /^\d+$/.test(typeRaw.trim()) ? typeRaw.trim() : null
+  return {
+    incidentId,
+    countryCode: countryCode ? String(countryCode).trim() : null,
+    docCreationDate,
+    incidentAlertKindCode,
+  }
+}
+
+export interface PhaDeleteResponse {
+  success: boolean
+  registrationNumber?: string
+}
+
+/**
+ * Удалить исходящую карту PHA (статус «Новое», проверка прав на сервере).
+ * POST /api/pha/delete
+ */
+export async function deletePhaCard(phaid: number | string, guid?: string): Promise<PhaDeleteResponse> {
+  const url = getApiUrl('/api/pha/delete')
+  const body: Record<string, unknown> = { phaid: Number(phaid) }
+  if (guid?.trim()) body.guid = guid.trim()
+  const res = await fetch(url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    credentials: 'same-origin',
+    body: JSON.stringify(body),
+  })
+  const text = await res.text()
+  if (!res.ok) {
+    let errMsg = res.statusText
+    try {
+      const j = JSON.parse(text) as { error?: string }
+      if (j.error) errMsg = j.error
+    } catch {
+      if (text) errMsg = text.slice(0, 400)
+    }
+    throw new Error(errMsg)
+  }
+  return JSON.parse(text) as PhaDeleteResponse
+}
+
+/** Ответ POST /api/pha/status */
+export interface PhaStatusChangeResponse {
+  ok: boolean
+  changed?: boolean
+  newStatus?: string
+  newStatusId?: number
+}
+
+/**
+ * Смена статуса PHA (входящие).
+ * first_open — Получено→В обработке (при открытии; publicHealthIn:view);
+ * complete_processing, close — publicHealthIn:status (входящие);
+ * send, close, to_new — publicHealthOut:send / publicHealthOut:status (исходящие).
+ */
+export async function postPhaStatus(
+  phaid: string,
+  action: 'first_open' | 'complete_processing' | 'close' | 'send' | 'to_new',
+  guid?: string
+): Promise<PhaStatusChangeResponse> {
+  const url = getApiUrl('/api/pha/status')
+  const res = await fetch(url, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      ...(guid ? { 'X-GUID': guid } : {}),
+    },
+    credentials: 'same-origin',
+    body: JSON.stringify({ phaid, action, guid }),
+  })
+  const text = await res.text()
+  if (!res.ok) {
+    let msg = text
+    try {
+      const j = JSON.parse(text) as { error?: string }
+      if (j.error) msg = j.error
+    } catch {
+      /* use text */
+    }
+    throw new Error(msg || res.statusText)
+  }
+  try {
+    return JSON.parse(text) as PhaStatusChangeResponse
+  } catch {
+    return { ok: true }
   }
 }

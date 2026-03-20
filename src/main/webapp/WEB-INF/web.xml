@@ -336,6 +336,36 @@
         <url-pattern>/api/pha/status-history/*</url-pattern>
     </servlet-mapping>
 
+    <!-- Смена статуса PHA: первичное открытие (Получено→В обработке), завершение обработки, закрытие карты -->
+    <servlet>
+        <servlet-name>PhaStatusChangeServlet</servlet-name>
+        <servlet-class>com.eec.servlet.pha.PhaStatusChangeServlet</servlet-class>
+    </servlet>
+    <servlet-mapping>
+        <servlet-name>PhaStatusChangeServlet</servlet-name>
+        <url-pattern>/api/pha/status</url-pattern>
+    </servlet-mapping>
+
+    <!-- Сохранение / обновление карты PHA (PHA, PHAXML, PHASTATUSHIST, PHADEPPERMIS при создании) -->
+    <servlet>
+        <servlet-name>PhaSaveServlet</servlet-name>
+        <servlet-class>com.eec.servlet.pha.PhaSaveServlet</servlet-class>
+    </servlet>
+    <servlet-mapping>
+        <servlet-name>PhaSaveServlet</servlet-name>
+        <url-pattern>/api/pha/save</url-pattern>
+    </servlet-mapping>
+
+    <!-- Удаление исходящей карты PHA (статус «Новое», publicHealthOut:edit ∩ PHADEPPERMIS) -->
+    <servlet>
+        <servlet-name>PhaDeleteServlet</servlet-name>
+        <servlet-class>com.eec.servlet.pha.PhaDeleteServlet</servlet-class>
+    </servlet>
+    <servlet-mapping>
+        <servlet-name>PhaDeleteServlet</servlet-name>
+        <url-pattern>/api/pha/delete</url-pattern>
+    </servlet-mapping>
+
     <!-- История смены статусов из DPASTATUSHIST -->
     <servlet>
         <servlet-name>DpaStatusHistoryServlet</servlet-name>

@@ -47,6 +47,12 @@ export interface CardData {
   /** PHA: группы пациентов (smcdo:PatientGroupDetails внутри PublicHealthIncidentDetails). */
   phaPatientGroups?: PhaPatientGroupItem[]
 
+  /**
+   * PHA: DEPID из PHADEPPERMIS по карте (для проверки пересечения с publicHealthIn:status / publicHealthOut:* в JSON прав).
+   * Подставляется из GET /api/pha/metadata/{id}.
+   */
+  phaAccessibleDepIds?: string[]
+
   /** PHA: зона распространения (smcdo:SpreadingZoneDetails, LocationDetailsType — как Место обнаружения). */
   spreadingZone?: DetectionPlaceData
 }

@@ -15,13 +15,31 @@ import {
 } from '@/components/tabs/pha'
 import DetectionPlaceTab from '@/components/tabs/dpa/DetectionPlaceTab'
 import DetectionPlaceTabEdit from '@/components/tabs/dpa/DetectionPlaceTabEdit'
-import { savePhaCard, fetchPhaStatusHistory } from '@/cards/pha/phaApi'
+import {
+  savePhaCard,
+  buildPhaSaveMetadataFromCardData,
+  deletePhaCard,
+  fetchPhaStatusHistory,
+  postPhaStatus,
+} from '@/cards/pha/phaApi'
 import { exportPhaCardDataToXML } from '@/cards/pha/phaXmlExporter'
 import { parsePhaXmlToCardData } from '@/cards/pha/phaXmlParser'
-import { compareCardData } from '@/utils/cardDataComparator'
+import { validatePhaOutgoingCard, collectPhaFormatValidationErrors, type ValidationResult } from '@/cards/pha/phaValidation'
+import { compareCardData, getPhaCardDataReview } from '@/utils/cardDataComparator'
 import { getEmptyTagsWarnings } from '@/utils/xmlExporter'
-import { fetchRightsByGuid, fetchRightsByGuidRaw, type RightsJson } from '@/utils/referenceDataApi'
+import { fetchRightsByGuid, fetchRightsByGuidRaw, checkAccessRight, type RightsJson } from '@/utils/referenceDataApi'
+import {
+  incomingPhaStatusButton,
+  outgoingPhaStatusButton,
+  isPhaIncomingSource,
+  isPhaOutgoingSource,
+  phaSituationEndDateFilled,
+  phaIncomingCloseAllowed,
+  phaOutgoingCloseAllowed,
+  phaOutgoingSendOp57Allowed,
+} from '@/utils/phaStatusButtonConfig'
 import XMLComparisonModal, { type ComparisonResultShape } from '@/components/modals/dpa/XMLComparisonModal'
+import ValidationResultModal from '@/components/modals/dpa/ValidationResultModal'
 import StatusHistoryModal from '@/components/modals/dpa/StatusHistoryModal'
 import ElectronicDocumentModal from '@/components/modals/dpa/ElectronicDocumentModal'
 
@@ -35,6 +53,58 @@ interface PhaCardProps {
   onUpdate?: (data: CardData) => void
   /** Включить режим редактирования по умолчанию (например, для новой карты). */
   initialEditMode?: boolean
+  /** После первого сохранения новой карты — переход на URL с реальным PHAID */
+  onSaveNewCard?: (newPhaid: number) => void
+  /** После удаления карты — закрыть форму и показать сообщение (как DPA) */
+  onCardDeleted?: () => void
+}
+
+/** Исходящие PHA: редактирование недоступно в терминальных / «ожидает отправки» статусах */
+function phaOutgoingAllowsEdit(status: string | undefined): boolean {
+  const s = (status ?? '').trim().toLowerCase()
+  if (s.includes('заверш')) return false
+  if (s.includes('ожидает отправки') || s.includes('отправлено')) return false
+  return true
+}
+
+/** Сервер publicHealthIn:status и пересечение с PHADEPPERMIS, если в карте есть phaAccessibleDepIds. */
+function canApplyPublicHealthInStatusForCard(
+  serverAllows: boolean,
+  rights: RightsJson | null,
+  cardDepIds: string[] | undefined
+): boolean {
+  if (!serverAllows) return false
+  if (cardDepIds === undefined) return true
+  if (cardDepIds.length === 0) return false
+  const statusMap = rights?.up?.publicHealthIn?.status
+  if (!statusMap || typeof statusMap !== 'object') return false
+  return cardDepIds.some((id) => Object.prototype.hasOwnProperty.call(statusMap, String(id)))
+}
+
+function canApplyPublicHealthOutStatusForCard(
+  serverAllows: boolean,
+  rights: RightsJson | null,
+  cardDepIds: string[] | undefined
+): boolean {
+  if (!serverAllows) return false
+  if (cardDepIds === undefined) return true
+  if (cardDepIds.length === 0) return false
+  const statusMap = rights?.up?.publicHealthOut?.status
+  if (!statusMap || typeof statusMap !== 'object') return false
+  return cardDepIds.some((id) => Object.prototype.hasOwnProperty.call(statusMap, String(id)))
+}
+
+function canApplyPublicHealthOutSendForCard(
+  serverAllows: boolean,
+  rights: RightsJson | null,
+  cardDepIds: string[] | undefined
+): boolean {
+  if (!serverAllows) return false
+  if (cardDepIds === undefined) return true
+  if (cardDepIds.length === 0) return false
+  const sendMap = rights?.up?.publicHealthOut?.send
+  if (!sendMap || typeof sendMap !== 'object') return false
+  return cardDepIds.some((id) => Object.prototype.hasOwnProperty.call(sendMap, String(id)))
 }
 
 const PHA_TABS = [
@@ -51,12 +121,30 @@ const PHA_TABS = [
  * Тело карты — вкладки: Уведомление, Болезнь, Группа пациентов, Место обнаружения, Зона распространения, Санитарные меры.
  * Режим редактирования: переключатель, кнопки «Сохранить», «Экспорт XML»; вкладка «Уведомление» редактируется.
  */
-const PhaCard: React.FC<PhaCardProps> = ({ data, phaid = '', guid, originalXML, onUpdate, initialEditMode = false }) => {
+const PhaCard: React.FC<PhaCardProps> = ({
+  data,
+  phaid = '',
+  guid,
+  originalXML,
+  onUpdate,
+  initialEditMode = false,
+  onSaveNewCard,
+  onCardDeleted,
+}) => {
+  const [savedPhaid, setSavedPhaid] = useState<number | null>(null)
+  const effectivePhaid =
+    phaid && phaid !== '-' ? phaid : savedPhaid != null ? String(savedPhaid) : '-'
+
   const [isEditMode, setIsEditMode] = useState(initialEditMode)
   const [editedData, setEditedData] = useState<CardData>(data)
   const [saving, setSaving] = useState(false)
   const [comparisonResult, setComparisonResult] = useState<ComparisonResultShape | null>(null)
   const [comparisonModalVisible, setComparisonModalVisible] = useState(false)
+  const [pendingSavePayload, setPendingSavePayload] = useState<{ xmlBody: string; metadata: ReturnType<typeof buildPhaSaveMetadataFromCardData> } | null>(null)
+  const [formatValidationErrors, setFormatValidationErrors] = useState<string[]>([])
+  const [validationResult, setValidationResult] = useState<ValidationResult | null>(null)
+  const [validationModalVisible, setValidationModalVisible] = useState(false)
+  const [baselineXml, setBaselineXml] = useState<string | null>(originalXML ?? null)
   const [statusHistoryVisible, setStatusHistoryVisible] = useState(false)
   const [statusHistoryModalData, setStatusHistoryModalData] = useState<StatusHistoryItem[]>([])
   const [statusHistoryLoading, setStatusHistoryLoading] = useState(false)
@@ -66,6 +154,31 @@ const PhaCard: React.FC<PhaCardProps> = ({ data, phaid = '', guid, originalXML, 
   const [rightsDebugLoading, setRightsDebugLoading] = useState(false)
   const [rightsDebugError, setRightsDebugError] = useState<string | null>(null)
   const [rightsDebugRawText, setRightsDebugRawText] = useState<string | null>(null)
+  /** Право publicHealthIn:status (входящие) / publicHealthOut:status (исходящие). */
+  const [hasPhaStatusRight, setHasPhaStatusRight] = useState(false)
+  /** Право publicHealthOut:send — «Направление сведений» для исходящих. */
+  const [hasPhaSendRight, setHasPhaSendRight] = useState(false)
+  /** Право publicHealthOut:edit — сохранение и удаление исходящей карты в допустимом статусе. */
+  const [hasPhaEditRight, setHasPhaEditRight] = useState(false)
+
+  useEffect(() => {
+    setBaselineXml(originalXML ?? null)
+  }, [originalXML, phaid])
+
+  useEffect(() => {
+    if (phaid && phaid !== '-') setSavedPhaid(null)
+  }, [phaid])
+
+  const datasourceKindCode = data?.datasourceKindCode != null ? String(data.datasourceKindCode) : ''
+  const sourceFromData = data?.source ?? ''
+  const isOutgoingPha =
+    effectivePhaid === '-' ||
+    datasourceKindCode === '2' ||
+    sourceFromData.toLowerCase().includes('исходящ') ||
+    sourceFromData === '2'
+  const isIncomingPha = isPhaIncomingSource(editedData.source)
+  const canEditByStatus =
+    !isOutgoingPha || isIncomingPha || phaOutgoingAllowsEdit(editedData.status ?? data.status)
 
   // Обновляем editedData только при смене карты (другой registrationNumber/version), чтобы не терять правки при переключении в режим просмотра
   useEffect(() => {
@@ -84,24 +197,476 @@ const PhaCard: React.FC<PhaCardProps> = ({ data, phaid = '', guid, originalXML, 
     currentDataRef.current = editedData
   }, [editedData])
 
+  useEffect(() => {
+    if (!guid?.trim()) {
+      setHasPhaStatusRight(false)
+      setHasPhaSendRight(false)
+      setHasPhaEditRight(false)
+      return
+    }
+    const incomingCtx = isPhaIncomingSource(editedData.source)
+    const outgoingCtx = isPhaOutgoingSource(editedData.source)
+    if (incomingCtx && effectivePhaid !== '-') {
+      let cancelled = false
+      setHasPhaSendRight(false)
+      setHasPhaEditRight(false)
+      ;(async () => {
+        try {
+          const [server, rights] = await Promise.all([
+            checkAccessRight(guid.trim(), 'publicHealthIn:status'),
+            fetchRightsByGuid(guid.trim()),
+          ])
+          if (cancelled) return
+          const depIds = editedData.phaAccessibleDepIds ?? data.phaAccessibleDepIds
+          setHasPhaStatusRight(canApplyPublicHealthInStatusForCard(server, rights, depIds))
+        } catch {
+          if (!cancelled) setHasPhaStatusRight(false)
+        }
+      })()
+      return () => {
+        cancelled = true
+      }
+    }
+    if (!(incomingCtx && effectivePhaid !== '-') && (outgoingCtx || effectivePhaid === '-')) {
+      let cancelled = false
+      ;(async () => {
+        try {
+          const [status, send, edit, rights] = await Promise.all([
+            checkAccessRight(guid.trim(), 'publicHealthOut:status'),
+            checkAccessRight(guid.trim(), 'publicHealthOut:send'),
+            checkAccessRight(guid.trim(), 'publicHealthOut:edit'),
+            fetchRightsByGuid(guid.trim()),
+          ])
+          if (cancelled) return
+          const depIds = editedData.phaAccessibleDepIds ?? data.phaAccessibleDepIds
+          setHasPhaStatusRight(canApplyPublicHealthOutStatusForCard(status, rights, depIds))
+          setHasPhaSendRight(canApplyPublicHealthOutSendForCard(send, rights, depIds))
+          setHasPhaEditRight(edit)
+          const depid = rights.department?.depid != null ? String(rights.department.depid) : null
+          const hasRightInMap = (map: Record<string, unknown> | undefined | null): boolean => {
+            if (!depid || !map || typeof map !== 'object') return false
+            return Object.prototype.hasOwnProperty.call(map, depid)
+          }
+          const upOut = rights.up?.publicHealthOut as { edit?: Record<string, unknown> } | undefined
+          if (hasRightInMap(upOut?.edit) === false) {
+            setHasPhaEditRight((prev) => prev && false)
+          }
+        } catch {
+          if (!cancelled) {
+            setHasPhaStatusRight(false)
+            setHasPhaSendRight(false)
+            setHasPhaEditRight(false)
+          }
+        }
+      })()
+      return () => {
+        cancelled = true
+      }
+    } else {
+      setHasPhaStatusRight(false)
+      setHasPhaSendRight(false)
+      setHasPhaEditRight(false)
+    }
+  }, [guid, editedData.source, effectivePhaid, editedData.phaAccessibleDepIds, data.phaAccessibleDepIds, data.source])
+
+  useEffect(() => {
+    if (isOutgoingPha && hasPhaEditRight && canEditByStatus) {
+      setIsEditMode(true)
+    }
+  }, [isOutgoingPha, hasPhaEditRight, canEditByStatus])
+
+  useEffect(() => {
+    if (isOutgoingPha && !canEditByStatus) {
+      setIsEditMode(false)
+    }
+  }, [isOutgoingPha, canEditByStatus])
+
+  const situationEndFilled = phaSituationEndDateFilled(currentData.notification?.endDate)
+
+  const phaStatusResultRaw =
+    effectivePhaid && effectivePhaid !== '-'
+      ? isPhaIncomingSource(currentData.source)
+        ? incomingPhaStatusButton(
+            currentData.statusId,
+            currentData.status,
+            hasPhaStatusRight,
+            situationEndFilled
+          )
+        : isPhaOutgoingSource(currentData.source)
+          ? outgoingPhaStatusButton(
+              currentData.statusId,
+              currentData.status,
+              hasPhaStatusRight,
+              hasPhaSendRight,
+              situationEndFilled
+            )
+          : { config: null as const, comment: '' }
+      : { config: null as const, comment: '' }
+
+  const phaStatusResult =
+    effectivePhaid === '-' && phaStatusResultRaw.config
+      ? {
+          ...phaStatusResultRaw,
+          config: { ...phaStatusResultRaw.config, disabled: true, hint: 'Сохраните изменения' },
+          comment: 'Сохраните изменения',
+        }
+      : effectivePhaid === '-' && phaStatusResultRaw.closeConfig
+        ? {
+            ...phaStatusResultRaw,
+            closeConfig: { ...phaStatusResultRaw.closeConfig, disabled: true, hint: 'Сохраните изменения' },
+          }
+        : phaStatusResultRaw
+
+  const showSaveButton =
+    isEditMode &&
+    (effectivePhaid === '-' ||
+      (isIncomingPha && canEditByStatus) ||
+      (isOutgoingPha && hasPhaEditRight && canEditByStatus))
+
+  const isPhaDeletableStatus =
+    (editedData.statusId ?? data.statusId) === 5 || /^новое$/i.test((editedData.status ?? data.status ?? '').trim())
+
+  const showDeleteButton =
+    isOutgoingPha &&
+    isPhaDeletableStatus &&
+    hasPhaEditRight &&
+    effectivePhaid !== '-' &&
+    !!guid
+
+  const normIncomingStatus = (currentData.status ?? '').trim().toLowerCase()
+  const isIncomingProcessingStatus =
+    currentData.statusId === 2 ||
+    (normIncomingStatus.includes('обработке') && !normIncomingStatus.includes('обработано'))
+  const incomingDsCode = String(currentData.datasourceKindCode ?? '').trim()
+  /** Кейс: входящая PHA, DATASOURCEKINDCODE=1, статус «В обработке» (2), право status ∩ PHADEPPERMIS */
+  const showCompleteIncomingProcessingButton =
+    isIncomingPha &&
+    effectivePhaid !== '-' &&
+    (incomingDsCode === '1' || incomingDsCode === '') &&
+    isIncomingProcessingStatus &&
+    hasPhaStatusRight
+
+  const confirmCompleteIncomingProcessing = () => {
+    if (!effectivePhaid || effectivePhaid === '-') return
+    const regNumber =
+      currentData.registrationNumber ?? currentData.notification?.registrationNumber ?? effectivePhaid
+    Modal.confirm({
+      title: 'Завершение обработки',
+      content: `После подтверждения карта ${regNumber} будет переведена в статус «Обработано». Продолжить?`,
+      okText: 'Продолжить',
+      cancelText: 'Отмена',
+      onOk: async () => {
+        const hasRight = await checkAccessRight(guid ?? null, 'publicHealthIn:status')
+        if (!hasRight) {
+          message.error('Нет права управления статусом входящих сведений (publicHealthIn:status).')
+          return
+        }
+        try {
+          const res = await postPhaStatus(effectivePhaid, 'complete_processing', guid)
+          const newStatus = res.newStatus ?? 'Обработано'
+          const newStatusId = res.newStatusId ?? editedData.statusId
+          const next = { ...editedData, status: newStatus, statusId: newStatusId }
+          setEditedData(next)
+          onUpdate?.(next)
+          message.success('Карта переведена в статус «Обработано».')
+        } catch (e) {
+          message.error(e instanceof Error ? e.message : 'Ошибка смены статуса')
+        }
+      },
+    })
+  }
+
+  const outgoingDsCodeForClose = String(currentData.datasourceKindCode ?? '').trim()
+  const incCloseHdr = phaIncomingCloseAllowed(
+    currentData.statusId,
+    currentData.status,
+    hasPhaStatusRight,
+    situationEndFilled
+  )
+  const outCloseHdr = phaOutgoingCloseAllowed(
+    currentData.statusId,
+    currentData.status,
+    hasPhaStatusRight,
+    situationEndFilled
+  )
+  const showClosePhaCardHeaderButton =
+    effectivePhaid !== '-' &&
+    ((isIncomingPha && incomingDsCode === '1' && incCloseHdr.allowed) ||
+      (isOutgoingPha && outgoingDsCodeForClose === '2' && outCloseHdr.allowed))
+
+  const showSendPhaOp57HeaderButton =
+    isOutgoingPha &&
+    effectivePhaid !== '-' &&
+    outgoingDsCodeForClose === '2' &&
+    hasPhaSendRight &&
+    phaOutgoingSendOp57Allowed(currentData.statusId, currentData.status ?? '')
+
+  const confirmSendPhaOp57 = () => {
+    if (!effectivePhaid || effectivePhaid === '-') return
+    const regNumber =
+      currentData.registrationNumber ?? currentData.notification?.registrationNumber ?? effectivePhaid
+    Modal.confirm({
+      title: 'Направить сведения участникам ОП 57',
+      content: `После подтверждения по карте ${regNumber} будут направлены сведения участникам ОП 57; карта перейдёт в статус «Ожидает отправки». Продолжить?`,
+      okText: 'Продолжить',
+      cancelText: 'Отмена',
+      onOk: async () => {
+        const dataToValidate = isEditMode ? editedData : currentData
+        const vr = validatePhaOutgoingCard(dataToValidate)
+        if (!vr.success) {
+          message.error(
+            'Доработайте карту исходящих сведений: проверка заполнения не пройдена. Откройте «Валидация карты» для списка замечаний.'
+          )
+          return
+        }
+        const fmt = collectPhaFormatValidationErrors(dataToValidate)
+        if (fmt.length > 0) {
+          message.error(
+            `Доработайте карту исходящих сведений: ошибки формата данных (${fmt.length}). Откройте «Валидация карты» или «Сохранить» для подробностей.`
+          )
+          return
+        }
+        try {
+          const [hasSend, rights] = await Promise.all([
+            checkAccessRight(guid ?? null, 'publicHealthOut:send'),
+            guid?.trim() ? fetchRightsByGuid(guid.trim()) : Promise.resolve(null),
+          ])
+          const depIds = editedData.phaAccessibleDepIds ?? data.phaAccessibleDepIds
+          if (!canApplyPublicHealthOutSendForCard(hasSend, rights, depIds)) {
+            message.error(
+              'Нет права на направление исходящих сведений (publicHealthOut:send) в пределах подразделения с доступом к карте.'
+            )
+            return
+          }
+        } catch {
+          message.error('Не удалось проверить права на направление сведений.')
+          return
+        }
+        try {
+          const res = await postPhaStatus(effectivePhaid, 'send', guid)
+          const newStatus = res.newStatus ?? 'Ожидает отправки'
+          const newStatusId = res.newStatusId ?? editedData.statusId
+          const next = { ...editedData, status: newStatus, statusId: newStatusId }
+          setEditedData(next)
+          onUpdate?.(next)
+          message.success('Карта переведена в статус «Ожидает отправки».')
+        } catch (e) {
+          message.error(e instanceof Error ? e.message : 'Ошибка смены статуса')
+        }
+      },
+    })
+  }
+
+  const confirmClosePhaCard = () => {
+    if (!effectivePhaid || effectivePhaid === '-') return
+    const regNumber =
+      currentData.registrationNumber ?? currentData.notification?.registrationNumber ?? effectivePhaid
+    Modal.confirm({
+      title: 'Закрытие карты',
+      content: `После подтверждения карта ${regNumber} будет переведена в статус «Завершено». Продолжить?`,
+      okText: 'Продолжить',
+      cancelText: 'Отмена',
+      onOk: async () => {
+        const rightKey = isIncomingPha ? 'publicHealthIn:status' : 'publicHealthOut:status'
+        const hasRight = await checkAccessRight(guid ?? null, rightKey)
+        if (!hasRight) {
+          message.error(
+            isIncomingPha
+              ? 'Нет права управления статусом входящих сведений (publicHealthIn:status).'
+              : 'Нет права управления статусом исходящих сведений (publicHealthOut:status).'
+          )
+          return
+        }
+        try {
+          const res = await postPhaStatus(effectivePhaid, 'close', guid)
+          const newStatus = res.newStatus ?? 'Завершено'
+          const newStatusId = res.newStatusId ?? editedData.statusId
+          const next = { ...editedData, status: newStatus, statusId: newStatusId }
+          setEditedData(next)
+          onUpdate?.(next)
+          message.success('Карта переведена в статус «Завершено».')
+        } catch (e) {
+          message.error(e instanceof Error ? e.message : 'Ошибка смены статуса')
+        }
+      },
+    })
+  }
+
+  const handleDelete = () => {
+    const regNumber =
+      currentData.registrationNumber ?? currentData.notification?.registrationNumber ?? effectivePhaid ?? ''
+    Modal.confirm({
+      title: 'Подтверждение удаления',
+      content: `Карта ${regNumber} будет удалена безвозвратно. Продолжить?`,
+      okText: 'Удалить',
+      okButtonProps: { danger: true },
+      cancelText: 'Отмена',
+      onOk: async () => {
+        try {
+          const hasRight = await checkAccessRight(guid ?? null, 'publicHealthOut:edit')
+          if (!hasRight) {
+            message.error('Нет права на редактирование исходящих сведений (publicHealthOut:edit).')
+            return
+          }
+          await deletePhaCard(Number(effectivePhaid), guid!)
+          message.success('Карта удалена')
+          onCardDeleted?.()
+        } catch (e) {
+          message.error(e instanceof Error ? e.message : 'Ошибка удаления')
+        }
+      },
+    })
+  }
+
+  const handlePhaStatusAction = (action: string) => {
+    if (!effectivePhaid || effectivePhaid === '-') return
+    const regNumber =
+      currentData.registrationNumber ?? currentData.notification?.registrationNumber ?? phaid
+    if (action === 'pha_complete_processing') {
+      confirmCompleteIncomingProcessing()
+      return
+    }
+    if (action === 'pha_close') {
+      confirmClosePhaCard()
+      return
+    }
+    if (action === 'pha_send') {
+      confirmSendPhaOp57()
+      return
+    }
+    if (action === 'pha_to_new') {
+      Modal.confirm({
+        title: 'Перевести в Новое',
+        content: `После подтверждения карта ${regNumber} будет переведена в статус «Новое». Продолжить?`,
+        okText: 'Продолжить',
+        cancelText: 'Отмена',
+        onOk: async () => {
+          const hasRight = await checkAccessRight(guid ?? null, 'publicHealthOut:status')
+          if (!hasRight) {
+            message.error('Нет права управления статусом исходящих сведений (publicHealthOut:status).')
+            return
+          }
+          try {
+            const res = await postPhaStatus(effectivePhaid, 'to_new', guid)
+            const newStatus = res.newStatus ?? 'Новое'
+            const newStatusId = res.newStatusId ?? editedData.statusId
+            const next = { ...editedData, status: newStatus, statusId: newStatusId }
+            setEditedData(next)
+            onUpdate?.(next)
+            message.success('Карта переведена в статус «Новое».')
+          } catch (e) {
+            message.error(e instanceof Error ? e.message : 'Ошибка смены статуса')
+          }
+        },
+      })
+    }
+  }
+
   const handleSwitchEdit = (checked: boolean) => {
     setIsEditMode(checked)
   }
 
-  const handleSave = async () => {
-    if (!phaid) {
-      message.info('Сохранение новой карты PHA в разработке')
-      return
-    }
+  const handleSaveToDbFromModal = async () => {
+    if (!pendingSavePayload) return
+    const xmlJustSaved = pendingSavePayload.xmlBody
     setSaving(true)
+    const isNewCard = effectivePhaid === '-'
     try {
-      await savePhaCard({ phaid, guid, data: editedData })
-      message.success('Карта PHA сохранена')
+      const res = await savePhaCard({
+        isNew: isNewCard,
+        xmlBody: pendingSavePayload.xmlBody,
+        metadata: pendingSavePayload.metadata,
+        ...(isNewCard ? {} : { phaid: Number(effectivePhaid) }),
+        ...(guid ? { guid } : {}),
+      })
+      setPendingSavePayload(null)
+      setComparisonModalVisible(false)
       onUpdate?.(editedData)
+      setIsEditMode(false)
+      setBaselineXml(xmlJustSaved)
+      if (isNewCard) {
+        setSavedPhaid(res.phaid)
+        try {
+          sessionStorage.setItem('xsd_form_builder_last_saved_phaid', String(res.phaid))
+          sessionStorage.setItem('xsd_form_builder_save_happened', '1')
+        } catch (_) {}
+        message.success(`Карта сохранена в БД с PHAID ${res.phaid}`)
+        onSaveNewCard?.(res.phaid)
+      } else {
+        message.success('Карта обновлена в БД')
+      }
     } catch (err) {
-      message.error(err instanceof Error ? err.message : 'Ошибка сохранения')
+      message.error(err instanceof Error ? err.message : 'Ошибка сохранения в БД')
     } finally {
       setSaving(false)
+    }
+  }
+
+  const handleSave = () => {
+    const xmlBody = exportPhaCardDataToXML(editedData)
+    const metadata = buildPhaSaveMetadataFromCardData(editedData)
+    const isNewCard = effectivePhaid === '-'
+    const canSaveToDb =
+      effectivePhaid !== '-' &&
+      ((isOutgoingPha && hasPhaEditRight) || isIncomingPha)
+
+    const formatErrors = collectPhaFormatValidationErrors(editedData)
+    setFormatValidationErrors(formatErrors)
+
+    if (isNewCard) {
+      const { filled, unfilled } = getPhaCardDataReview(editedData)
+      setComparisonResult({
+        isIdentical: true,
+        differences: [],
+        warnings: [],
+        added: [],
+        isNewDocument: true,
+        filled,
+        unfilled,
+      })
+      setPendingSavePayload({ xmlBody, metadata })
+      setComparisonModalVisible(true)
+      return
+    }
+
+    if (canSaveToDb) {
+      setPendingSavePayload({ xmlBody, metadata })
+    } else {
+      setPendingSavePayload(null)
+      onUpdate?.(editedData)
+      setIsEditMode(false)
+    }
+
+    const xmlToCompare = baselineXml
+    if (xmlToCompare) {
+      try {
+        const originalData = parsePhaXmlToCardData(xmlToCompare)
+        const result = compareCardData(originalData, editedData)
+        const emptyTagsWarnings = getEmptyTagsWarnings(editedData)
+        const resultWithWarnings =
+          emptyTagsWarnings.length > 0
+            ? { ...result, warnings: [...(result.warnings ?? []), ...emptyTagsWarnings] }
+            : result
+        setComparisonResult(resultWithWarnings)
+        setComparisonModalVisible(true)
+      } catch {
+        const emptyTagsWarnings = getEmptyTagsWarnings(editedData)
+        setComparisonResult({
+          isIdentical: true,
+          differences: [],
+          warnings: emptyTagsWarnings,
+          added: [],
+        })
+        setComparisonModalVisible(true)
+      }
+    } else {
+      setComparisonResult({
+        isIdentical: true,
+        differences: [],
+        warnings: getEmptyTagsWarnings(editedData),
+        added: [],
+      })
+      setComparisonModalVisible(true)
     }
   }
 
@@ -119,12 +684,13 @@ const PhaCard: React.FC<PhaCardProps> = ({ data, phaid = '', guid, originalXML, 
   }
 
   const handleCompareXML = () => {
-    if (!originalXML) {
+    const xmlToCompare = baselineXml
+    if (!xmlToCompare) {
       message.warning('Исходный XML не найден. Загрузите карту с сервера.')
       return
     }
     try {
-      const originalData = parsePhaXmlToCardData(originalXML)
+      const originalData = parsePhaXmlToCardData(xmlToCompare)
       const result = compareCardData(originalData, editedData)
       const emptyTagsWarnings = getEmptyTagsWarnings(editedData)
       const resultWithWarnings = emptyTagsWarnings.length > 0
@@ -161,7 +727,7 @@ const PhaCard: React.FC<PhaCardProps> = ({ data, phaid = '', guid, originalXML, 
           <EditComponent
             data={currentData}
             onChange={setEditedData}
-            {...(item.key === 'notification' ? { isNewCard: phaid === '-' || !phaid } : {})}
+            {...(item.key === 'notification' ? { isNewCard: effectivePhaid === '-' } : {})}
           />
         )
       }
@@ -198,7 +764,9 @@ const PhaCard: React.FC<PhaCardProps> = ({ data, phaid = '', guid, originalXML, 
       >
         <div className="card-sticky-header-title-row">
           <span className="card-sticky-header-title">
-            {phaid ? `Карта сведений об обнаружении болезни ${phaid}` : 'Карта сведений об обнаружении болезни'}
+            {effectivePhaid && effectivePhaid !== '-'
+              ? `Карта сведений об обнаружении болезни ${effectivePhaid}`
+              : 'Карта сведений об обнаружении болезни'}
           </span>
           <Space size="small" wrap>
             <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
@@ -207,15 +775,48 @@ const PhaCard: React.FC<PhaCardProps> = ({ data, phaid = '', guid, originalXML, 
                 onChange={handleSwitchEdit}
                 checkedChildren={<EditOutlined />}
                 unCheckedChildren={<EyeOutlined />}
+                disabled={isOutgoingPha && !canEditByStatus}
+                title={isOutgoingPha && !canEditByStatus ? 'Редактирование недоступно для текущего статуса карты' : undefined}
               />
-              <span className="card-sticky-header-mode-label">Режим редактирования</span>
+              <span className="card-sticky-header-mode-label">
+                Режим редактирования
+                {isOutgoingPha && !canEditByStatus && ' (недоступен для текущего статуса)'}
+              </span>
             </div>
             {isEditMode && (
               <>
-                <Button type="primary" onClick={handleSave} loading={saving}>Сохранить</Button>
+                {showSaveButton && (
+                  <Button type="primary" onClick={handleSave} loading={saving}>
+                    Сохранить
+                  </Button>
+                )}
                 <Button icon={<DownloadOutlined />} onClick={handleExportXML}>Экспорт XML</Button>
                 <Button onClick={handleCompareXML}>Сравнить с исходным</Button>
               </>
+            )}
+            {isOutgoingPha && (
+              <Button
+                onClick={() => {
+                  const dataToValidate = isEditMode ? editedData : currentData
+                  setValidationResult(validatePhaOutgoingCard(dataToValidate))
+                  setValidationModalVisible(true)
+                }}
+              >
+                Валидация карты
+              </Button>
+            )}
+            {showCompleteIncomingProcessingButton && (
+              <Button type="primary" onClick={confirmCompleteIncomingProcessing}>
+                Завершить обработку
+              </Button>
+            )}
+            {showSendPhaOp57HeaderButton && (
+              <Button type="primary" onClick={confirmSendPhaOp57}>
+                Направить сведения
+              </Button>
+            )}
+            {showClosePhaCardHeaderButton && (
+              <Button onClick={confirmClosePhaCard}>Закрыть карту</Button>
             )}
             <Button
               onClick={() => {
@@ -224,7 +825,7 @@ const PhaCard: React.FC<PhaCardProps> = ({ data, phaid = '', guid, originalXML, 
                 }
               }}
             >
-              {phaid === '-' || !phaid ? 'Отменить создание' : 'Закрыть карту'}
+              {effectivePhaid === '-' ? 'Отменить создание' : 'Закрыть карту'}
             </Button>
           </Space>
         </div>
@@ -233,16 +834,18 @@ const PhaCard: React.FC<PhaCardProps> = ({ data, phaid = '', guid, originalXML, 
             onStatusClick={() => {
             setStatusHistoryVisible(true)
             setStatusHistoryModalData([])
-            if (phaid && phaid !== '-') {
+            if (effectivePhaid && effectivePhaid !== '-') {
               setStatusHistoryLoading(true)
-              fetchPhaStatusHistory(phaid, guid)
+              fetchPhaStatusHistory(effectivePhaid, guid)
                 .then((list) => {
                   setStatusHistoryModalData(list)
-                  // Если в шапке статус пустой, а в истории есть записи — подставить последний статус из истории (метаданные могли не вернуть phaStatusName)
+                  // Подставить последнюю запись истории только если нет текста статуса и нет statusId (источник истины — PHA + метаданные)
                   if (list.length > 0) {
                     const latest = list[list.length - 1]
                     const cur = currentDataRef.current
-                    if (latest?.status?.trim() && (!cur.status || !String(cur.status).trim())) {
+                    const noStatusText = !cur.status || !String(cur.status).trim()
+                    const noStatusId = cur.statusId == null
+                    if (latest?.status?.trim() && noStatusText && noStatusId) {
                       const updated = { ...cur, status: latest.status }
                       setEditedData(updated)
                       onUpdate?.(updated)
@@ -297,9 +900,13 @@ const PhaCard: React.FC<PhaCardProps> = ({ data, phaid = '', guid, originalXML, 
               window.parent.postMessage(payload, '*')
             }
           }}
-          statusButton={null}
-          onStatusAction={() => {}}
+          statusButton={phaStatusResult.config}
+          statusButtonComment={phaStatusResult.comment || undefined}
+          closeButton={phaStatusResult.closeConfig}
+          onStatusAction={handlePhaStatusAction}
           onElectronicDocumentClick={() => setElectronicDocumentVisible(true)}
+          showDeleteButton={showDeleteButton}
+          onDelete={handleDelete}
         />
         <div className="card-tabs-wrapper">
           <Tabs defaultActiveKey="notification" items={tabItems} />
@@ -395,9 +1002,23 @@ const PhaCard: React.FC<PhaCardProps> = ({ data, phaid = '', guid, originalXML, 
           <XMLComparisonModal
             visible={comparisonModalVisible}
             comparisonResult={comparisonResult}
-            onClose={() => setComparisonModalVisible(false)}
+            onClose={() => {
+              setComparisonModalVisible(false)
+              setPendingSavePayload(null)
+            }}
+            formatValidationErrors={formatValidationErrors}
+            onSaveToDb={pendingSavePayload ? handleSaveToDbFromModal : undefined}
+            saving={saving}
           />
         )}
+        <ValidationResultModal
+          visible={validationModalVisible}
+          result={validationResult}
+          onClose={() => {
+            setValidationModalVisible(false)
+            setValidationResult(null)
+          }}
+        />
       </>
     </div>
   )

@@ -6,7 +6,8 @@ import { DangerousProductCard } from './cards/dpa'
 import { PhaCard } from './cards/pha'
 import type { CardData } from './types/card'
 import { fetchDpaXml, fetchDpaMetadata, fetchNextRegistrationNumber, checkAccessRight, phaSourceToViewRight } from './utils/referenceDataApi'
-import { fetchPhaXml, fetchPhaMetadata, fetchPhaStatusHistory } from './cards/pha/phaApi'
+import { fetchPhaXml, fetchPhaMetadata, fetchPhaStatusHistory, postPhaStatus } from './cards/pha/phaApi'
+import { isPhaIncomingSource } from './utils/phaStatusButtonConfig'
 import { parsePhaXmlToCardData } from './cards/pha/phaXmlParser'
 import { parseXMLToCardData, validateAndEnrichCardData, getTextContent } from './utils/xmlParser'
 import { createNewCardData } from './utils/newCardData'
@@ -301,16 +302,36 @@ function PhaAppContent() {
   /** Блокировка просмотра: нет права publicHealthIn/Out/DB:view для источника карты */
   const [viewDenied, setViewDenied] = useState(false)
   const { dpaid: phaidParam, guid } = useParams<{ dpaid: string; guid?: string }>()
+  const [searchParams] = useSearchParams()
+  const navigate = useNavigate()
+  const location = useLocation()
   const phaid = phaidParam ?? ''
 
   useEffect(() => {
     if (!phaid || phaid === '-') {
-      setLoading(false)
-      setError(null)
       setViewDenied(false)
-      setCardData(createNewCardData('BY', { registrationNumber: '' }, { forPha: true }))
       setOriginalXML(null)
-      return
+      setCardData(null)
+      setError(null)
+      let cancelled = false
+      const country = searchParams.get('country')?.trim()?.toUpperCase().slice(0, 2) || 'BY'
+      setLoading(true)
+      ;(async () => {
+        try {
+          const { registrationNumber } = await fetchNextRegistrationNumber(country, guid)
+          if (cancelled) return
+          setCardData(createNewCardData(country, { registrationNumber }, { forPha: true }))
+          setLoading(false)
+        } catch (err) {
+          if (!cancelled) {
+            const msg = err instanceof Error ? err.message : 'Не удалось получить регистрационный номер'
+            setError(msg)
+            setLoading(false)
+            message.error(msg)
+          }
+        }
+      })()
+      return () => { cancelled = true }
     }
     let cancelled = false
     setLoading(true)
@@ -333,13 +354,28 @@ function PhaAppContent() {
           country: meta.alertCountryCode ?? card.country,
           version: meta.phaVersion ?? card.version,
           source: meta.dataSourceKindName ?? card.source,
+          datasourceKindCode: meta.dataSourceKindCode ?? card.datasourceKindCode,
+          phaAccessibleDepIds: meta.phaAccessibleDepIds,
           createdAt: meta.creationDateTime ?? card.createdAt,
           modifiedAt: meta.modificationDateTime ?? card.modifiedAt,
           status: meta.phaStatusName ?? card.status,
           statusId: meta.phaStatusId ?? card.statusId,
+          notification: card.notification
+            ? {
+                ...card.notification,
+                endDate:
+                  (card.notification.endDate != null && String(card.notification.endDate).trim() !== '')
+                    ? card.notification.endDate
+                    : meta.situationEndDate ?? card.notification.endDate,
+              }
+            : card.notification,
         } : card
-        // Если метаданные не вернули статус — взять последний из истории смены статусов (PHASTATUSHIST)
-        if (!(enriched.status ?? '').trim()) {
+        // Если метаданные не вернули текст статуса — взять последний из PHASTATUSHIST только если нет phaStatusId:
+        // иначе история может устареть (например «Получено») при актуальном PHA.PHASTATUSID в метаданных.
+        const statusTextEmpty = !(enriched.status ?? '').trim()
+        const hasStatusIdFromMeta =
+          meta != null && meta.phaStatusId !== undefined && meta.phaStatusId !== null
+        if (statusTextEmpty && !hasStatusIdFromMeta) {
           try {
             const history = await fetchPhaStatusHistory(phaid, guid)
             if (history.length > 0) {
@@ -354,6 +390,26 @@ function PhaAppContent() {
         setCardData(enriched)
         setError(null)
         message.success('Данные карты PHA загружены')
+        if (guid?.trim() && isPhaIncomingSource(enriched.source)) {
+          postPhaStatus(phaid, 'first_open', guid)
+            .then((res) => {
+              if (cancelled) return
+              if (res.changed && res.newStatus != null) {
+                setCardData((prev) =>
+                  prev
+                    ? {
+                        ...prev,
+                        status: res.newStatus!,
+                        statusId: res.newStatusId ?? prev.statusId,
+                      }
+                    : prev
+                )
+              }
+            })
+            .catch(() => {
+              /* нет права / ошибка БД — карта уже отображена */
+            })
+        }
       } catch (err) {
         if (!cancelled) {
           setError(err instanceof Error ? err.message : 'Ошибка загрузки')
@@ -364,7 +420,7 @@ function PhaAppContent() {
       }
     })()
     return () => { cancelled = true }
-  }, [phaid, guid])
+  }, [phaid, guid, searchParams])
 
   // Проверка права просмотра PHA по источнику: publicHealthIn:view, publicHealthOut:view, publicHealthDB:view
   useEffect(() => {
@@ -397,9 +453,35 @@ function PhaAppContent() {
       originalXML={originalXML}
       onUpdate={setCardData}
       initialEditMode={phaid === '-' || !phaid}
+      onSaveNewCard={(newPhaid) => {
+        try {
+          sessionStorage.setItem('xsd_form_builder_last_saved_phaid', String(newPhaid))
+          sessionStorage.setItem('xsd_form_builder_save_happened', '1')
+        } catch (_) {}
+        navigate(`/${newPhaid}/${guid ?? ''}`, { replace: true })
+      }}
+      onCardDeleted={() => {
+        setCardData(null)
+        setOriginalXML(null)
+        navigate('/', { replace: true, state: { cardDeleted: true } })
+      }}
     />
   )
-  return <div className="empty-state"><div>Нет данных. Откройте карту по PHAID или создайте новую.</div></div>
+  return (
+    <div className="empty-state">
+      <div style={{ fontSize: '48px', marginBottom: '16px', opacity: 0.3 }}>📄</div>
+      <div style={{ fontSize: '18px', fontWeight: 500, color: '#595959', marginBottom: '8px' }}>
+        {(location.state as { cardDeleted?: boolean } | null)?.cardDeleted
+          ? 'Карта успешно удалена'
+          : 'Нет данных для отображения'}
+      </div>
+      <div style={{ fontSize: '14px', color: '#8c8c8c' }}>
+        {(location.state as { cardDeleted?: boolean } | null)?.cardDeleted
+          ? 'Вы можете открыть другую карту или создать новую.'
+          : 'Откройте карту по PHAID или создайте новую.'}
+      </div>
+    </div>
+  )
 }
 
 function App() {

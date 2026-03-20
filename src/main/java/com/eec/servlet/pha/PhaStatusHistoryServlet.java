@@ -25,9 +25,9 @@ import java.util.List;
 public class PhaStatusHistoryServlet extends HttpServlet {
 
     private static final String SQL = ""
-            + "SELECT s.PHASTATUSNAME, hs.PHASTATUSDATETIME, ep.EMPCODE "
+            + "SELECT ps.PHASTATUSNAME, hs.PHASTATUSDATETIME, ep.EMPCODE "
             + "FROM PHASTATUSHIST hs "
-            + "JOIN PHASTATUS s ON s.PHASTATUSID = hs.PHASTATUSID "
+            + "JOIN PHASTATUS ps ON ps.PHASTATUSID = hs.PHASTATUSID "
             + "LEFT JOIN TB_USER us ON hs.USERID = us.USERID "
             + "LEFT JOIN TB_EMP ep ON ep.EMPID = us.EMPID "
             + "WHERE hs.PHAID = ? "

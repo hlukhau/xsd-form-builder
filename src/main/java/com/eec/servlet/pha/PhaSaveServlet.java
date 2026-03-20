@@ -1,0 +1,342 @@
+package com.eec.servlet.pha;
+
+import com.eec.servlet.RightsJsonStore;
+import com.eec.util.DatabaseUtil;
+
+import javax.servlet.ServletException;
+import javax.servlet.http.HttpServlet;
+import javax.servlet.http.HttpServletRequest;
+import javax.servlet.http.HttpServletResponse;
+import java.io.IOException;
+import java.sql.Clob;
+import java.sql.Connection;
+import java.sql.PreparedStatement;
+import java.sql.ResultSet;
+import java.sql.SQLException;
+import java.sql.Types;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
+
+/**
+ * Создание и обновление карты PHA (исходящие сведения о болезни).
+ * POST /api/pha/save — тело JSON: { "isNew": true|false, "phaid"?: number, "xmlBody": "...", "guid": "...", "metadata": { ... } }.
+ */
+public class PhaSaveServlet extends HttpServlet {
+
+    private static final String DATASOURCE_OUTGOING = "2";
+    /** Статус «Новое» при создании (PHASTATUS). */
+    private static final int PHA_STATUS_NEW_ID = 5;
+
+    private static final String SQL_NEXT_PHAID = "SELECT SQPHA.NEXTVAL FROM DUAL";
+    private static final String SQL_NEXT_PHAID_FALLBACK = "SELECT NVL(MAX(PHAID),0)+1 AS NEXTVAL FROM PHA";
+    private static final String SQL_COUNTRY_ID = ""
+            + "SELECT COUNTRYID FROM COUNTRY WHERE UPPER(TRIM(COUNTRYCODE)) = ? "
+            + "AND COUNTRYSDATE <= SYSDATE AND COUNTRYEDATE >= SYSDATE";
+
+    private static final String SQL_INSERT_PHA = ""
+            + "INSERT INTO PHA (PHAID, DATASOURCEKINDCODE, ALERTCOUNTRYID, INCIDENTID, PHAVERSION, "
+            + "PHASTATUSID, CREATIONDATETIME, MODIFICATIONDATETIME, INCIDENTALERTKINDCODE, DOCCREATIONDATE) "
+            + "VALUES (?, ?, ?, ?, 1, ?, SYSDATE, SYSDATE, ?, ?)";
+
+    private static final String SQL_INSERT_PHAXML = "INSERT INTO PHAXML (PHAID, PHAXMLBODY) VALUES (?, ?)";
+    private static final String SQL_INSERT_HIST = ""
+            + "INSERT INTO PHASTATUSHIST (PHAID, PHASTATUSID, PHASTATUSDATETIME, USERID) VALUES (?, ?, SYSDATE, ?)";
+    private static final String SQL_INSERT_DEP = "INSERT INTO PHADEPPERMIS (PHAID, DEPID, GRANTDATETIME) VALUES (?, ?, SYSDATE)";
+    private static final String SQL_EXISTS_DEP = "SELECT 1 FROM TB_DEP WHERE DEPID = ?";
+
+    private static final String SQL_UPDATE_PHAXML = "UPDATE PHAXML SET PHAXMLBODY = ? WHERE PHAID = ?";
+    private static final String SQL_UPDATE_PHA_MOD = "UPDATE PHA SET MODIFICATIONDATETIME = SYSDATE WHERE PHAID = ?";
+
+    @Override
+    protected void doPost(HttpServletRequest request, HttpServletResponse response)
+            throws ServletException, IOException {
+        response.setContentType("application/json;charset=UTF-8");
+        response.setCharacterEncoding("UTF-8");
+        response.setHeader("Access-Control-Allow-Origin", "*");
+        request.setCharacterEncoding("UTF-8");
+
+        String body = readBody(request);
+        if (body == null || body.isEmpty()) {
+            sendJsonError(response, HttpServletResponse.SC_BAD_REQUEST, "Тело запроса пусто");
+            return;
+        }
+
+        boolean isNew = extractJsonBoolean(body, "isNew");
+        Long phaidParam = extractJsonLong(body, "phaid");
+        String guid = extractJsonString(body, "guid");
+        if (guid == null) guid = extractJsonStringOrNumberAsString(body, "GUID");
+        if (guid != null) guid = guid.trim();
+
+        String xmlBody = extractJsonStringXmlBody(body);
+        if (xmlBody == null || xmlBody.trim().isEmpty()) {
+            sendJsonError(response, HttpServletResponse.SC_BAD_REQUEST, "Требуется xmlBody");
+            return;
+        }
+        if (!xmlBody.trim().startsWith("<")) {
+            sendJsonError(response, HttpServletResponse.SC_BAD_REQUEST, "xmlBody должен содержать XML");
+            return;
+        }
+
+        String metaBlock = extractJsonObject(body, "metadata");
+        if (metaBlock == null) metaBlock = "{}";
+        String incidentId = extractJsonString(metaBlock, "incidentId");
+        String countryCode = extractJsonString(metaBlock, "countryCode");
+        String docCreationDate = extractJsonString(metaBlock, "docCreationDate");
+        String incidentAlertKindCode = extractJsonString(metaBlock, "incidentAlertKindCode");
+
+        Integer userId = getUserIdFromRightsByGuid(guid);
+
+        Connection conn = null;
+        try {
+            conn = DatabaseUtil.getConnectionForRequest(request, guid);
+            conn.setAutoCommit(false);
+
+            if (isNew) {
+                if (userId == null) {
+                    sendJsonError(response, HttpServletResponse.SC_BAD_REQUEST,
+                            "Укажите guid (в карте прав должен быть userId)");
+                    return;
+                }
+                String incId = incidentId != null ? incidentId.trim() : "";
+                if (incId.isEmpty()) {
+                    sendJsonError(response, HttpServletResponse.SC_BAD_REQUEST,
+                            "При создании обязателен регистрационный номер (metadata.incidentId)");
+                    return;
+                }
+
+                Integer alertCountryId = resolveCountryId(conn, countryCode);
+                if (alertCountryId == null && "RU".equalsIgnoreCase(trimToEmpty(countryCode))) {
+                    alertCountryId = 191;
+                }
+                if (alertCountryId == null) {
+                    sendJsonError(response, HttpServletResponse.SC_BAD_REQUEST, "Не удалось определить ALERTCOUNTRYID по countryCode");
+                    return;
+                }
+
+                long phaid = getNextPhaid(conn);
+
+                try (PreparedStatement ps = conn.prepareStatement(SQL_INSERT_PHA)) {
+                    int i = 1;
+                    ps.setLong(i++, phaid);
+                    ps.setString(i++, DATASOURCE_OUTGOING);
+                    ps.setInt(i++, alertCountryId);
+                    ps.setString(i++, incId);
+                    ps.setInt(i++, PHA_STATUS_NEW_ID);
+                    ps.setString(i++, incidentAlertKindCode != null ? incidentAlertKindCode : "");
+                    setDateOrNull(ps, i++, docCreationDate);
+                    ps.executeUpdate();
+                }
+
+                try (PreparedStatement ps = conn.prepareStatement(SQL_INSERT_PHAXML)) {
+                    ps.setLong(1, phaid);
+                    Clob clob = conn.createClob();
+                    clob.setString(1, xmlBody);
+                    ps.setClob(2, clob);
+                    ps.executeUpdate();
+                }
+
+                try (PreparedStatement ps = conn.prepareStatement(SQL_INSERT_HIST)) {
+                    ps.setLong(1, phaid);
+                    ps.setInt(2, PHA_STATUS_NEW_ID);
+                    ps.setInt(3, userId);
+                    ps.executeUpdate();
+                }
+
+                String rightsJson = (guid != null && !guid.isEmpty()) ? RightsJsonStore.guidMap.get(guid) : null;
+                Integer creatorDepId = getDepartmentDepIdFromRights(rightsJson);
+                if (creatorDepId != null && existsDepIdInTbDep(conn, creatorDepId)) {
+                    try (PreparedStatement psDep = conn.prepareStatement(SQL_INSERT_DEP)) {
+                        psDep.setLong(1, phaid);
+                        psDep.setInt(2, creatorDepId);
+                        psDep.executeUpdate();
+                    }
+                }
+
+                conn.commit();
+                response.getWriter().print("{\"success\":true,\"phaid\":" + phaid + "}");
+            } else {
+                if (phaidParam == null || phaidParam <= 0) {
+                    sendJsonError(response, HttpServletResponse.SC_BAD_REQUEST, "Для обновления укажите phaid");
+                    return;
+                }
+                long phaid = phaidParam;
+                try (PreparedStatement ps = conn.prepareStatement(SQL_UPDATE_PHAXML)) {
+                    Clob clob = conn.createClob();
+                    clob.setString(1, xmlBody);
+                    ps.setClob(1, clob);
+                    ps.setLong(2, phaid);
+                    if (ps.executeUpdate() == 0) {
+                        conn.rollback();
+                        sendJsonError(response, HttpServletResponse.SC_NOT_FOUND, "PHAXML для PHAID " + phaid + " не найдена");
+                        return;
+                    }
+                }
+                try (PreparedStatement ps = conn.prepareStatement(SQL_UPDATE_PHA_MOD)) {
+                    ps.setLong(1, phaid);
+                    ps.executeUpdate();
+                }
+                conn.commit();
+                response.getWriter().print("{\"success\":true,\"phaid\":" + phaid + "}");
+            }
+        } catch (SQLException e) {
+            if (conn != null) try { conn.rollback(); } catch (SQLException ignored) { }
+            e.printStackTrace();
+            sendJsonError(response, HttpServletResponse.SC_INTERNAL_SERVER_ERROR, "Ошибка БД: " + e.getMessage());
+        } finally {
+            DatabaseUtil.closeConnection(conn);
+        }
+    }
+
+    private static long getNextPhaid(Connection conn) throws SQLException {
+        try (PreparedStatement ps = conn.prepareStatement(SQL_NEXT_PHAID);
+             ResultSet rs = ps.executeQuery()) {
+            if (rs.next()) return rs.getLong(1);
+        } catch (SQLException e) {
+            if (e.getMessage() != null && (e.getMessage().contains("ORA-02289") || e.getMessage().contains("SQPHA"))) {
+                try (PreparedStatement ps = conn.prepareStatement(SQL_NEXT_PHAID_FALLBACK);
+                     ResultSet rs = ps.executeQuery()) {
+                    if (rs.next()) return rs.getLong(1);
+                }
+            }
+            throw e;
+        }
+        throw new SQLException("Не удалось получить PHAID");
+    }
+
+    private static Integer resolveCountryId(Connection conn, String countryCode) throws SQLException {
+        if (countryCode == null || countryCode.trim().isEmpty()) return null;
+        try (PreparedStatement ps = conn.prepareStatement(SQL_COUNTRY_ID)) {
+            ps.setString(1, countryCode.trim().toUpperCase());
+            try (ResultSet rs = ps.executeQuery()) {
+                if (rs.next()) return rs.getInt(1);
+            }
+        }
+        return null;
+    }
+
+    private static void setDateOrNull(PreparedStatement ps, int index, String dateStr) throws SQLException {
+        if (dateStr == null || dateStr.trim().isEmpty()) {
+            ps.setNull(index, Types.DATE);
+            return;
+        }
+        try {
+            java.sql.Date d = java.sql.Date.valueOf(dateStr.trim().substring(0, Math.min(10, dateStr.trim().length())));
+            ps.setDate(index, d);
+        } catch (IllegalArgumentException e) {
+            ps.setNull(index, Types.DATE);
+        }
+    }
+
+    private static boolean existsDepIdInTbDep(Connection conn, int depId) throws SQLException {
+        try (PreparedStatement ps = conn.prepareStatement(SQL_EXISTS_DEP)) {
+            ps.setInt(1, depId);
+            try (ResultSet rs = ps.executeQuery()) {
+                return rs.next();
+            }
+        }
+    }
+
+    private static Integer getDepartmentDepIdFromRights(String json) {
+        if (json == null) return null;
+        Matcher m = Pattern.compile("\"depid\"\\s*:\\s*(\\d+)").matcher(json);
+        if (m.find()) try { return Integer.parseInt(m.group(1)); } catch (NumberFormatException e) { return null; }
+        m = Pattern.compile("\"depId\"\\s*:\\s*(\\d+)").matcher(json);
+        if (m.find()) try { return Integer.parseInt(m.group(1)); } catch (NumberFormatException e) { return null; }
+        return null;
+    }
+
+    private static Integer getUserIdFromRightsByGuid(String guid) {
+        if (guid == null || guid.isEmpty()) return null;
+        String json = RightsJsonStore.guidMap.get(guid.trim());
+        if (json == null || json.isEmpty()) return null;
+        Matcher m = Pattern.compile("\"userId\"\\s*:\\s*(-?\\d+)").matcher(json);
+        if (m.find()) try { return Integer.parseInt(m.group(1)); } catch (NumberFormatException e) { return null; }
+        m = Pattern.compile("\"userId\"\\s*:\\s*\"(-?\\d+)\"").matcher(json);
+        if (m.find()) try { return Integer.parseInt(m.group(1)); } catch (NumberFormatException e) { return null; }
+        return null;
+    }
+
+    private static String trimToEmpty(String s) {
+        return s == null ? "" : s.trim();
+    }
+
+    private static String readBody(HttpServletRequest request) throws IOException {
+        StringBuilder sb = new StringBuilder();
+        try (java.io.BufferedReader reader = request.getReader()) {
+            char[] buf = new char[4096];
+            int n;
+            while ((n = reader.read(buf)) >= 0) sb.append(buf, 0, n);
+        }
+        return sb.toString();
+    }
+
+    private static String extractJsonStringXmlBody(String json) {
+        int keyPos = json.indexOf("\"xmlBody\"");
+        if (keyPos < 0) return null;
+        int colon = json.indexOf(':', keyPos);
+        if (colon < 0) return null;
+        int i = colon + 1;
+        while (i < json.length() && Character.isWhitespace(json.charAt(i))) i++;
+        if (i >= json.length() || json.charAt(i) != '"') return null;
+        i++;
+        StringBuilder sb = new StringBuilder();
+        while (i < json.length()) {
+            char c = json.charAt(i);
+            if (c == '\\' && i + 1 < json.length()) {
+                sb.append(json.charAt(i + 1));
+                i += 2;
+                continue;
+            }
+            if (c == '"') break;
+            sb.append(c);
+            i++;
+        }
+        return sb.toString();
+    }
+
+    private static String extractJsonString(String json, String key) {
+        Pattern p = Pattern.compile("\"" + Pattern.quote(key) + "\"\\s*:\\s*\"([^\"]*)\"");
+        Matcher m = p.matcher(json);
+        return m.find() ? m.group(1) : null;
+    }
+
+    private static String extractJsonStringOrNumberAsString(String json, String key) {
+        Matcher m = Pattern.compile("\"" + Pattern.quote(key) + "\"\\s*:\\s*(\\d+)").matcher(json);
+        return m.find() ? m.group(1) : null;
+    }
+
+    private static Long extractJsonLong(String json, String key) {
+        Matcher m = Pattern.compile("\"" + Pattern.quote(key) + "\"\\s*:\\s*(-?\\d+)").matcher(json);
+        if (m.find()) try { return Long.parseLong(m.group(1)); } catch (NumberFormatException e) { return null; }
+        return null;
+    }
+
+    private static boolean extractJsonBoolean(String json, String key) {
+        Matcher m = Pattern.compile("\"" + Pattern.quote(key) + "\"\\s*:\\s*(true|false)").matcher(json);
+        return m.find() && "true".equalsIgnoreCase(m.group(1));
+    }
+
+    private static String extractJsonObject(String json, String key) {
+        Pattern p = Pattern.compile("\"" + Pattern.quote(key) + "\"\\s*:\\s*");
+        Matcher m = p.matcher(json);
+        if (!m.find()) return null;
+        int start = m.end();
+        while (start < json.length() && Character.isWhitespace(json.charAt(start))) start++;
+        if (start >= json.length() || json.charAt(start) != '{') return null;
+        int depth = 1;
+        int i = start + 1;
+        while (i < json.length() && depth > 0) {
+            char c = json.charAt(i);
+            if (c == '{') depth++;
+            else if (c == '}') depth--;
+            i++;
+        }
+        return depth == 0 ? json.substring(start, i) : null;
+    }
+
+    private static void sendJsonError(HttpServletResponse response, int status, String message) throws IOException {
+        response.setStatus(status);
+        String esc = message != null ? message.replace("\\", "\\\\").replace("\"", "\\\"") : "";
+        response.getWriter().print("{\"error\":\"" + esc + "\"}");
+    }
+}

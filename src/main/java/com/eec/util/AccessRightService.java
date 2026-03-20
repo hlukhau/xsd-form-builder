@@ -167,10 +167,38 @@ public final class AccessRightService {
     }
 
     /**
+     * Управление статусом входящих сведений PHA — publicHealthIn:status.
+     */
+    public static boolean hasPublicHealthInStatus(String rightsJson) {
+        return hasAccessRightInJson(rightsJson, "publicHealthIn", "status");
+    }
+
+    /**
      * Просмотр исходящих сведений PHA — publicHealthOut:view.
      */
     public static boolean hasPublicHealthOutView(String rightsJson) {
         return hasAccessRightInJson(rightsJson, "publicHealthOut", "view");
+    }
+
+    /**
+     * Управление статусом исходящих сведений PHA — publicHealthOut:status.
+     */
+    public static boolean hasPublicHealthOutStatus(String rightsJson) {
+        return hasAccessRightInJson(rightsJson, "publicHealthOut", "status");
+    }
+
+    /**
+     * Направление исходящих сведений PHA другим участникам ОП 57 — publicHealthOut:send.
+     */
+    public static boolean hasPublicHealthOutSend(String rightsJson) {
+        return hasAccessRightInJson(rightsJson, "publicHealthOut", "send");
+    }
+
+    /**
+     * Редактирование / сохранение исходящих сведений PHA — publicHealthOut:edit.
+     */
+    public static boolean hasPublicHealthOutEdit(String rightsJson) {
+        return hasAccessRightInJson(rightsJson, "publicHealthOut", "edit");
     }
 
     /**

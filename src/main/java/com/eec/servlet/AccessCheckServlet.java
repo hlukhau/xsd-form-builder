@@ -13,7 +13,7 @@ import java.io.PrintWriter;
  * API проверки прав доступа.
  * GET /api/access/check?id=...&right=... — id опционален (GUID для JSON прав); right — код права
  * (dangerousProductIn:access, dangerousProductOut:access, dangerousProductDB:access;
- *  publicHealthIn:view, publicHealthOut:view, publicHealthDB:view для PHA).
+ *  publicHealthIn:view, publicHealthIn:status, publicHealthOut:view, publicHealthOut:status, publicHealthOut:send, publicHealthOut:edit, publicHealthDB:view для PHA).
  * Ответ: { "allowed": true }
  */
 public class AccessCheckServlet extends HttpServlet {
@@ -57,8 +57,20 @@ public class AccessCheckServlet extends HttpServlet {
                 case "publicHealthIn:view":
                     allowed = AccessRightService.hasPublicHealthInView(rightsJson);
                     break;
+                case "publicHealthIn:status":
+                    allowed = AccessRightService.hasPublicHealthInStatus(rightsJson);
+                    break;
                 case "publicHealthOut:view":
                     allowed = AccessRightService.hasPublicHealthOutView(rightsJson);
+                    break;
+                case "publicHealthOut:status":
+                    allowed = AccessRightService.hasPublicHealthOutStatus(rightsJson);
+                    break;
+                case "publicHealthOut:send":
+                    allowed = AccessRightService.hasPublicHealthOutSend(rightsJson);
+                    break;
+                case "publicHealthOut:edit":
+                    allowed = AccessRightService.hasPublicHealthOutEdit(rightsJson);
                     break;
                 case "publicHealthDB:view":
                     allowed = AccessRightService.hasPublicHealthDBView(rightsJson);

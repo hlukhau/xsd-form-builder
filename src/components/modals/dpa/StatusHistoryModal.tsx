@@ -47,7 +47,8 @@ const StatusHistoryModal: React.FC<StatusHistoryModalProps> = ({
       title: 'Сотрудник',
       dataIndex: 'employee',
       key: 'employee',
-      render: (employee: string | null) => employee || '-',
+      render: (employee: string | null) =>
+        employee?.trim() ? employee : 'Автоматически',
     },
   ]
 

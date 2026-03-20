@@ -1,5 +1,9 @@
 import type { CardData } from '@/types/card'
 
+/** PHA: новая карта сразу в статусе «Новое» (PHASTATUS.PHASTATUSID = 5), без «Черновик». */
+export const PHA_NEW_STATUS_ID = 5
+export const PHA_NEW_STATUS_NAME = 'Новое' as const
+
 const DEFAULT_INCIDENT_KIND_CODE = '7'
 const DEFAULT_SERIAL_IN_YEAR = '00001'
 
@@ -24,7 +28,7 @@ export function buildNewRegistrationNumber(
  * - Код страны: из параметра
  * - Вид уведомления: IncidentKindCode = 7
  * - Дата формирования: текущая дата
- * - Статус: для DPA — «Черновик» (DPASTATUS); для PHA не задаётся (статусы из PHASTATUS, задаются при сохранении).
+ * - Статус: для DPA — «Черновик» (DPASTATUS); для PHA — сразу «Новое», PHASTATUSID = 5 (черновика нет).
  */
 export function createNewCardData(
   countryCode: string = 'BY',
@@ -53,8 +57,8 @@ export function createNewCardData(
     createdAt: documentDateTime,
     modifiedAt: documentDateTime,
     ...(forPha
-      ? {}
-      : { status: 'Черновик' as const, statusId: 5 }), // DPA: DPASTATUSID для исходящих «Черновик» (DRAFT). PHA: статусы из PHASTATUS.
+      ? { status: PHA_NEW_STATUS_NAME, statusId: PHA_NEW_STATUS_ID }
+      : { status: 'Черновик' as const, statusId: 5 }), // DPA: черновик исходящих. PHA: см. PHA_NEW_STATUS_*.
 
     electronicDocument: {
       messageCode: '',

@@ -638,9 +638,14 @@ export interface RightsJson {
       send?: Record<string, unknown>
     }
     /** PHA: просмотр входящих сведений об обнаружении болезней */
-    publicHealthIn?: { view?: Record<string, unknown> }
+    publicHealthIn?: { view?: Record<string, unknown>; status?: Record<string, unknown> }
     /** PHA: просмотр исходящих сведений */
-    publicHealthOut?: { view?: Record<string, unknown> }
+    publicHealthOut?: {
+      view?: Record<string, unknown>
+      edit?: Record<string, unknown>
+      status?: Record<string, unknown>
+      send?: Record<string, unknown>
+    }
     /** PHA: просмотр данных ЕЭК */
     publicHealthDB?: { view?: Record<string, unknown> }
   }

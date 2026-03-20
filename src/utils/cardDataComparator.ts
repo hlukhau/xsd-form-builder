@@ -370,3 +370,63 @@ export function getCardDataReview(data: CardData): { filled: string[]; unfilled:
   return { filled, unfilled }
 }
 
+/**
+ * Обзор заполненности полей для новой карты PHA (без разделов DPA «Продукция»/«ТСД», если пусты).
+ */
+export function getPhaCardDataReview(data: CardData): { filled: string[]; unfilled: string[] } {
+  const filled: string[] = []
+  const unfilled: string[] = []
+
+  const walk = (path: string, val: unknown) => {
+    if (val == null) {
+      unfilled.push(path)
+      return
+    }
+    if (typeof val === 'string') {
+      if (val.trim() !== '') filled.push(path)
+      else unfilled.push(path)
+      return
+    }
+    if (Array.isArray(val)) {
+      if (val.length === 0) {
+        unfilled.push(path)
+        return
+      }
+      val.forEach((item, i) => {
+        if (typeof item === 'object' && item !== null) {
+          Object.entries(item).forEach(([k, v]) => walk(`${path}[${i}].${k}`, v))
+        } else {
+          walk(`${path}[${i}]`, item)
+        }
+      })
+      return
+    }
+    if (typeof val === 'object') {
+      const entries = Object.entries(val)
+      if (entries.length === 0) {
+        unfilled.push(path)
+        return
+      }
+      for (const [k, v] of entries) {
+        walk(path ? `${path}.${k}` : k, v)
+      }
+      return
+    }
+    filled.push(path)
+  }
+
+  walk('country', data.country)
+  walk('registrationNumber', data.registrationNumber)
+  walk('notification', data.notification)
+  walk('phaCauseNotifications', data.phaCauseNotifications)
+  walk('phaFirstDiseaseInfectiousFlag', data.phaFirstDiseaseInfectiousFlag)
+  walk('phaDisease', data.phaDisease)
+  walk('phaPatientGroups', data.phaPatientGroups)
+  walk('detectionPlace', data.detectionPlace)
+  walk('spreadingZone', data.spreadingZone)
+  walk('measures', data.measures)
+  walk('electronicDocument', data.electronicDocument)
+
+  return { filled, unfilled }
+}
+
