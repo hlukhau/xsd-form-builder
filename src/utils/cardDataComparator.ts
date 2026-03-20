@@ -288,10 +288,19 @@ export function compareCardData(original: CardData, exported: CardData): {
   // Сравниваем tsd (по XSD нарушения и документы соответствия только внутри tsd.batches[])
   compareValue('tsd', original.tsd, exported.tsd)
   
+  const originalZones =
+    (original.spreadingZones && original.spreadingZones.length > 0)
+      ? original.spreadingZones
+      : (original.spreadingZone ? [original.spreadingZone] : [])
+  const exportedZones =
+    (exported.spreadingZones && exported.spreadingZones.length > 0)
+      ? exported.spreadingZones
+      : (exported.spreadingZone ? [exported.spreadingZone] : [])
+
   // Сравниваем detectionPlace
   compareValue('detectionPlace', original.detectionPlace, exported.detectionPlace)
-  // Сравниваем spreadingZone (PHA)
-  compareValue('spreadingZone', original.spreadingZone, exported.spreadingZone)
+  // Сравниваем зоны распространения как массив мест (PHA)
+  compareValue('spreadingZones', originalZones, exportedZones)
   
   // Сравниваем measures
   compareValue('measures', original.measures, exported.measures)
@@ -373,7 +382,10 @@ export function getCardDataReview(data: CardData): { filled: string[]; unfilled:
   walk('product', data.product)
   walk('tsd', data.tsd)
   walk('detectionPlace', data.detectionPlace)
-  walk('spreadingZone', data.spreadingZone)
+  const zones = (data.spreadingZones && data.spreadingZones.length > 0)
+    ? data.spreadingZones
+    : (data.spreadingZone ? [data.spreadingZone] : [])
+  walk('spreadingZones', zones)
   walk('measures', data.measures)
   walk('electronicDocument', data.electronicDocument)
   walk('statusHistory', data.statusHistory)

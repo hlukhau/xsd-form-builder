@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
-import { Tabs, Switch, Button, Space, message, Modal, Spin } from 'antd'
-import { EditOutlined, EyeOutlined, DownloadOutlined } from '@ant-design/icons'
+import { Tabs, Switch, Button, Space, message, Modal, Spin, Collapse } from 'antd'
+import { EditOutlined, EyeOutlined, DownloadOutlined, PlusOutlined, DeleteOutlined } from '@ant-design/icons'
 import type { CardData, StatusHistoryItem } from '@/types/card'
 import { CardHeader, CardActions } from '@/cards/shared'
 import {
@@ -775,11 +775,55 @@ const PhaCard: React.FC<PhaCardProps> = ({
           />
         )
       } else if (item.key === 'spreadZone') {
+        const zones = currentData.spreadingZones && currentData.spreadingZones.length > 0
+          ? currentData.spreadingZones
+          : (currentData.spreadingZone ? [currentData.spreadingZone] : [])
+        const setZones = (nextZones: typeof zones) =>
+          setEditedData((prev) => ({
+            ...prev,
+            spreadingZones: nextZones.length > 0 ? nextZones : undefined,
+            spreadingZone: nextZones.length > 0 ? nextZones[0] : undefined,
+          }))
         children = (
-          <EditComponent
-            data={currentData.spreadingZone ?? {}}
-            onChange={(zone) => setEditedData((prev) => ({ ...prev, spreadingZone: zone }))}
-          />
+          <div>
+            <Collapse
+              style={{ marginBottom: 12 }}
+              items={zones.map((zone, idx) => ({
+                key: String(idx),
+                label: `Место зоны распространения #${idx + 1}`,
+                extra: (
+                  <Button
+                    danger
+                    size="small"
+                    icon={<DeleteOutlined />}
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      setZones(zones.filter((_, i) => i !== idx))
+                    }}
+                  >
+                    Удалить место
+                  </Button>
+                ),
+                children: (
+                  <EditComponent
+                    data={zone ?? {}}
+                    onChange={(nextZone) => {
+                      const next = [...zones]
+                      next[idx] = nextZone
+                      setZones(next)
+                    }}
+                  />
+                ),
+              }))}
+            />
+            <Button
+              type="dashed"
+              icon={<PlusOutlined />}
+              onClick={() => setZones([...(zones ?? []), {}])}
+            >
+              Добавить место
+            </Button>
+          </div>
         )
       } else {
         children = (
@@ -794,7 +838,20 @@ const PhaCard: React.FC<PhaCardProps> = ({
       if (item.key === 'detectionPlace') {
         children = <TabView data={currentData.detectionPlace ?? {}} />
       } else if (item.key === 'spreadZone') {
-        children = <TabView data={currentData.spreadingZone ?? {}} label="зоне распространения" />
+        const zones = currentData.spreadingZones && currentData.spreadingZones.length > 0
+          ? currentData.spreadingZones
+          : (currentData.spreadingZone ? [currentData.spreadingZone] : [])
+        children = zones.length > 0 ? (
+          <Collapse
+            items={zones.map((zone, idx) => ({
+              key: String(idx),
+              label: `Место зоны распространения #${idx + 1}`,
+              children: <TabView data={zone ?? {}} label="зоне распространения" />,
+            }))}
+          />
+        ) : (
+          <TabView data={{}} label="зоне распространения" />
+        )
       } else {
         children = <TabView data={currentData} />
       }

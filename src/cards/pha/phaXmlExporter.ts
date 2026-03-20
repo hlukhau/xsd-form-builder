@@ -115,8 +115,11 @@ export function exportPhaCardDataToXML(data: CardData): string {
     if (disease?.crossborderSpreadRiskIndicator === 0 || disease?.crossborderSpreadRiskIndicator === 1) {
       xmlParts.push(`      <smsdo:CrossborderSpreadRiskIndicator>${disease.crossborderSpreadRiskIndicator}</smsdo:CrossborderSpreadRiskIndicator>`)
     }
-    if (data.spreadingZone) {
-      exportSpreadingZone(xmlParts, data.spreadingZone, '      ')
+    const zones = (data.spreadingZones && data.spreadingZones.length > 0)
+      ? data.spreadingZones
+      : (data.spreadingZone ? [data.spreadingZone] : [])
+    for (const zone of zones) {
+      exportSpreadingZone(xmlParts, zone, '      ')
     }
     xmlParts.push('    </smcdo:PublicHealthIncidentDetails>')
   }

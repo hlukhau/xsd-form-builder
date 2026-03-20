@@ -6,6 +6,7 @@ import type { CardData, Notification, PhaCauseNotificationItem } from '@/types/c
 import { useCountryOptions } from '@/hooks/shared/useCountryOptions'
 import { useIncidentAlertKindOptions } from '@/hooks/shared/useIncidentAlertKindOptions'
 import { useAuthorityOptions } from '@/hooks/shared/useAuthorityOptions'
+import { useDiseaseHealthProblemOptions } from '@/hooks/shared/useDiseaseHealthProblemOptions'
 import { DATE_DISPLAY_FORMAT } from '@/constants/dateFormat'
 
 /** Коды вида для основного уведомления: версия 1 — 1, 2 (справочник incidentalertkind). */
@@ -38,12 +39,15 @@ const NotificationTabEdit: React.FC<NotificationTabEditProps> = ({
 
   const version = data.version ?? 1
   const isVersion1 = version === 1
-  const infectiousFlag = data.phaFirstDiseaseInfectiousFlag
+  const { options: diseaseOptions } = useDiseaseHealthProblemOptions()
+  const selectedDiseaseName = (data.phaDisease?.diseaseName ?? '').trim()
+  const diseaseInfectFlag =
+    diseaseOptions.find((o) => (o.name ?? '').trim() === selectedDiseaseName)?.infectFl ?? null
   const mainKindCodes = isVersion1
     ? MAIN_KIND_CODES_VERSION_1
-    : infectiousFlag === 1
+    : diseaseInfectFlag === 1
       ? MAIN_KIND_CODES_INFECTIOUS
-      : infectiousFlag === 0
+      : diseaseInfectFlag === 0
         ? MAIN_KIND_CODES_NON_INFECTIOUS
         : ['3', '4', '5', '6']
   const mainKindOptions = getIncidentAlertKindSelectOptions().filter((o) => mainKindCodes.includes(String(o.value)))
@@ -139,15 +143,20 @@ const NotificationTabEdit: React.FC<NotificationTabEditProps> = ({
     })
   }
 
-  const setInfectiousFlag = (value: 0 | 1 | undefined) => {
+  const resetTypeByDiseaseInfect = (value: number | null) => {
     const nextCodes = value === 1 ? MAIN_KIND_CODES_INFECTIOUS : value === 0 ? MAIN_KIND_CODES_NON_INFECTIOUS : ['3', '4', '5', '6']
     const keepType = nextCodes.includes(String(n.type))
     onChange({
       ...data,
-      phaFirstDiseaseInfectiousFlag: value,
       notification: { ...data.notification, type: keepType ? n.type : '' },
     })
   }
+
+  useEffect(() => {
+    if (isVersion1) return
+    resetTypeByDiseaseInfect(diseaseInfectFlag)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isVersion1, diseaseInfectFlag])
 
   const causeList = data.phaCauseNotifications ?? []
   const addCause = () => {
@@ -183,17 +192,16 @@ const NotificationTabEdit: React.FC<NotificationTabEditProps> = ({
         <Input placeholder="smsdo:IncidentId" readOnly={!!n.registrationNumber} />
       </Form.Item>
       {!isVersion1 && (
-        <Form.Item label="Признак инфекционной болезни" help="Версия > 1: от этого зависят допустимые виды (3,5 или 4,6). По XSD: diseasehealthprobleminfectfl.">
-          <Select
-            placeholder="Выберите (инфекционная / неинфекционная)"
-            allowClear
-            value={infectiousFlag}
-            onChange={(v) => setInfectiousFlag(v as 0 | 1 | undefined)}
-            options={[
-              { value: 1, label: 'Инфекционная (вид 3, 5)' },
-              { value: 0, label: 'Неинфекционная (вид 4, 6)' },
-            ]}
-            style={{ width: '100%' }}
+        <Form.Item label="Признак инфекционной болезни" help="Определяется по выбранной болезни (справочник diseasehealthproblem). Для версии > 1 поле только для просмотра.">
+          <Input
+            readOnly
+            value={
+              diseaseInfectFlag === 1
+                ? 'Инфекционная (вид 3, 5)'
+                : diseaseInfectFlag === 0
+                  ? 'Неинфекционная (вид 4, 6)'
+                  : 'Не определено (выберите болезнь)'
+            }
           />
         </Form.Item>
       )}

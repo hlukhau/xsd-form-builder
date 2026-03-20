@@ -55,6 +55,8 @@ export interface CardData {
 
   /** PHA: зона распространения (smcdo:SpreadingZoneDetails, LocationDetailsType — как Место обнаружения). */
   spreadingZone?: DetectionPlaceData
+  /** PHA: зоны распространения (0..n smcdo:SpreadingZoneDetails). */
+  spreadingZones?: DetectionPlaceData[]
 }
 
 /** PHA: группа пациентов (smcdo:PatientGroupDetails). */

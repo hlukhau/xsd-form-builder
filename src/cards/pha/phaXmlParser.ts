@@ -171,13 +171,14 @@ export function parsePhaXmlToCardData(xmlText: string): CardData {
       })()
     : undefined
 
-  // smcdo:SpreadingZoneDetails — внутри PublicHealthIncidentDetails (0..n, берём первый; тот же LocationDetailsType).
-  let spreadingZone = incidentDetails
-    ? (() => {
-        const zoneEl = findElementByLocalName(incidentDetails, 'SpreadingZoneDetails')
-        return zoneEl ? parseDetectionPlaceDetails(zoneEl) : undefined
-      })()
-    : undefined
+  // smcdo:SpreadingZoneDetails — внутри PublicHealthIncidentDetails (0..n, LocationDetailsType).
+  let spreadingZones: import('@/types/card').DetectionPlaceData[] | undefined
+  if (incidentDetails) {
+    const zoneNodes = findAllElementsByLocalName(incidentDetails, 'SpreadingZoneDetails')
+    const zones = zoneNodes.map((z) => parseDetectionPlaceDetails(z))
+    if (zones.length > 0) spreadingZones = zones
+  }
+  const spreadingZone = spreadingZones && spreadingZones.length > 0 ? spreadingZones[0] : undefined
 
   // smcdo:PatientGroupDetails — внутри PublicHealthIncidentDetails (0..n).
   let phaPatientGroups: PhaPatientGroupItem[] | undefined
@@ -218,6 +219,7 @@ export function parsePhaXmlToCardData(xmlText: string): CardData {
     phaPatientGroups: phaPatientGroups ?? undefined,
     detectionPlace: detectionPlace ?? undefined,
     spreadingZone: spreadingZone ?? undefined,
+    spreadingZones: spreadingZones ?? undefined,
     measures,
   }
 
