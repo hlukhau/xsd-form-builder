@@ -77,8 +77,16 @@ function collectPlaceRemarks(place: DetectionPlaceData | undefined): string[] {
       (o.addresses && o.addresses.length > 0) ||
       !empty(o.businessEntityId)
     if (orgTouched) {
-      if (empty(o.country) || empty(o.businessEntityName) || !(o.addresses && o.addresses.length > 0)) {
-        add('Должны быть заполнены Страна, Наименование субъекта, Адрес')
+      if (empty(o.country)) {
+        add('Организация: не указана страна (csdo:UnifiedCountryCode)')
+      }
+      if (empty(o.businessEntityName)) {
+        add('Организация: не указано наименование субъекта (csdo:BusinessEntityName)')
+      }
+      if (!(o.addresses && o.addresses.length > 0)) {
+        add(
+          'Организация: не указан адрес субъекта (ccdo:SubjectAddressDetails — добавьте хотя бы один адрес в блоке организации)'
+        )
       }
       if (!empty(o.businessEntityId) && empty(o.identificationMethod)) {
         add('Если указан идентификатор хозяйствующего субъекта, то метод идентификации должен быть указан обязательно')
@@ -125,6 +133,16 @@ function causeIncidentAlertFilled(c: PhaCauseNotificationItem): boolean {
     !empty(c.country) ||
     !empty(c.registrationNumber) ||
     !empty(c.type) ||
+    !empty(c.formationDate)
+  )
+}
+
+/** Все обязательные поля строки причинного уведомления (XSD IncidentAlertIdDetails). */
+function causeIncidentAlertComplete(c: PhaCauseNotificationItem): boolean {
+  return (
+    !empty(c.country) &&
+    !empty(c.registrationNumber) &&
+    !empty(c.type) &&
     !empty(c.formationDate)
   )
 }
@@ -197,10 +215,22 @@ export function validatePhaOutgoingCard(data: CardData): ValidationResult {
   }
 
   const causes = data.phaCauseNotifications ?? []
-  for (const c of causes) {
+  for (let i = 0; i < causes.length; i++) {
+    const c = causes[i]
     if (!causeIncidentAlertFilled(c)) continue
+    if (!causeIncidentAlertComplete(c)) {
+      const missing: string[] = []
+      if (empty(c.country)) missing.push('страна')
+      if (empty(c.registrationNumber)) missing.push('регистрационный номер')
+      if (empty(c.type)) missing.push('вид уведомления')
+      if (empty(c.formationDate)) missing.push('дата формирования')
+      add(
+        sectionNotification,
+        `Причинное уведомление (строка ${i + 1}): заполните все поля: ${missing.join(', ')}.`
+      )
+      continue
+    }
     const ct = (c.type ?? '').trim()
-    if (!ct) continue
     if (!CAUSE_INCIDENT_KIND_CODES.has(ct)) {
       add(
         sectionNotification,
@@ -293,4 +323,14 @@ export function validatePhaOutgoingCardFull(data: CardData): ValidationResult {
 
 export function collectPhaFormatValidationErrors(data: CardData): string[] {
   return collectFormatValidationErrors(data).errors
+}
+
+/** Для подсветки в форме: в строке причинного уведомления заполнено хотя бы одно поле. */
+export function isPhaCauseNotificationRowTouched(c: PhaCauseNotificationItem): boolean {
+  return causeIncidentAlertFilled(c)
+}
+
+/** Все поля строки причинного уведомления заполнены (соответствие XSD). */
+export function isPhaCauseNotificationRowComplete(c: PhaCauseNotificationItem): boolean {
+  return causeIncidentAlertComplete(c)
 }

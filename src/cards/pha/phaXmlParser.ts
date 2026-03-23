@@ -118,10 +118,20 @@ export function parsePhaXmlToCardData(xmlText: string): CardData {
   // smsdo:MeasureCode и smsdo:MeasureName — прямые потомки PublicHealthAlertDetails (0..n каждый). Сначала все коды, затем все наименования.
   const measureCodeEls = findAllElementsByLocalName(firstCaseBlock, 'MeasureCode')
   const measureNameEls = findAllElementsByLocalName(firstCaseBlock, 'MeasureName')
-  const codeValues = measureCodeEls.map((el) => el.textContent?.trim() ?? '').filter(Boolean)
+  const codeRows: SanitaryMeasure[] = measureCodeEls
+    .map((el) => {
+      const measureCode = el.textContent?.trim() ?? ''
+      if (!measureCode) return null
+      const listId = el.getAttribute('codeListId')?.trim()
+      return {
+        measureCode,
+        ...(listId ? { measureCodeListId: listId } : {}),
+      } as SanitaryMeasure
+    })
+    .filter((x): x is SanitaryMeasure => x != null)
   const nameValues = measureNameEls.map((el) => el.textContent?.trim() ?? '').filter(Boolean)
   const phaMeasures: SanitaryMeasure[] = [
-    ...codeValues.map((measureCode) => ({ measureCode })),
+    ...codeRows,
     ...nameValues.map((measureName) => ({ measureName })),
   ]
   const measures = phaMeasures.length > 0 ? { measures: phaMeasures } : undefined

@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from 'react'
-import { Card, Tabs, Button, Space, Switch, message, Modal, Spin } from 'antd'
+import { Card, Tabs, Button, Space, Switch, message, Modal, Spin, Input } from 'antd'
 import { EditOutlined, EyeOutlined, DownloadOutlined, PlusOutlined } from '@ant-design/icons'
 import ProductTabEdit from '../tabs/dpa/ProductTabEdit'
 import ViolationsTabEdit from '../tabs/dpa/ViolationsTabEdit'
@@ -106,9 +106,10 @@ const DangerousProductCard: React.FC<DangerousProductCardProps> = ({
   const [rightsDebugLoading, setRightsDebugLoading] = useState(false)
   const [rightsDebugError, setRightsDebugError] = useState<string | null>(null)
   const [rightsDebugRawText, setRightsDebugRawText] = useState<string | null>(null)
+  const [rightsDebugDraft, setRightsDebugDraft] = useState('')
+  const [rightsOverride, setRightsOverride] = useState<RightsJson | null>(null)
 
   const effectiveDpaid = (dpaid !== '-' && dpaid) ? dpaid : (savedDpaid != null ? String(savedDpaid) : '-')
-
   // Новая карта (/-/) всегда исходящая; иначе — по DPA DATASOURCEKINDCODE ("2") или по названию источника (код 3 — из БД ЕЭК)
   const datasourceKindCode = data?.datasourceKindCode != null ? String(data.datasourceKindCode) : ''
   const sourceFromData = data?.source ?? ''
@@ -117,6 +118,20 @@ const DangerousProductCard: React.FC<DangerousProductCardProps> = ({
     datasourceKindCode === '2' ||
     sourceFromData.toLowerCase().includes('исходящ') ||
     sourceFromData === '2'
+  const overrideDepid = rightsOverride?.department?.depid != null ? String(rightsOverride.department.depid) : null
+  const overrideHasByMap = (map: Record<string, unknown> | undefined | null): boolean =>
+    !!(overrideDepid && map && typeof map === 'object' && Object.prototype.hasOwnProperty.call(map, overrideDepid))
+  const effectiveHasStatusRight = rightsOverride
+    ? (isOutgoingSource
+        ? overrideHasByMap(rightsOverride.up?.dangerousProductOut?.status)
+        : overrideHasByMap(rightsOverride.up?.dangerousProductIn?.status))
+    : hasStatusRight
+  const effectiveHasSendRight = rightsOverride
+    ? overrideHasByMap(rightsOverride.up?.dangerousProductOut?.send)
+    : hasSendRight
+  const effectiveHasSaveRight = rightsOverride
+    ? overrideHasByMap(rightsOverride.up?.dangerousProductOut?.edit)
+    : hasSaveRight
 
   const currentStatusId = editedData.statusId ?? data.statusId ?? undefined
   const canEditByStatus =
@@ -211,10 +226,10 @@ const DangerousProductCard: React.FC<DangerousProductCardProps> = ({
 
   // Исходящая карта: при наличии права dangerousProductOut:edit и статусе, допускающем редактирование, включаем режим редактирования автоматически
   useEffect(() => {
-    if (isOutgoingSource && hasSaveRight && canEditByStatus) {
+    if (isOutgoingSource && effectiveHasSaveRight && canEditByStatus) {
       setIsEditMode(true)
     }
-  }, [isOutgoingSource, hasSaveRight, canEditByStatus])
+  }, [isOutgoingSource, effectiveHasSaveRight, canEditByStatus])
 
   // Для статусов, не допускающих редактирование, принудительно выключаем режим редактирования
   useEffect(() => {
@@ -229,8 +244,8 @@ const DangerousProductCard: React.FC<DangerousProductCardProps> = ({
   const statusButtonResult = getStatusButtonConfig(
     editedData.source,
     editedData.status,
-    hasStatusRight,
-    hasSendRight,
+    effectiveHasStatusRight,
+    effectiveHasSendRight,
     hasResolution,
     currentUserDepKindCode ?? rightsDepKindCode,
     dpaResolutionDepKindCodes,
@@ -259,17 +274,22 @@ const DangerousProductCard: React.FC<DangerousProductCardProps> = ({
           ? { label: 'Закрытие карты', action: 'close' as const, disabled: true, hint: CLOSE_BUTTON_DISABLED_HINT }
           : null)
 
-  // Кнопка «Удалить»: исходящая карта, статус Черновик, право dangerousProductOut:edit, карта сохранена в БД, есть guid
+  // Кнопка «Удалить»: для черновика исходящей карты всегда отображается;
+  // при отсутствии права/ guid — disabled с подсказкой причины.
   const isDraftStatus =
     (editedData.statusId ?? data.statusId) === 5 ||
     /черновик/i.test(editedData.status ?? data.status ?? '')
   const showDeleteButton =
     isOutgoingSource &&
     isDraftStatus &&
-    hasSaveRight &&
     effectiveDpaid !== '-' &&
-    effectiveDpaid != null &&
-    !!guid
+    effectiveDpaid != null
+  const canDeleteCard = effectiveHasSaveRight && !!guid
+  const deleteButtonHint = !effectiveHasSaveRight
+    ? 'Недостаточно прав: требуется dangerousProductOut:edit.'
+    : !guid
+      ? 'GUID не задан: не удалось определить права доступа.'
+      : undefined
 
   const handleDelete = () => {
     const regNumber = editedData.registrationNumber ?? data.registrationNumber ?? effectiveDpaid ?? ''
@@ -294,7 +314,7 @@ const DangerousProductCard: React.FC<DangerousProductCardProps> = ({
   // Кнопка «Сделать копию»: исходящая карта, статус Доставлено (11), право dangerousProductOut:edit, есть guid
   const showCopyButton =
     isOutgoingSource &&
-    hasSaveRight &&
+    effectiveHasSaveRight &&
     effectiveDpaid !== '-' &&
     effectiveDpaid != null &&
     !!guid &&
@@ -465,7 +485,7 @@ const DangerousProductCard: React.FC<DangerousProductCardProps> = ({
     const xmlBody = exportCardDataToXML(editedData)
     const metadata = buildSaveMetadataFromCardData(editedData)
     const isNewCard = effectiveDpaid === '-'
-    const isOutgoingWithSave = isOutgoingSource && hasSaveRight
+    const isOutgoingWithSave = isOutgoingSource && effectiveHasSaveRight
 
     const formatErrors = collectFormatValidationErrors(editedData).errors
     setFormatValidationErrors(formatErrors)
@@ -806,7 +826,7 @@ const DangerousProductCard: React.FC<DangerousProductCardProps> = ({
             </div>
             {isEditMode && (
               <>
-                {(effectiveDpaid === '-' || (isOutgoingSource && hasSaveRight && canEditByStatus)) && (
+                {(effectiveDpaid === '-' || (isOutgoingSource && effectiveHasSaveRight && canEditByStatus)) && (
                   <Button type="primary" onClick={handleSave} loading={saving}>Сохранить</Button>
                 )}
                 <Button icon={<DownloadOutlined />} onClick={handleExportXML}>Экспорт XML</Button>
@@ -873,6 +893,7 @@ const DangerousProductCard: React.FC<DangerousProductCardProps> = ({
               fetchRightsByGuid(guid)
                 .then((data) => {
                   setRightsDebugData(data)
+                  setRightsDebugDraft(JSON.stringify(data, null, 2))
                   setRightsDebugError(null)
                   setRightsDebugRawText(null)
                 })
@@ -893,6 +914,8 @@ const DangerousProductCard: React.FC<DangerousProductCardProps> = ({
             }
           }}
           showDeleteButton={showDeleteButton}
+          deleteButtonDisabled={!canDeleteCard}
+          deleteButtonHint={deleteButtonHint}
           onDelete={handleDelete}
           showCopyButton={showCopyButton}
           onCopy={handleCopy}
@@ -1158,6 +1181,7 @@ const DangerousProductCard: React.FC<DangerousProductCardProps> = ({
             setRightsDebugData(null)
             setRightsDebugError(null)
             setRightsDebugRawText(null)
+            setRightsDebugDraft('')
           }}
           footer={[
             <Button
@@ -1167,10 +1191,40 @@ const DangerousProductCard: React.FC<DangerousProductCardProps> = ({
                 setRightsDebugData(null)
                 setRightsDebugError(null)
                 setRightsDebugRawText(null)
+                setRightsDebugDraft('')
               }}
             >
               Закрыть
             </Button>,
+            rightsDebugData != null && (
+              <Button
+                key="apply"
+                onClick={() => {
+                  try {
+                    const parsed = JSON.parse(rightsDebugDraft) as RightsJson
+                    setRightsOverride(parsed)
+                    setRightsDebugData(parsed)
+                    setRightsDebugError(null)
+                    message.success('Мапа прав перезаписана из JSON.')
+                  } catch (e) {
+                    message.error(`Некорректный JSON: ${e instanceof Error ? e.message : String(e)}`)
+                  }
+                }}
+              >
+                Применить JSON
+              </Button>
+            ),
+            rightsOverride != null && (
+              <Button
+                key="resetOverride"
+                onClick={() => {
+                  setRightsOverride(null)
+                  message.success('Переопределение мапы прав сброшено.')
+                }}
+              >
+                Сбросить переопределение
+              </Button>
+            ),
             rightsDebugData != null && (
               <Button
                 key="copy"
@@ -1216,9 +1270,12 @@ const DangerousProductCard: React.FC<DangerousProductCardProps> = ({
               )}
             </div>
           ) : rightsDebugData != null ? (
-            <pre style={{ margin: 0, padding: 12, background: '#f5f5f5', borderRadius: 4, maxHeight: 400, overflow: 'auto', fontSize: 12 }}>
-              {JSON.stringify(rightsDebugData, null, 2)}
-            </pre>
+            <Input.TextArea
+              value={rightsDebugDraft}
+              onChange={(e) => setRightsDebugDraft(e.target.value)}
+              autoSize={{ minRows: 14, maxRows: 22 }}
+              style={{ fontFamily: 'monospace' }}
+            />
           ) : (
             <span>Нет данных</span>
           )}

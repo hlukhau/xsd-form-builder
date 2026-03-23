@@ -10,6 +10,10 @@ import { useDiseaseHealthProblemOptions } from '@/hooks/shared/useDiseaseHealthP
 import { DATE_DISPLAY_FORMAT } from '@/constants/dateFormat'
 import { getMaxLength } from '@/constants/xsdFieldConstraints'
 import { fetchRightsByGuid, getPublicHealthOutEditDepIdsFromRights } from '@/utils/referenceDataApi'
+import {
+  isPhaCauseNotificationRowComplete,
+  isPhaCauseNotificationRowTouched,
+} from '@/cards/pha/phaValidation'
 
 /** Версия 1 — виды 1 и 2; иначе — 3, 4, 5, 6 (справочник incidentalertkind). */
 const MAIN_KIND_CODES_VERSION_1 = ['1', '2']
@@ -37,6 +41,7 @@ const NotificationTabEdit: React.FC<NotificationTabEditProps> = ({
   isNewCard = false,
   guid,
 }) => {
+  const isBlank = (v: string | null | undefined) => v == null || String(v).trim() === ''
   const [form] = Form.useForm()
   const n = data.notification
   const { getDisplayLabel: getCountryDisplayLabel, getSelectOptions: getCountrySelectOptions } = useCountryOptions()
@@ -185,8 +190,13 @@ const NotificationTabEdit: React.FC<NotificationTabEditProps> = ({
     const nextFormation = all.formationDate
       ? dayjs(all.formationDate as dayjs.Dayjs).format('YYYY-MM-DD')
       : n.formationDate
-    const nextEnd =
-      all.endDate != null ? (all.endDate ? dayjs(all.endDate as dayjs.Dayjs).format('YYYY-MM-DD') : null) : n.endDate
+    /** Очистка DatePicker передаёт endDate: null — без проверки по `changed` значение не сбрасывалось. */
+    const endDateExplicitlyChanged = Object.prototype.hasOwnProperty.call(changed, 'endDate')
+    const nextEnd = endDateExplicitlyChanged
+      ? all.endDate
+        ? dayjs(all.endDate as dayjs.Dayjs).format('YYYY-MM-DD')
+        : null
+      : n.endDate
 
     if (isVersion1 && changed && 'type' in changed) {
       const kind = String(nextType ?? '').trim()
@@ -233,6 +243,24 @@ const NotificationTabEdit: React.FC<NotificationTabEditProps> = ({
   }
 
   const causeList = data.phaCauseNotifications ?? []
+  const getCauseMissing = (row: PhaCauseNotificationItem): string[] => {
+    const out: string[] = []
+    if (isBlank(row.country)) out.push('country')
+    if (isBlank(row.registrationNumber)) out.push('registrationNumber')
+    if (isBlank(row.type)) out.push('type')
+    if (isBlank(row.formationDate)) out.push('formationDate')
+    return out
+  }
+  const isCauseTouched = (row: PhaCauseNotificationItem) =>
+    !isBlank(row.country) || !isBlank(row.registrationNumber) || !isBlank(row.type) || !isBlank(row.formationDate)
+  const getCauseFieldError = (
+    row: PhaCauseNotificationItem,
+    key: 'country' | 'registrationNumber' | 'type' | 'formationDate'
+  ): string | undefined => {
+    const missing = getCauseMissing(row)
+    if (!isCauseTouched(row)) return undefined
+    return missing.includes(key) ? 'Обязательное поле (XSD)' : undefined
+  }
   const addCause = () => {
     onChange({
       ...data,
@@ -255,7 +283,13 @@ const NotificationTabEdit: React.FC<NotificationTabEditProps> = ({
 
   return (
     <Form form={form} layout="vertical" className="field-tag-form" onValuesChange={handleFormValuesChange}>
-      <Form.Item label="Страна" name="country">
+      <Form.Item
+        label="Страна"
+        name="country"
+        required
+        validateStatus={isBlank(n.country) ? 'error' : undefined}
+        help={isBlank(n.country) ? 'Обязательное поле (XSD)' : undefined}
+      >
         <Select
           showSearch
           placeholder="Выберите страну"
@@ -264,7 +298,13 @@ const NotificationTabEdit: React.FC<NotificationTabEditProps> = ({
           filterOption={(input, option) => (option?.label ?? '').toLowerCase().includes(input.toLowerCase())}
         />
       </Form.Item>
-      <Form.Item label="Регистрационный номер" name="registrationNumber">
+      <Form.Item
+        label="Регистрационный номер"
+        name="registrationNumber"
+        required
+        validateStatus={isBlank(n.registrationNumber) ? 'error' : undefined}
+        help={isBlank(n.registrationNumber) ? 'Обязательное поле (XSD)' : undefined}
+      >
         <Input
           placeholder="Регистрационный номер"
           readOnly={!!n.registrationNumber}
@@ -273,7 +313,13 @@ const NotificationTabEdit: React.FC<NotificationTabEditProps> = ({
           title="csdo:Id40Type (smsdo:IncidentId), не более 40 символов"
         />
       </Form.Item>
-      <Form.Item label="Вид" name="type">
+      <Form.Item
+        label="Вид"
+        name="type"
+        required
+        validateStatus={isBlank(n.type) ? 'error' : undefined}
+        help={isBlank(n.type) ? 'Обязательное поле (XSD)' : undefined}
+      >
         <Select
           showSearch
           placeholder="Выберите вид уведомления"
@@ -281,7 +327,13 @@ const NotificationTabEdit: React.FC<NotificationTabEditProps> = ({
           filterOption={(input, option) => (option?.label ?? '').toLowerCase().includes(input.toLowerCase())}
         />
       </Form.Item>
-      <Form.Item label="Дата формирования" name="formationDate">
+      <Form.Item
+        label="Дата формирования"
+        name="formationDate"
+        required
+        validateStatus={isBlank(n.formationDate) ? 'error' : undefined}
+        help={isBlank(n.formationDate) ? 'Обязательное поле (XSD)' : undefined}
+      >
         <DatePicker format={DATE_DISPLAY_FORMAT} style={{ width: '100%' }} disabled />
       </Form.Item>
       <Form.Item label="Дата закрытия" name="endDate">
@@ -290,8 +342,17 @@ const NotificationTabEdit: React.FC<NotificationTabEditProps> = ({
 
       <div style={{ marginTop: 16, padding: 12, border: '1px solid #d9d9d9', borderRadius: 4 }}>
         <h4 style={{ marginTop: 0 }}>Уполномоченный орган</h4>
-        <Form.Item label="Страна">
-          <Input readOnly value={authorizedBodyCountryCode ? getCountryDisplayLabel(authorizedBodyCountryCode) : '-'} />
+        <Form.Item
+          label="Страна"
+          required
+          validateStatus={isBlank(authorizedBodyCountryCode) ? 'error' : undefined}
+          help={isBlank(authorizedBodyCountryCode) ? 'Обязательное поле (XSD)' : undefined}
+        >
+          <Input
+            readOnly
+            status={isBlank(authorizedBodyCountryCode) ? 'error' : undefined}
+            value={authorizedBodyCountryCode ? getCountryDisplayLabel(authorizedBodyCountryCode) : '-'}
+          />
         </Form.Item>
         <Form.Item label="Уполномоченный орган">
           <Select
@@ -307,8 +368,13 @@ const NotificationTabEdit: React.FC<NotificationTabEditProps> = ({
             style={{ width: '100%' }}
           />
         </Form.Item>
-        <Form.Item label="Наименование">
-          <Input readOnly value={n.authorizedBody?.name ?? '-'} />
+        <Form.Item
+          label="Наименование"
+          required
+          validateStatus={isBlank(n.authorizedBody?.name) ? 'error' : undefined}
+          help={isBlank(n.authorizedBody?.name) ? 'Обязательное поле (XSD)' : undefined}
+        >
+          <Input readOnly status={isBlank(n.authorizedBody?.name) ? 'error' : undefined} value={n.authorizedBody?.name ?? '-'} />
         </Form.Item>
         <Form.Item label="Краткое наименование">
           <Input readOnly value={n.authorizedBody?.shortName ?? '-'} />
@@ -328,72 +394,107 @@ const NotificationTabEdit: React.FC<NotificationTabEditProps> = ({
             pagination={false}
             tableLayout="fixed"
             scroll={{ x: 880 }}
+            onRow={(record) => {
+              const touched = isPhaCauseNotificationRowTouched(record) || isCauseTouched(record)
+              const complete = isPhaCauseNotificationRowComplete(record) && getCauseMissing(record).length === 0
+              return {
+                style: touched && !complete ? { backgroundColor: '#fff7e6' } : undefined,
+              }
+            }}
             columns={[
               {
                 title: 'Страна',
                 dataIndex: 'country',
                 key: 'country',
                 width: 200,
-                render: (val: string, __, index) => (
-                  <Select
-                    size="small"
-                    value={val || undefined}
-                    onChange={(v) => updateCause(index, 'country', v ?? '')}
-                    options={getCountrySelectOptions()}
-                    style={{ width: '100%' }}
-                    showSearch
-                    filterOption={(input, option) => (option?.label ?? '').toLowerCase().includes(input.toLowerCase())}
-                  />
-                ),
+                render: (val: string, row, index) => {
+                  const err = getCauseFieldError(row, 'country')
+                  return (
+                    <div>
+                      <Select
+                        size="small"
+                        status={err ? 'error' : undefined}
+                        value={val || undefined}
+                        onChange={(v) => updateCause(index, 'country', v ?? '')}
+                        options={getCountrySelectOptions()}
+                        style={{ width: '100%' }}
+                        showSearch
+                        filterOption={(input, option) => (option?.label ?? '').toLowerCase().includes(input.toLowerCase())}
+                      />
+                      {err ? <div style={{ color: '#ff4d4f', fontSize: 12, marginTop: 2 }}>{err}</div> : null}
+                    </div>
+                  )
+                },
               },
               {
                 title: 'Рег. номер',
                 dataIndex: 'registrationNumber',
                 key: 'registrationNumber',
                 width: 120,
-                render: (val: string, __, index) => (
-                  <Input
-                    size="small"
-                    value={val}
-                    onChange={(e) => updateCause(index, 'registrationNumber', e.target.value)}
-                    style={{ width: '100%' }}
-                    maxLength={getMaxLength('phaIncidentId')}
-                    showCount
-                    title="csdo:Id40Type (smsdo:IncidentId), не более 40 символов"
-                  />
-                ),
+                render: (val: string, row, index) => {
+                  const err = getCauseFieldError(row, 'registrationNumber')
+                  return (
+                    <div>
+                      <Input
+                        size="small"
+                        status={err ? 'error' : undefined}
+                        value={val}
+                        onChange={(e) => updateCause(index, 'registrationNumber', e.target.value)}
+                        style={{ width: '100%' }}
+                        maxLength={getMaxLength('phaIncidentId')}
+                        showCount
+                        title="csdo:Id40Type (smsdo:IncidentId), не более 40 символов"
+                      />
+                      {err ? <div style={{ color: '#ff4d4f', fontSize: 12, marginTop: 2 }}>{err}</div> : null}
+                    </div>
+                  )
+                },
               },
               {
                 title: 'Вид',
                 dataIndex: 'type',
                 key: 'type',
                 width: 380,
-                render: (val: string, __, index) => (
-                  <Select
-                    size="small"
-                    value={val || undefined}
-                    onChange={(v) => updateCause(index, 'type', v ?? '')}
-                    options={causeKindOptions}
-                    style={{ width: '100%' }}
-                    showSearch
-                    filterOption={(input, option) => (option?.label ?? '').toLowerCase().includes(input.toLowerCase())}
-                  />
-                ),
+                render: (val: string, row, index) => {
+                  const err = getCauseFieldError(row, 'type')
+                  return (
+                    <div>
+                      <Select
+                        size="small"
+                        status={err ? 'error' : undefined}
+                        value={val || undefined}
+                        onChange={(v) => updateCause(index, 'type', v ?? '')}
+                        options={causeKindOptions}
+                        style={{ width: '100%' }}
+                        showSearch
+                        filterOption={(input, option) => (option?.label ?? '').toLowerCase().includes(input.toLowerCase())}
+                      />
+                      {err ? <div style={{ color: '#ff4d4f', fontSize: 12, marginTop: 2 }}>{err}</div> : null}
+                    </div>
+                  )
+                },
               },
               {
                 title: 'Дата формирования',
                 dataIndex: 'formationDate',
                 key: 'formationDate',
                 width: 130,
-                render: (val: string, __, index) => (
-                  <Input
-                    size="small"
-                    type="date"
-                    value={val?.slice(0, 10) ?? ''}
-                    onChange={(e) => updateCause(index, 'formationDate', e.target.value)}
-                    style={{ width: '100%' }}
-                  />
-                ),
+                render: (val: string, row, index) => {
+                  const err = getCauseFieldError(row, 'formationDate')
+                  return (
+                    <div>
+                      <Input
+                        size="small"
+                        status={err ? 'error' : undefined}
+                        type="date"
+                        value={val?.slice(0, 10) ?? ''}
+                        onChange={(e) => updateCause(index, 'formationDate', e.target.value)}
+                        style={{ width: '100%' }}
+                      />
+                      {err ? <div style={{ color: '#ff4d4f', fontSize: 12, marginTop: 2 }}>{err}</div> : null}
+                    </div>
+                  )
+                },
               },
               {
                 title: '',

@@ -15,6 +15,9 @@ interface CardActionsProps {
   onElectronicDocumentClick: () => void
   showDeleteButton?: boolean
   onDelete?: () => void
+  /** Показывать «Удалить» как неактивную и дать причину блокировки. */
+  deleteButtonDisabled?: boolean
+  deleteButtonHint?: string
   showCopyButton?: boolean
   onCopy?: () => void
   onShowRightsDebug?: () => void
@@ -31,6 +34,8 @@ const CardActions: React.FC<CardActionsProps> = ({
   onElectronicDocumentClick,
   showDeleteButton,
   onDelete,
+  deleteButtonDisabled,
+  deleteButtonHint,
   showCopyButton,
   onCopy,
   onShowRightsDebug,
@@ -87,10 +92,21 @@ const CardActions: React.FC<CardActionsProps> = ({
         )}
         {statusButtonNode}
         {closeButtonNode}
-        {showDeleteButton && onDelete && (
-          <Button size="small" type="primary" danger icon={<DeleteOutlined />} onClick={onDelete}>
-            Удалить
-          </Button>
+        {showDeleteButton && (
+          <Tooltip title={deleteButtonHint}>
+            <span>
+              <Button
+                size="small"
+                type="primary"
+                danger
+                icon={<DeleteOutlined />}
+                disabled={deleteButtonDisabled}
+                onClick={() => !deleteButtonDisabled && onDelete?.()}
+              >
+                Удалить
+              </Button>
+            </span>
+          </Tooltip>
         )}
         {showCopyButton && onCopy && (
           <Button size="small" icon={<CopyOutlined />} onClick={onCopy}>

@@ -4,6 +4,7 @@
  */
 
 import type { CardData } from '@/types/card'
+import { hasPhaPatientGroupExportContent } from '@/cards/pha/phaPatientGroupXml'
 import { exportDetectionPlace, exportSpreadingZone } from '@/utils/xmlExporter'
 
 function escapeXML(str: string | undefined | null): string {
@@ -81,6 +82,7 @@ export function exportPhaCardDataToXML(data: CardData): string {
 
   const disease = data.phaDisease
   const patientGroups = data.phaPatientGroups ?? []
+  const patientGroupsToExport = patientGroups.filter(hasPhaPatientGroupExportContent)
   const hasDisease =
     disease &&
     (disease.diseaseName ||
@@ -88,11 +90,25 @@ export function exportPhaCardDataToXML(data: CardData): string {
       disease.lastCaseDate != null ||
       disease.crossborderSpreadRiskIndicator != null ||
       (disease.pathogens?.length ?? 0) > 0)
-  if (hasDisease || patientGroups.length > 0) {
+  const spreadingZonesList =
+    data.spreadingZones && data.spreadingZones.length > 0
+      ? data.spreadingZones
+      : data.spreadingZone
+        ? [data.spreadingZone]
+        : []
+  const openPublicHealthIncident =
+    hasDisease ||
+    patientGroupsToExport.length > 0 ||
+    !!data.detectionPlace ||
+    spreadingZonesList.length > 0 ||
+    disease?.crossborderSpreadRiskIndicator === 0 ||
+    disease?.crossborderSpreadRiskIndicator === 1
+
+  if (openPublicHealthIncident) {
     xmlParts.push('    <smcdo:PublicHealthIncidentDetails>')
     xmlParts.push('      <smcdo:DiseaseHealthProblemDetails>')
-    if (disease.diseaseName) xmlParts.push(`        <smsdo:DiseaseHealthProblemName>${escapeXML(disease.diseaseName)}</smsdo:DiseaseHealthProblemName>`)
-    const pathogens = disease.pathogens ?? []
+    if (disease?.diseaseName) xmlParts.push(`        <smsdo:DiseaseHealthProblemName>${escapeXML(disease.diseaseName)}</smsdo:DiseaseHealthProblemName>`)
+    const pathogens = disease?.pathogens ?? []
     for (const p of pathogens) {
       xmlParts.push('        <smcdo:PathogenDetails>')
       if (p.pathogenKindName) xmlParts.push(`          <smsdo:PathogenKindName>${escapeXML(p.pathogenKindName)}</smsdo:PathogenKindName>`)
@@ -106,7 +122,7 @@ export function exportPhaCardDataToXML(data: CardData): string {
       const d = disease.lastCaseDate.trim().slice(0, 10)
       if (d) xmlParts.push(`      <csdo:EndDate>${escapeXML(d)}</csdo:EndDate>`)
     }
-    for (const g of patientGroups) {
+    for (const g of patientGroupsToExport) {
       xmlParts.push('      <smcdo:PatientGroupDetails>')
       if (g.personQuantity != null && g.personQuantity !== '') xmlParts.push(`        <smsdo:PersonQuantity>${escapeXML(String(g.personQuantity))}</smsdo:PersonQuantity>`)
       if (g.ageGroupCode) xmlParts.push(`        <smsdo:AgeGroupCode>${escapeXML(g.ageGroupCode)}</smsdo:AgeGroupCode>`)
@@ -121,10 +137,7 @@ export function exportPhaCardDataToXML(data: CardData): string {
       const boolVal = disease.crossborderSpreadRiskIndicator === 1 ? 'true' : 'false'
       xmlParts.push(`      <smsdo:CrossborderSpreadRiskIndicator>${boolVal}</smsdo:CrossborderSpreadRiskIndicator>`)
     }
-    const zones = (data.spreadingZones && data.spreadingZones.length > 0)
-      ? data.spreadingZones
-      : (data.spreadingZone ? [data.spreadingZone] : [])
-    for (const zone of zones) {
+    for (const zone of spreadingZonesList) {
       exportSpreadingZone(xmlParts, zone, '      ')
     }
     xmlParts.push('    </smcdo:PublicHealthIncidentDetails>')
@@ -132,10 +145,15 @@ export function exportPhaCardDataToXML(data: CardData): string {
 
   // smsdo:MeasureCode и smsdo:MeasureName — прямые потомки PublicHealthAlertDetails (сначала все коды, затем все наименования)
   const measureList = data.measures?.measures ?? []
-  const measureCodes = measureList.filter((m) => m.measureCode?.trim()).map((m) => m.measureCode!.trim())
   const measureNames = measureList.filter((m) => m.measureName?.trim()).map((m) => m.measureName!.trim())
-  for (const code of measureCodes) {
-    xmlParts.push(`    <smsdo:MeasureCode>${escapeXML(code)}</smsdo:MeasureCode>`)
+  /** Справочник санитарных мер для PHA (см. вкладку «Санитарные меры»). */
+  const PHA_MEASURE_CODE_LIST_ID = '1067'
+  for (const m of measureList.filter((x) => x.measureCode?.trim())) {
+    const code = m.measureCode!.trim()
+    const listId = (m.measureCodeListId?.trim() || PHA_MEASURE_CODE_LIST_ID)
+    xmlParts.push(
+      `    <smsdo:MeasureCode codeListId="${escapeXML(listId)}">${escapeXML(code)}</smsdo:MeasureCode>`
+    )
   }
   for (const name of measureNames) {
     xmlParts.push(`    <smsdo:MeasureName>${escapeXML(name)}</smsdo:MeasureName>`)

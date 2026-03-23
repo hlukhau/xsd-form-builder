@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
-import { Tabs, Switch, Button, Space, message, Modal, Spin, Collapse } from 'antd'
+import { Tabs, Switch, Button, Space, message, Modal, Spin, Collapse, Input } from 'antd'
 import { EditOutlined, EyeOutlined, DownloadOutlined, PlusOutlined, DeleteOutlined } from '@ant-design/icons'
 import type { CardData, StatusHistoryItem } from '@/types/card'
 import { CardHeader, CardActions } from '@/cards/shared'
@@ -26,12 +26,14 @@ import {
 import { exportPhaCardDataToXML } from '@/cards/pha/phaXmlExporter'
 import { parsePhaXmlToCardData } from '@/cards/pha/phaXmlParser'
 import {
+  validatePhaOutgoingCard,
   validatePhaOutgoingCardFull,
   collectPhaFormatValidationErrors,
   type ValidationResult,
 } from '@/cards/pha/phaValidation'
 import { compareCardData, getPhaCardDataReview } from '@/utils/cardDataComparator'
 import { getEmptyTagsWarnings } from '@/utils/xmlExporter'
+import { getPhaEmptyTagsWarnings } from '@/cards/pha/phaPatientGroupXml'
 import { fetchRightsByGuid, fetchRightsByGuidRaw, checkAccessRight, type RightsJson } from '@/utils/referenceDataApi'
 import {
   incomingPhaStatusButton,
@@ -161,6 +163,8 @@ const PhaCard: React.FC<PhaCardProps> = ({
   const [comparisonModalVisible, setComparisonModalVisible] = useState(false)
   const [pendingSavePayload, setPendingSavePayload] = useState<{ xmlBody: string; metadata: ReturnType<typeof buildPhaSaveMetadataFromCardData> } | null>(null)
   const [formatValidationErrors, setFormatValidationErrors] = useState<string[]>([])
+  /** Логические проверки / обязательные поля — в модалке «Проверка перед сохранением», как в DPA для XSD. */
+  const [logicalValidationErrors, setLogicalValidationErrors] = useState<string[]>([])
   const [validationResult, setValidationResult] = useState<ValidationResult | null>(null)
   const [validationModalVisible, setValidationModalVisible] = useState(false)
   const [baselineXml, setBaselineXml] = useState<string | null>(originalXML ?? null)
@@ -173,6 +177,8 @@ const PhaCard: React.FC<PhaCardProps> = ({
   const [rightsDebugLoading, setRightsDebugLoading] = useState(false)
   const [rightsDebugError, setRightsDebugError] = useState<string | null>(null)
   const [rightsDebugRawText, setRightsDebugRawText] = useState<string | null>(null)
+  const [rightsDebugDraft, setRightsDebugDraft] = useState('')
+  const [rightsOverride, setRightsOverride] = useState<RightsJson | null>(null)
   /** Право publicHealthIn:status (входящие) / publicHealthOut:status (исходящие). */
   const [hasPhaStatusRight, setHasPhaStatusRight] = useState(false)
   /** Право publicHealthOut:send — «Направление сведений» для исходящих. */
@@ -196,6 +202,20 @@ const PhaCard: React.FC<PhaCardProps> = ({
     sourceFromData.toLowerCase().includes('исходящ') ||
     sourceFromData === '2'
   const isIncomingPha = isPhaIncomingSource(editedData.source)
+  const overrideDepid = rightsOverride?.department?.depid != null ? String(rightsOverride.department.depid) : null
+  const overrideHasByMap = (map: Record<string, unknown> | undefined | null): boolean =>
+    !!(overrideDepid && map && typeof map === 'object' && Object.prototype.hasOwnProperty.call(map, overrideDepid))
+  const effectivePhaStatusRight = rightsOverride
+    ? (isOutgoingPha
+        ? overrideHasByMap(rightsOverride.up?.publicHealthOut?.status)
+        : overrideHasByMap(rightsOverride.up?.publicHealthIn?.status))
+    : hasPhaStatusRight
+  const effectivePhaSendRight = rightsOverride
+    ? overrideHasByMap(rightsOverride.up?.publicHealthOut?.send)
+    : hasPhaSendRight
+  const effectivePhaEditRight = rightsOverride
+    ? overrideHasByMap(rightsOverride.up?.publicHealthOut?.edit)
+    : hasPhaEditRight
   const outgoingStatusId = editedData.statusId ?? data.statusId
   const canEditByStatus =
     !isOutgoingPha ||
@@ -295,10 +315,10 @@ const PhaCard: React.FC<PhaCardProps> = ({
   }, [guid, editedData.source, effectivePhaid, editedData.phaAccessibleDepIds, data.phaAccessibleDepIds, data.source])
 
   useEffect(() => {
-    if (isOutgoingPha && hasPhaEditRight && canEditByStatus) {
+    if (isOutgoingPha && effectivePhaEditRight && canEditByStatus) {
       setIsEditMode(true)
     }
-  }, [isOutgoingPha, hasPhaEditRight, canEditByStatus])
+  }, [isOutgoingPha, effectivePhaEditRight, canEditByStatus])
 
   useEffect(() => {
     if (isOutgoingPha && !canEditByStatus) {
@@ -314,15 +334,15 @@ const PhaCard: React.FC<PhaCardProps> = ({
         ? incomingPhaStatusButton(
             currentData.statusId,
             currentData.status,
-            hasPhaStatusRight,
+            effectivePhaStatusRight,
             situationEndFilled
           )
         : isPhaOutgoingSource(currentData.source)
           ? outgoingPhaStatusButton(
               currentData.statusId,
               currentData.status,
-              hasPhaStatusRight,
-              hasPhaSendRight,
+              effectivePhaStatusRight,
+              effectivePhaSendRight,
               situationEndFilled
             )
           : { config: null as const, comment: '' }
@@ -346,7 +366,7 @@ const PhaCard: React.FC<PhaCardProps> = ({
     isEditMode &&
     (effectivePhaid === '-' ||
       (isIncomingPha && canEditByStatus) ||
-      (isOutgoingPha && hasPhaEditRight && canEditByStatus))
+      (isOutgoingPha && effectivePhaEditRight && canEditByStatus))
 
   const isPhaDeletableStatus =
     (editedData.statusId ?? data.statusId) === 5 || /^новое$/i.test((editedData.status ?? data.status ?? '').trim())
@@ -354,13 +374,13 @@ const PhaCard: React.FC<PhaCardProps> = ({
   const showDeleteButton =
     isOutgoingPha &&
     isPhaDeletableStatus &&
-    hasPhaEditRight &&
+    effectivePhaEditRight &&
     effectivePhaid !== '-' &&
     !!guid
 
   const showCopyButton =
     isOutgoingPha &&
-    hasPhaEditRight &&
+    effectivePhaEditRight &&
     effectivePhaid !== '-' &&
     effectivePhaid != null &&
     !!guid &&
@@ -378,7 +398,7 @@ const PhaCard: React.FC<PhaCardProps> = ({
     effectivePhaid !== '-' &&
     (incomingDsCode === '1' || incomingDsCode === '') &&
     isIncomingProcessingStatus &&
-    hasPhaStatusRight
+    effectivePhaStatusRight
 
   const confirmCompleteIncomingProcessing = () => {
     if (!effectivePhaid || effectivePhaid === '-') return
@@ -414,13 +434,13 @@ const PhaCard: React.FC<PhaCardProps> = ({
   const incCloseHdr = phaIncomingCloseAllowed(
     currentData.statusId,
     currentData.status,
-    hasPhaStatusRight,
+    effectivePhaStatusRight,
     situationEndFilled
   )
   const outCloseHdr = phaOutgoingCloseAllowed(
     currentData.statusId,
     currentData.status,
-    hasPhaStatusRight,
+    effectivePhaStatusRight,
     situationEndFilled
   )
   const showClosePhaCardHeaderButton =
@@ -432,7 +452,7 @@ const PhaCard: React.FC<PhaCardProps> = ({
     isOutgoingPha &&
     effectivePhaid !== '-' &&
     outgoingDsCodeForClose === '2' &&
-    hasPhaSendRight &&
+    effectivePhaSendRight &&
     phaOutgoingSendOp57Allowed(currentData.statusId, currentData.status ?? '')
 
   /**
@@ -461,10 +481,11 @@ const PhaCard: React.FC<PhaCardProps> = ({
       cancelText: 'Отмена',
       onOk: async () => {
         try {
-          const [hasSend, rights] = await Promise.all([
+          const [hasSend, rightsFetched] = await Promise.all([
             checkAccessRight(guid ?? null, 'publicHealthOut:send'),
             guid?.trim() ? fetchRightsByGuid(guid.trim()) : Promise.resolve(null),
           ])
+          const rights = rightsOverride ?? rightsFetched
           const depIds = editedData.phaAccessibleDepIds ?? data.phaAccessibleDepIds
           if (!canApplyPublicHealthOutSendForCard(hasSend, rights, depIds)) {
             message.error(
@@ -478,7 +499,7 @@ const PhaCard: React.FC<PhaCardProps> = ({
         }
 
         try {
-          if (hasPhaEditRight && isOutgoingPha) {
+          if (effectivePhaEditRight && isOutgoingPha) {
             const xmlBody = exportPhaCardDataToXML(editedData)
             const metadata = buildPhaSaveMetadataFromCardData(editedData)
             await savePhaCard({
@@ -658,6 +679,7 @@ const PhaCard: React.FC<PhaCardProps> = ({
       })
       setPendingSavePayload(null)
       setComparisonModalVisible(false)
+      setLogicalValidationErrors([])
       onUpdate?.(editedData)
       setIsEditMode(false)
       setBaselineXml(xmlJustSaved)
@@ -685,10 +707,16 @@ const PhaCard: React.FC<PhaCardProps> = ({
     const isNewCard = effectivePhaid === '-'
     const canSaveToDb =
       effectivePhaid !== '-' &&
-      ((isOutgoingPha && hasPhaEditRight) || isIncomingPha)
+      ((isOutgoingPha && effectivePhaEditRight) || isIncomingPha)
 
     const formatErrors = collectPhaFormatValidationErrors(editedData)
     setFormatValidationErrors(formatErrors)
+
+    const logicalVr = validatePhaOutgoingCard(editedData)
+    const logicalFlat = logicalVr.success
+      ? []
+      : logicalVr.sections.flatMap((s) => s.remarks.map((r) => `${s.sectionName}: ${r}`))
+    setLogicalValidationErrors(logicalFlat)
 
     if (isNewCard) {
       const { filled, unfilled } = getPhaCardDataReview(editedData)
@@ -719,7 +747,10 @@ const PhaCard: React.FC<PhaCardProps> = ({
       try {
         const originalData = parsePhaXmlToCardData(xmlToCompare)
         const result = compareCardData(originalData, editedData)
-        const emptyTagsWarnings = getEmptyTagsWarnings(editedData)
+        const emptyTagsWarnings = [
+          ...getEmptyTagsWarnings(editedData),
+          ...getPhaEmptyTagsWarnings(editedData),
+        ]
         const resultWithWarnings =
           emptyTagsWarnings.length > 0
             ? { ...result, warnings: [...(result.warnings ?? []), ...emptyTagsWarnings] }
@@ -727,7 +758,10 @@ const PhaCard: React.FC<PhaCardProps> = ({
         setComparisonResult(resultWithWarnings)
         setComparisonModalVisible(true)
       } catch {
-        const emptyTagsWarnings = getEmptyTagsWarnings(editedData)
+        const emptyTagsWarnings = [
+          ...getEmptyTagsWarnings(editedData),
+          ...getPhaEmptyTagsWarnings(editedData),
+        ]
         setComparisonResult({
           isIdentical: true,
           differences: [],
@@ -740,7 +774,7 @@ const PhaCard: React.FC<PhaCardProps> = ({
       setComparisonResult({
         isIdentical: true,
         differences: [],
-        warnings: getEmptyTagsWarnings(editedData),
+        warnings: [...getEmptyTagsWarnings(editedData), ...getPhaEmptyTagsWarnings(editedData)],
         added: [],
       })
       setComparisonModalVisible(true)
@@ -769,7 +803,10 @@ const PhaCard: React.FC<PhaCardProps> = ({
     try {
       const originalData = parsePhaXmlToCardData(xmlToCompare)
       const result = compareCardData(originalData, editedData)
-      const emptyTagsWarnings = getEmptyTagsWarnings(editedData)
+      const emptyTagsWarnings = [
+        ...getEmptyTagsWarnings(editedData),
+        ...getPhaEmptyTagsWarnings(editedData),
+      ]
       const resultWithWarnings = emptyTagsWarnings.length > 0
         ? { ...result, warnings: [...(result.warnings ?? []), ...emptyTagsWarnings] }
         : result
@@ -997,6 +1034,7 @@ const PhaCard: React.FC<PhaCardProps> = ({
               fetchRightsByGuid(guid)
                 .then((data) => {
                   setRightsDebugData(data)
+                  setRightsDebugDraft(JSON.stringify(data, null, 2))
                   setRightsDebugError(null)
                   setRightsDebugRawText(null)
                 })
@@ -1059,6 +1097,7 @@ const PhaCard: React.FC<PhaCardProps> = ({
             setRightsDebugData(null)
             setRightsDebugError(null)
             setRightsDebugRawText(null)
+            setRightsDebugDraft('')
           }}
           footer={[
             <Button
@@ -1068,10 +1107,40 @@ const PhaCard: React.FC<PhaCardProps> = ({
                 setRightsDebugData(null)
                 setRightsDebugError(null)
                 setRightsDebugRawText(null)
+                setRightsDebugDraft('')
               }}
             >
               Закрыть
             </Button>,
+            rightsDebugData != null && (
+              <Button
+                key="apply"
+                onClick={() => {
+                  try {
+                    const parsed = JSON.parse(rightsDebugDraft) as RightsJson
+                    setRightsOverride(parsed)
+                    setRightsDebugData(parsed)
+                    setRightsDebugError(null)
+                    message.success('Мапа прав перезаписана из JSON.')
+                  } catch (e) {
+                    message.error(`Некорректный JSON: ${e instanceof Error ? e.message : String(e)}`)
+                  }
+                }}
+              >
+                Применить JSON
+              </Button>
+            ),
+            rightsOverride != null && (
+              <Button
+                key="resetOverride"
+                onClick={() => {
+                  setRightsOverride(null)
+                  message.success('Переопределение мапы прав сброшено.')
+                }}
+              >
+                Сбросить переопределение
+              </Button>
+            ),
             rightsDebugData != null && (
               <Button
                 key="copy"
@@ -1117,9 +1186,12 @@ const PhaCard: React.FC<PhaCardProps> = ({
               )}
             </div>
           ) : rightsDebugData != null ? (
-            <pre style={{ margin: 0, padding: 12, background: '#f5f5f5', borderRadius: 4, maxHeight: 400, overflow: 'auto', fontSize: 12 }}>
-              {JSON.stringify(rightsDebugData, null, 2)}
-            </pre>
+            <Input.TextArea
+              value={rightsDebugDraft}
+              onChange={(e) => setRightsDebugDraft(e.target.value)}
+              autoSize={{ minRows: 14, maxRows: 22 }}
+              style={{ fontFamily: 'monospace' }}
+            />
           ) : (
             <span>Нет данных</span>
           )}
@@ -1131,8 +1203,10 @@ const PhaCard: React.FC<PhaCardProps> = ({
             onClose={() => {
               setComparisonModalVisible(false)
               setPendingSavePayload(null)
+              setLogicalValidationErrors([])
             }}
             formatValidationErrors={formatValidationErrors}
+            logicalValidationErrors={logicalValidationErrors}
             onSaveToDb={pendingSavePayload ? handleSaveToDbFromModal : undefined}
             saving={saving}
           />

@@ -39,7 +39,13 @@ const SanitaryMeasuresTabEdit: React.FC<SanitaryMeasuresTabEditProps> = ({ data,
     const next = [...measures]
     const item = next[index] ?? {}
     if (field === 'measureCode') {
-      next[index] = { ...item, measureCode: value || undefined, measureName: undefined }
+      next[index] = {
+        ...item,
+        measureCode: value || undefined,
+        measureName: undefined,
+        /** SANITARYMEASURE для PHA — codeListId 1067 в XML (phaXmlExporter). */
+        measureCodeListId: value ? '1067' : undefined,
+      }
     } else {
       next[index] = { ...item, measureName: value || undefined, measureCode: undefined }
     }

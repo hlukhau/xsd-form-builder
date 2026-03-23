@@ -20,6 +20,8 @@ interface XMLComparisonModalProps {
   onClose: () => void
   /** Ошибки формата полей (XSD). Если не пусто — блок «Несоответствие данных формату» и блокировка сохранения. */
   formatValidationErrors?: string[]
+  /** Логические проверки / обязательные поля по регламенту (не XSD). PHA и др. */
+  logicalValidationErrors?: string[]
   /** Если задан, в футере показывается кнопка «Сохранить в БД» (экспорт не отдаётся, а сохраняется). */
   onSaveToDb?: () => void | Promise<void>
   saving?: boolean
@@ -30,11 +32,14 @@ const XMLComparisonModal: React.FC<XMLComparisonModalProps> = ({
   comparisonResult,
   onClose,
   formatValidationErrors = [],
+  logicalValidationErrors = [],
   onSaveToDb,
   saving = false,
 }) => {
   const isNewDoc = comparisonResult.isNewDocument === true
   const hasFormatErrors = formatValidationErrors.length > 0
+  const hasLogicalErrors = logicalValidationErrors.length > 0
+  const cannotSaveToDb = hasFormatErrors || hasLogicalErrors
   const footer = onSaveToDb ? (
     <>
       <Button onClick={onClose}>Закрыть</Button>
@@ -43,7 +48,7 @@ const XMLComparisonModal: React.FC<XMLComparisonModalProps> = ({
         icon={<SaveOutlined />}
         onClick={onSaveToDb}
         loading={saving}
-        disabled={hasFormatErrors}
+        disabled={cannotSaveToDb}
       >
         Сохранить в БД
       </Button>
@@ -69,6 +74,34 @@ const XMLComparisonModal: React.FC<XMLComparisonModalProps> = ({
               <List
                 size="small"
                 dataSource={formatValidationErrors}
+                renderItem={(item) => (
+                  <List.Item>
+                    <Text type="danger">
+                      <CloseCircleOutlined /> {item}
+                    </Text>
+                  </List.Item>
+                )}
+              />
+            </>
+          }
+          type="error"
+          icon={<CloseCircleOutlined />}
+          showIcon
+          style={{ marginBottom: 16 }}
+        />
+      )}
+
+      {hasLogicalErrors && (
+        <Alert
+          message="Обязательные поля и логические проверки"
+          description={
+            <>
+              <Paragraph type="danger" style={{ marginBottom: 8 }}>
+                Сохранение невозможно: не заполнены обязательные поля или не выполнены проверки карты. Исправьте замечания и повторите попытку.
+              </Paragraph>
+              <List
+                size="small"
+                dataSource={logicalValidationErrors}
                 renderItem={(item) => (
                   <List.Item>
                     <Text type="danger">

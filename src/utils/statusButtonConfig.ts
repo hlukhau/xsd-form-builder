@@ -41,6 +41,8 @@ const HINT_NO_STATUS_RIGHT_IN =
   'Недостаточно прав: для смены статуса входящих сведений требуется право dangerousProductIn:status.'
 const HINT_NO_STATUS_RIGHT_OUT =
   'Недостаточно прав: для смены статуса исходящих сведений (закрытие карты, отметка готовности) требуется право dangerousProductOut:status.'
+const HINT_NO_SEND_RIGHT_OUT =
+  'Недостаточно прав: для направления исходящих сведений требуется право dangerousProductOut:send.'
 
 /** Дата закрытия (csdo:EndDate) не влияет на доступность кнопки «Закрытие карты». */
 function incomingStatusButton(
@@ -234,8 +236,14 @@ function outgoingStatusButton(
     }
     if (hasRegionalOrRepublicanResolution && !hasSendRight && hasStatusRight) {
       return {
-        config: { label: 'Закрытие карты', action: 'close', hint: hintClose },
-        comment: hintClose,
+        config: {
+          label: 'Направление сведений',
+          action: 'send',
+          disabled: true,
+          hint: HINT_NO_SEND_RIGHT_OUT,
+        },
+        comment: HINT_NO_SEND_RIGHT_OUT,
+        closeConfig: { label: 'Закрытие карты', action: 'close', hint: hintClose },
       }
     }
     if (hasStatusRight && !hasResolutionOfUserLevel) {
@@ -265,8 +273,14 @@ function outgoingStatusButton(
         }
       }
       return {
-        config: { label: 'Закрытие карты', action: 'close', hint: hintClose },
-        comment: hintClose,
+        config: {
+          label: 'Направление сведений',
+          action: 'send',
+          disabled: true,
+          hint: HINT_NO_SEND_RIGHT_OUT,
+        },
+        comment: HINT_NO_SEND_RIGHT_OUT,
+        closeConfig: { label: 'Закрытие карты', action: 'close', hint: hintClose },
       }
     }
     if (!hasResolution) {
@@ -419,8 +433,14 @@ function outgoingStatusButton(
     }
     if (hasRegionalOrRepublicanResolution && !hasSendRight && hasStatusRight) {
       return {
-        config: { label: 'Закрытие карты', action: 'close', hint: hintClose },
-        comment: hintClose,
+        config: {
+          label: 'Направление сведений',
+          action: 'send',
+          disabled: true,
+          hint: HINT_NO_SEND_RIGHT_OUT,
+        },
+        comment: HINT_NO_SEND_RIGHT_OUT,
+        closeConfig: { label: 'Закрытие карты', action: 'close', hint: hintClose },
       }
     }
     if (hasStatusRight && !hasResolutionOfUserLevel) {
@@ -450,8 +470,14 @@ function outgoingStatusButton(
         }
       }
       return {
-        config: { label: 'Закрытие карты', action: 'close', hint: hintClose },
-        comment: hintClose,
+        config: {
+          label: 'Направление сведений',
+          action: 'send',
+          disabled: true,
+          hint: HINT_NO_SEND_RIGHT_OUT,
+        },
+        comment: HINT_NO_SEND_RIGHT_OUT,
+        closeConfig: { label: 'Закрытие карты', action: 'close', hint: hintClose },
       }
     }
     if (!hasResolution) {

@@ -94,7 +94,7 @@ const PatientGroupTabEdit: React.FC<PatientGroupTabEditProps> = ({ data, onChang
               render: (val: string, __, index) => (
                 <Select
                   size="small"
-                  placeholder="Справочник AGEGR"
+                  placeholder="Выберите возрастную группу"
                   allowClear
                   showSearch
                   optionFilterProp="label"
@@ -114,7 +114,7 @@ const PatientGroupTabEdit: React.FC<PatientGroupTabEditProps> = ({ data, onChang
               render: (val: string, __, index) => (
                 <Select
                   size="small"
-                  placeholder="Справочник DISEASEOUTCOME"
+                  placeholder="Выберите исход болезни"
                   allowClear
                   showSearch
                   optionFilterProp="label"
