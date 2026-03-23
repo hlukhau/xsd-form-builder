@@ -88,7 +88,7 @@ const ManufacturerDetailsEdit: React.FC<ManufacturerDetailsEditProps> = ({
       supplyChainPartyKindCode: effectiveKindCode,
       businessEntityName: data.businessEntityName,
       shortName: data.shortName,
-      organizationalForm: data.organizationalForm,
+      organizationalForm: isLegalFormFromRef ? undefined : data.organizationalForm,
       businessEntityTypeCode: isLegalFormFromRef ? data.businessEntityTypeCode : undefined,
       subjectIdentifier: data.subjectIdentifier,
       identificationMethod: data.identificationMethod,
@@ -122,12 +122,12 @@ const ManufacturerDetailsEdit: React.FC<ManufacturerDetailsEditProps> = ({
       })
       return
     }
-    const name = getLegalFormNameByCode(code)
     onChange({
       ...data,
       businessEntityTypeCode: code,
       businessEntityTypeCodeListId: LEGAL_FORM_CODE_LIST_ID,
-      organizationalForm: name ?? data.organizationalForm ?? '',
+      /** При выборе из справочника LEGALFORM в XML только csdo:BusinessEntityTypeCode; свободный текст не храним */
+      organizationalForm: undefined,
     })
   }
 
@@ -137,6 +137,19 @@ const ManufacturerDetailsEdit: React.FC<ManufacturerDetailsEditProps> = ({
       const code = allValues.businessEntityTypeCode
       handleLegalFormSelect(code || null)
       return
+    }
+    if (changedValues?.organizationalForm !== undefined) {
+      const manual = String(changedValues.organizationalForm ?? '').trim()
+      if (manual) {
+        onChange({
+          ...data,
+          ...allValues,
+          organizationalForm: allValues.organizationalForm,
+          businessEntityTypeCode: undefined,
+          businessEntityTypeCodeListId: undefined,
+        })
+        return
+      }
     }
     onChange({
       ...data,

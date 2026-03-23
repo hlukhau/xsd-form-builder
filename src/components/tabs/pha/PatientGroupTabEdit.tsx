@@ -1,7 +1,7 @@
 import { Input, Select, Button, Table } from 'antd'
 import { PlusOutlined, DeleteOutlined } from '@ant-design/icons'
 import type { CardData, PhaPatientGroupItem } from '@/types/card'
-import { getMaxLength } from '@/constants/xsdFieldConstraints'
+import { getMaxLength, getFormatHint } from '@/constants/xsdFieldConstraints'
 import { useAgeGroupOptions } from '@/hooks/shared/useAgeGroupOptions'
 import { useDiseaseOutcomeOptions } from '@/hooks/shared/useDiseaseOutcomeOptions'
 
@@ -63,8 +63,9 @@ const PatientGroupTabEdit: React.FC<PatientGroupTabEditProps> = ({ data, onChang
                   placeholder="Количество"
                   value={val ?? ''}
                   onChange={(e) => updateGroup(index, 'personQuantity', e.target.value)}
-                  maxLength={getMaxLength('personQuantity') ?? 10}
+                  maxLength={getMaxLength('personQuantity') ?? 4}
                   showCount
+                  title={getFormatHint('personQuantity')}
                 />
               ),
             },

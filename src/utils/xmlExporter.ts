@@ -318,18 +318,55 @@ function exportProductDetails(xmlParts: string[], details: ProductDetails, inden
   }
 }
 
+/** Справочник LEGALFORM (организационно-правовая форма), codeListId в XML. */
+const LEGAL_FORM_CODE_LIST_ID = '2049'
+
+/**
+ * ОПФ: либо csdo:BusinessEntityTypeCode с codeListId=2049 (выбор из справочника), либо csdo:BusinessEntityTypeName (свободный текст) — не оба.
+ */
+function appendBusinessEntityLegalFormToXml(
+  xmlParts: string[],
+  indent: string,
+  params: {
+    businessEntityTypeCode?: string
+    businessEntityTypeCodeListId?: string
+    /** SupplyChainPartyDetails */
+    organizationalForm?: string
+    /** BusinessEntityDetails */
+    businessEntityTypeName?: string
+  }
+): void {
+  const code = params.businessEntityTypeCode?.trim()
+  const listId = params.businessEntityTypeCodeListId?.trim()
+  const freeText = (params.organizationalForm?.trim() || params.businessEntityTypeName?.trim()) || ''
+  const fromLegalFormDictionary = !!(code && listId === LEGAL_FORM_CODE_LIST_ID)
+  if (fromLegalFormDictionary) {
+    xmlParts.push(
+      `${indent}<csdo:BusinessEntityTypeCode codeListId="${escapeXML(LEGAL_FORM_CODE_LIST_ID)}">${escapeXML(code)}</csdo:BusinessEntityTypeCode>`
+    )
+    return
+  }
+  if (freeText) {
+    xmlParts.push(`${indent}<csdo:BusinessEntityTypeName>${escapeXML(freeText)}</csdo:BusinessEntityTypeName>`)
+    return
+  }
+  if (code) {
+    const codeListIdAttr = listId ? ` codeListId="${escapeXML(listId)}"` : ''
+    xmlParts.push(`${indent}<csdo:BusinessEntityTypeCode${codeListIdAttr}>${escapeXML(code)}</csdo:BusinessEntityTypeCode>`)
+  }
+}
+
 function exportSupplyChainParty(xmlParts: string[], party: SupplyChainPartyDetails, kindCode: string, indent: string) {
   xmlParts.push(`${indent}<ccdo:SupplyChainPartyDetails>`)
   xmlParts.push(`${indent}  <csdo:SupplyChainPartyKindCode>${escapeXML(kindCode)}</csdo:SupplyChainPartyKindCode>`)
   if (party.country) xmlParts.push(`${indent}  <csdo:UnifiedCountryCode codeListId="2021">${escapeXML(party.country)}</csdo:UnifiedCountryCode>`)
   if (party.businessEntityName) xmlParts.push(`${indent}  <csdo:BusinessEntityName>${escapeXML(party.businessEntityName)}</csdo:BusinessEntityName>`)
   if (party.shortName) xmlParts.push(`${indent}  <csdo:BusinessEntityBriefName>${escapeXML(party.shortName)}</csdo:BusinessEntityBriefName>`)
-  // Организационно-правовая форма: при наличии кода и codeListId — вывод с атрибутом; наименование из справочника или свободный текст
-  if (party.businessEntityTypeCode) {
-    const codeListIdAttr = party.businessEntityTypeCodeListId ? ` codeListId="${escapeXML(party.businessEntityTypeCodeListId)}"` : ''
-    xmlParts.push(`${indent}  <csdo:BusinessEntityTypeCode${codeListIdAttr}>${escapeXML(party.businessEntityTypeCode)}</csdo:BusinessEntityTypeCode>`)
-  }
-  if (party.organizationalForm) xmlParts.push(`${indent}  <csdo:BusinessEntityTypeName>${escapeXML(party.organizationalForm)}</csdo:BusinessEntityTypeName>`)
+  appendBusinessEntityLegalFormToXml(xmlParts, `${indent}  `, {
+    businessEntityTypeCode: party.businessEntityTypeCode,
+    businessEntityTypeCodeListId: party.businessEntityTypeCodeListId,
+    organizationalForm: party.organizationalForm,
+  })
   if (party.subjectIdentifier) {
     // Добавляем kindId как атрибут, если есть identificationMethod
     if (party.identificationMethod) {
@@ -668,7 +705,9 @@ function hasOrganizationContent(org: BusinessEntityDetails | undefined): boolean
   if (org.country?.trim()) return true
   if (org.businessEntityName?.trim()) return true
   if (org.businessEntityBriefName?.trim()) return true
+  if (org.businessEntityTypeCode?.trim()) return true
   if (org.businessEntityTypeName?.trim()) return true
+  if ((org as unknown as SupplyChainPartyDetails).organizationalForm?.trim()) return true
   if (org.businessEntityId?.trim()) return true
   if (org.taxpayerId?.trim()) return true
   if ((org.addresses ?? []).some(hasAddressContent)) return true
@@ -693,7 +732,12 @@ export function exportDetectionPlace(
     }
     if (place.organization.businessEntityName) xmlParts.push(`${indent}        <csdo:BusinessEntityName>${escapeXML(place.organization.businessEntityName)}</csdo:BusinessEntityName>`)
     if (place.organization.businessEntityBriefName) xmlParts.push(`${indent}        <csdo:BusinessEntityBriefName>${escapeXML(place.organization.businessEntityBriefName)}</csdo:BusinessEntityBriefName>`)
-    if (place.organization.businessEntityTypeName) xmlParts.push(`${indent}        <csdo:BusinessEntityTypeName>${escapeXML(place.organization.businessEntityTypeName)}</csdo:BusinessEntityTypeName>`)
+    appendBusinessEntityLegalFormToXml(xmlParts, `${indent}        `, {
+      businessEntityTypeCode: place.organization.businessEntityTypeCode,
+      businessEntityTypeCodeListId: place.organization.businessEntityTypeCodeListId,
+      organizationalForm: (place.organization as unknown as SupplyChainPartyDetails).organizationalForm,
+      businessEntityTypeName: place.organization.businessEntityTypeName,
+    })
     if (place.organization.businessEntityId) {
       // Добавляем kindId как атрибут, если есть identificationMethod
       if (place.organization.identificationMethod) {
@@ -862,11 +906,11 @@ function exportMeasureImplementation(xmlParts: string[], impl: MeasureImplementa
       if (entity.country) xmlParts.push(`${indent}    <csdo:UnifiedCountryCode>${escapeXML(entity.country)}</csdo:UnifiedCountryCode>`)
       if (entity.businessEntityName) xmlParts.push(`${indent}    <csdo:BusinessEntityName>${escapeXML(entity.businessEntityName)}</csdo:BusinessEntityName>`)
       if (entity.businessEntityBriefName) xmlParts.push(`${indent}    <csdo:BusinessEntityBriefName>${escapeXML(entity.businessEntityBriefName)}</csdo:BusinessEntityBriefName>`)
-      if (entity.businessEntityTypeCode) {
-        const codeListIdAttr = entity.businessEntityTypeCodeListId ? ` codeListId="${escapeXML(entity.businessEntityTypeCodeListId)}"` : ''
-        xmlParts.push(`${indent}    <csdo:BusinessEntityTypeCode${codeListIdAttr}>${escapeXML(entity.businessEntityTypeCode)}</csdo:BusinessEntityTypeCode>`)
-      }
-      if (entity.businessEntityTypeName) xmlParts.push(`${indent}    <csdo:BusinessEntityTypeName>${escapeXML(entity.businessEntityTypeName)}</csdo:BusinessEntityTypeName>`)
+      appendBusinessEntityLegalFormToXml(xmlParts, `${indent}    `, {
+        businessEntityTypeCode: entity.businessEntityTypeCode,
+        businessEntityTypeCodeListId: entity.businessEntityTypeCodeListId,
+        businessEntityTypeName: entity.businessEntityTypeName,
+      })
       if (entity.businessEntityId) {
         const kindIdAttr = entity.identificationMethod ? ` kindId="${escapeXML(entity.identificationMethod)}"` : ''
         xmlParts.push(`${indent}    <csdo:BusinessEntityId${kindIdAttr}>${escapeXML(entity.businessEntityId)}</csdo:BusinessEntityId>`)

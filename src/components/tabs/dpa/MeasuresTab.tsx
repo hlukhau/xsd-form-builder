@@ -14,6 +14,7 @@ import { useSanitaryMeasureOptions } from '@/hooks/shared/useSanitaryMeasureOpti
 import { useSanitaryMeasureObjKindOptions } from '@/hooks/shared/useSanitaryMeasureObjKindOptions'
 import { useIdentityDocKindOptions } from '@/hooks/shared/useIdentityDocKindOptions'
 import { useCountryOptions } from '@/hooks/shared/useCountryOptions'
+import { useLegalFormOptions } from '@/hooks/shared/useLegalFormOptions'
 import type {
   MeasuresData,
   SanitaryMeasure,
@@ -395,9 +396,15 @@ const SubjectDetailsUnifiedView: React.FC<{ subject: SubjectDetails }> = ({ subj
 
   const be = subject.businessEntity
   const country = subject.country ?? be?.country
+  const { getNameByCode: getLegalFormNameByCode } = useLegalFormOptions(country)
   const subjectName = subject.subjectName ?? be?.businessEntityName
   const briefName = be?.businessEntityBriefName
-  const orgForm = be?.businessEntityTypeName || (be?.businessEntityTypeCode ? `Код: ${be.businessEntityTypeCode}` : undefined)
+  const isOpfFromLegalFormRef = !!(be?.businessEntityTypeCode && be?.businessEntityTypeCodeListId === '2049')
+  const orgForm = isOpfFromLegalFormRef && be?.businessEntityTypeCode
+    ? (getLegalFormNameByCode(be.businessEntityTypeCode)
+        ? `${be.businessEntityTypeCode} — ${getLegalFormNameByCode(be.businessEntityTypeCode)}`
+        : `Код: ${be.businessEntityTypeCode}`)
+    : be?.businessEntityTypeName
   const subjectId = be?.businessEntityId
   const identificationMethod = be?.identificationMethod
   const customsNumber = be?.customsNumber

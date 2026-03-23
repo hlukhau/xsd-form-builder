@@ -903,7 +903,10 @@ function parseSupplyChainPartyDetails(supplyChainEl: Element): SupplyChainPartyD
   if (businessEntityTypeCodeEl) {
     businessEntityTypeCodeListId = businessEntityTypeCodeEl.getAttribute('codeListId') ?? businessEntityTypeCodeEl.getAttributeNS(null, 'codeListId') ?? undefined
   }
-  const organizationalForm = getTextContent(supplyChainEl, 'BusinessEntityTypeName') || undefined
+  let organizationalForm = getTextContent(supplyChainEl, 'BusinessEntityTypeName') || undefined
+  if (businessEntityTypeCode && businessEntityTypeCodeListId === '2049') {
+    organizationalForm = undefined
+  }
   const subjectIdentifier = getTextContent(supplyChainEl, 'BusinessEntityId') || undefined
   
   // Метод идентификации может быть в kindId атрибуте BusinessEntityId
@@ -2307,7 +2310,21 @@ function parseOrganizationDetails(placeElement: Element): BusinessEntityDetails 
   const country = getTextContent(orgElement, 'UnifiedCountryCode') || undefined
   const businessEntityName = getTextContent(orgElement, 'BusinessEntityName') || undefined
   const businessEntityBriefName = getTextContent(orgElement, 'BusinessEntityBriefName') || undefined
-  const businessEntityTypeName = getTextContent(orgElement, 'BusinessEntityTypeName') || undefined
+  let businessEntityTypeCode: string | undefined
+  let businessEntityTypeCodeListId: string | undefined
+  const businessEntityTypeCodeElOrg = Array.from(orgElement.getElementsByTagName('*')).find((el) => {
+    const localName = (el.localName || el.tagName.split(':').pop() || '').toLowerCase()
+    return localName === 'businessentitytypecode'
+  })
+  if (businessEntityTypeCodeElOrg) {
+    businessEntityTypeCode = businessEntityTypeCodeElOrg.textContent?.trim() || undefined
+    businessEntityTypeCodeListId =
+      businessEntityTypeCodeElOrg.getAttribute('codeListId') ?? businessEntityTypeCodeElOrg.getAttributeNS(null, 'codeListId') ?? undefined
+  }
+  let businessEntityTypeName = getTextContent(orgElement, 'BusinessEntityTypeName') || undefined
+  if (businessEntityTypeCode && businessEntityTypeCodeListId === '2049') {
+    businessEntityTypeName = undefined
+  }
   const customsNumber = getTextContent(orgElement, 'UniqueCustomsNumberId') || getTextContent(orgElement, 'CustomsNumber') || undefined
   const taxpayerId = getTextContent(orgElement, 'TaxpayerId') || undefined
   
@@ -2395,6 +2412,8 @@ function parseOrganizationDetails(placeElement: Element): BusinessEntityDetails 
     country,
     businessEntityName,
     businessEntityBriefName,
+    businessEntityTypeCode,
+    businessEntityTypeCodeListId,
     businessEntityTypeName,
     businessEntityId,
     identificationMethod,
@@ -3014,7 +3033,10 @@ function parseSubjectDetailsDirect(subjectElement: Element): BusinessEntityDetai
     businessEntityTypeCode = businessEntityTypeCodeEl.textContent?.trim() || undefined
     businessEntityTypeCodeListId = businessEntityTypeCodeEl.getAttribute('codeListId') || undefined
   }
-  const businessEntityTypeName = getTextContent(subjectElement, 'BusinessEntityTypeName') || undefined
+  let businessEntityTypeName = getTextContent(subjectElement, 'BusinessEntityTypeName') || undefined
+  if (businessEntityTypeCode && businessEntityTypeCodeListId === '2049') {
+    businessEntityTypeName = undefined
+  }
   const { businessEntityId, identificationMethod } = parseBusinessEntityIdAndKindId(subjectElement)
   const customsNumber = getTextContent(subjectElement, 'UniqueCustomsNumberId') || getTextContent(subjectElement, 'CustomsNumber') || undefined
   const taxpayerId = getTextContent(subjectElement, 'TaxpayerId') || undefined

@@ -127,8 +127,39 @@ export const XSD_FIELD_CONSTRAINTS: Record<string, FieldConstraint> = {
     messagePattern: 'Введите число: до 18 цифр целой части и до 6 после точки (например 0.0042). Разделитель — только точка.',
   },
 
+  // PHA (EEC_R_SM_SS_08, smsdo/csdo)
+  /** smsdo:IncidentId → csdo:Id40Type */
+  phaIncidentId: {
+    maxLength: 40,
+    messageMaxLength: 'Не более 40 символов (csdo:Id40Type, smsdo:IncidentId)',
+    formatHint: 'Не более 40 символов (идентификатор инцидента)',
+  },
+  /** smsdo:DiseaseHealthProblemName → csdo:Name250Type */
+  phaDiseaseHealthProblemName: { maxLength: 250, messageMaxLength: 'Не более 250 символов (csdo:Name250Type)' },
+  /** smsdo:PathogenKindName → csdo:Name40Type */
+  pathogenKindName: { maxLength: 40, messageMaxLength: 'Не более 40 символов (csdo:Name40Type)' },
+  /** smsdo:PathogenName → csdo:Name120Type */
+  pathogenName: {
+    maxLength: 120,
+    messageMaxLength: 'Не более 120 символов (csdo:Name120Type)',
+    formatHint: 'Не более 120 символов (smsdo:PathogenName)',
+  },
+  /** smsdo:MeasureName (произвольный текст меры PHA) → csdo:Name300Type */
+  phaMeasureName: {
+    maxLength: 300,
+    messageMaxLength: 'Не более 300 символов (csdo:Name300Type, smsdo:MeasureName)',
+    formatHint: 'Не более 300 символов (smsdo:MeasureName)',
+  },
+
   // PHA: группа пациентов (smcdo:PatientGroupDetails)
-  personQuantity: { maxLength: 10, messageMaxLength: 'Не более 10 символов (smsdo:PersonQuantity, Quantity4Type)' },
+  /** smsdo:PersonQuantity → csdo:Quantity4Type (не более 4 значащих цифр) */
+  personQuantity: {
+    maxLength: 4,
+    pattern: /^$|^[0-9]{1,4}$/,
+    messagePattern: 'Укажите целое число от 1 до 9999 (не более 4 цифр, csdo:Quantity4Type)',
+    formatHint: 'Целое число 1–9999 (не более 4 цифр)',
+    messageMaxLength: 'Не более 4 цифр (csdo:Quantity4Type)',
+  },
   ageGroupCode: { maxLength: 10, messageMaxLength: 'Не более 10 символов (smsdo:AgeGroupCode, csdo:Code10Type)' },
   diseaseOutcomeCode: { maxLength: 10, messageMaxLength: 'Не более 10 символов (smsdo:DiseaseOutcomeCode, csdo:Code10Type)' },
 

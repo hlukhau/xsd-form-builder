@@ -7,6 +7,7 @@ import { useCountryOptions } from '@/hooks/shared/useCountryOptions'
 import { useIncidentAlertKindOptions } from '@/hooks/shared/useIncidentAlertKindOptions'
 import { useAuthorityOptions } from '@/hooks/shared/useAuthorityOptions'
 import { DATE_DISPLAY_FORMAT } from '@/constants/dateFormat'
+import { getMaxLength } from '@/constants/xsdFieldConstraints'
 import { fetchRightsByGuid, getPublicHealthOutEditDepIdsFromRights } from '@/utils/referenceDataApi'
 
 /** Версия 1 — виды 1 и 2; иначе — 3, 4, 5, 6 (справочник incidentalertkind). */
@@ -198,7 +199,13 @@ const NotificationTabEdit: React.FC<NotificationTabEditProps> = ({
         />
       </Form.Item>
       <Form.Item label="Регистрационный номер" name="registrationNumber">
-        <Input placeholder="Регистрационный номер" readOnly={!!n.registrationNumber} />
+        <Input
+          placeholder="Регистрационный номер"
+          readOnly={!!n.registrationNumber}
+          maxLength={getMaxLength('phaIncidentId')}
+          showCount={!n.registrationNumber}
+          title="csdo:Id40Type (smsdo:IncidentId), не более 40 символов"
+        />
       </Form.Item>
       <Form.Item label="Вид" name="type">
         <Select
@@ -284,6 +291,9 @@ const NotificationTabEdit: React.FC<NotificationTabEditProps> = ({
                     value={val}
                     onChange={(e) => updateCause(index, 'registrationNumber', e.target.value)}
                     style={{ width: '100%' }}
+                    maxLength={getMaxLength('phaIncidentId')}
+                    showCount
+                    title="csdo:Id40Type (smsdo:IncidentId), не более 40 символов"
                   />
                 ),
               },

@@ -3,6 +3,7 @@ import { PlusOutlined, DeleteOutlined } from '@ant-design/icons'
 import type { CardData } from '@/types/card'
 import type { SanitaryMeasure } from '@/types/card'
 import { useSanitaryMeasureOptions } from '@/hooks/shared/useSanitaryMeasureOptions'
+import { getMaxLength, getFormatHint } from '@/constants/xsdFieldConstraints'
 
 interface SanitaryMeasuresTabEditProps {
   data: CardData
@@ -85,6 +86,9 @@ const SanitaryMeasuresTabEdit: React.FC<SanitaryMeasuresTabEditProps> = ({ data,
             value={record.measureName ?? ''}
             onChange={(e) => update(index, 'measureName', e.target.value)}
             allowClear
+            maxLength={getMaxLength('phaMeasureName')}
+            showCount
+            title={getFormatHint('phaMeasureName') ?? 'csdo:Name300Type (smsdo:MeasureName)'}
           />
         )
       },

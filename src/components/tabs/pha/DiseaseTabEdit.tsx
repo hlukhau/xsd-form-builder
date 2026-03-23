@@ -3,6 +3,7 @@ import { PlusOutlined, DeleteOutlined } from '@ant-design/icons'
 import dayjs from 'dayjs'
 import type { CardData, PhaDiseaseDetails, PhaPathogenDetails } from '@/types/card'
 import { DATE_DISPLAY_FORMAT } from '@/constants/dateFormat'
+import { getMaxLength, getFormatHint } from '@/constants/xsdFieldConstraints'
 import { useDiseaseHealthProblemOptions } from '@/hooks/shared/useDiseaseHealthProblemOptions'
 import { usePathogenKindOptions } from '@/hooks/shared/usePathogenKindOptions'
 
@@ -158,6 +159,9 @@ const DiseaseTabEdit: React.FC<DiseaseTabEditProps> = ({ data, onChange }) => {
                     placeholder="Наименование"
                     value={val ?? ''}
                     onChange={(e) => updatePathogen(index, 'pathogenName', e.target.value)}
+                    maxLength={getMaxLength('pathogenName')}
+                    showCount
+                    title={getFormatHint('pathogenName') ?? 'csdo:Name120Type (smsdo:PathogenName)'}
                   />
                 ),
               },

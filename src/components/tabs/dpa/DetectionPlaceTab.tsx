@@ -1,5 +1,5 @@
 import { Descriptions, Collapse } from 'antd'
-import type { DetectionPlaceData, BusinessEntityDetails } from '@/types/card'
+import type { DetectionPlaceData, BusinessEntityDetails, SupplyChainPartyDetails } from '@/types/card'
 import {
   getAddressListFromOrganization,
   formatAddressList,
@@ -9,6 +9,7 @@ import {
 } from '@/utils/addressFormatUtils'
 import { useIdentificationMethodOptions } from '@/hooks/shared/useIdentificationMethodOptions'
 import { useCountryOptions } from '@/hooks/shared/useCountryOptions'
+import { useLegalFormOptions } from '@/hooks/shared/useLegalFormOptions'
 
 interface DetectionPlaceTabProps {
   data: DetectionPlaceData
@@ -19,7 +20,17 @@ interface DetectionPlaceTabProps {
 const DetectionPlaceTab: React.FC<DetectionPlaceTabProps> = ({ data, label = 'место обнаружения' }) => {
   const { getDisplayLabel: getIdentificationMethodDisplayLabel } = useIdentificationMethodOptions(data?.organization?.country ?? '')
   const { getDisplayLabel: getCountryDisplayLabel } = useCountryOptions()
+  const { getNameByCode: getLegalFormNameByCode } = useLegalFormOptions(data?.organization?.country)
   const getCountryNameForAddress = (code?: string) => getCountryDisplayLabel(code) || getDefaultCountryName(code) || '-'
+
+  const formatOrgLegalForm = (org: BusinessEntityDetails) => {
+    const isFromRef = !!(org.businessEntityTypeCode && org.businessEntityTypeCodeListId === '2049')
+    if (isFromRef && org.businessEntityTypeCode) {
+      const n = getLegalFormNameByCode(org.businessEntityTypeCode)
+      return n ? `${org.businessEntityTypeCode} — ${n}` : org.businessEntityTypeCode
+    }
+    return org.businessEntityTypeName || (org as unknown as SupplyChainPartyDetails).organizationalForm
+  }
 
   const formatCheckpoint = (checkpoint?: { checkpointCode?: string; checkpointName?: string }): string => {
     if (!checkpoint) return '-'
@@ -80,7 +91,7 @@ const DetectionPlaceTab: React.FC<DetectionPlaceTabProps> = ({ data, label = 'м
                   {data.organization.businessEntityBriefName || '-'}
                 </Descriptions.Item>
                 <Descriptions.Item label="Организационно-правовая форма">
-                  {data.organization.businessEntityTypeName || '-'}
+                  {formatOrgLegalForm(data.organization) || '-'}
                 </Descriptions.Item>
                 <Descriptions.Item label="Идентификатор субъекта">
                   {data.organization.businessEntityId || '-'}

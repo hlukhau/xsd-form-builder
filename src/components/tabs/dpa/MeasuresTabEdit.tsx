@@ -8,6 +8,7 @@ import { useSanitaryMeasureOptions } from '@/hooks/shared/useSanitaryMeasureOpti
 import { useLanguageOptions } from '@/hooks/shared/useLanguageOptions'
 import { useMediaTypeOptions } from '@/hooks/shared/useMediaTypeOptions'
 import { useIdentityDocKindOptions } from '@/hooks/shared/useIdentityDocKindOptions'
+import { useLegalFormOptions } from '@/hooks/shared/useLegalFormOptions'
 import CountrySelect from '@/components/common/CountrySelect'
 import { DpaEmbeddedUnifiedAuthorityForm } from '@/components/common/DpaEmbeddedUnifiedAuthorityForm'
 import { labelWithHelp } from '@/components/common/FieldHelp'
@@ -1128,7 +1129,23 @@ const SubjectDetailsUnifiedEdit: React.FC<{
   const country = subject.country ?? be?.country
   const subjectName = subject.subjectName ?? be?.businessEntityName
   const briefName = be?.businessEntityBriefName
-  const orgForm = be?.businessEntityTypeName ?? be?.businessEntityTypeCode
+  const countryForLegalForm = normalizeCountryCode(country)
+  const { getSelectOptions: getLegalFormSelectOptions, loading: loadingLegalForms } = useLegalFormOptions(countryForLegalForm)
+  const LEGAL_FORM_CODE_LIST_ID = '2049'
+  const isLegalFormFromRef = !!(be?.businessEntityTypeCode && be?.businessEntityTypeCodeListId === LEGAL_FORM_CODE_LIST_ID)
+
+  const handleLegalFormSelect = (code: string | null) => {
+    if (!code) {
+      upd({}, { businessEntityTypeCode: undefined, businessEntityTypeCodeListId: undefined })
+      return
+    }
+    upd({}, {
+      businessEntityTypeCode: code,
+      businessEntityTypeCodeListId: LEGAL_FORM_CODE_LIST_ID,
+      businessEntityTypeName: undefined,
+    })
+  }
+
   const subjectId = be?.businessEntityId
   const identificationMethod = be?.identificationMethod
   const customsNumber = be?.customsNumber
@@ -1167,14 +1184,41 @@ const SubjectDetailsUnifiedEdit: React.FC<{
           showCount
         />
       </Form.Item>
-      <Form.Item label="Организационно-правовая форма">
-        <Input
-          value={orgForm}
-          onChange={(e) => upd({}, { businessEntityTypeName: e.target.value })}
-          maxLength={getMaxLength('organizationalForm')}
-          showCount
+      <Form.Item label="Организационно-правовая форма (справочник LEGALFORM)">
+        <Select
+          showSearch
+          allowClear
+          placeholder={countryForLegalForm ? 'Код — наименование (codeListId=2049)' : 'Сначала укажите страну'}
+          loading={loadingLegalForms}
+          value={isLegalFormFromRef ? be?.businessEntityTypeCode : undefined}
+          onChange={(v) => handleLegalFormSelect(v ?? null)}
+          options={getLegalFormSelectOptions()}
+          disabled={!countryForLegalForm}
+          filterOption={(input, option) =>
+            (option?.label ?? '').toLowerCase().includes(input.toLowerCase())
+          }
+          style={{ width: '100%' }}
         />
       </Form.Item>
+      {!isLegalFormFromRef && (
+        <Form.Item label="Организационно-правовая форма (свободный текст)">
+          <Input
+            value={be?.businessEntityTypeName ?? ''}
+            onChange={(e) =>
+              upd(
+                {},
+                {
+                  businessEntityTypeName: e.target.value || undefined,
+                  businessEntityTypeCode: undefined,
+                  businessEntityTypeCodeListId: undefined,
+                }
+              )
+            }
+            maxLength={getMaxLength('organizationalForm')}
+            showCount
+          />
+        </Form.Item>
+      )}
       <Form.Item label="Идентификатор субъекта">
         <Input
           value={subjectId}

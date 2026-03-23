@@ -499,9 +499,20 @@ function checkAddressList(errors: string[], path: string, list: AddressDetails[]
 
 function checkParty(errors: string[], path: string, party: SupplyChainPartyDetails | undefined): void {
   if (!party) return
+  if (
+    party.businessEntityTypeCodeListId === '2049' &&
+    (party.businessEntityTypeCode ?? '').trim() &&
+    (party.organizationalForm ?? '').trim()
+  ) {
+    errors.push(
+      `${path}: нельзя одновременно задавать код ОПФ из справочника (codeListId=2049) и произвольный текст организационно-правовой формы — оставьте один вариант`
+    )
+  }
   pushFormatError(errors, `${path} → Наименование`, 'businessEntityName', party.businessEntityName)
   pushFormatError(errors, `${path} → Краткое наименование`, 'shortName', party.shortName)
-  pushFormatError(errors, `${path} → ОПФ`, 'organizationalForm', party.organizationalForm)
+  if (!(party.businessEntityTypeCodeListId === '2049' && (party.businessEntityTypeCode ?? '').trim())) {
+    pushFormatError(errors, `${path} → ОПФ`, 'organizationalForm', party.organizationalForm)
+  }
   pushFormatError(errors, `${path} → Идентификатор`, 'subjectIdentifier', party.subjectIdentifier)
   pushFormatError(errors, `${path} → ИНН`, 'taxpayerId', party.taxpayerId)
   pushFormatError(errors, `${path} → Таможенный номер`, 'customsNumber', party.customsNumber)
@@ -662,5 +673,71 @@ export function collectFormatValidationErrors(data: CardData): FormatValidationE
     })
   }
 
+  pushPhaXsdFormatErrors(errors, data)
+
   return { errors }
+}
+
+/** Карта PHA (R.SM.SS.08.001): дополнительные проверки типов smsdo/csdo по XSD. */
+function isPhaCardData(data: CardData): boolean {
+  return (
+    data.electronicDocument?.documentCode === 'R.SM.SS.08.001' ||
+    data.phaDisease != null ||
+    (data.phaPatientGroups?.length ?? 0) > 0 ||
+    (data.phaCauseNotifications?.length ?? 0) > 0 ||
+    data.phaFirstDiseaseInfectiousFlag != null
+  )
+}
+
+function pushPhaXsdFormatErrors(errors: string[], data: CardData): void {
+  if (!isPhaCardData(data)) return
+
+  const notif = data.notification
+  if (notif?.registrationNumber !== undefined && notif.registrationNumber !== '') {
+    pushFormatError(errors, 'Уведомление → Регистрационный номер (smsdo:IncidentId)', 'phaIncidentId', notif.registrationNumber)
+  }
+
+  ;(data.phaCauseNotifications ?? []).forEach((c, i) => {
+    if ((c.registrationNumber ?? '').trim() !== '') {
+      pushFormatError(
+        errors,
+        `Уведомление → Причинное уведомление ${i + 1} → Рег. номер (smsdo:IncidentId)`,
+        'phaIncidentId',
+        c.registrationNumber
+      )
+    }
+  })
+
+  const d = data.phaDisease
+  if (d?.diseaseName != null && String(d.diseaseName).trim() !== '') {
+    pushFormatError(errors, 'Болезнь → Наименование (smsdo:DiseaseHealthProblemName)', 'phaDiseaseHealthProblemName', d.diseaseName)
+  }
+
+  ;(d?.pathogens ?? []).forEach((p, i) => {
+    if ((p.pathogenKindName ?? '').trim() !== '') {
+      pushFormatError(errors, `Болезнь → Возбудитель ${i + 1} → Тип (smsdo:PathogenKindName)`, 'pathogenKindName', p.pathogenKindName)
+    }
+    if ((p.pathogenName ?? '').trim() !== '') {
+      pushFormatError(errors, `Болезнь → Возбудитель ${i + 1} → Наименование (smsdo:PathogenName)`, 'pathogenName', p.pathogenName)
+    }
+  })
+
+  ;(data.phaPatientGroups ?? []).forEach((g, i) => {
+    const pq = g.personQuantity != null && g.personQuantity !== '' ? String(g.personQuantity) : undefined
+    if (pq !== undefined && pq.trim() !== '') {
+      pushFormatError(errors, `Группа пациентов ${i + 1} → Количество человек (smsdo:PersonQuantity)`, 'personQuantity', pq)
+    }
+    if ((g.ageGroupCode ?? '').trim() !== '') {
+      pushFormatError(errors, `Группа пациентов ${i + 1} → Возрастная группа`, 'ageGroupCode', g.ageGroupCode)
+    }
+    if ((g.diseaseOutcomeCode ?? '').trim() !== '') {
+      pushFormatError(errors, `Группа пациентов ${i + 1} → Исход болезни`, 'diseaseOutcomeCode', g.diseaseOutcomeCode)
+    }
+  })
+
+  ;(data.measures?.measures ?? []).forEach((m, i) => {
+    if (m.measureName != null && String(m.measureName).trim() !== '' && (m.measureCode == null || m.measureCode === '')) {
+      pushFormatError(errors, `Санитарные меры → Мера ${i + 1} → Наименование (smsdo:MeasureName)`, 'phaMeasureName', m.measureName)
+    }
+  })
 }

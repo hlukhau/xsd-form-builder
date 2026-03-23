@@ -3,7 +3,18 @@ import { Form, Input, Button, Collapse, Space, Select } from 'antd'
 import { PlusOutlined, DeleteOutlined } from '@ant-design/icons'
 import ManufacturerDetailsEdit from '../../common/ManufacturerDetailsEdit'
 import CountrySelect from '../../common/CountrySelect'
-import type { DetectionPlaceData, AddressDetails, SupplyChainPartyDetails } from '@/types/card'
+import type { DetectionPlaceData, AddressDetails, SupplyChainPartyDetails, BusinessEntityDetails } from '@/types/card'
+
+/** Редактор изготовителя ждёт SupplyChainPartyDetails.organizationalForm; из XML в OrganizationDetails приходит businessEntityTypeName. */
+function organizationToSupplyChainPartyEdit(org: DetectionPlaceData['organization'] | undefined): SupplyChainPartyDetails {
+  if (!org) return { country: '' }
+  const o = org as BusinessEntityDetails & Partial<SupplyChainPartyDetails>
+  return {
+    ...(o as SupplyChainPartyDetails),
+    country: o.country ?? '',
+    organizationalForm: o.organizationalForm ?? o.businessEntityTypeName,
+  }
+}
 import { useCountryOptions } from '@/hooks/shared/useCountryOptions'
 import { useBorderCheckpointOptions } from '@/hooks/shared/useBorderCheckpointOptions'
 import { getMaxLength, validateFieldValue, getFormatHint } from '@/constants/xsdFieldConstraints'
@@ -199,7 +210,7 @@ const DetectionPlaceTabEdit: React.FC<DetectionPlaceTabEditProps> = ({ data, onC
             label: 'Организация',
             children: (
               <ManufacturerDetailsEdit
-                data={(data.organization ?? { country: '' }) as SupplyChainPartyDetails}
+                data={organizationToSupplyChainPartyEdit(data.organization)}
                 onChange={(org) => handleFieldChange('organization', org)}
                 title=""
                 hideKindField
