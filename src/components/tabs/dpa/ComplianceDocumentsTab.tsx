@@ -401,9 +401,7 @@ const ComplianceDocumentsTab: React.FC<ComplianceDocumentsTabProps> = ({
             <Descriptions.Item label="Краткое наименование">
               {selectedDocument.authority.authorityBriefName || '-'}
             </Descriptions.Item>
-            <Descriptions.Item label="Идентификатор">
-              {selectedDocument.authority.authorityId || '-'}
-            </Descriptions.Item>
+            <Descriptions.Item label="Идентификатор">—</Descriptions.Item>
           </Descriptions>
         )}
       </Modal>

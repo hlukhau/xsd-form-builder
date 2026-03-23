@@ -9,6 +9,7 @@ import { useLanguageOptions } from '@/hooks/shared/useLanguageOptions'
 import { useMediaTypeOptions } from '@/hooks/shared/useMediaTypeOptions'
 import { useIdentityDocKindOptions } from '@/hooks/shared/useIdentityDocKindOptions'
 import CountrySelect from '@/components/common/CountrySelect'
+import { DpaEmbeddedUnifiedAuthorityForm } from '@/components/common/DpaEmbeddedUnifiedAuthorityForm'
 import { labelWithHelp } from '@/components/common/FieldHelp'
 import { FIELD_HELP } from '@/constants/fieldDescriptions'
 import { getMaxLength } from '@/constants/xsdFieldConstraints'
@@ -23,7 +24,6 @@ import type {
   SubjectDetails,
   DocumentReferenceDetails,
   MeasurePlaceDetails,
-  UnifiedAuthorityDetails,
   BusinessEntityDetails,
   IdentityDocDetails,
   AddressDetails,
@@ -928,39 +928,13 @@ const MeasureImplementationDetailsEdit: React.FC<{
             label: 'Уполномоченный орган',
             children: item.authority ? (
               <Form layout="vertical" className="field-tag-form">
-                <Form.Item label="Страна">
-                  <CountrySelect
-                    value={item.authority.country}
-                    onChange={(value) => onChange('authority', { ...item.authority, country: value || '' })}
-                    loading={loadingCountries}
-                    countryOptions={countryOptions}
-                    normalizeCountryCode={normalizeCountryCode}
-                  />
-                </Form.Item>
-                <Form.Item label="Идентификатор">
-                  <Input
-                    value={item.authority.authorityId}
-                    onChange={(e) => onChange('authority', { ...item.authority, authorityId: e.target.value })}
-                    maxLength={getMaxLength('authorityId')}
-                    showCount
-                  />
-                </Form.Item>
-                <Form.Item label="Наименование">
-                  <Input
-                    value={item.authority.authorityName}
-                    onChange={(e) => onChange('authority', { ...item.authority, authorityName: e.target.value })}
-                    maxLength={getMaxLength('authorityName')}
-                    showCount
-                  />
-                </Form.Item>
-                <Form.Item label="Краткое наименование">
-                  <Input
-                    value={item.authority.authorityBriefName}
-                    onChange={(e) => onChange('authority', { ...item.authority, authorityBriefName: e.target.value })}
-                    maxLength={getMaxLength('authorityBriefName')}
-                    showCount
-                  />
-                </Form.Item>
+                <DpaEmbeddedUnifiedAuthorityForm
+                  value={item.authority}
+                  onChange={(next) => onChange('authority', next)}
+                  countryOptions={countryOptions}
+                  loadingCountries={loadingCountries}
+                  normalizeCountryCode={normalizeCountryCode}
+                />
                 <Button
                   type="link"
                   danger

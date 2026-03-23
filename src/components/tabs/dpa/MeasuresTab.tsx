@@ -349,7 +349,7 @@ const MeasureImplementationDetailView: React.FC<{ item: MeasureImplementationIte
           children: (
             <Descriptions column={1} bordered size="small">
               <Descriptions.Item label="Страна">{getCountryDisplayLabel(item.authority.country)}</Descriptions.Item>
-              <Descriptions.Item label="Идентификатор">{item.authority.authorityId || '-'}</Descriptions.Item>
+              <Descriptions.Item label="Идентификатор">—</Descriptions.Item>
               <Descriptions.Item label="Наименование">{item.authority.authorityName || '-'}</Descriptions.Item>
               <Descriptions.Item label="Краткое наименование">{item.authority.authorityBriefName || '-'}</Descriptions.Item>
             </Descriptions>

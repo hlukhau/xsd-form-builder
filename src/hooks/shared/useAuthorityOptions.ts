@@ -6,16 +6,24 @@ import { getAuthorityOptions, type AuthorityOption } from '@/utils/referenceData
  * @param countryCode - код страны для фильтрации
  * @param forOutgoingCreation - если true, запрашивать только УО из карты прав create (передаётся authorityIds)
  * @param allowedAuthorityIds - ключи из dangerousProductOut.create (DEPID); при forOutgoingCreation передаются как depIds в API
+ * @param fetchOptions.enabled - если false, запрос к API не выполняется (пустой список). По умолчанию true — поведение как раньше (в т.ч. закладка «Уведомление»).
  */
 export function useAuthorityOptions(
   countryCode?: string,
   forOutgoingCreation?: boolean,
-  allowedAuthorityIds?: string[]
+  allowedAuthorityIds?: string[],
+  fetchOptions?: { enabled?: boolean }
 ) {
   const [options, setOptions] = useState<AuthorityOption[]>([])
   const [loading, setLoading] = useState(false)
+  const enabled = fetchOptions?.enabled !== false
 
   useEffect(() => {
+    if (!enabled) {
+      setOptions([])
+      setLoading(false)
+      return
+    }
     setLoading(true)
     const createKeys = forOutgoingCreation ? allowedAuthorityIds : undefined
     getAuthorityOptions(countryCode, forOutgoingCreation, createKeys)
@@ -27,7 +35,7 @@ export function useAuthorityOptions(
         setOptions([])
       })
       .finally(() => setLoading(false))
-  }, [countryCode, forOutgoingCreation, allowedAuthorityIds?.join(',')])
+  }, [countryCode, forOutgoingCreation, allowedAuthorityIds?.join(','), enabled])
 
   /**
    * Получить уполномоченный орган по UID

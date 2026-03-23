@@ -1828,11 +1828,11 @@ function parseComplianceDocument(docElement: Element): ComplianceDocument | null
   try {
     const authorityEl = docElement.getElementsByTagName('ccdo:UnifiedAuthorityDetails')[0]
     if (authorityEl) {
+      // csdo:AuthorityId в документе соответствия в карточку не переносим (в XML не экспортируется)
       authority = {
         country: getTextContent(authorityEl, 'UnifiedCountryCode') || undefined,
         authorityName: getTextContent(authorityEl, 'AuthorityName') || undefined,
         authorityBriefName: getTextContent(authorityEl, 'AuthorityBriefName') || undefined,
-        authorityId: getTextContent(authorityEl, 'AuthorityId') || undefined,
       }
     }
   } catch (e) {
@@ -1851,7 +1851,6 @@ function parseComplianceDocument(docElement: Element): ComplianceDocument | null
           country: getTextContent(el, 'UnifiedCountryCode') || undefined,
           authorityName: getTextContent(el, 'AuthorityName') || undefined,
           authorityBriefName: getTextContent(el, 'AuthorityBriefName') || undefined,
-          authorityId: getTextContent(el, 'AuthorityId') || undefined,
         }
         break
       }
@@ -2953,9 +2952,9 @@ function parseUnifiedAuthorityDetails(parent: Element): UnifiedAuthorityDetails 
     return undefined
   }
   
+  // csdo:AuthorityId для мероприятия в мерах в карточку не переносим (в XML не экспортируется)
   return {
     country: getTextContent(authorityElement, 'UnifiedCountryCode') || undefined,
-    authorityId: getTextContent(authorityElement, 'AuthorityId') || undefined,
     authorityName: getTextContent(authorityElement, 'AuthorityName') || undefined,
     authorityBriefName: getTextContent(authorityElement, 'AuthorityBriefName') || undefined,
   }

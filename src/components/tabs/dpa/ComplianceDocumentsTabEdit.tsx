@@ -16,7 +16,7 @@ import { useShipDocKindOptions } from '@/hooks/shared/useShipDocKindOptions'
 import { useLegalFormOptions } from '@/hooks/shared/useLegalFormOptions'
 import { useIdentificationMethodOptions } from '@/hooks/shared/useIdentificationMethodOptions'
 import { useMediaTypeOptions } from '@/hooks/shared/useMediaTypeOptions'
-import CountrySelect from '@/components/common/CountrySelect'
+import { DpaEmbeddedUnifiedAuthorityForm } from '@/components/common/DpaEmbeddedUnifiedAuthorityForm'
 import { requestLabProtocols } from '@/utils/referenceDataApi'
 import { parseLabProtocolsXml } from '@/utils/labProtocolsXmlParser'
 import {
@@ -117,12 +117,13 @@ const ComplianceDocumentsTabEdit: React.FC<ComplianceDocumentsTabEditProps> = ({
     updateBatchCompliance(batchIndex, docs)
   }
 
-  const handleAuthorityChange = (batchIndex: number, docIndex: number, field: string, value: string) => {
+  const handleAuthoritySectionChange = (batchIndex: number, docIndex: number, next: NonNullable<ComplianceDocument['authority']>) => {
     const batch = batches[batchIndex]
     const docs = [...(batch.complianceDocuments || [])]
+    const { authorityId: _omit, ...sanitized } = next
     docs[docIndex] = {
       ...docs[docIndex],
-      authority: { ...docs[docIndex].authority, [field]: value },
+      authority: sanitized,
     }
     updateBatchCompliance(batchIndex, docs)
   }
@@ -270,39 +271,13 @@ const ComplianceDocumentsTabEdit: React.FC<ComplianceDocumentsTabEditProps> = ({
       >
         {authorityContext !== null && batches[authorityContext.batchIndex]?.complianceDocuments?.[authorityContext.docIndex] && (
           <Form layout="vertical" className="field-tag-form">
-            <Form.Item label="Страна">
-              <CountrySelect
-                value={batches[authorityContext.batchIndex].complianceDocuments![authorityContext.docIndex].authority?.country}
-                onChange={(value) => handleAuthorityChange(authorityContext.batchIndex, authorityContext.docIndex, 'country', value || '')}
-                loading={loadingCountries}
-                countryOptions={countryOptions}
-                normalizeCountryCode={normalizeCountryCode}
-              />
-            </Form.Item>
-            <Form.Item label="Наименование">
-              <Input
-                value={batches[authorityContext.batchIndex].complianceDocuments![authorityContext.docIndex].authority?.authorityName}
-                onChange={(e) => handleAuthorityChange(authorityContext.batchIndex, authorityContext.docIndex, 'authorityName', e.target.value)}
-                maxLength={getMaxLength('authorityName')}
-                showCount
-              />
-            </Form.Item>
-            <Form.Item label="Краткое наименование">
-              <Input
-                value={batches[authorityContext.batchIndex].complianceDocuments![authorityContext.docIndex].authority?.authorityBriefName}
-                onChange={(e) => handleAuthorityChange(authorityContext.batchIndex, authorityContext.docIndex, 'authorityBriefName', e.target.value)}
-                maxLength={getMaxLength('authorityBriefName')}
-                showCount
-              />
-            </Form.Item>
-            <Form.Item label="Идентификатор">
-              <Input
-                value={batches[authorityContext.batchIndex].complianceDocuments![authorityContext.docIndex].authority?.authorityId}
-                onChange={(e) => handleAuthorityChange(authorityContext.batchIndex, authorityContext.docIndex, 'authorityId', e.target.value)}
-                maxLength={getMaxLength('authorityId')}
-                showCount
-              />
-            </Form.Item>
+            <DpaEmbeddedUnifiedAuthorityForm
+              value={batches[authorityContext.batchIndex].complianceDocuments![authorityContext.docIndex].authority ?? {}}
+              onChange={(next) => handleAuthoritySectionChange(authorityContext.batchIndex, authorityContext.docIndex, next)}
+              countryOptions={countryOptions}
+              loadingCountries={loadingCountries}
+              normalizeCountryCode={normalizeCountryCode}
+            />
           </Form>
         )}
       </Modal>
