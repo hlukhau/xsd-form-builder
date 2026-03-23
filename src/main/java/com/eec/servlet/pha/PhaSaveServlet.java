@@ -433,9 +433,60 @@ public class PhaSaveServlet extends HttpServlet {
         while (i < json.length()) {
             char c = json.charAt(i);
             if (c == '\\' && i + 1 < json.length()) {
-                sb.append(json.charAt(i + 1));
-                i += 2;
-                continue;
+                char next = json.charAt(i + 1);
+                switch (next) {
+                    case '"':
+                        sb.append('"');
+                        i += 2;
+                        continue;
+                    case '\\':
+                        sb.append('\\');
+                        i += 2;
+                        continue;
+                    case '/':
+                        sb.append('/');
+                        i += 2;
+                        continue;
+                    case 'b':
+                        sb.append('\b');
+                        i += 2;
+                        continue;
+                    case 'f':
+                        sb.append('\f');
+                        i += 2;
+                        continue;
+                    case 'n':
+                        sb.append('\n');
+                        i += 2;
+                        continue;
+                    case 'r':
+                        sb.append('\r');
+                        i += 2;
+                        continue;
+                    case 't':
+                        sb.append('\t');
+                        i += 2;
+                        continue;
+                    case 'u':
+                        if (i + 5 < json.length()) {
+                            try {
+                                int cp = Integer.parseInt(json.substring(i + 2, i + 6), 16);
+                                sb.append((char) cp);
+                                i += 6;
+                                continue;
+                            } catch (NumberFormatException ignored) {
+                                // оставляем '\' в выводе, повторно обрабатываем 'u'
+                            }
+                        }
+                        sb.append('\\');
+                        i++;
+                        continue;
+                    default:
+                        // Неизвестная escape: как в JSON — только символ после \
+                        sb.append(next);
+                        i += 2;
+                        continue;
+                }
             }
             if (c == '"') break;
             sb.append(c);
