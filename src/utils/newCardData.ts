@@ -78,7 +78,7 @@ export function createNewCardData(
       endDate: null,
       authorizedBody: {
         country: forPha ? 'BY' : '',
-        identifier: forPha ? '006' : '',
+        identifier: '',
         name: '',
         shortName: '',
       },

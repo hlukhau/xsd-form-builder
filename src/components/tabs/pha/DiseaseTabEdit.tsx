@@ -65,13 +65,10 @@ const DiseaseTabEdit: React.FC<DiseaseTabEditProps> = ({ data, onChange }) => {
   return (
     <div>
       <Form layout="vertical" className="field-tag-form">
-        <Form.Item label="Код болезни" help="smsdo:DiseaseHealthProblemCode. Справочник ЕЭК на данный момент отсутствует (атрибут не заполняется).">
-          <Input readOnly placeholder="Не заполняется" value={d.diseaseCode ?? ''} />
+        <Form.Item label="Код болезни">
+          <Input disabled value="—" />
         </Form.Item>
-        <Form.Item
-          label="Наименование болезни"
-          help="smsdo:DiseaseHealthProblemName. Для исходящих — справочник болезней (diseasehealthproblem). Редактирование доступно только для версии = 1."
-        >
+        <Form.Item label="Наименование болезни">
           {isVersion1 ? (
             <Select
               showSearch
@@ -91,7 +88,7 @@ const DiseaseTabEdit: React.FC<DiseaseTabEditProps> = ({ data, onChange }) => {
             />
           )}
         </Form.Item>
-        <Form.Item label="Дата первого случая" help="csdo:EventDate — дата первого случая болезни.">
+        <Form.Item label="Дата первого случая">
           <DatePicker
             format={DATE_DISPLAY_FORMAT}
             style={{ width: '100%' }}
@@ -99,7 +96,7 @@ const DiseaseTabEdit: React.FC<DiseaseTabEditProps> = ({ data, onChange }) => {
             onChange={(date) => setDiseaseField('firstCaseDate', date ? date.format('YYYY-MM-DD') : '')}
           />
         </Form.Item>
-        <Form.Item label="Дата последнего случая" help="csdo:EndDate — дата закрытия (архивации) нежелательной ситуации.">
+        <Form.Item label="Дата последнего случая">
           <DatePicker
             format={DATE_DISPLAY_FORMAT}
             style={{ width: '100%' }}
@@ -108,10 +105,7 @@ const DiseaseTabEdit: React.FC<DiseaseTabEditProps> = ({ data, onChange }) => {
             onChange={(date) => setDiseaseField('lastCaseDate', date ? date.format('YYYY-MM-DD') : '')}
           />
         </Form.Item>
-        <Form.Item
-          label="Риск трансграничного распространения"
-          help="smsdo:CrossborderSpreadRiskIndicator: 0 — Нет, 1 — Да, не указано — Не указано."
-        >
+        <Form.Item label="Риск трансграничного распространения">
           <Select
             placeholder="Не указано"
             allowClear
@@ -124,10 +118,7 @@ const DiseaseTabEdit: React.FC<DiseaseTabEditProps> = ({ data, onChange }) => {
       </Form>
 
       <div style={{ marginTop: 24 }}>
-        <h4>Возбудитель (smcdo:PathogenDetails)</h4>
-        <p style={{ fontSize: 12, color: '#8c8c8c', marginBottom: 8 }}>
-          Тип — smsdo:PathogenKindName (справочник pathogenkind). Наименование — smsdo:PathogenName.
-        </p>
+        <h4>Возбудитель</h4>
         <Button type="dashed" icon={<PlusOutlined />} onClick={addPathogen} style={{ marginBottom: 8 }}>
           Добавить возбудитель
         </Button>
@@ -145,7 +136,7 @@ const DiseaseTabEdit: React.FC<DiseaseTabEditProps> = ({ data, onChange }) => {
                 render: (val: string, __, index) => (
                   <Select
                     size="small"
-                    placeholder="Справочник pathogenkind"
+                    placeholder="Тип возбудителя"
                     allowClear
                     showSearch
                     optionFilterProp="label"
@@ -164,7 +155,7 @@ const DiseaseTabEdit: React.FC<DiseaseTabEditProps> = ({ data, onChange }) => {
                 render: (val: string, __, index) => (
                   <Input
                     size="small"
-                    placeholder="PathogenName"
+                    placeholder="Наименование"
                     value={val ?? ''}
                     onChange={(e) => updatePathogen(index, 'pathogenName', e.target.value)}
                   />

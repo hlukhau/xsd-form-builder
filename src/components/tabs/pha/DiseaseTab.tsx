@@ -47,33 +47,17 @@ const DiseaseTab: React.FC<DiseaseTabProps> = ({ data }) => {
 
   return (
     <div>
-      <Descriptions column={1} bordered title="Общие данные по болезни (smcdo:DiseaseHealthProblemDetails, EventDate, EndDate, CrossborderSpreadRiskIndicator)">
-        <Descriptions.Item label="Код болезни">
-          {d.diseaseCode ?? '—'}
-          <div style={{ marginTop: 4, fontSize: 12, color: '#8c8c8c' }}>smsdo:DiseaseHealthProblemCode. Справочник ЕЭК на данный момент отсутствует (атрибут не заполняется).</div>
-        </Descriptions.Item>
-        <Descriptions.Item label="Наименование болезни">
-          {d.diseaseName ?? '—'}
-          <div style={{ marginTop: 4, fontSize: 12, color: '#8c8c8c' }}>smsdo:DiseaseHealthProblemName. Для исходящих — справочник болезней (diseasehealthproblem).</div>
-        </Descriptions.Item>
-        <Descriptions.Item label="Дата первого случая">
-          {formatDate(d.firstCaseDate)}
-          <div style={{ marginTop: 4, fontSize: 12, color: '#8c8c8c' }}>csdo:EventDate.</div>
-        </Descriptions.Item>
-        <Descriptions.Item label="Дата последнего случая">
-          {formatDate(d.lastCaseDate)}
-          <div style={{ marginTop: 4, fontSize: 12, color: '#8c8c8c' }}>csdo:EndDate (дата закрытия/архивации нежелательной ситуации).</div>
-        </Descriptions.Item>
-        <Descriptions.Item label="Риск трансграничного распространения">
-          {crossborderLabel}
-          <div style={{ marginTop: 4, fontSize: 12, color: '#8c8c8c' }}>smsdo:CrossborderSpreadRiskIndicator: 0 — Нет, 1 — Да, отсутствует — Не указано.</div>
-        </Descriptions.Item>
+      <Descriptions column={1} bordered title="Общие данные по болезни">
+        <Descriptions.Item label="Код болезни">—</Descriptions.Item>
+        <Descriptions.Item label="Наименование болезни">{d.diseaseName ?? '—'}</Descriptions.Item>
+        <Descriptions.Item label="Дата первого случая">{formatDate(d.firstCaseDate)}</Descriptions.Item>
+        <Descriptions.Item label="Дата последнего случая">{formatDate(d.lastCaseDate)}</Descriptions.Item>
+        <Descriptions.Item label="Риск трансграничного распространения">{crossborderLabel}</Descriptions.Item>
       </Descriptions>
 
       <div style={{ marginTop: 16 }}>
         <div style={{ marginBottom: 8 }}>
-          <strong>Возбудитель (smcdo:PathogenDetails)</strong>
-          <div style={{ fontSize: 12, color: '#8c8c8c' }}>Тип — smsdo:PathogenKindName (справочник pathogenkind). Наименование — smsdo:PathogenName.</div>
+          <strong>Возбудитель</strong>
         </div>
         {pathogens.length > 0 ? (
           <Table

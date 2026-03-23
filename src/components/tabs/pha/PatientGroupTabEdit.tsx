@@ -42,9 +42,6 @@ const PatientGroupTabEdit: React.FC<PatientGroupTabEditProps> = ({ data, onChang
 
   return (
     <div>
-      <p style={{ fontSize: 12, color: '#8c8c8c', marginBottom: 12 }}>
-        smsdo:PersonQuantity, AgeGroupCode (справочник agegr), DiseaseOutcomeCode (справочник diseaseoutcome), LaboratoryConfirmedIndicator (0 — Нет, 1 — Да).
-      </p>
       <Button type="dashed" icon={<PlusOutlined />} onClick={addGroup} style={{ marginBottom: 8 }}>
         Добавить группу пациентов
       </Button>
@@ -63,7 +60,7 @@ const PatientGroupTabEdit: React.FC<PatientGroupTabEditProps> = ({ data, onChang
               render: (val: string, __, index) => (
                 <Input
                   size="small"
-                  placeholder="PersonQuantity"
+                  placeholder="Количество"
                   value={val ?? ''}
                   onChange={(e) => updateGroup(index, 'personQuantity', e.target.value)}
                   maxLength={getMaxLength('personQuantity') ?? 10}

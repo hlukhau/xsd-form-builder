@@ -73,7 +73,7 @@ export interface PhaPatientGroupItem {
 
 /** PHA: сведения о болезни (smcdo:DiseaseHealthProblemDetails + EventDate, EndDate, CrossborderSpreadRiskIndicator, таблица PathogenDetails). */
 export interface PhaDiseaseDetails {
-  /** Код болезни из справочника ЕЭК (smsdo:DiseaseHealthProblemCode); на данный момент не заполняется. */
+  /** Не используется: в XML не выгружается, в форме отображается «—». */
   diseaseCode?: string
   /** Наименование болезни (smsdo:DiseaseHealthProblemName). Редактирование только для версии = 1. */
   diseaseName?: string
@@ -81,7 +81,7 @@ export interface PhaDiseaseDetails {
   firstCaseDate?: string
   /** Дата последнего случая (csdo:EndDate в блоке болезни). */
   lastCaseDate?: string
-  /** Риск трансграничного распространения (smsdo:CrossborderSpreadRiskIndicator): 0 — Нет, 1 — Да, null/undefined — Не указано. */
+  /** Риск трансграничного распространения: 0 — Нет, 1 — Да, null/undefined — Не указано (в XML — true/false или элемент отсутствует). */
   crossborderSpreadRiskIndicator?: 0 | 1 | null
   /** Таблица возбудителей (smcdo:PathogenDetails). */
   pathogens?: PhaPathogenDetails[]

@@ -14,6 +14,7 @@ function getApiUrl(path: string): string {
   return `${base}${p}`
 }
 
+/** Тело XML из PHAXML. Версия карты (PHA.PHAVERSION) — только через GET /api/pha/metadata/{PHAID}. */
 export async function fetchPhaXml(phaid: string, guid?: string): Promise<string> {
   const url = getApiUrl(`/api/pha/xml/${phaid}`)
   const res = await fetch(url, {

@@ -675,6 +675,15 @@ export function getCreateAuthorityIdsFromRights(rights: RightsJson | null | unde
   return Object.keys(create).filter((k) => k != null && String(k).trim() !== '')
 }
 
+/**
+ * Ключи из up.publicHealthOut.edit (DEPID) — для фильтра списка УО при создании/редактировании PHA.
+ */
+export function getPublicHealthOutEditDepIdsFromRights(rights: RightsJson | null | undefined): string[] {
+  const edit = rights?.up?.publicHealthOut?.edit
+  if (!edit || typeof edit !== 'object') return []
+  return Object.keys(edit).filter((k) => k != null && String(k).trim() !== '')
+}
+
 export async function fetchRightsByGuid(guid: string): Promise<RightsJson> {
   const response = await fetch(`${BASE_URL}api/rights?guid=${encodeURIComponent(guid)}`)
   if (!response.ok) {

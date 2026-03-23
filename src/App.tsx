@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { Routes, Route, useParams, useSearchParams, useNavigate, useLocation } from 'react-router-dom'
 import { message, Spin } from 'antd'
 import { isPhaApp } from './cards/config'
@@ -306,8 +306,12 @@ function PhaAppContent() {
   const navigate = useNavigate()
   const location = useLocation()
   const phaid = phaidParam ?? ''
+  /** Счётчик запуска загрузки PHA: не даём Strict Mode / смене deps «отменить» успешный setCardData через cancelled. */
+  const phaLoadSeqRef = useRef(0)
 
   useEffect(() => {
+    const seq = ++phaLoadSeqRef.current
+
     if (!phaid || phaid === '-') {
       const state = location.state as { newVersionFrom?: number; initialCardData?: CardData } | null
       if (state?.newVersionFrom != null && state?.initialCardData) {
@@ -322,27 +326,24 @@ function PhaAppContent() {
       setOriginalXML(null)
       setCardData(null)
       setError(null)
-      let cancelled = false
       const country = 'BY'
       setLoading(true)
       ;(async () => {
         try {
           const { registrationNumber } = await fetchPhaNextRegistrationNumber(country, guid)
-          if (cancelled) return
+          if (seq !== phaLoadSeqRef.current) return
           setCardData(createNewCardData(country, { registrationNumber }, { forPha: true }))
           setLoading(false)
         } catch (err) {
-          if (!cancelled) {
-            const msg = err instanceof Error ? err.message : 'Не удалось получить регистрационный номер'
-            setError(msg)
-            setLoading(false)
-            message.error(msg)
-          }
+          if (seq !== phaLoadSeqRef.current) return
+          const msg = err instanceof Error ? err.message : 'Не удалось получить регистрационный номер'
+          setError(msg)
+          setLoading(false)
+          message.error(msg)
         }
       })()
-      return () => { cancelled = true }
+      return
     }
-    let cancelled = false
     setLoading(true)
     setError(null)
     setViewDenied(false)
@@ -350,18 +351,18 @@ function PhaAppContent() {
     setOriginalXML(null)
     ;(async () => {
       try {
-        const [xmlText, meta] = await Promise.all([
-          fetchPhaXml(phaid, guid),
-          fetchPhaMetadata(phaid, guid).catch(() => null),
-        ])
-        if (cancelled) return
+        /** XML (PHAXML) + метаданные (PHA, в т.ч. PHAVERSION) — без метаданных версию из БД не показать. */
+        const [xmlText, meta] = await Promise.all([fetchPhaXml(phaid, guid), fetchPhaMetadata(phaid, guid)])
+        if (seq !== phaLoadSeqRef.current) return
         setOriginalXML(xmlText)
         const card = parsePhaXmlToCardData(xmlText)
-        let enriched: CardData = meta ? {
+        const versionFromPha =
+          meta.phaVersion != null && !Number.isNaN(Number(meta.phaVersion)) ? Number(meta.phaVersion) : 1
+        let enriched: CardData = {
           ...card,
+          version: versionFromPha,
           registrationNumber: meta.incidentId ?? card.registrationNumber,
           country: meta.alertCountryCode ?? card.country,
-          version: meta.phaVersion ?? card.version,
           source: meta.dataSourceKindName ?? card.source,
           datasourceKindCode: meta.dataSourceKindCode ?? card.datasourceKindCode,
           phaAccessibleDepIds: meta.phaAccessibleDepIds,
@@ -378,12 +379,11 @@ function PhaAppContent() {
                     : meta.situationEndDate ?? card.notification.endDate,
               }
             : card.notification,
-        } : card
+        }
         // Если метаданные не вернули текст статуса — взять последний из PHASTATUSHIST только если нет phaStatusId:
         // иначе история может устареть (например «Получено») при актуальном PHA.PHASTATUSID в метаданных.
         const statusTextEmpty = !(enriched.status ?? '').trim()
-        const hasStatusIdFromMeta =
-          meta != null && meta.phaStatusId !== undefined && meta.phaStatusId !== null
+        const hasStatusIdFromMeta = meta.phaStatusId !== undefined && meta.phaStatusId !== null
         if (statusTextEmpty && !hasStatusIdFromMeta) {
           try {
             const history = await fetchPhaStatusHistory(phaid, guid)
@@ -395,14 +395,14 @@ function PhaAppContent() {
             // история недоступна — оставляем статус пустым
           }
         }
-        if (cancelled) return
+        if (seq !== phaLoadSeqRef.current) return
         setCardData(enriched)
         setError(null)
         message.success('Данные карты PHA загружены')
         if (guid?.trim() && isPhaIncomingSource(enriched.source)) {
           postPhaStatus(phaid, 'first_open', guid)
             .then((res) => {
-              if (cancelled) return
+              if (seq !== phaLoadSeqRef.current) return
               if (res.changed && res.newStatus != null) {
                 setCardData((prev) =>
                   prev
@@ -420,15 +420,13 @@ function PhaAppContent() {
             })
         }
       } catch (err) {
-        if (!cancelled) {
-          setError(err instanceof Error ? err.message : 'Ошибка загрузки')
-          message.error(err instanceof Error ? err.message : 'Ошибка загрузки')
-        }
+        if (seq !== phaLoadSeqRef.current) return
+        setError(err instanceof Error ? err.message : 'Ошибка загрузки')
+        message.error(err instanceof Error ? err.message : 'Ошибка загрузки')
       } finally {
-        if (!cancelled) setLoading(false)
+        if (seq === phaLoadSeqRef.current) setLoading(false)
       }
     })()
-    return () => { cancelled = true }
   }, [phaid, guid, searchParams, location.state])
 
   // Проверка права просмотра PHA по источнику: publicHealthIn:view, publicHealthOut:view, publicHealthDB:view
@@ -456,6 +454,7 @@ function PhaAppContent() {
   )
   if (cardData) return (
     <PhaCard
+      key={phaid === '-' ? 'new' : phaid}
       data={cardData}
       phaid={phaid}
       guid={guid}

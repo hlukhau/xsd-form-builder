@@ -6,52 +6,84 @@ import type { CardData, Notification, PhaCauseNotificationItem } from '@/types/c
 import { useCountryOptions } from '@/hooks/shared/useCountryOptions'
 import { useIncidentAlertKindOptions } from '@/hooks/shared/useIncidentAlertKindOptions'
 import { useAuthorityOptions } from '@/hooks/shared/useAuthorityOptions'
-import { useDiseaseHealthProblemOptions } from '@/hooks/shared/useDiseaseHealthProblemOptions'
 import { DATE_DISPLAY_FORMAT } from '@/constants/dateFormat'
+import { fetchRightsByGuid, getPublicHealthOutEditDepIdsFromRights } from '@/utils/referenceDataApi'
 
-/** Коды вида для основного уведомления: версия 1 — 1, 2 (справочник incidentalertkind). */
+/** Версия 1 — виды 1 и 2; иначе — 3, 4, 5, 6 (справочник incidentalertkind). */
 const MAIN_KIND_CODES_VERSION_1 = ['1', '2']
-/** Версия > 1: инфекционная (diseasehealthprobleminfectfl = 1) — 3, 5. */
-const MAIN_KIND_CODES_INFECTIOUS = ['3', '5']
-/** Версия > 1: неинфекционная (diseasehealthprobleminfectfl = 0) — 4, 6. */
-const MAIN_KIND_CODES_NON_INFECTIOUS = ['4', '6']
-/** Коды вида для причинных уведомлений (IncidentAlertIdDetails): 1, 2, 3, 4, 7, 8, 10, 11, 13, 14, 16, 17, 19. */
+const MAIN_KIND_CODES_OTHER = ['3', '4', '5', '6']
+/** Коды вида для причинных уведомлений: 1, 2, 3, 4, 7, 8, 10, 11, 13, 14, 16, 17, 19. */
 const CAUSE_KIND_CODES = ['1', '2', '3', '4', '7', '8', '10', '11', '13', '14', '16', '17', '19']
 
 interface NotificationTabEditProps {
   data: CardData
   onChange: (data: CardData) => void
   isNewCard?: boolean
+  /** Для фильтра УО по publicHealthOut.edit (DEPID из JSON) */
+  guid?: string
+}
+
+function parseCardVersion(v: CardData['version']): number {
+  if (v === null || v === undefined) return 1
+  const n = Number(v)
+  return Number.isFinite(n) && n > 0 ? n : 1
 }
 
 const NotificationTabEdit: React.FC<NotificationTabEditProps> = ({
   data,
   onChange,
   isNewCard = false,
+  guid,
 }) => {
   const [form] = Form.useForm()
   const n = data.notification
   const { getDisplayLabel: getCountryDisplayLabel, getSelectOptions: getCountrySelectOptions } = useCountryOptions()
   const { getSelectOptions: getIncidentAlertKindSelectOptions } = useIncidentAlertKindOptions()
   const authorizedBodyCountryCode = (n.authorizedBody?.country ?? '').trim() || undefined
-  const { getSelectOptions: getAuthoritySelectOptions, getAuthorityByUid } = useAuthorityOptions(authorizedBodyCountryCode, true, undefined)
-  const [selectedAuthorityUid, setSelectedAuthorityUid] = useState<string | undefined>(n.authorizedBody?.identifier)
 
-  const version = data.version ?? 1
+  const [phaEditDepIds, setPhaEditDepIds] = useState<string[] | null>(null)
+  const rightsLoading = !!guid?.trim() && phaEditDepIds === null
+
+  useEffect(() => {
+    if (!guid?.trim()) {
+      setPhaEditDepIds(null)
+      return
+    }
+    let cancelled = false
+    fetchRightsByGuid(guid.trim())
+      .then((r) => {
+        if (!cancelled) setPhaEditDepIds(getPublicHealthOutEditDepIdsFromRights(r))
+      })
+      .catch(() => {
+        if (!cancelled) setPhaEditDepIds([])
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [guid])
+
+  const filterAuthoritiesByEdit = !!guid?.trim() && phaEditDepIds !== null
+  const { options: authorityOptions, loading: authorityLoading, getSelectOptions: getAuthoritySelectOptions, getAuthorityByUid } =
+    useAuthorityOptions(
+      authorizedBodyCountryCode,
+      filterAuthoritiesByEdit,
+      filterAuthoritiesByEdit ? phaEditDepIds ?? undefined : undefined
+    )
+
+  const [selectedAuthorityUid, setSelectedAuthorityUid] = useState<string | undefined>(undefined)
+
+  const version = parseCardVersion(data.version)
   const isVersion1 = version === 1
-  const { options: diseaseOptions } = useDiseaseHealthProblemOptions()
-  const selectedDiseaseName = (data.phaDisease?.diseaseName ?? '').trim()
-  const diseaseInfectFlag =
-    diseaseOptions.find((o) => (o.name ?? '').trim() === selectedDiseaseName)?.infectFl ?? null
-  const mainKindCodes = isVersion1
-    ? MAIN_KIND_CODES_VERSION_1
-    : diseaseInfectFlag === 1
-      ? MAIN_KIND_CODES_INFECTIOUS
-      : diseaseInfectFlag === 0
-        ? MAIN_KIND_CODES_NON_INFECTIOUS
-        : ['3', '4', '5', '6']
+  const mainKindCodes = isVersion1 ? MAIN_KIND_CODES_VERSION_1 : MAIN_KIND_CODES_OTHER
   const mainKindOptions = getIncidentAlertKindSelectOptions().filter((o) => mainKindCodes.includes(String(o.value)))
   const causeKindOptions = getIncidentAlertKindSelectOptions().filter((o) => CAUSE_KIND_CODES.includes(String(o.value)))
+
+  const handleNotificationChange = (partial: Partial<Notification>) => {
+    onChange({
+      ...data,
+      notification: { ...data.notification, ...partial },
+    })
+  }
 
   useEffect(() => {
     form.setFieldsValue({
@@ -61,7 +93,6 @@ const NotificationTabEdit: React.FC<NotificationTabEditProps> = ({
       formationDate: n.formationDate?.trim().slice(0, 10) ? dayjs(n.formationDate.slice(0, 10)) : undefined,
       endDate: n.endDate ? dayjs(n.endDate) : undefined,
     })
-    setSelectedAuthorityUid(n.authorizedBody?.identifier)
   }, [n, form])
 
   useEffect(() => {
@@ -73,38 +104,29 @@ const NotificationTabEdit: React.FC<NotificationTabEditProps> = ({
 
   useEffect(() => {
     if (!isNewCard) return
-    const curId = (n.authorizedBody?.identifier ?? '').trim()
-    if (curId === '006' && (n.authorizedBody?.name ?? '').trim() !== '') return
-    const a = getAuthorityByUid('006')
-    if (!a) {
-      if (curId !== '006' || (n.authorizedBody?.country ?? '').trim() !== 'BY') {
-        handleNotificationChange({
-          authorizedBody: {
-            country: 'BY',
-            identifier: '006',
-            name: n.authorizedBody?.name ?? '',
-            shortName: n.authorizedBody?.shortName ?? '',
-          },
-        })
-      }
+    if (n.formationDate?.trim()) return
+    handleNotificationChange({ formationDate: dayjs().format('YYYY-MM-DD') })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isNewCard])
+
+  /** Подобрать УО в списке по наименованию (идентификатор в данных не храним). */
+  useEffect(() => {
+    const name = (n.authorizedBody?.name ?? '').trim()
+    if (!name) {
+      setSelectedAuthorityUid(undefined)
       return
     }
-    handleNotificationChange({
-      authorizedBody: {
-        country: a.countryCode ?? 'BY',
-        identifier: a.uid,
-        name: a.name,
-        shortName: a.briefName ?? '',
-      },
-    })
-  }, [isNewCard, getAuthorityByUid, n.authorizedBody?.identifier, n.authorizedBody?.name, n.authorizedBody?.country, n.authorizedBody?.shortName])
-
-  const handleNotificationChange = (partial: Partial<Notification>) => {
-    onChange({
-      ...data,
-      notification: { ...data.notification, ...partial },
-    })
-  }
+    const byName = authorityOptions.find((o) => (o.name ?? '').trim() === name)
+    if (byName) {
+      setSelectedAuthorityUid(byName.uid)
+      return
+    }
+    const legacyId = (n.authorizedBody?.identifier ?? '').trim()
+    if (legacyId) {
+      const byUid = authorityOptions.find((o) => (o.uid ?? '').trim() === legacyId)
+      if (byUid) setSelectedAuthorityUid(byUid.uid)
+    }
+  }, [n.authorizedBody?.name, n.authorizedBody?.identifier, authorityOptions])
 
   const handleAuthoritySelect = (uid: string | null) => {
     if (!uid) {
@@ -125,7 +147,7 @@ const NotificationTabEdit: React.FC<NotificationTabEditProps> = ({
       handleNotificationChange({
         authorizedBody: {
           country: authority.countryCode ?? n.authorizedBody?.country ?? '',
-          identifier: authority.uid,
+          identifier: '',
           name: authority.name,
           shortName: authority.briefName ?? '',
         },
@@ -142,21 +164,6 @@ const NotificationTabEdit: React.FC<NotificationTabEditProps> = ({
       endDate: all.endDate != null ? (all.endDate ? dayjs(all.endDate as dayjs.Dayjs).format('YYYY-MM-DD') : null) : n.endDate,
     })
   }
-
-  const resetTypeByDiseaseInfect = (value: number | null) => {
-    const nextCodes = value === 1 ? MAIN_KIND_CODES_INFECTIOUS : value === 0 ? MAIN_KIND_CODES_NON_INFECTIOUS : ['3', '4', '5', '6']
-    const keepType = nextCodes.includes(String(n.type))
-    onChange({
-      ...data,
-      notification: { ...data.notification, type: keepType ? n.type : '' },
-    })
-  }
-
-  useEffect(() => {
-    if (isVersion1) return
-    resetTypeByDiseaseInfect(diseaseInfectFlag)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isVersion1, diseaseInfectFlag])
 
   const causeList = data.phaCauseNotifications ?? []
   const addCause = () => {
@@ -177,52 +184,39 @@ const NotificationTabEdit: React.FC<NotificationTabEditProps> = ({
     onChange({ ...data, phaCauseNotifications: next })
   }
 
+  const selectLoading = authorityLoading || rightsLoading
+
   return (
-    <Form form={form} layout="vertical" onValuesChange={handleFormValuesChange}>
-      <Form.Item label="Страна" name="country" help="Страна регистрации случая (csdo:UnifiedCountryCode). Справочник стран (country, codeListId=2021).">
+    <Form form={form} layout="vertical" className="field-tag-form" onValuesChange={handleFormValuesChange}>
+      <Form.Item label="Страна" name="country">
         <Select
           showSearch
           placeholder="Выберите страну"
           options={getCountrySelectOptions()}
-          disabled={isNewCard}
+          disabled
           filterOption={(input, option) => (option?.label ?? '').toLowerCase().includes(input.toLowerCase())}
         />
       </Form.Item>
       <Form.Item label="Регистрационный номер" name="registrationNumber">
-        <Input placeholder="smsdo:IncidentId" readOnly={!!n.registrationNumber} />
+        <Input placeholder="Регистрационный номер" readOnly={!!n.registrationNumber} />
       </Form.Item>
-      {!isVersion1 && (
-        <Form.Item label="Признак инфекционной болезни" help="Определяется по выбранной болезни (справочник diseasehealthproblem). Для версии > 1 поле только для просмотра.">
-          <Input
-            readOnly
-            value={
-              diseaseInfectFlag === 1
-                ? 'Инфекционная (вид 3, 5)'
-                : diseaseInfectFlag === 0
-                  ? 'Неинфекционная (вид 4, 6)'
-                  : 'Не определено (выберите болезнь)'
-            }
-          />
-        </Form.Item>
-      )}
-      <Form.Item label="Вид" name="type" help={isVersion1 ? 'Версия = 1: значения 1, 2. Справочник incidentalertkind.' : 'Версия > 1: 3, 5 (инфекционная) или 4, 6 (неинфекционная).'}>
+      <Form.Item label="Вид" name="type">
         <Select
           showSearch
-          placeholder="Вид уведомления (smsdo:IncidentKindCode)"
+          placeholder="Выберите вид уведомления"
           options={mainKindOptions}
           filterOption={(input, option) => (option?.label ?? '').toLowerCase().includes(input.toLowerCase())}
         />
       </Form.Item>
-      <Form.Item label="Дата формирования" name="formationDate" help="csdo:DocCreationDate. Заполняется текущей при отправке в ЕЭК.">
-        <DatePicker format={DATE_DISPLAY_FORMAT} style={{ width: '100%' }} disabled={isNewCard} />
+      <Form.Item label="Дата формирования" name="formationDate">
+        <DatePicker format={DATE_DISPLAY_FORMAT} style={{ width: '100%' }} disabled />
       </Form.Item>
-      <Form.Item label="Дата закрытия" name="endDate" help="csdo:EndDate. Заполняется текущей при отправке в ЕЭК уведомления с видом 5 или 6, иначе пусто.">
+      <Form.Item label="Дата закрытия" name="endDate">
         <DatePicker format={DATE_DISPLAY_FORMAT} style={{ width: '100%' }} allowClear />
       </Form.Item>
 
       <div style={{ marginTop: 16, padding: 12, border: '1px solid #d9d9d9', borderRadius: 4 }}>
-        <h4>Уполномоченный орган (ccdo:UnifiedAuthorityDetails)</h4>
-        <p style={{ fontSize: 12, color: '#8c8c8c', marginBottom: 8 }}>Для исходящих данных — справочник УО и КНО стран ЕАЭС (authority).</p>
+        <h4 style={{ marginTop: 0 }}>Уполномоченный орган</h4>
         <Form.Item label="Страна">
           <Input readOnly value={authorizedBodyCountryCode ? getCountryDisplayLabel(authorizedBodyCountryCode) : '-'} />
         </Form.Item>
@@ -233,7 +227,8 @@ const NotificationTabEdit: React.FC<NotificationTabEditProps> = ({
             value={selectedAuthorityUid}
             onChange={handleAuthoritySelect}
             allowClear
-            disabled={isNewCard}
+            loading={selectLoading}
+            disabled={selectLoading}
             filterOption={(input, option) => (option?.label ?? '').toLowerCase().includes(input.toLowerCase())}
             options={getAuthoritySelectOptions()}
             style={{ width: '100%' }}
@@ -248,8 +243,7 @@ const NotificationTabEdit: React.FC<NotificationTabEditProps> = ({
       </div>
 
       <div style={{ marginTop: 24 }}>
-        <h4>Информация по уведомлениям, являющимся причиной (smcdo:IncidentAlertIdDetails)</h4>
-        <p style={{ fontSize: 12, color: '#8c8c8c' }}>Вид: справочник incidentalertkind — 1, 2, 3, 4, 7, 8, 10, 11, 13, 14, 16, 17, 19.</p>
+        <h4 style={{ marginTop: 0 }}>Информация по уведомлениям, являющимся причиной</h4>
         <Button type="dashed" icon={<PlusOutlined />} onClick={addCause} style={{ marginBottom: 8 }}>
           Добавить
         </Button>
@@ -259,18 +253,21 @@ const NotificationTabEdit: React.FC<NotificationTabEditProps> = ({
             rowKey={(_, i) => String(i)}
             dataSource={causeList}
             pagination={false}
+            tableLayout="fixed"
+            scroll={{ x: 880 }}
             columns={[
               {
                 title: 'Страна',
                 dataIndex: 'country',
                 key: 'country',
+                width: 200,
                 render: (val: string, __, index) => (
                   <Select
                     size="small"
                     value={val || undefined}
                     onChange={(v) => updateCause(index, 'country', v ?? '')}
                     options={getCountrySelectOptions()}
-                    style={{ width: 120 }}
+                    style={{ width: '100%' }}
                     showSearch
                     filterOption={(input, option) => (option?.label ?? '').toLowerCase().includes(input.toLowerCase())}
                   />
@@ -280,11 +277,13 @@ const NotificationTabEdit: React.FC<NotificationTabEditProps> = ({
                 title: 'Рег. номер',
                 dataIndex: 'registrationNumber',
                 key: 'registrationNumber',
+                width: 120,
                 render: (val: string, __, index) => (
                   <Input
                     size="small"
                     value={val}
                     onChange={(e) => updateCause(index, 'registrationNumber', e.target.value)}
+                    style={{ width: '100%' }}
                   />
                 ),
               },
@@ -292,13 +291,14 @@ const NotificationTabEdit: React.FC<NotificationTabEditProps> = ({
                 title: 'Вид',
                 dataIndex: 'type',
                 key: 'type',
+                width: 380,
                 render: (val: string, __, index) => (
                   <Select
                     size="small"
                     value={val || undefined}
                     onChange={(v) => updateCause(index, 'type', v ?? '')}
                     options={causeKindOptions}
-                    style={{ width: 120 }}
+                    style={{ width: '100%' }}
                     showSearch
                     filterOption={(input, option) => (option?.label ?? '').toLowerCase().includes(input.toLowerCase())}
                   />
@@ -308,12 +308,14 @@ const NotificationTabEdit: React.FC<NotificationTabEditProps> = ({
                 title: 'Дата формирования',
                 dataIndex: 'formationDate',
                 key: 'formationDate',
+                width: 130,
                 render: (val: string, __, index) => (
                   <Input
                     size="small"
                     type="date"
                     value={val?.slice(0, 10) ?? ''}
                     onChange={(e) => updateCause(index, 'formationDate', e.target.value)}
+                    style={{ width: '100%' }}
                   />
                 ),
               },

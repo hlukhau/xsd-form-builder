@@ -104,7 +104,8 @@ export function parsePhaXmlToCardData(xmlText: string): CardData {
   const authority = findElementByLocalName(firstCaseBlock, 'UnifiedAuthorityDetails')
   const authorizedBody = {
     country: authority ? (getTextByLocalName(authority, 'UnifiedCountryCode') || '') : '',
-    identifier: authority ? (getTextByLocalName(authority, 'AuthorityId') || '') : '',
+    /** В XML тег csdo:AuthorityId не используется — идентификатор в форме не заполняем. */
+    identifier: '',
     name: authority ? (getTextByLocalName(authority, 'AuthorityName') || '') : '',
     shortName:
       authority
@@ -139,13 +140,16 @@ export function parsePhaXmlToCardData(xmlText: string): CardData {
   const incidentDetails = findElementByLocalName(firstCaseBlock, 'PublicHealthIncidentDetails')
   if (incidentDetails) {
     const diseaseBlock = findElementByLocalName(incidentDetails, 'DiseaseHealthProblemDetails')
-    const diseaseCode = diseaseBlock ? getTextByLocalName(diseaseBlock, 'DiseaseHealthProblemCode')?.trim() : undefined
     const diseaseName = diseaseBlock ? getTextByLocalName(diseaseBlock, 'DiseaseHealthProblemName')?.trim() : undefined
     const eventDate = getTextByLocalName(incidentDetails, 'EventDate')?.trim()
     const incidentEndDate = getTextByLocalName(incidentDetails, 'EndDate')?.trim()
-    const crossborderRaw = getTextByLocalName(incidentDetails, 'CrossborderSpreadRiskIndicator')?.trim()
+    const crossborderRaw = getTextByLocalName(incidentDetails, 'CrossborderSpreadRiskIndicator')?.trim().toLowerCase()
     const crossborderSpreadRiskIndicator: 0 | 1 | undefined =
-      crossborderRaw === '1' ? 1 : crossborderRaw === '0' ? 0 : undefined
+      crossborderRaw === '1' || crossborderRaw === 'true'
+        ? 1
+        : crossborderRaw === '0' || crossborderRaw === 'false'
+          ? 0
+          : undefined
 
     const pathogenNodes = diseaseBlock ? findAllElementsByLocalName(diseaseBlock, 'PathogenDetails') : []
     const pathogens: PhaPathogenDetails[] = pathogenNodes.map((el) => ({
@@ -154,7 +158,6 @@ export function parsePhaXmlToCardData(xmlText: string): CardData {
     }))
 
     phaDisease = {
-      diseaseCode: diseaseCode || undefined,
       diseaseName: diseaseName || undefined,
       firstCaseDate: eventDate || undefined,
       lastCaseDate: incidentEndDate || undefined,
@@ -202,6 +205,8 @@ export function parsePhaXmlToCardData(xmlText: string): CardData {
 
   const cardData: CardData = {
     ...base,
+    /** Версия задаётся в БД (PHA.PHAVERSION); из XML не берём — подставляет /api/pha/metadata. */
+    version: undefined,
     country: country || base.country,
     registrationNumber: registrationNumber || base.registrationNumber,
     electronicDocument,

@@ -57,7 +57,7 @@ const SanitaryMeasuresTabEdit: React.FC<SanitaryMeasuresTabEditProps> = ({ data,
         return (
           <Select
             size="small"
-            placeholder="Справочник санитарных мер (SANITARYMEASURE)"
+            placeholder="Выберите меру из справочника"
             allowClear
             showSearch
             optionFilterProp="label"
@@ -81,7 +81,7 @@ const SanitaryMeasuresTabEdit: React.FC<SanitaryMeasuresTabEditProps> = ({ data,
         return (
           <Input
             size="small"
-            placeholder="Произвольное описание меры (smsdo:MeasureName)"
+            placeholder="Произвольное описание меры"
             value={record.measureName ?? ''}
             onChange={(e) => update(index, 'measureName', e.target.value)}
             allowClear
@@ -101,9 +101,6 @@ const SanitaryMeasuresTabEdit: React.FC<SanitaryMeasuresTabEditProps> = ({ data,
 
   return (
     <div>
-      <p style={{ fontSize: 12, color: '#8c8c8c', marginBottom: 12 }}>
-        Добавьте меры из справочника (сохраняется код) или введите произвольное наименование (сохраняется текст).
-      </p>
       <div style={{ marginBottom: 8 }}>
         <Button type="dashed" icon={<PlusOutlined />} onClick={addFromDictionary} style={{ marginRight: 8 }}>
           Добавить из справочника

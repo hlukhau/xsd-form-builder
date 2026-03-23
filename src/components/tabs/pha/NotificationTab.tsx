@@ -61,33 +61,21 @@ const NotificationTab: React.FC<NotificationTabProps> = ({ data }) => {
 
   return (
     <div>
-      <Descriptions column={1} bordered title="Уведомление о случае обнаружения болезни (smcdo:PublicHealthAlertDetails)">
-        <Descriptions.Item label="Страна">
-          {renderCountry(n.country, countryValid)}
-          <div style={{ marginTop: 4, fontSize: 12, color: '#8c8c8c' }}>csdo:UnifiedCountryCode. Справочник стран (codeListId=2021).</div>
-        </Descriptions.Item>
-        <Descriptions.Item label="Регистрационный номер">
-          {n.registrationNumber || '—'}
-          <div style={{ marginTop: 4, fontSize: 12, color: '#8c8c8c' }}>smsdo:IncidentId.</div>
-        </Descriptions.Item>
+      <Descriptions column={1} bordered title="Уведомление о случае обнаружения болезни">
+        <Descriptions.Item label="Страна">{renderCountry(n.country, countryValid)}</Descriptions.Item>
+        <Descriptions.Item label="Регистрационный номер">{n.registrationNumber || '—'}</Descriptions.Item>
         <Descriptions.Item label="Вид">
           {kindLabel(n.type)}
-          <div style={{ marginTop: 4, fontSize: 12, color: '#8c8c8c' }}>
-            smsdo:IncidentKindCode. Версия = 1: 1, 2; Версия &gt; 1: инфекционная (diseasehealthprobleminfectfl = 1) — 3, 5; неинфекционная — 4, 6. Справочник incidentalertkind.
-            {version > 1 && infectiousFlag != null && (
-              <span> Признак болезни: {infectiousFlag === 1 ? 'инфекционная' : 'неинфекционная'}.</span>
-            )}
-          </div>
+          {version > 1 && infectiousFlag != null && (
+            <span>
+              {' '}
+              (признак болезни: {infectiousFlag === 1 ? 'инфекционная' : 'неинфекционная'})
+            </span>
+          )}
         </Descriptions.Item>
-        <Descriptions.Item label="Дата формирования">
-          {formatDate(n.formationDate)}
-          <div style={{ marginTop: 4, fontSize: 12, color: '#8c8c8c' }}>csdo:DocCreationDate. Заполняется текущей при отправке в ЕЭК.</div>
-        </Descriptions.Item>
-        <Descriptions.Item label="Дата закрытия">
-          {n.endDate ? formatDate(n.endDate) : '—'}
-          <div style={{ marginTop: 4, fontSize: 12, color: '#8c8c8c' }}>csdo:EndDate. При отправке в ЕЭК с видом 5 или 6 — текущая.</div>
-        </Descriptions.Item>
-        <Descriptions.Item label="Уполномоченный орган (ccdo:UnifiedAuthorityDetails)">
+        <Descriptions.Item label="Дата формирования">{formatDate(n.formationDate)}</Descriptions.Item>
+        <Descriptions.Item label="Дата закрытия">{n.endDate ? formatDate(n.endDate) : '—'}</Descriptions.Item>
+        <Descriptions.Item label="Уполномоченный орган">
           <Descriptions column={1} size="small" bordered>
             <Descriptions.Item label="Страна">{renderCountry(n.authorizedBody?.country ?? '', authorizedBodyCountryValid)}</Descriptions.Item>
             <Descriptions.Item label="Идентификатор">{n.authorizedBody?.identifier || '-'}</Descriptions.Item>
@@ -99,10 +87,7 @@ const NotificationTab: React.FC<NotificationTabProps> = ({ data }) => {
 
       <div style={{ marginTop: 16 }}>
         <div style={{ marginBottom: 8 }}>
-          <strong>Информация по уведомлениям, являющимся причиной (smcdo:IncidentAlertIdDetails)</strong>
-          <div style={{ fontSize: 12, color: '#8c8c8c' }}>
-            Уведомления о нежелательной ситуации — причина данного случая обнаружения инфекционной или массовой неинфекционной болезни (отравления). Страна — csdo:UnifiedCountryCode; рег. номер — smsdo:IncidentId; вид — smsdo:IncidentKindCode (справочник incidentalertkind: 1, 2, 3, 4, 7, 8, 10, 11, 13, 14, 16, 17, 19); дата формирования — csdo:DocCreationDate.
-          </div>
+          <strong>Информация по уведомлениям, являющимся причиной</strong>
         </div>
         {causeList.length > 0 ? (
           <Table

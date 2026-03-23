@@ -87,10 +87,9 @@ public final class PhaOutgoingSendXmlValidator {
             errors.add("Раздел «Болезнь»: блок сведений о случае не найден");
         } else {
             Element diseaseBlock = findFirstByLocal(incidentDetails, "DiseaseHealthProblemDetails");
-            String dCode = diseaseBlock != null ? nz(textByLocal(diseaseBlock, "DiseaseHealthProblemCode")) : "";
             String dName = diseaseBlock != null ? nz(textByLocal(diseaseBlock, "DiseaseHealthProblemName")) : "";
-            if (dCode.isEmpty() && dName.isEmpty()) {
-                errors.add("Болезнь: укажите наименование или код болезни");
+            if (dName.isEmpty()) {
+                errors.add("Болезнь: укажите наименование болезни");
             }
             if (nz(textByLocal(incidentDetails, "EventDate")).isEmpty()) {
                 errors.add("Болезнь: дата первого случая должна быть указана");

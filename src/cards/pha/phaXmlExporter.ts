@@ -81,11 +81,16 @@ export function exportPhaCardDataToXML(data: CardData): string {
 
   const disease = data.phaDisease
   const patientGroups = data.phaPatientGroups ?? []
-  const hasDisease = disease && (disease.diseaseCode || disease.diseaseName || disease.firstCaseDate || disease.lastCaseDate != null || disease.crossborderSpreadRiskIndicator != null || (disease.pathogens?.length ?? 0) > 0)
+  const hasDisease =
+    disease &&
+    (disease.diseaseName ||
+      disease.firstCaseDate ||
+      disease.lastCaseDate != null ||
+      disease.crossborderSpreadRiskIndicator != null ||
+      (disease.pathogens?.length ?? 0) > 0)
   if (hasDisease || patientGroups.length > 0) {
     xmlParts.push('    <smcdo:PublicHealthIncidentDetails>')
     xmlParts.push('      <smcdo:DiseaseHealthProblemDetails>')
-    if (disease.diseaseCode) xmlParts.push(`        <smsdo:DiseaseHealthProblemCode>${escapeXML(disease.diseaseCode)}</smsdo:DiseaseHealthProblemCode>`)
     if (disease.diseaseName) xmlParts.push(`        <smsdo:DiseaseHealthProblemName>${escapeXML(disease.diseaseName)}</smsdo:DiseaseHealthProblemName>`)
     const pathogens = disease.pathogens ?? []
     for (const p of pathogens) {
@@ -113,7 +118,8 @@ export function exportPhaCardDataToXML(data: CardData): string {
       exportDetectionPlace(xmlParts, data.detectionPlace, '      ')
     }
     if (disease?.crossborderSpreadRiskIndicator === 0 || disease?.crossborderSpreadRiskIndicator === 1) {
-      xmlParts.push(`      <smsdo:CrossborderSpreadRiskIndicator>${disease.crossborderSpreadRiskIndicator}</smsdo:CrossborderSpreadRiskIndicator>`)
+      const boolVal = disease.crossborderSpreadRiskIndicator === 1 ? 'true' : 'false'
+      xmlParts.push(`      <smsdo:CrossborderSpreadRiskIndicator>${boolVal}</smsdo:CrossborderSpreadRiskIndicator>`)
     }
     const zones = (data.spreadingZones && data.spreadingZones.length > 0)
       ? data.spreadingZones

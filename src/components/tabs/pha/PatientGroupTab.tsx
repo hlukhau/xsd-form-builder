@@ -31,7 +31,7 @@ const PatientGroupTab: React.FC<PatientGroupTabProps> = ({ data }) => {
 
   if (groups.length === 0) {
     return (
-      <Descriptions column={1} bordered title="Группа пациентов (smcdo:PatientGroupDetails)">
+      <Descriptions column={1} bordered title="Группа пациентов">
         <Descriptions.Item label="Сведения">Нет данных о группах пациентов.</Descriptions.Item>
       </Descriptions>
     )
@@ -39,9 +39,6 @@ const PatientGroupTab: React.FC<PatientGroupTabProps> = ({ data }) => {
 
   return (
     <div>
-      <div style={{ marginBottom: 8, fontSize: 12, color: '#8c8c8c' }}>
-        Количество человек — smsdo:PersonQuantity. Возрастная группа — smsdo:AgeGroupCode (справочник agegr). Исход болезни — smsdo:DiseaseOutcomeCode (справочник diseaseoutcome). Наличие лабораторного подтверждения — smsdo:LaboratoryConfirmedIndicator (0 — Нет, 1 — Да, не указано — Не указано).
-      </div>
       <Table
         size="small"
         rowKey={(_, i) => String(i)}

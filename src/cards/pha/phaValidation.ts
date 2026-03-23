@@ -102,8 +102,8 @@ export function validatePhaOutgoingCard(data: CardData): ValidationResult {
 
   const sectionDisease = n('Болезнь')
   const d = data.phaDisease
-  if (!d || (empty(d.diseaseName) && empty(d.diseaseCode))) {
-    add(sectionDisease, 'Укажите наименование или код болезни')
+  if (!d || empty(d.diseaseName)) {
+    add(sectionDisease, 'Укажите наименование болезни')
   }
   if (d && empty(d.firstCaseDate)) {
     add(sectionDisease, 'Дата первого случая должна быть указана')

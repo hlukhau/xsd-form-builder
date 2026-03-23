@@ -830,7 +830,9 @@ const PhaCard: React.FC<PhaCardProps> = ({
           <EditComponent
             data={currentData}
             onChange={setEditedData}
-            {...(item.key === 'notification' ? { isNewCard: effectivePhaid === '-' } : {})}
+            {...(item.key === 'notification'
+              ? { isNewCard: effectivePhaid === '-', guid: guid ?? undefined }
+              : {})}
           />
         )
       }

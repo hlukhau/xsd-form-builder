@@ -118,11 +118,15 @@ public class PhaMetadataServlet extends HttpServlet {
                 }
                 long phaId = rs.getLong("PHAID");
                 String incidentId = rs.getString("INCIDENTID");
-                int phaVersion = rs.getInt("PHAVERSION");
-                Integer alertCountryId = (Integer) rs.getObject("ALERTCOUNTRYID");
+                int phaVersion = 1;
+                int phaVersionRaw = rs.getInt("PHAVERSION");
+                if (!rs.wasNull()) {
+                    phaVersion = phaVersionRaw;
+                }
+                Integer alertCountryId = toNullableInt(rs.getObject("ALERTCOUNTRYID"));
                 Timestamp creationDateTime = rs.getTimestamp("CREATIONDATETIME");
                 Timestamp modificationDateTime = rs.getTimestamp("MODIFICATIONDATETIME");
-                Integer phaStatusId = (Integer) rs.getObject("PHASTATUSID");
+                Integer phaStatusId = toNullableInt(rs.getObject("PHASTATUSID"));
                 String alertCountryCode = rs.getString("ALERTCOUNTRYCODE");
                 if (alertCountryCode != null) alertCountryCode = alertCountryCode.trim();
                 String phaStatusName = rs.getString("PHASTATUSNAME");
@@ -211,6 +215,19 @@ public class PhaMetadataServlet extends HttpServlet {
     private static String escapeJson(String s) {
         if (s == null) return "";
         return s.replace("\\", "\\\\").replace("\"", "\\\"").replace("\n", "\\n").replace("\r", "\\r");
+    }
+
+    /**
+     * Oracle NUMBER может приходить как BigDecimal, поэтому прямой cast к Integer небезопасен.
+     */
+    private static Integer toNullableInt(Object v) {
+        if (v == null) return null;
+        if (v instanceof Number) return ((Number) v).intValue();
+        try {
+            return Integer.valueOf(String.valueOf(v).trim());
+        } catch (Exception e) {
+            return null;
+        }
     }
 
     private static void sendJsonError(HttpServletResponse response, int status, String message) throws IOException {
