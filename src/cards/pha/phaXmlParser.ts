@@ -104,8 +104,8 @@ export function parsePhaXmlToCardData(xmlText: string): CardData {
   const authority = findElementByLocalName(firstCaseBlock, 'UnifiedAuthorityDetails')
   const authorizedBody = {
     country: authority ? (getTextByLocalName(authority, 'UnifiedCountryCode') || '') : '',
-    /** В XML тег csdo:AuthorityId не используется — идентификатор в форме не заполняем. */
-    identifier: '',
+    /** csdo:AuthorityId — при наличии; иначе идентификатор подставляется из БД (PHA.AUTHORITYID → метаданные authorityUid). */
+    identifier: authority ? (getTextByLocalName(authority, 'AuthorityId')?.trim() || '') : '',
     name: authority ? (getTextByLocalName(authority, 'AuthorityName') || '') : '',
     shortName:
       authority

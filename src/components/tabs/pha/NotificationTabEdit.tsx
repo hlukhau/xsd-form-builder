@@ -6,6 +6,7 @@ import type { CardData, Notification, PhaCauseNotificationItem } from '@/types/c
 import { useCountryOptions } from '@/hooks/shared/useCountryOptions'
 import { useIncidentAlertKindOptions } from '@/hooks/shared/useIncidentAlertKindOptions'
 import { useAuthorityOptions } from '@/hooks/shared/useAuthorityOptions'
+import { useDiseaseHealthProblemOptions } from '@/hooks/shared/useDiseaseHealthProblemOptions'
 import { DATE_DISPLAY_FORMAT } from '@/constants/dateFormat'
 import { getMaxLength } from '@/constants/xsdFieldConstraints'
 import { fetchRightsByGuid, getPublicHealthOutEditDepIdsFromRights } from '@/utils/referenceDataApi'
@@ -40,6 +41,7 @@ const NotificationTabEdit: React.FC<NotificationTabEditProps> = ({
   const n = data.notification
   const { getDisplayLabel: getCountryDisplayLabel, getSelectOptions: getCountrySelectOptions } = useCountryOptions()
   const { getSelectOptions: getIncidentAlertKindSelectOptions } = useIncidentAlertKindOptions()
+  const { options: diseaseOptions } = useDiseaseHealthProblemOptions()
   const authorizedBodyCountryCode = (n.authorizedBody?.country ?? '').trim() || undefined
 
   const [phaEditDepIds, setPhaEditDepIds] = useState<string[] | null>(null)
@@ -75,9 +77,25 @@ const NotificationTabEdit: React.FC<NotificationTabEditProps> = ({
 
   const version = parseCardVersion(data.version)
   const isVersion1 = version === 1
-  const mainKindCodes = isVersion1 ? MAIN_KIND_CODES_VERSION_1 : MAIN_KIND_CODES_OTHER
+  const diseaseName = (data.phaDisease?.diseaseName ?? '').trim()
+  const infectFlFromDictionary =
+    diseaseName.length > 0
+      ? (diseaseOptions.find((o) => (o.name ?? '').trim() === diseaseName || (o.code ?? '').trim() === diseaseName)?.infectFl ?? null)
+      : null
+  const effectiveInfectFl =
+    data.phaFirstDiseaseInfectiousFlag != null ? data.phaFirstDiseaseInfectiousFlag : (infectFlFromDictionary === 0 || infectFlFromDictionary === 1 ? infectFlFromDictionary : null)
+  const mainKindCodes = isVersion1
+    ? MAIN_KIND_CODES_VERSION_1
+    : effectiveInfectFl === 0
+      ? ['4', '6']
+      : effectiveInfectFl === 1
+        ? ['3', '5']
+        : MAIN_KIND_CODES_OTHER
   const mainKindOptions = getIncidentAlertKindSelectOptions().filter((o) => mainKindCodes.includes(String(o.value)))
-  const causeKindOptions = getIncidentAlertKindSelectOptions().filter((o) => CAUSE_KIND_CODES.includes(String(o.value)))
+    .sort((a, b) => (Number(a.value) || 0) - (Number(b.value) || 0))
+  const causeKindOptions = getIncidentAlertKindSelectOptions()
+    .filter((o) => CAUSE_KIND_CODES.includes(String(o.value)))
+    .sort((a, b) => (Number(a.value) || 0) - (Number(b.value) || 0))
 
   const handleNotificationChange = (partial: Partial<Notification>) => {
     onChange({
@@ -148,7 +166,7 @@ const NotificationTabEdit: React.FC<NotificationTabEditProps> = ({
       handleNotificationChange({
         authorizedBody: {
           country: authority.countryCode ?? n.authorizedBody?.country ?? '',
-          identifier: '',
+          identifier: authority.uid,
           name: authority.name,
           shortName: authority.briefName ?? '',
         },
@@ -156,13 +174,61 @@ const NotificationTabEdit: React.FC<NotificationTabEditProps> = ({
     }
   }
 
-  const handleFormValuesChange = (_: unknown, all: Record<string, unknown>) => {
+  /**
+   * Версия 1: при смене «Вид» меняется набор болезней (инфекц./неинфекц.).
+   * Очищаем наименование болезни, если оно не входит в список для нового вида; синхронизируем признак для проверок v2+.
+   */
+  const handleFormValuesChange = (changed: Record<string, unknown>, all: Record<string, unknown>) => {
+    const nextCountry = (all.country as string) ?? n.country
+    const nextReg = (all.registrationNumber as string) ?? n.registrationNumber
+    const nextType = (all.type as string) ?? n.type
+    const nextFormation = all.formationDate
+      ? dayjs(all.formationDate as dayjs.Dayjs).format('YYYY-MM-DD')
+      : n.formationDate
+    const nextEnd =
+      all.endDate != null ? (all.endDate ? dayjs(all.endDate as dayjs.Dayjs).format('YYYY-MM-DD') : null) : n.endDate
+
+    if (isVersion1 && changed && 'type' in changed) {
+      const kind = String(nextType ?? '').trim()
+      const diseaseName = (data.phaDisease?.diseaseName ?? '').trim()
+      const allowedForKind = diseaseOptions.filter((o) => {
+        if (kind === '1') return o.infectFl === 1
+        if (kind === '2') return o.infectFl === 0
+        return true
+      })
+      const diseaseAllowed =
+        !diseaseName ||
+        allowedForKind.some(
+          (o) => (o.name ?? '').trim() === diseaseName || (o.code ?? '').trim() === diseaseName
+        )
+      const nextPhaDisease = diseaseAllowed
+        ? data.phaDisease
+        : { ...data.phaDisease, diseaseName: '' as string | undefined }
+      let nextInfectFlag: 0 | 1 | undefined = data.phaFirstDiseaseInfectiousFlag
+      if (kind === '1') nextInfectFlag = 1
+      else if (kind === '2') nextInfectFlag = 0
+      onChange({
+        ...data,
+        notification: {
+          ...data.notification,
+          country: nextCountry,
+          registrationNumber: nextReg,
+          type: nextType,
+          formationDate: nextFormation,
+          endDate: nextEnd,
+        },
+        phaDisease: nextPhaDisease,
+        phaFirstDiseaseInfectiousFlag: nextInfectFlag,
+      })
+      return
+    }
+
     handleNotificationChange({
-      country: (all.country as string) ?? n.country,
-      registrationNumber: (all.registrationNumber as string) ?? n.registrationNumber,
-      type: (all.type as string) ?? n.type,
-      formationDate: all.formationDate ? dayjs(all.formationDate as dayjs.Dayjs).format('YYYY-MM-DD') : n.formationDate,
-      endDate: all.endDate != null ? (all.endDate ? dayjs(all.endDate as dayjs.Dayjs).format('YYYY-MM-DD') : null) : n.endDate,
+      country: nextCountry,
+      registrationNumber: nextReg,
+      type: nextType,
+      formationDate: nextFormation,
+      endDate: nextEnd,
     })
   }
 

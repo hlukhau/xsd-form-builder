@@ -377,6 +377,16 @@ function PhaAppContent() {
                   (card.notification.endDate != null && String(card.notification.endDate).trim() !== '')
                     ? card.notification.endDate
                     : meta.situationEndDate ?? card.notification.endDate,
+                authorizedBody: card.notification.authorizedBody
+                  ? {
+                      ...card.notification.authorizedBody,
+                      /** UID из БД (PHA.AUTHORITYID), если в XML не было AuthorityId — иначе при сохранении обнулялся PHA.AUTHORITYID */
+                      identifier:
+                        (card.notification.authorizedBody.identifier ?? '').trim() ||
+                        (meta.authorityUid ?? '').trim() ||
+                        '',
+                    }
+                  : card.notification.authorizedBody,
               }
             : card.notification,
         }

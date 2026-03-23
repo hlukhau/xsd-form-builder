@@ -46,6 +46,8 @@ export async function fetchPhaMetadata(phaid: string, guid?: string): Promise<{
   phaAccessibleDepIds?: string[]
   /** PHA.ENDDATE (дата закрытия ситуации), YYYY-MM-DD */
   situationEndDate?: string
+  /** AUTHORITY.AUTHORITYUID для PHA.AUTHORITYID — подставлять в форму как идентификатор УО (в XML может не быть). */
+  authorityUid?: string | null
 }> {
   const url = getApiUrl(`/api/pha/metadata/${phaid}`)
   const res = await fetch(url, {
@@ -87,6 +89,10 @@ export interface PhaSaveMetadata {
   incidentId: string | null
   countryCode: string | null
   docCreationDate?: string | null
+  /** UID выбранного УО из справочника AUTHORITY (резолвится на сервере в PHA.AUTHORITYID). */
+  authorityIdentifier?: string | null
+  /** csdo:EndDate из уведомления (сохраняется в PHA.ENDDATE). */
+  endDate?: string | null
   incidentAlertKindCode?: string | null
   diseaseName?: string | null
   firstCaseDate?: string | null
@@ -150,6 +156,8 @@ export function buildPhaSaveMetadataFromCardData(data: CardData): PhaSaveMetadat
     incidentId,
     countryCode: countryCode ? String(countryCode).trim() : null,
     docCreationDate,
+    authorityIdentifier: notification?.authorizedBody?.identifier?.trim() || null,
+    endDate: notification?.endDate?.trim() || null,
     incidentAlertKindCode,
     diseaseName: data.phaDisease?.diseaseName?.trim() || null,
     firstCaseDate: data.phaDisease?.firstCaseDate?.trim() || null,

@@ -25,7 +25,11 @@ import {
 } from '@/cards/pha/phaApi'
 import { exportPhaCardDataToXML } from '@/cards/pha/phaXmlExporter'
 import { parsePhaXmlToCardData } from '@/cards/pha/phaXmlParser'
-import { validatePhaOutgoingCard, collectPhaFormatValidationErrors, type ValidationResult } from '@/cards/pha/phaValidation'
+import {
+  validatePhaOutgoingCardFull,
+  collectPhaFormatValidationErrors,
+  type ValidationResult,
+} from '@/cards/pha/phaValidation'
 import { compareCardData, getPhaCardDataReview } from '@/utils/cardDataComparator'
 import { getEmptyTagsWarnings } from '@/utils/xmlExporter'
 import { fetchRightsByGuid, fetchRightsByGuidRaw, checkAccessRight, type RightsJson } from '@/utils/referenceDataApi'
@@ -431,31 +435,31 @@ const PhaCard: React.FC<PhaCardProps> = ({
     hasPhaSendRight &&
     phaOutgoingSendOp57Allowed(currentData.statusId, currentData.status ?? '')
 
+  /**
+   * Направление сведений ОП 57 — как DPA (send):
+   * 1) сначала проверка заполнения и формата (модальное окно «Валидация карты» при ошибках);
+   * 2) затем предупреждение Modal.confirm;
+   * 3) сохранение XML в БД (чтобы серверная проверка PHAXML совпала с формой), затем смена статуса.
+   */
   const confirmSendPhaOp57 = () => {
     if (!effectivePhaid || effectivePhaid === '-') return
+    const dataToValidate = editedData
+    const full = validatePhaOutgoingCardFull(dataToValidate)
+    if (!full.success) {
+      setValidationResult(full)
+      setValidationModalVisible(true)
+      message.error('Необходимо доработать карту исходящих сведений перед направлением.')
+      return
+    }
+
     const regNumber =
       currentData.registrationNumber ?? currentData.notification?.registrationNumber ?? effectivePhaid
     Modal.confirm({
-      title: 'Направить сведения участникам ОП 57',
-      content: `После подтверждения по карте ${regNumber} будут направлены сведения участникам ОП 57; карта перейдёт в статус «Ожидает отправки». Продолжить?`,
-      okText: 'Продолжить',
+      title: 'Направление сведений участникам ОП 57',
+      content: `После подтверждения по карте ${regNumber} будут направлены сведения участникам ОП 57; карта перейдёт в статус «Ожидает отправки». Подтвердите выполнение операции.`,
+      okText: 'Направить сведения',
       cancelText: 'Отмена',
       onOk: async () => {
-        const dataToValidate = isEditMode ? editedData : currentData
-        const vr = validatePhaOutgoingCard(dataToValidate)
-        if (!vr.success) {
-          message.error(
-            'Доработайте карту исходящих сведений: проверка заполнения не пройдена. Откройте «Валидация карты» для списка замечаний.'
-          )
-          return
-        }
-        const fmt = collectPhaFormatValidationErrors(dataToValidate)
-        if (fmt.length > 0) {
-          message.error(
-            `Доработайте карту исходящих сведений: ошибки формата данных (${fmt.length}). Откройте «Валидация карты» или «Сохранить» для подробностей.`
-          )
-          return
-        }
         try {
           const [hasSend, rights] = await Promise.all([
             checkAccessRight(guid ?? null, 'publicHealthOut:send'),
@@ -472,7 +476,21 @@ const PhaCard: React.FC<PhaCardProps> = ({
           message.error('Не удалось проверить права на направление сведений.')
           return
         }
+
         try {
+          if (hasPhaEditRight && isOutgoingPha) {
+            const xmlBody = exportPhaCardDataToXML(editedData)
+            const metadata = buildPhaSaveMetadataFromCardData(editedData)
+            await savePhaCard({
+              isNew: false,
+              xmlBody,
+              metadata,
+              phaid: Number(effectivePhaid),
+              ...(guid ? { guid } : {}),
+            })
+            setBaselineXml(xmlBody)
+          }
+
           const res = await postPhaStatus(effectivePhaid, 'send', guid)
           const newStatus = res.newStatus ?? 'Ожидает отправки'
           const newStatusId = res.newStatusId ?? editedData.statusId
@@ -916,25 +934,12 @@ const PhaCard: React.FC<PhaCardProps> = ({
               <Button
                 onClick={() => {
                   const dataToValidate = isEditMode ? editedData : currentData
-                  setValidationResult(validatePhaOutgoingCard(dataToValidate))
+                  setValidationResult(validatePhaOutgoingCardFull(dataToValidate))
                   setValidationModalVisible(true)
                 }}
               >
                 Валидация карты
               </Button>
-            )}
-            {showCompleteIncomingProcessingButton && (
-              <Button type="primary" onClick={confirmCompleteIncomingProcessing}>
-                Завершить обработку
-              </Button>
-            )}
-            {showSendPhaOp57HeaderButton && (
-              <Button type="primary" onClick={confirmSendPhaOp57}>
-                Направить сведения
-              </Button>
-            )}
-            {showClosePhaCardHeaderButton && (
-              <Button onClick={confirmClosePhaCard}>Закрыть карту</Button>
             )}
             {showCopyButton && (
               <Button onClick={handleCopy}>Новая версия</Button>
@@ -946,7 +951,7 @@ const PhaCard: React.FC<PhaCardProps> = ({
                 }
               }}
             >
-              {effectivePhaid === '-' ? 'Отменить создание' : 'Закрыть карту'}
+              {effectivePhaid === '-' ? 'Отменить создание' : 'Закрыть'}
             </Button>
           </Space>
         </div>

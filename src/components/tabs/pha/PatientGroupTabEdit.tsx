@@ -1,7 +1,7 @@
-import { Input, Select, Button, Table } from 'antd'
+import { InputNumber, Select, Button, Table } from 'antd'
 import { PlusOutlined, DeleteOutlined } from '@ant-design/icons'
 import type { CardData, PhaPatientGroupItem } from '@/types/card'
-import { getMaxLength, getFormatHint } from '@/constants/xsdFieldConstraints'
+import { getFormatHint, validateFieldValue } from '@/constants/xsdFieldConstraints'
 import { useAgeGroupOptions } from '@/hooks/shared/useAgeGroupOptions'
 import { useDiseaseOutcomeOptions } from '@/hooks/shared/useDiseaseOutcomeOptions'
 
@@ -57,17 +57,34 @@ const PatientGroupTabEdit: React.FC<PatientGroupTabEditProps> = ({ data, onChang
               dataIndex: 'personQuantity',
               key: 'personQuantity',
               width: 140,
-              render: (val: string, __, index) => (
-                <Input
-                  size="small"
-                  placeholder="Количество"
-                  value={val ?? ''}
-                  onChange={(e) => updateGroup(index, 'personQuantity', e.target.value)}
-                  maxLength={getMaxLength('personQuantity') ?? 4}
-                  showCount
-                  title={getFormatHint('personQuantity')}
-                />
-              ),
+              render: (val: string, __, index) => {
+                const raw = String(val ?? '').trim()
+                const qtyErr = raw !== '' ? validateFieldValue('personQuantity', raw) : null
+                const n =
+                  raw === ''
+                    ? undefined
+                    : /^\d+$/.test(raw)
+                      ? Math.min(9999, Math.max(1, parseInt(raw, 10)))
+                      : undefined
+                return (
+                  <InputNumber
+                    size="small"
+                    min={1}
+                    max={9999}
+                    step={1}
+                    controls
+                    placeholder="Количество"
+                    style={{ width: '100%' }}
+                    status={qtyErr ? 'error' : undefined}
+                    title={qtyErr ?? getFormatHint('personQuantity')}
+                    value={n}
+                    onChange={(v) => {
+                      if (v == null || Number.isNaN(v)) updateGroup(index, 'personQuantity', '')
+                      else updateGroup(index, 'personQuantity', String(Math.floor(Number(v))))
+                    }}
+                  />
+                )
+              },
             },
             {
               title: 'Возрастная группа',

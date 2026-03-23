@@ -1,6 +1,7 @@
 import { Form, Input, DatePicker, Select, Button, Table } from 'antd'
 import { PlusOutlined, DeleteOutlined } from '@ant-design/icons'
 import dayjs from 'dayjs'
+import { useEffect } from 'react'
 import type { CardData, PhaDiseaseDetails, PhaPathogenDetails } from '@/types/card'
 import { DATE_DISPLAY_FORMAT } from '@/constants/dateFormat'
 import { getMaxLength, getFormatHint } from '@/constants/xsdFieldConstraints'
@@ -29,7 +30,11 @@ const DiseaseTabEdit: React.FC<DiseaseTabEditProps> = ({ data, onChange }) => {
   const isVersion1 = version === 1
   const kind = (data.notification?.type ?? '').trim()
   const pathogens = d.pathogens ?? []
-  const { getSelectOptions: getDiseaseSelectOptions, loading: diseaseOptionsLoading } = useDiseaseHealthProblemOptions()
+  const {
+    options: diseaseCatalogOptions,
+    getSelectOptions: getDiseaseSelectOptions,
+    loading: diseaseOptionsLoading,
+  } = useDiseaseHealthProblemOptions()
   const diseaseOptionsRaw = getDiseaseSelectOptions() as Array<{ value: string; label: string; infectFl?: number | null }>
   const diseaseOptions = isVersion1
     ? diseaseOptionsRaw.filter((o) => {
@@ -62,6 +67,23 @@ const DiseaseTabEdit: React.FC<DiseaseTabEditProps> = ({ data, onChange }) => {
     next[index] = { ...next[index], [field]: value }
     updateDisease({ pathogens: next })
   }
+
+  /** Версия 1: при загрузке карты — сбросить болезнь, если её нет в списке для текущего вида (справочник уже загружен). */
+  useEffect(() => {
+    if (!isVersion1) return
+    if (!diseaseCatalogOptions.length) return
+    const dn = (d.diseaseName ?? '').trim()
+    if (!dn) return
+    const allowed = diseaseCatalogOptions.filter((o) => {
+      if (kind === '1') return o.infectFl === 1
+      if (kind === '2') return o.infectFl === 0
+      return true
+    })
+    const ok = allowed.some((o) => (o.name ?? '').trim() === dn || (o.code ?? '').trim() === dn)
+    if (!ok) {
+      onChange({ ...data, phaDisease: { ...d, diseaseName: '' } })
+    }
+  }, [isVersion1, kind, d.diseaseName, diseaseCatalogOptions, data, d, onChange])
 
   return (
     <div>

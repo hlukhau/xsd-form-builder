@@ -95,6 +95,9 @@ public class DpaStatusChangeServlet extends HttpServlet {
         if (depKindCode != null) depKindCode = depKindCode.trim();
         if (guid != null) guid = guid.trim();
 
+        /** JSON прав по GUID — для проверки dangerousProductIn:status / dangerousProductOut:status (не путать с DPAID). */
+        String rightsJson = (guid != null && !guid.isEmpty()) ? RightsJsonStore.guidMap.get(guid) : null;
+
         Integer userId = resolveUserId(guid);
         log("[DpaStatusChange] userId from rights: " + (userId != null ? userId : "null") + (guid != null ? " (guid=" + guid + ")" : ""));
 
@@ -137,7 +140,7 @@ public class DpaStatusChangeServlet extends HttpServlet {
                     sendJsonError(response, HttpServletResponse.SC_BAD_REQUEST, "Укажите guid в теле запроса (в карте прав должен быть атрибут userId)");
                     return;
                 }
-                handleIncoming(response, conn, dpaidNum, action, currentStatusId, currentStatusName, userId);
+                handleIncoming(response, conn, dpaidNum, action, currentStatusId, currentStatusName, userId, rightsJson);
                 return;
             }
             if (outgoing) {
@@ -145,7 +148,7 @@ public class DpaStatusChangeServlet extends HttpServlet {
                     sendJsonError(response, HttpServletResponse.SC_BAD_REQUEST, "Укажите guid в теле запроса (в карте прав должен быть атрибут userId)");
                     return;
                 }
-                handleOutgoing(response, conn, dpaidNum, action, depKindCode, currentStatusId, currentStatusName, userId, guid);
+                handleOutgoing(response, conn, dpaidNum, action, depKindCode, currentStatusId, currentStatusName, userId, guid, rightsJson);
                 return;
             }
             sendJsonError(response, HttpServletResponse.SC_BAD_REQUEST, "Смена статуса по действию доступна только для входящих или исходящих сведений");
@@ -158,9 +161,10 @@ public class DpaStatusChangeServlet extends HttpServlet {
     }
 
     private void handleIncoming(HttpServletResponse response, Connection conn, long dpaid, String action,
-                                int currentStatusId, String currentStatusName, Integer userId) throws IOException, SQLException {
-        if (!AccessRightService.hasDangerousProductInStatus(String.valueOf(dpaid))) {
-            sendJsonError(response, HttpServletResponse.SC_FORBIDDEN, "Нет права управления статусом входящих сведений");
+                                int currentStatusId, String currentStatusName, Integer userId, String rightsJson) throws IOException, SQLException {
+        if (!AccessRightService.hasDangerousProductInStatus(rightsJson)) {
+            sendJsonError(response, HttpServletResponse.SC_FORBIDDEN,
+                    "Нет права управления статусом входящих сведений (dangerousProductIn:status)");
             return;
         }
         String newStatusName = null;
@@ -197,9 +201,9 @@ public class DpaStatusChangeServlet extends HttpServlet {
 
     private void handleOutgoing(HttpServletResponse response, Connection conn,
                                 long dpaid, String action, String depKindCode,
-                                int currentStatusId, String currentStatusName, Integer userId, String guid) throws IOException, SQLException {
+                                int currentStatusId, String currentStatusName, Integer userId, String guid, String rightsJson) throws IOException, SQLException {
         if ("mark_ready".equals(action)) {
-            if (!AccessRightService.hasDangerousProductOutStatus(String.valueOf(dpaid))) {
+            if (!AccessRightService.hasDangerousProductOutStatus(rightsJson)) {
                 sendJsonError(response, HttpServletResponse.SC_FORBIDDEN, "Нет права управления статусом исходящих сведений (dangerousProductOut:status)");
                 return;
             }
@@ -251,7 +255,7 @@ public class DpaStatusChangeServlet extends HttpServlet {
             return;
         }
         if ("to_new".equals(action)) {
-            if (!AccessRightService.hasDangerousProductOutStatus(String.valueOf(dpaid))) {
+            if (!AccessRightService.hasDangerousProductOutStatus(rightsJson)) {
                 sendJsonError(response, HttpServletResponse.SC_FORBIDDEN, "Нет права управления статусом исходящих сведений (dangerousProductOut:status)");
                 return;
             }
@@ -274,7 +278,7 @@ public class DpaStatusChangeServlet extends HttpServlet {
             return;
         }
         if ("send".equals(action)) {
-            if (!AccessRightService.hasDangerousProductOutSend(String.valueOf(dpaid))) {
+            if (!AccessRightService.hasDangerousProductOutSend(rightsJson)) {
                 sendJsonError(response, HttpServletResponse.SC_FORBIDDEN, "Нет права на направление исходящих сведений (dangerousProductOut:send)");
                 return;
             }
@@ -309,7 +313,7 @@ public class DpaStatusChangeServlet extends HttpServlet {
             return;
         }
         if ("close".equals(action)) {
-            if (!AccessRightService.hasDangerousProductOutStatus(String.valueOf(dpaid))) {
+            if (!AccessRightService.hasDangerousProductOutStatus(rightsJson)) {
                 sendJsonError(response, HttpServletResponse.SC_FORBIDDEN, "Нет права управления статусом исходящих сведений (dangerousProductOut:status)");
                 return;
             }

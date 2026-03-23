@@ -37,8 +37,9 @@ public class PhaSaveServlet extends HttpServlet {
 
     private static final String SQL_INSERT_PHA = ""
             + "INSERT INTO PHA (PHAID, DATASOURCEKINDCODE, ALERTCOUNTRYID, INCIDENTID, PHAVERSION, "
-            + "PHASTATUSID, CREATIONDATETIME, MODIFICATIONDATETIME, INCIDENTALERTKINDCODE, DOCCREATIONDATE) "
-            + "VALUES (?, ?, ?, ?, 1, ?, SYSDATE, SYSDATE, ?, ?)";
+            + "PHASTATUSID, AUTHORITYID, ENDDATE, CREATIONDATETIME, MODIFICATIONDATETIME, INCIDENTALERTKINDCODE, DOCCREATIONDATE, "
+            + "DISEASEHEALTHPROBLEMID, DISEASEHEALTHPROBLEMNAME, INCIDENTEVENTDATE, INCIDENTENDDATE, CROSSBOARDERRISKFL) "
+            + "VALUES (?, ?, ?, ?, 1, ?, ?, ?, SYSDATE, SYSDATE, ?, ?, ?, ?, ?, ?, ?)";
 
     private static final String SQL_INSERT_PHAXML = "INSERT INTO PHAXML (PHAID, PHAXMLBODY) VALUES (?, ?)";
     private static final String SQL_INSERT_HIST = ""
@@ -54,8 +55,11 @@ public class PhaSaveServlet extends HttpServlet {
     private static final String SQL_DISEASE_ID_BY_NAME = ""
             + "SELECT DISEASEHEALTHPROBLEMID FROM DISEASEHEALTHPROBLEM "
             + "WHERE UPPER(TRIM(DISEASEHEALTHPROBLEMNAME)) = UPPER(TRIM(?))";
+    /** AUTHORITYID по AUTHORITYUID (идентификатор УО из фронта). */
+    private static final String SQL_AUTHORITY_ID_BY_UID = "SELECT AUTHORITYID FROM AUTHORITY WHERE TRIM(AUTHORITYUID) = ?";
     private static final String SQL_UPDATE_PHA_META = ""
             + "UPDATE PHA SET INCIDENTALERTKINDCODE = ?, "
+            + "AUTHORITYID = ?, ENDDATE = ?, "
             + "DISEASEHEALTHPROBLEMID = ?, DISEASEHEALTHPROBLEMNAME = ?, "
             + "INCIDENTEVENTDATE = ?, INCIDENTENDDATE = ?, "
             + "CROSSBOARDERRISKFL = ?, MODIFICATIONDATETIME = SYSDATE "
@@ -96,6 +100,8 @@ public class PhaSaveServlet extends HttpServlet {
         String incidentId = extractJsonString(metaBlock, "incidentId");
         String countryCode = extractJsonString(metaBlock, "countryCode");
         String docCreationDate = extractJsonString(metaBlock, "docCreationDate");
+        String authorityIdentifier = extractJsonString(metaBlock, "authorityIdentifier");
+        String endDate = extractJsonString(metaBlock, "endDate");
         String incidentAlertKindCode = extractJsonString(metaBlock, "incidentAlertKindCode");
         String diseaseName = extractJsonString(metaBlock, "diseaseName");
         String firstCaseDate = extractJsonString(metaBlock, "firstCaseDate");
@@ -130,6 +136,8 @@ public class PhaSaveServlet extends HttpServlet {
                     sendJsonError(response, HttpServletResponse.SC_BAD_REQUEST, "Не удалось определить ALERTCOUNTRYID по countryCode");
                     return;
                 }
+                Integer authorityId = resolveAuthorityId(conn, authorityIdentifier);
+                Integer diseaseId = resolveDiseaseIdByName(conn, diseaseName);
 
                 long phaid = getNextPhaid(conn);
 
@@ -140,8 +148,18 @@ public class PhaSaveServlet extends HttpServlet {
                     ps.setInt(i++, alertCountryId);
                     ps.setString(i++, incId);
                     ps.setInt(i++, PHA_STATUS_NEW_ID);
+                    if (authorityId != null) ps.setInt(i++, authorityId);
+                    else ps.setNull(i++, Types.INTEGER);
+                    setDateOrNull(ps, i++, endDate);
                     ps.setString(i++, incidentAlertKindCode != null ? incidentAlertKindCode : "");
                     setDateOrNull(ps, i++, docCreationDate);
+                    if (diseaseId != null) ps.setInt(i++, diseaseId);
+                    else ps.setNull(i++, Types.INTEGER);
+                    ps.setString(i++, trimToEmpty(diseaseName));
+                    setDateOrNull(ps, i++, firstCaseDate);
+                    setDateOrNull(ps, i++, lastCaseDate);
+                    if (crossborderRiskFl == null) ps.setNull(i++, Types.INTEGER);
+                    else ps.setInt(i++, crossborderRiskFl);
                     ps.executeUpdate();
                 }
 
@@ -205,16 +223,20 @@ public class PhaSaveServlet extends HttpServlet {
                     }
                 }
                 Integer diseaseId = resolveDiseaseIdByName(conn, diseaseName);
+                Integer authorityId = resolveAuthorityId(conn, authorityIdentifier);
                 try (PreparedStatement ps = conn.prepareStatement(SQL_UPDATE_PHA_META)) {
                     ps.setString(1, trimToEmpty(incidentAlertKindCode));
-                    if (diseaseId != null) ps.setInt(2, diseaseId);
+                    if (authorityId != null) ps.setInt(2, authorityId);
                     else ps.setNull(2, Types.INTEGER);
-                    ps.setString(3, trimToEmpty(diseaseName));
-                    setDateOrNull(ps, 4, firstCaseDate);
-                    setDateOrNull(ps, 5, lastCaseDate);
-                    if (crossborderRiskFl == null) ps.setNull(6, Types.INTEGER);
-                    else ps.setInt(6, crossborderRiskFl);
-                    ps.setLong(7, phaid);
+                    setDateOrNull(ps, 3, endDate);
+                    if (diseaseId != null) ps.setInt(4, diseaseId);
+                    else ps.setNull(4, Types.INTEGER);
+                    ps.setString(5, trimToEmpty(diseaseName));
+                    setDateOrNull(ps, 6, firstCaseDate);
+                    setDateOrNull(ps, 7, lastCaseDate);
+                    if (crossborderRiskFl == null) ps.setNull(8, Types.INTEGER);
+                    else ps.setInt(8, crossborderRiskFl);
+                    ps.setLong(9, phaid);
                     ps.executeUpdate();
                 }
                 int prevStatus = loadCurrentStatusId(conn, phaid);
@@ -335,6 +357,18 @@ public class PhaSaveServlet extends HttpServlet {
             ps.setString(1, diseaseName.trim());
             try (ResultSet rs = ps.executeQuery()) {
                 if (rs.next()) return rs.getInt(1);
+            }
+        }
+        return null;
+    }
+
+    /** Разрешает UID выбранного УО (AUTHORITY.AUTHORITYUID) в PHA.AUTHORITYID. */
+    private static Integer resolveAuthorityId(Connection conn, String authorityIdentifier) throws SQLException {
+        if (authorityIdentifier == null || authorityIdentifier.trim().isEmpty()) return null;
+        try (PreparedStatement ps = conn.prepareStatement(SQL_AUTHORITY_ID_BY_UID)) {
+            ps.setString(1, authorityIdentifier.trim());
+            try (ResultSet rs = ps.executeQuery()) {
+                if (rs.next()) return rs.getInt("AUTHORITYID");
             }
         }
         return null;

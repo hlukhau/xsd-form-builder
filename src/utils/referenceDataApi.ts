@@ -43,14 +43,27 @@ function dictionaryLoadingEnd() {
   }
 }
 
+/**
+ * GUID для запросов к API (справочники, права, БД по кредам из JSON прав).
+ * Без guid бэкенд не может вызвать DatabaseUtil.getConnectionForGuid — ленивая загрузка справочников не сработает.
+ *
+ * Источники (в порядке приоритета):
+ * 1) query ?guid= — часто так передаёт родительское приложение / встраивание;
+ * 2) последний сегмент пути при структуре …/{PHAID|DPAID}/{GUID} (не требуем, чтобы id карты был только числом — иначе PHA без числового id теряет guid).
+ */
 function getGuidFromCurrentLocation(): string | undefined {
   if (typeof window === 'undefined') return undefined
+  try {
+    const fromQuery = new URLSearchParams(window.location.search).get('guid')?.trim()
+    if (fromQuery) return fromQuery
+  } catch {
+    /* ignore */
+  }
   const parts = window.location.pathname.split('/').filter(Boolean)
   if (parts.length < 3) return undefined
   const maybeGuid = parts[parts.length - 1]?.trim()
   const maybeDpaid = parts[parts.length - 2]?.trim()
   if (!maybeGuid || !maybeDpaid) return undefined
-  if (maybeDpaid !== '-' && !/^\d+$/.test(maybeDpaid)) return undefined
   return maybeGuid || undefined
 }
 
