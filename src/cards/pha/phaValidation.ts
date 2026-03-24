@@ -1,6 +1,7 @@
 /**
- * Логический контроль карты PHA (исходящие) по регламенту контролей.
- * Формат XSD — отдельно: collectPhaFormatValidationErrors / cardValidation.
+ * Логический контроль карты PHA по регламенту контролей (обязательность, согласованность блоков).
+ * Используется в «Валидация карты» и перед направлением ОП 57 (validatePhaOutgoingCardFull).
+ * Перед сохранением в БД блокируются только несоответствия формата заполненных полей (collectPhaFormatValidationErrors).
  */
 import type { CardData, DetectionPlaceData, AddressDetails, PhaCauseNotificationItem, PhaPathogenDetails } from '@/types/card'
 import { validateFieldValue } from '@/constants/xsdFieldConstraints'
@@ -310,7 +311,7 @@ export function validatePhaOutgoingCard(data: CardData): ValidationResult {
   return { success, sections }
 }
 
-/** Логические контроли + ошибки формата XSD (как при «Валидация карты» и перед направлением ОП 57). */
+/** Обязательные поля / логические контроли + ошибки формата XSD (кнопка «Валидация карты», направление ОП 57). */
 export function validatePhaOutgoingCardFull(data: CardData): ValidationResult {
   const vr = validatePhaOutgoingCard(data)
   const fmt = collectPhaFormatValidationErrors(data)

@@ -26,7 +26,6 @@ import {
 import { exportPhaCardDataToXML } from '@/cards/pha/phaXmlExporter'
 import { parsePhaXmlToCardData } from '@/cards/pha/phaXmlParser'
 import {
-  validatePhaOutgoingCard,
   validatePhaOutgoingCardFull,
   collectPhaFormatValidationErrors,
   type ValidationResult,
@@ -711,12 +710,8 @@ const PhaCard: React.FC<PhaCardProps> = ({
 
     const formatErrors = collectPhaFormatValidationErrors(editedData)
     setFormatValidationErrors(formatErrors)
-
-    const logicalVr = validatePhaOutgoingCard(editedData)
-    const logicalFlat = logicalVr.success
-      ? []
-      : logicalVr.sections.flatMap((s) => s.remarks.map((r) => `${s.sectionName}: ${r}`))
-    setLogicalValidationErrors(logicalFlat)
+    /** Незаполненные обязательные по XSD поля и прочие контроли — только в «Валидация карты» / перед направлением ОП 57, не блокируют сохранение. */
+    setLogicalValidationErrors([])
 
     if (isNewCard) {
       const { filled, unfilled } = getPhaCardDataReview(editedData)

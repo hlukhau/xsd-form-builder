@@ -200,7 +200,11 @@ export function parsePhaXmlToCardData(xmlText: string): CardData {
     phaPatientGroups = groupNodes.map((el) => {
       const labRaw = getTextByLocalName(el, 'LaboratoryConfirmedIndicator')?.trim()
       const laboratoryConfirmedIndicator: 0 | 1 | undefined =
-        labRaw === '1' ? 1 : labRaw === '0' ? 0 : undefined
+        labRaw === '1' || labRaw?.toLowerCase() === 'true'
+          ? 1
+          : labRaw === '0' || labRaw?.toLowerCase() === 'false'
+            ? 0
+            : undefined
       return {
         personQuantity: getTextByLocalName(el, 'PersonQuantity')?.trim(),
         ageGroupCode: getTextByLocalName(el, 'AgeGroupCode')?.trim(),

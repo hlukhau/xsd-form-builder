@@ -127,7 +127,10 @@ export function exportPhaCardDataToXML(data: CardData): string {
       if (g.personQuantity != null && g.personQuantity !== '') xmlParts.push(`        <smsdo:PersonQuantity>${escapeXML(String(g.personQuantity))}</smsdo:PersonQuantity>`)
       if (g.ageGroupCode) xmlParts.push(`        <smsdo:AgeGroupCode>${escapeXML(g.ageGroupCode)}</smsdo:AgeGroupCode>`)
       if (g.diseaseOutcomeCode) xmlParts.push(`        <smsdo:DiseaseOutcomeCode>${escapeXML(g.diseaseOutcomeCode)}</smsdo:DiseaseOutcomeCode>`)
-      if (g.laboratoryConfirmedIndicator === 0 || g.laboratoryConfirmedIndicator === 1) xmlParts.push(`        <smsdo:LaboratoryConfirmedIndicator>${g.laboratoryConfirmedIndicator}</smsdo:LaboratoryConfirmedIndicator>`)
+      if (g.laboratoryConfirmedIndicator === 0 || g.laboratoryConfirmedIndicator === 1) {
+        const boolVal = g.laboratoryConfirmedIndicator === 1 ? 'true' : 'false'
+        xmlParts.push(`        <smsdo:LaboratoryConfirmedIndicator>${boolVal}</smsdo:LaboratoryConfirmedIndicator>`)
+      }
       xmlParts.push('      </smcdo:PatientGroupDetails>')
     }
     if (data.detectionPlace) {
