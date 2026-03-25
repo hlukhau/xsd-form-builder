@@ -913,6 +913,52 @@ body {
   white-space: normal;
 }
 
+/* Принятые меры: многострочное отображение "Наименование меры" в Select */
+.measures-edit-table .measure-name-cell .ant-select {
+  width: 100%;
+  height: auto !important;
+  min-height: 32px;
+}
+.measures-edit-table .measure-name-cell .ant-select-selector {
+  height: auto !important;
+  min-height: 32px !important;
+  max-height: none !important;
+  align-items: flex-start !important;
+  padding-top: 4px !important;
+  padding-bottom: 4px !important;
+}
+.measures-edit-table .measure-name-cell .ant-select-selection-item {
+  white-space: normal !important;
+  word-break: break-word;
+  overflow-wrap: anywhere;
+  line-height: 1.35;
+  overflow: visible !important;
+  text-overflow: clip !important;
+}
+
+/* Субъект-исполнитель (меры): метод идентификации — на всю ширину формы, многострочное отображение */
+.subject-executor-id-method-wrap {
+  width: 100%;
+  min-width: 0;
+}
+.subject-executor-id-method-wrap .subject-executor-id-method-select {
+  width: 100%;
+  height: auto !important;
+  min-height: 32px;
+}
+.subject-executor-id-method-wrap .subject-executor-id-method-select .ant-select-selector {
+  height: auto !important;
+  min-height: 32px !important;
+  align-items: flex-start !important;
+  padding-top: 4px !important;
+  padding-bottom: 4px !important;
+}
+.subject-executor-id-method-wrap .subject-executor-id-method-select .ant-select-selection-item {
+  white-space: normal !important;
+  word-break: break-word;
+  line-height: 1.35;
+}
+
 /* Счётчик символов (showCount) у TextArea — внутри поля в правом нижнем углу везде (DPA, PHA) */
 .ant-input-textarea-affix-wrapper.ant-input-textarea-show-count {
   position: relative !important;

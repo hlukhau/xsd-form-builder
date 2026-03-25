@@ -7,17 +7,21 @@ import { getShipDocKindOptions, type ShipDocKindOption } from '@/utils/reference
 export function useShipDocKindOptions() {
   const [options, setOptions] = useState<ShipDocKindOption[]>([])
   const [loading, setLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
     setLoading(true)
+    setError(null)
     getShipDocKindOptions()
       .then((data) => {
         console.log(`[useShipDocKindOptions] Загружено ${data.length} видов товаросопроводительных документов`)
         setOptions(data)
+        setError(null)
       })
       .catch((error) => {
         console.error('Ошибка загрузки справочника видов товаросопроводительных документов:', error)
         setOptions([])
+        setError(error instanceof Error ? error.message : 'Ошибка загрузки справочника SHIPDOCKIND')
       })
       .finally(() => setLoading(false))
   }, [])
@@ -54,6 +58,7 @@ export function useShipDocKindOptions() {
   return {
     options,
     loading,
+    error,
     getNameByCode,
     getDisplayLabel,
     getSelectOptions,

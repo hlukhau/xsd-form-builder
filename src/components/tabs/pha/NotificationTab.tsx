@@ -2,7 +2,6 @@ import { Descriptions, Tag, Table } from 'antd'
 import { format, parseISO } from 'date-fns'
 import { ru } from 'date-fns/locale'
 import { useState, useEffect } from 'react'
-import { checkCountryExists } from '@/utils/referenceDataApi'
 import { useCountryOptions } from '@/hooks/shared/useCountryOptions'
 import { useIncidentAlertKindOptions } from '@/hooks/shared/useIncidentAlertKindOptions'
 import type { CardData } from '@/types/card'
@@ -19,15 +18,14 @@ interface NotificationTabProps {
 const NotificationTab: React.FC<NotificationTabProps> = ({ data }) => {
   const n = data.notification
   const causeList = data.phaCauseNotifications ?? []
-  const { getDisplayLabel: getCountryDisplayLabel } = useCountryOptions()
+  const { getDisplayLabel: getCountryDisplayLabel, countryOptions, loading: countriesLoading, error: countriesError } = useCountryOptions()
   const { getNameByCode: getIncidentAlertKindNameByCode } = useIncidentAlertKindOptions()
-  const [countryValid, setCountryValid] = useState<boolean | null>(null)
-  const [authorizedBodyCountryValid, setAuthorizedBodyCountryValid] = useState<boolean | null>(null)
-
-  useEffect(() => {
-    if (n.country) checkCountryExists(n.country).then(setCountryValid)
-    if (n.authorizedBody?.country) checkCountryExists(n.authorizedBody.country).then(setAuthorizedBodyCountryValid)
-  }, [n.country, n.authorizedBody?.country])
+  const normalizeCountryCode = (code?: string) => (code ?? '').split('-')[0].trim().toUpperCase()
+  const hasCountryInDict = (code?: string): boolean => {
+    const normalized = normalizeCountryCode(code)
+    if (!normalized) return false
+    return countryOptions.some((o) => (o.code || '').trim().toUpperCase() === normalized)
+  }
 
   const formatDate = (date: string | null | undefined) => {
     if (!date) return '-'
@@ -40,9 +38,17 @@ const NotificationTab: React.FC<NotificationTabProps> = ({ data }) => {
     }
   }
 
-  const renderCountry = (countryCode: string, isValid: boolean | null) => {
+  const renderCountry = (countryCode: string) => {
     const displayLabel = getCountryDisplayLabel(countryCode)
-    if (isValid === false) {
+    if (countriesError) {
+      return (
+        <span>
+          <Tag color="orange" style={{ marginRight: 8 }}>Справочник стран не загружен</Tag>
+          {displayLabel}
+        </span>
+      )
+    }
+    if (!countriesLoading && countryCode && !hasCountryInDict(countryCode)) {
       return (
         <span>
           <Tag color="red" style={{ marginRight: 8 }}>Не найдено в справочнике</Tag>
@@ -62,7 +68,7 @@ const NotificationTab: React.FC<NotificationTabProps> = ({ data }) => {
   return (
     <div>
       <Descriptions column={1} bordered title="Уведомление о случае обнаружения болезни">
-        <Descriptions.Item label="Страна">{renderCountry(n.country, countryValid)}</Descriptions.Item>
+        <Descriptions.Item label="Страна">{renderCountry(n.country)}</Descriptions.Item>
         <Descriptions.Item label="Регистрационный номер">{n.registrationNumber || '—'}</Descriptions.Item>
         <Descriptions.Item label="Вид">
           {kindLabel(n.type)}
@@ -77,7 +83,7 @@ const NotificationTab: React.FC<NotificationTabProps> = ({ data }) => {
         <Descriptions.Item label="Дата закрытия">{n.endDate ? formatDate(n.endDate) : '—'}</Descriptions.Item>
         <Descriptions.Item label="Уполномоченный орган">
           <Descriptions column={1} size="small" bordered>
-            <Descriptions.Item label="Страна">{renderCountry(n.authorizedBody?.country ?? '', authorizedBodyCountryValid)}</Descriptions.Item>
+            <Descriptions.Item label="Страна">{renderCountry(n.authorizedBody?.country ?? '')}</Descriptions.Item>
             <Descriptions.Item label="Идентификатор">{n.authorizedBody?.identifier || '-'}</Descriptions.Item>
             <Descriptions.Item label="Наименование">{n.authorizedBody?.name || '-'}</Descriptions.Item>
             <Descriptions.Item label="Краткое наименование">{n.authorizedBody?.shortName || '-'}</Descriptions.Item>

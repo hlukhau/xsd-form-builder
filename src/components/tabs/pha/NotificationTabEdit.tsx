@@ -259,7 +259,7 @@ const NotificationTabEdit: React.FC<NotificationTabEditProps> = ({
   ): string | undefined => {
     const missing = getCauseMissing(row)
     if (!isCauseTouched(row)) return undefined
-    return missing.includes(key) ? 'Обязательное поле (XSD)' : undefined
+    return missing.includes(key) ? 'Обязательное поле' : undefined
   }
   const addCause = () => {
     onChange({
@@ -288,7 +288,7 @@ const NotificationTabEdit: React.FC<NotificationTabEditProps> = ({
         name="country"
         required
         validateStatus={isBlank(n.country) ? 'error' : undefined}
-        help={isBlank(n.country) ? 'Обязательное поле (XSD)' : undefined}
+        help={isBlank(n.country) ? 'Обязательное поле' : undefined}
       >
         <Select
           showSearch
@@ -303,7 +303,7 @@ const NotificationTabEdit: React.FC<NotificationTabEditProps> = ({
         name="registrationNumber"
         required
         validateStatus={isBlank(n.registrationNumber) ? 'error' : undefined}
-        help={isBlank(n.registrationNumber) ? 'Обязательное поле (XSD)' : undefined}
+        help={isBlank(n.registrationNumber) ? 'Обязательное поле' : undefined}
       >
         <Input
           placeholder="Регистрационный номер"
@@ -318,7 +318,7 @@ const NotificationTabEdit: React.FC<NotificationTabEditProps> = ({
         name="type"
         required
         validateStatus={isBlank(n.type) ? 'error' : undefined}
-        help={isBlank(n.type) ? 'Обязательное поле (XSD)' : undefined}
+        help={isBlank(n.type) ? 'Обязательное поле' : undefined}
       >
         <Select
           showSearch
@@ -332,7 +332,7 @@ const NotificationTabEdit: React.FC<NotificationTabEditProps> = ({
         name="formationDate"
         required
         validateStatus={isBlank(n.formationDate) ? 'error' : undefined}
-        help={isBlank(n.formationDate) ? 'Обязательное поле (XSD)' : undefined}
+        help={isBlank(n.formationDate) ? 'Обязательное поле' : undefined}
       >
         <DatePicker format={DATE_DISPLAY_FORMAT} style={{ width: '100%' }} disabled />
       </Form.Item>
@@ -346,7 +346,7 @@ const NotificationTabEdit: React.FC<NotificationTabEditProps> = ({
           label="Страна"
           required
           validateStatus={isBlank(authorizedBodyCountryCode) ? 'error' : undefined}
-          help={isBlank(authorizedBodyCountryCode) ? 'Обязательное поле (XSD)' : undefined}
+          help={isBlank(authorizedBodyCountryCode) ? 'Обязательное поле' : undefined}
         >
           <Input
             readOnly
@@ -372,7 +372,7 @@ const NotificationTabEdit: React.FC<NotificationTabEditProps> = ({
           label="Наименование"
           required
           validateStatus={isBlank(n.authorizedBody?.name) ? 'error' : undefined}
-          help={isBlank(n.authorizedBody?.name) ? 'Обязательное поле (XSD)' : undefined}
+          help={isBlank(n.authorizedBody?.name) ? 'Обязательное поле' : undefined}
         >
           <Input readOnly status={isBlank(n.authorizedBody?.name) ? 'error' : undefined} value={n.authorizedBody?.name ?? '-'} />
         </Form.Item>

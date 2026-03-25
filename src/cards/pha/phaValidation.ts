@@ -47,7 +47,18 @@ function objectAddressHasMinimum(a: AddressDetails | undefined): boolean {
 function hasPlaceAnyBlock(place: DetectionPlaceData | undefined): boolean {
   if (!place) return false
   const o = place.organization
-  if (o && (o.country?.trim() || o.businessEntityName?.trim() || (o.addresses && o.addresses.length > 0) || o.businessEntityId?.trim()))
+  if (
+    o &&
+    (o.country?.trim() ||
+      o.businessEntityName?.trim() ||
+      o.businessEntityBriefName?.trim() ||
+      (o.addresses && o.addresses.length > 0) ||
+      o.businessEntityId?.trim() ||
+      o.identificationMethod?.trim() ||
+      o.customsNumber?.trim() ||
+      o.taxRegistrationReasonCode?.trim() ||
+      o.taxpayerId?.trim())
+  )
     return true
   const bc = place.borderCheckpoint
   if (bc && (bc.checkpointCode?.trim() || bc.checkpointName?.trim())) return true
@@ -75,8 +86,13 @@ function collectPlaceRemarks(place: DetectionPlaceData | undefined): string[] {
     const orgTouched =
       !empty(o.country) ||
       !empty(o.businessEntityName) ||
+      !empty(o.businessEntityBriefName) ||
       (o.addresses && o.addresses.length > 0) ||
-      !empty(o.businessEntityId)
+      !empty(o.businessEntityId) ||
+      !empty(o.identificationMethod) ||
+      !empty(o.customsNumber) ||
+      !empty(o.taxRegistrationReasonCode) ||
+      !empty(o.taxpayerId)
     if (orgTouched) {
       if (empty(o.country)) {
         add('Организация: не указана страна (csdo:UnifiedCountryCode)')

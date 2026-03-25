@@ -81,9 +81,20 @@ export function getLanguageName(code: string | undefined): string {
   return LANGUAGE_MAP[code.toLowerCase()] || code.toUpperCase()
 }
 
+/** Опции «язык» в формате ТЗ: LANGALPHA2CODE-LANGNAME (каталог LANG; записи актуальности API пока нет — все элементы статического набора). */
+export function getLangCatalogSelectOptions(): Array<{ value: string; label: string }> {
+  return Object.entries(LANGUAGE_MAP)
+    .map(([code, name]) => ({
+      value: code,
+      label: `${code.toUpperCase()}-${name}`,
+    }))
+    .sort((a, b) => a.label.localeCompare(b.label, 'ru'))
+}
+
 export function useLanguageOptions() {
   return {
     getLanguageName,
+    getLangCatalogSelectOptions,
   }
 }
 

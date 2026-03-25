@@ -266,11 +266,12 @@ const DangerousProductCard: React.FC<DangerousProductCardProps> = ({
     effectiveDpaid === '-' && statusButton ? 'Сохраните изменения' : statusButtonComment
   const CLOSE_BUTTON_DISABLED_HINT =
     'Закрытие карты доступно при статусе «Новое», «Отправка не удалась», «Ошибка обработки» или «Доставлено».'
+  const primaryIsClose = (effectiveStatusButton?.action ?? '') === 'close'
   const effectiveCloseButton =
     effectiveDpaid === '-' && closeConfig
       ? { ...closeConfig, disabled: true, hint: 'Сохраните изменения' }
       : closeConfig ??
-        (isOutgoingSource
+        (isOutgoingSource && !primaryIsClose
           ? { label: 'Закрытие карты', action: 'close' as const, disabled: true, hint: CLOSE_BUTTON_DISABLED_HINT }
           : null)
 
@@ -347,12 +348,14 @@ const DangerousProductCard: React.FC<DangerousProductCardProps> = ({
     }
   }
   
-  // Обновляем originalXML при изменении prop
+  // Синхронизируем originalXML только при изменении пропса от родителя.
+  // Локальное обновление после успешного save (setOriginalXML(xmlJustSaved))
+  // не должно откатываться назад старым propOriginalXML.
   useEffect(() => {
-    if (propOriginalXML && propOriginalXML !== originalXML) {
+    if (propOriginalXML) {
       setOriginalXML(propOriginalXML)
     }
-  }, [propOriginalXML, originalXML])
+  }, [propOriginalXML])
   
   // Обновляем editedData при изменении data только если это новый документ
   // (определяем по registrationNumber или version), чтобы не перезаписывать изменения пользователя
@@ -981,15 +984,26 @@ const DangerousProductCard: React.FC<DangerousProductCardProps> = ({
             }
 
             if (action === 'to_new') {
-              changeDpaStatus(effectiveDpaid, 'to_new', Object.keys(opts).length ? opts : undefined)
-                .then((res) => {
-                  const newStatus = res.newStatus ?? currentData.status
-                  const newStatusId = newStatus === 'Новое' ? 6 : (editedData.statusId ?? data.statusId)
-                  onUpdate({ ...currentData, status: newStatus, statusId: newStatusId })
-                  setEditedData((prev) => ({ ...prev, status: newStatus, statusId: newStatusId }))
-                  message.success('Карта переведена в статус «Новое».')
-                })
-                .catch((e) => message.error(e instanceof Error ? e.message : 'Ошибка смены статуса'))
+              const regNumber = currentData.registrationNumber ?? currentData.notification?.registrationNumber ?? effectiveDpaid ?? ''
+              Modal.confirm({
+                title: 'Возврат в статус «Новое»',
+                content: `Внимание! Карта ${regNumber} будет возвращена в статус „Новое". Вы сможете снова отредактировать её и отправить повторно. Отменить это действие нельзя. Продолжить?`,
+                okText: 'Продолжить',
+                cancelText: 'Отмена',
+                onOk: () =>
+                  changeDpaStatus(effectiveDpaid, 'to_new', Object.keys(opts).length ? opts : undefined)
+                    .then((res) => {
+                      const newStatus = res.newStatus ?? currentData.status
+                      const newStatusId = newStatus === 'Новое' ? 6 : (editedData.statusId ?? data.statusId)
+                      onUpdate({ ...currentData, status: newStatus, statusId: newStatusId })
+                      setEditedData((prev) => ({ ...prev, status: newStatus, statusId: newStatusId }))
+                      message.success('Карта переведена в статус «Новое».')
+                    })
+                    .catch((e) => {
+                      message.error(e instanceof Error ? e.message : 'Ошибка смены статуса')
+                      return Promise.reject(e)
+                    }),
+              })
               return
             }
 

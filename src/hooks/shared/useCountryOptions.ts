@@ -7,13 +7,20 @@ import { getCountryOptions, type CountryOption } from '@/utils/referenceDataApi'
 export function useCountryOptions() {
   const [countryOptions, setCountryOptions] = useState<CountryOption[]>([])
   const [loading, setLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
     setLoading(true)
+    setError(null)
     getCountryOptions()
-      .then(setCountryOptions)
+      .then((data) => {
+        setCountryOptions(data)
+        setError(null)
+      })
       .catch((error) => {
         console.error('Ошибка загрузки справочника стран:', error)
+        setCountryOptions([])
+        setError(error instanceof Error ? error.message : 'Ошибка загрузки справочника стран')
       })
       .finally(() => setLoading(false))
   }, [])
@@ -54,6 +61,7 @@ export function useCountryOptions() {
   return {
     countryOptions,
     loading,
+    error,
     normalizeCountryCode,
     getDisplayLabel,
     getSelectOptions,

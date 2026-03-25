@@ -459,10 +459,12 @@ public class DictionaryInitializerListener implements ServletContextListener {
             System.out.println("[DictionaryInitializer] Loading ship document kinds dictionary...");
             conn = DatabaseUtil.getConnectionForGuid(guid);
             
-            // Загружаем только активные записи (где SHIPDOCKINDEDATE >= SYSDATE)
+            // Загружаем активные записи по периоду действия:
+            // SHIPDOCKINDSDATE <= SYSDATE и (SHIPDOCKINDEDATE IS NULL или SHIPDOCKINDEDATE >= SYSDATE).
             String sql = "SELECT SHIPDOCKINDCODE, SHIPDOCKINDNAME " +
                         "FROM SHIPDOCKIND " +
-                        "WHERE SHIPDOCKINDEDATE >= SYSDATE " +
+                        "WHERE (SHIPDOCKINDSDATE IS NULL OR SHIPDOCKINDSDATE <= SYSDATE) " +
+                        "AND (SHIPDOCKINDEDATE IS NULL OR SHIPDOCKINDEDATE >= SYSDATE) " +
                         "ORDER BY NVL(SEQNUM, 999999), SHIPDOCKINDCODE";
             
             PreparedStatement stmt = conn.prepareStatement(sql);
@@ -695,38 +697,80 @@ public class DictionaryInitializerListener implements ServletContextListener {
     }
     
     /**
-     * Загружает справочник видов документов, удостоверяющих личность (IDENTITYDOCKIND, codeListId=2053) в кеш
+     * Загружает справочник видов документов, удостоверяющих личность (IDENTITYDOCKIND, codeListId=2053) в кеш.
+     * Читает IDENTITYDOCSECTIONCODE (как в отборе {@code WHERE IDENTITYDOCSECTIONCODE = 'BY'});
+     * при отсутствии колонки — повтор без неё.
      */
     private void loadIdentityDocKindsDictionary(String guid) {
         Connection conn = null;
         try {
             System.out.println("[DictionaryInitializer] Loading identity doc kinds dictionary...");
             conn = DatabaseUtil.getConnectionForGuid(guid);
-            String sql = "SELECT IDENTITYDOCKINDCODE, IDENTITYDOCKINDNAME " +
-                        "FROM IDENTITYDOCKIND " +
-                        "WHERE IDENTITYDOCKINDSDATE <= SYSDATE " +
-                        "AND (IDENTITYDOCKINDEDATE IS NULL OR IDENTITYDOCKINDEDATE >= SYSDATE) " +
-                        "ORDER BY IDENTITYDOCKINDCODE";
-            PreparedStatement stmt = conn.prepareStatement(sql);
-            ResultSet rs = stmt.executeQuery();
-            List<IdentityDocKindOption> list = new ArrayList<>();
-            int count = 0;
-            while (rs.next()) {
-                list.add(new IdentityDocKindOption(
-                    rs.getString("IDENTITYDOCKINDCODE"),
-                    rs.getString("IDENTITYDOCKINDNAME")
-                ));
-                count++;
+            if (!loadIdentityDocKindsIntoCache(conn, true)) {
+                System.out.println("[DictionaryInitializer] Retrying identity doc kinds without IDENTITYDOCSECTIONCODE...");
+                if (!loadIdentityDocKindsIntoCache(conn, false)) {
+                    System.err.println("[DictionaryInitializer] Failed to load identity doc kinds dictionary");
+                }
             }
-            DictionaryCache.setIdentityDocKindsCache(list);
-            System.out.println("[DictionaryInitializer] Loaded " + count + " identity doc kinds into cache");
-            rs.close();
-            stmt.close();
         } catch (SQLException e) {
             System.err.println("[DictionaryInitializer] ERROR loading identity doc kinds dictionary: " + e.getMessage());
             e.printStackTrace();
         } finally {
             DatabaseUtil.closeConnection(conn);
+        }
+    }
+
+    /**
+     * @return false если запрос с IDENTITYDOCSECTIONCODE невозможен (нет колонки и т.п.)
+     */
+    private boolean loadIdentityDocKindsIntoCache(Connection conn, boolean withSection) {
+        PreparedStatement stmt = null;
+        ResultSet rs = null;
+        try {
+            String sql;
+            /* Активность записи: как у других справочников — учитываем бессрочные (NULL в датах). */
+            final String activePeriod =
+                    "WHERE (IDENTITYDOCKINDSDATE IS NULL OR IDENTITYDOCKINDSDATE <= SYSDATE) " +
+                    "AND (IDENTITYDOCKINDEDATE IS NULL OR IDENTITYDOCKINDEDATE >= SYSDATE) ";
+            if (withSection) {
+                sql = "SELECT IDENTITYDOCKINDCODE, IDENTITYDOCKINDNAME, IDENTITYDOCSECTIONCODE " +
+                        "FROM IDENTITYDOCKIND " +
+                        activePeriod +
+                        "ORDER BY IDENTITYDOCSECTIONCODE, IDENTITYDOCKINDCODE";
+            } else {
+                sql = "SELECT IDENTITYDOCKINDCODE, IDENTITYDOCKINDNAME " +
+                        "FROM IDENTITYDOCKIND " +
+                        activePeriod +
+                        "ORDER BY IDENTITYDOCKINDCODE";
+            }
+            stmt = conn.prepareStatement(sql);
+            rs = stmt.executeQuery();
+            List<IdentityDocKindOption> list = new ArrayList<>();
+            int count = 0;
+            while (rs.next()) {
+                String section = withSection ? rs.getString("IDENTITYDOCSECTIONCODE") : null;
+                list.add(new IdentityDocKindOption(
+                    rs.getString("IDENTITYDOCKINDCODE"),
+                    rs.getString("IDENTITYDOCKINDNAME"),
+                    section
+                ));
+                count++;
+            }
+            DictionaryCache.setIdentityDocKindsCache(list);
+            System.out.println("[DictionaryInitializer] Loaded " + count + " identity doc kinds (withSection=" + withSection + ")");
+            return true;
+        } catch (SQLException e) {
+            System.err.println("[DictionaryInitializer] identity doc kinds query failed (withSection=" + withSection + "): " + e.getMessage());
+            return false;
+        } finally {
+            try {
+                if (rs != null) rs.close();
+            } catch (SQLException ignored) {
+            }
+            try {
+                if (stmt != null) stmt.close();
+            } catch (SQLException ignored) {
+            }
         }
     }
 

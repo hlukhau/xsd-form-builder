@@ -28,6 +28,22 @@ function getTextByLocalName(parent: Element | null, localName: string): string |
   return null
 }
 
+/** Извлекает текст ПРЯМОГО дочернего элемента по локальному имени (без учёта namespace). */
+function getDirectChildTextByLocalName(parent: Element | null, localName: string): string | null {
+  if (!parent) return null
+  const want = localName.toLowerCase()
+  const children = parent.children
+  for (let i = 0; i < children.length; i++) {
+    const el = children[i] as Element
+    const local = (el.localName || el.tagName.split(':').pop() || '').toLowerCase()
+    if (local === want) {
+      const t = el.textContent?.trim() ?? null
+      return t || null
+    }
+  }
+  return null
+}
+
 /** Находит первый элемент по локальному имени среди потомков. */
 function findElementByLocalName(parent: Element | null, localName: string): Element | null {
   if (!parent) return null
@@ -93,13 +109,13 @@ export function parsePhaXmlToCardData(xmlText: string): CardData {
     allCaseBlocks.length > 1 ? allCaseBlocks[1] : allCaseBlocks[0]
   // Поля уведомления — из IncidentAlertDetailsType (UnifiedCountryCode, IncidentId, IncidentKindCode, DocCreationDate, EndDate, UnifiedAuthorityDetails).
   const country =
-    getTextByLocalName(firstCaseBlock, 'UnifiedCountryCode')?.trim() ||
+    getDirectChildTextByLocalName(firstCaseBlock, 'UnifiedCountryCode')?.trim() ||
     getTextByLocalName(root, 'AlertCountryCode')?.trim() ||
     'BY'
-  const registrationNumber = getTextByLocalName(firstCaseBlock, 'IncidentId')?.trim() || ''
-  const docCreationDate = getTextByLocalName(firstCaseBlock, 'DocCreationDate')?.trim() || ''
-  const incidentKindCode = getTextByLocalName(firstCaseBlock, 'IncidentKindCode')?.trim() || ''
-  const endDate = getTextByLocalName(firstCaseBlock, 'EndDate')?.trim() || null
+  const registrationNumber = getDirectChildTextByLocalName(firstCaseBlock, 'IncidentId')?.trim() || ''
+  const docCreationDate = getDirectChildTextByLocalName(firstCaseBlock, 'DocCreationDate')?.trim() || ''
+  const incidentKindCode = getDirectChildTextByLocalName(firstCaseBlock, 'IncidentKindCode')?.trim() || ''
+  const endDate = getDirectChildTextByLocalName(firstCaseBlock, 'EndDate')?.trim() || null
 
   const authority = findElementByLocalName(firstCaseBlock, 'UnifiedAuthorityDetails')
   const authorizedBody = {

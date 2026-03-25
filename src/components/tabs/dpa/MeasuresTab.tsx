@@ -3,7 +3,9 @@ import { Table, Button, Descriptions, Collapse } from 'antd'
 import { DownloadOutlined, CaretRightOutlined, CaretDownOutlined } from '@ant-design/icons'
 import { format } from 'date-fns'
 import { ru } from 'date-fns/locale'
-import { getLanguageName } from '@/hooks/shared/useLanguageOptions'
+import { getLanguageName, useLanguageOptions } from '@/hooks/shared/useLanguageOptions'
+import { useShipDocKindOptions } from '@/hooks/shared/useShipDocKindOptions'
+import { useBorderCheckpointOptions } from '@/hooks/shared/useBorderCheckpointOptions'
 import {
   getAddressListFromSubject,
   getAddressListFromOrganization,
@@ -15,6 +17,7 @@ import { useSanitaryMeasureObjKindOptions } from '@/hooks/shared/useSanitaryMeas
 import { useIdentityDocKindOptions } from '@/hooks/shared/useIdentityDocKindOptions'
 import { useCountryOptions } from '@/hooks/shared/useCountryOptions'
 import { useLegalFormOptions } from '@/hooks/shared/useLegalFormOptions'
+import { useIdentificationMethodOptions } from '@/hooks/shared/useIdentificationMethodOptions'
 import type {
   MeasuresData,
   SanitaryMeasure,
@@ -23,7 +26,6 @@ import type {
   MeasureImplementationItem,
   SubjectDetails,
   DocumentReferenceDetails,
-  MeasurePlaceDetails,
 } from '@/types/card'
 
 interface MeasuresTabProps {
@@ -34,6 +36,7 @@ const MeasuresTab: React.FC<MeasuresTabProps> = ({ data }) => {
   const [selectedMeasureIndex, setSelectedMeasureIndex] = useState<number | null>(null)
   const { getNameByCode: getSanitaryMeasureNameByCode } = useSanitaryMeasureOptions()
   const { getNameByCode: getSanitaryMeasureObjKindNameByCode } = useSanitaryMeasureObjKindOptions()
+  const { getLangCatalogSelectOptions } = useLanguageOptions()
 
   const formatDate = (date: string | null | undefined) => {
     if (!date) return '-'
@@ -51,15 +54,12 @@ const MeasuresTab: React.FC<MeasuresTabProps> = ({ data }) => {
   }
 
   const getMeasureName = (measure: SanitaryMeasure): string => {
-    // Если указаны MeasureCode и codeListId, используем справочник
-    if (measure.measureCode && measure.measureCodeListId) {
-      const nameFromDict = getSanitaryMeasureNameByCode(measure.measureCode)
-      if (nameFromDict) {
-        return nameFromDict
-      }
+    const code = measure.measureCode?.trim()
+    if (code) {
+      const nameFromDict = getSanitaryMeasureNameByCode(code)
+      return nameFromDict ? `${code} — ${nameFromDict}` : code
     }
-    // Иначе используем MeasureName
-    return measure.measureName || '-'
+    return measure.measureName?.trim() || '-'
   }
 
   const columns = [
@@ -97,11 +97,16 @@ const MeasuresTab: React.FC<MeasuresTabProps> = ({ data }) => {
       title: 'Язык',
       key: 'language',
       width: 150,
-      render: (_: any, record: SanitaryMeasure) => (
-        <div style={{ wordWrap: 'break-word', whiteSpace: 'normal' }}>
-          {record.languageCode ? `${record.languageCode.toUpperCase()} - ${getLanguageName(record.languageCode)}` : '-'}
-        </div>
-      ),
+      render: (_: any, record: SanitaryMeasure) => {
+        const label = record.languageCode
+          ? getLangCatalogSelectOptions().find((o) => o.value === record.languageCode)?.label
+          : undefined
+        return (
+          <div style={{ wordWrap: 'break-word', whiteSpace: 'normal' }}>
+            {label ?? (record.languageCode ? `${record.languageCode.toUpperCase()}-${getLanguageName(record.languageCode)}` : '-')}
+          </div>
+        )
+      },
     },
     {
       title: 'Наименование меры',
@@ -176,14 +181,14 @@ const MeasuresTab: React.FC<MeasuresTabProps> = ({ data }) => {
           },
           {
             key: 'implementation',
-            label: 'Мероприятия, обеспечивающие соблюдение меры',
+            label: 'Мероприятия',
             children: measure.measureImplementationDetails && measure.measureImplementationDetails.length > 0 ? (
               <MeasureImplementationView items={measure.measureImplementationDetails} />
             ) : (
               <div style={{ color: '#999', fontStyle: 'italic' }}>Мероприятия не указаны</div>
             ),
           },
-        ].filter(Boolean)}
+        ].filter(Boolean) as any[]}
       />
     </div>
   )
@@ -213,6 +218,8 @@ const MeasuresTab: React.FC<MeasuresTabProps> = ({ data }) => {
 // Компонент для отображения MeasureDocDetails
 const MeasureDocDetailsView: React.FC<{ doc: MeasureDocDetails }> = ({ doc }) => {
   const { getDisplayLabel: getCountryDisplayLabel } = useCountryOptions()
+  const { getLangCatalogSelectOptions } = useLanguageOptions()
+  const { getDisplayLabel: getShipDocKindLabel } = useShipDocKindOptions()
   const formatDate = (date: string | null | undefined) => {
     if (!date) return '-'
     const dateObj = new Date(date)
@@ -223,8 +230,17 @@ const MeasureDocDetailsView: React.FC<{ doc: MeasureDocDetails }> = ({ doc }) =>
   return (
     <Descriptions column={1} bordered>
       <Descriptions.Item label="Страна">{getCountryDisplayLabel(doc.country)}</Descriptions.Item>
-      <Descriptions.Item label="Язык">{getLanguageName(doc.languageCode)}</Descriptions.Item>
-      <Descriptions.Item label="Вид">{doc.docKindName || '-'}</Descriptions.Item>
+      <Descriptions.Item label="Язык">
+        {doc.languageCode
+          ? getLangCatalogSelectOptions().find((o) => o.value === doc.languageCode)?.label ??
+            `${doc.languageCode.toUpperCase()}-${getLanguageName(doc.languageCode)}`
+          : '-'}
+      </Descriptions.Item>
+      <Descriptions.Item label="Вид">
+        {doc.docKindCode?.trim()
+          ? getShipDocKindLabel(doc.docKindCode) || `${doc.docKindCode} — ${doc.docKindName || '—'}`
+          : doc.docKindName || '-'}
+      </Descriptions.Item>
       <Descriptions.Item label="Наименование">{doc.docName || '-'}</Descriptions.Item>
       <Descriptions.Item label="Серия">{doc.docSeriesId || '-'}</Descriptions.Item>
       <Descriptions.Item label="Номер">{doc.docId || '-'}</Descriptions.Item>
@@ -232,7 +248,6 @@ const MeasureDocDetailsView: React.FC<{ doc: MeasureDocDetails }> = ({ doc }) =>
       <Descriptions.Item label="Срок действия. Начало">{formatDate(doc.docStartDate)}</Descriptions.Item>
       <Descriptions.Item label="Срок действия. Окончание">{formatDate(doc.docValidityDate)}</Descriptions.Item>
       <Descriptions.Item label="Срок действия">{doc.docValidityDuration || '-'}</Descriptions.Item>
-      <Descriptions.Item label="Уполномоченный орган. Идентификатор">{doc.authorityId || '-'}</Descriptions.Item>
       <Descriptions.Item label="Уполномоченный орган. Наименование">{doc.authorityName || '-'}</Descriptions.Item>
       <Descriptions.Item label="Описание">{doc.description || '-'}</Descriptions.Item>
       <Descriptions.Item label="Количество листов">{doc.pageQuantity || '-'}</Descriptions.Item>
@@ -326,7 +341,7 @@ const MeasureInitiationBasisView: React.FC<{ items: MeasureInitiationBasisItem[]
 const MeasureImplementationView: React.FC<{ items: MeasureImplementationItem[] }> = ({ items }) => {
   const accordionItems = items.map((item, index) => ({
     key: String(index),
-    label: `Сведения об исполнителе — ${index + 1}`,
+    label: `Сведения о мероприятии — ${index + 1}`,
     children: <MeasureImplementationDetailView item={item} />,
   }))
   return (
@@ -339,27 +354,43 @@ const MeasureImplementationView: React.FC<{ items: MeasureImplementationItem[] }
 // Компонент для детализации одной записи мероприятия (Уполномоченный орган + Субъект-исполнитель + Документ + Место)
 const MeasureImplementationDetailView: React.FC<{ item: MeasureImplementationItem }> = ({ item }) => {
   const { getDisplayLabel: getCountryDisplayLabel } = useCountryOptions()
+  const { getNameByCode: getCheckpointNameByCode } = useBorderCheckpointOptions()
+  const authorities = item.authorities?.length ? item.authorities : (item.authority ? [item.authority] : [])
+  const subjects = item.subjectDetailsList?.length ? item.subjectDetailsList : (item.subjectDetails ? [item.subjectDetails] : [])
 
   return (
     <Collapse
       defaultActiveKey={['authority', 'subject', 'document', 'place']}
       items={[
-        item.authority && {
+        authorities.length > 0 && {
           key: 'authority',
           label: 'Уполномоченный орган',
           children: (
-            <Descriptions column={1} bordered size="small">
-              <Descriptions.Item label="Страна">{getCountryDisplayLabel(item.authority.country)}</Descriptions.Item>
-              <Descriptions.Item label="Идентификатор">—</Descriptions.Item>
-              <Descriptions.Item label="Наименование">{item.authority.authorityName || '-'}</Descriptions.Item>
-              <Descriptions.Item label="Краткое наименование">{item.authority.authorityBriefName || '-'}</Descriptions.Item>
-            </Descriptions>
+            <div style={{ display: 'grid', gap: 8 }}>
+              {authorities.map((a, idx) => (
+                <Descriptions key={`a-${idx}`} column={1} bordered size="small" title={`Уполномоченный орган — ${idx + 1}`}>
+                  <Descriptions.Item label="Страна">{getCountryDisplayLabel(a.country)}</Descriptions.Item>
+                  <Descriptions.Item label="Идентификатор">—</Descriptions.Item>
+                  <Descriptions.Item label="Наименование">{a.authorityName || '-'}</Descriptions.Item>
+                  <Descriptions.Item label="Краткое наименование">{a.authorityBriefName || '-'}</Descriptions.Item>
+                </Descriptions>
+              ))}
+            </div>
           ),
         },
-        item.subjectDetails && {
+        subjects.length > 0 && {
           key: 'subject',
           label: 'Субъект-исполнитель',
-          children: <SubjectDetailsUnifiedView subject={item.subjectDetails} />,
+          children: (
+            <div style={{ display: 'grid', gap: 8 }}>
+              {subjects.map((s, idx) => (
+                <div key={`s-${idx}`}>
+                  <div style={{ fontWeight: 500, marginBottom: 6 }}>Субъект-исполнитель — {idx + 1}</div>
+                  <SubjectDetailsUnifiedView subject={s} />
+                </div>
+              ))}
+            </div>
+          ),
         },
         item.documentDetails && {
           key: 'document',
@@ -372,12 +403,18 @@ const MeasureImplementationDetailView: React.FC<{ item: MeasureImplementationIte
           children: (
             <Descriptions column={1} bordered size="small">
               <Descriptions.Item label="Регион">{item.placeDetails.regionName || '-'}</Descriptions.Item>
-              <Descriptions.Item label="Код пункта пропуска">{item.placeDetails.borderCheckpointCode || '-'}</Descriptions.Item>
-              <Descriptions.Item label="Наименование пункта пропуска">{item.placeDetails.borderCheckpointName || '-'}</Descriptions.Item>
+              <Descriptions.Item label="Код вида пункта пропуска">
+                {item.placeDetails.borderCheckpointCode
+                  ? `${item.placeDetails.borderCheckpointCode} — ${getCheckpointNameByCode(item.placeDetails.borderCheckpointCode) ?? '—'}`
+                  : '-'}
+              </Descriptions.Item>
+              <Descriptions.Item label="Наименование пункта пропуска">
+                {item.placeDetails.borderCheckpointName || '-'}
+              </Descriptions.Item>
             </Descriptions>
           ),
         },
-      ].filter(Boolean)}
+      ].filter(Boolean) as any[]}
     />
   )
 }
@@ -397,6 +434,7 @@ const SubjectDetailsUnifiedView: React.FC<{ subject: SubjectDetails }> = ({ subj
   const be = subject.businessEntity
   const country = subject.country ?? be?.country
   const { getNameByCode: getLegalFormNameByCode } = useLegalFormOptions(country)
+  const { getDisplayLabel: getIdentificationMethodLabel } = useIdentificationMethodOptions(country)
   const subjectName = subject.subjectName ?? be?.businessEntityName
   const briefName = be?.businessEntityBriefName
   const isOpfFromLegalFormRef = !!(be?.businessEntityTypeCode && be?.businessEntityTypeCodeListId === '2049')
@@ -422,7 +460,9 @@ const SubjectDetailsUnifiedView: React.FC<{ subject: SubjectDetails }> = ({ subj
       <Descriptions.Item label="Краткое наименование">{briefName || '-'}</Descriptions.Item>
       <Descriptions.Item label="Организационно-правовая форма">{orgForm || '-'}</Descriptions.Item>
       <Descriptions.Item label="Идентификатор субъекта">{subjectId || '-'}</Descriptions.Item>
-      <Descriptions.Item label="Метод идентификации">{identificationMethod || '-'}</Descriptions.Item>
+      <Descriptions.Item label="Метод идентификации">
+        {identificationMethod ? getIdentificationMethodLabel(identificationMethod) || identificationMethod : '-'}
+      </Descriptions.Item>
       <Descriptions.Item label="Таможенный номер">{customsNumber || '-'}</Descriptions.Item>
       <Descriptions.Item label="Идентификатор налогоплательщика">{taxpayerId || '-'}</Descriptions.Item>
       {subject.identityDoc && (
@@ -437,7 +477,6 @@ const SubjectDetailsUnifiedView: React.FC<{ subject: SubjectDetails }> = ({ subj
           <Descriptions.Item label="Удостоверение личности. Номер">{subject.identityDoc.docId || '-'}</Descriptions.Item>
           <Descriptions.Item label="Удостоверение личности. Дата">{formatDate(subject.identityDoc.docCreationDate)}</Descriptions.Item>
           <Descriptions.Item label="Удостоверение личности. Срок действия">{formatDate(subject.identityDoc.docValidityDate)}</Descriptions.Item>
-          <Descriptions.Item label="Уполномоченный орган. Идентификатор">{subject.identityDoc.authorityId || '-'}</Descriptions.Item>
           <Descriptions.Item label="Уполномоченный орган. Наименование">{subject.identityDoc.authorityName || '-'}</Descriptions.Item>
         </>
       )}
@@ -467,6 +506,7 @@ const SubjectDetailsUnifiedView: React.FC<{ subject: SubjectDetails }> = ({ subj
 
 // Компонент для отображения DocumentReferenceDetails
 const DocumentReferenceView: React.FC<{ doc: DocumentReferenceDetails }> = ({ doc }) => {
+  const { getDisplayLabel: getShipDocKindLabel } = useShipDocKindOptions()
   const formatDate = (date: string | null | undefined) => {
     if (!date) return '-'
     const dateObj = new Date(date)
@@ -476,7 +516,9 @@ const DocumentReferenceView: React.FC<{ doc: DocumentReferenceDetails }> = ({ do
 
   return (
     <Descriptions column={1} bordered size="small">
-      <Descriptions.Item label="Вид">{doc.docKindName || (doc.docKindCode ? `Код: ${doc.docKindCode}` : 'не указан')}</Descriptions.Item>
+      <Descriptions.Item label="Код вида документа">
+        {doc.docKindCode?.trim() ? getShipDocKindLabel(doc.docKindCode) || doc.docKindCode : '—'}
+      </Descriptions.Item>
       <Descriptions.Item label="Наименование">{doc.docName || '-'}</Descriptions.Item>
       <Descriptions.Item label="Номер">{doc.docId || '-'}</Descriptions.Item>
       <Descriptions.Item label="Дата документа">{formatDate(doc.docCreationDate)}</Descriptions.Item>

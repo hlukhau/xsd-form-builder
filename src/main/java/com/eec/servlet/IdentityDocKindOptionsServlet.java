@@ -9,6 +9,7 @@ import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
 import java.io.IOException;
 import java.io.PrintWriter;
+import java.util.ArrayList;
 import java.util.List;
 
 /**
@@ -45,10 +46,26 @@ public class IdentityDocKindOptionsServlet extends HttpServlet {
             if (loader != null) loader.ensureIdentityDocKindsLoaded(request.getParameter("guid"));
 
             List<IdentityDocKindOption> list = DictionaryCache.getIdentityDocKindsList();
+            String countryParam = request.getParameter("country");
+            String countryFilter = countryParam != null ? countryParam.trim() : "";
+
+            List<IdentityDocKindOption> toSend = new ArrayList<>();
+            for (IdentityDocKindOption o : list) {
+                if (!countryFilter.isEmpty()) {
+                    String oc = o.countryCode != null ? o.countryCode.trim() : "";
+                    if (!oc.isEmpty() && !oc.equalsIgnoreCase(countryFilter)) {
+                        continue;
+                    }
+                }
+                toSend.add(o);
+            }
+            if (!countryFilter.isEmpty() && toSend.isEmpty() && !list.isEmpty()) {
+                toSend = new ArrayList<>(list);
+            }
 
             out.print("[");
             boolean first = true;
-            for (IdentityDocKindOption o : list) {
+            for (IdentityDocKindOption o : toSend) {
                 if (!first) out.print(",");
                 first = false;
                 String code = escapeJson(o.code);

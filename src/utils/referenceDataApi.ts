@@ -59,6 +59,18 @@ function getGuidFromCurrentLocation(): string | undefined {
   } catch {
     /* ignore */
   }
+  // HashRouter / встраивание: guid может быть в hash-части URL (например #/123/GUID)
+  try {
+    const hash = (window.location.hash || '').replace(/^#/, '')
+    const hashParts = hash.split('/').filter(Boolean)
+    if (hashParts.length >= 2) {
+      const maybeGuidFromHash = hashParts[hashParts.length - 1]?.trim()
+      const maybeIdFromHash = hashParts[hashParts.length - 2]?.trim()
+      if (maybeGuidFromHash && maybeIdFromHash) return maybeGuidFromHash
+    }
+  } catch {
+    /* ignore */
+  }
   const parts = window.location.pathname.split('/').filter(Boolean)
   if (parts.length < 3) return undefined
   const maybeGuid = parts[parts.length - 1]?.trim()
@@ -67,10 +79,43 @@ function getGuidFromCurrentLocation(): string | undefined {
   return maybeGuid || undefined
 }
 
+let explicitGuidContext: string | undefined
+const GUID_STORAGE_KEY = 'xsd-form-builder-guid'
+
+/**
+ * Явно устанавливает guid-контекст для вызовов справочников.
+ * Используется App.tsx (guid из router params), чтобы справочники работали при первом открытии PHA.
+ */
+export function setReferenceGuidContext(guid?: string) {
+  const normalized = guid?.trim() || undefined
+  explicitGuidContext = normalized
+  if (typeof window === 'undefined') return
+  try {
+    if (normalized) {
+      window.sessionStorage.setItem(GUID_STORAGE_KEY, normalized)
+    } else {
+      window.sessionStorage.removeItem(GUID_STORAGE_KEY)
+    }
+  } catch {
+    /* ignore */
+  }
+}
+
 function resolveGuid(guid?: string): string | undefined {
   const explicit = guid?.trim()
   if (explicit) return explicit
-  return getGuidFromCurrentLocation()
+  if (explicitGuidContext) return explicitGuidContext
+  const fromLocation = getGuidFromCurrentLocation()
+  if (fromLocation) return fromLocation
+  if (typeof window !== 'undefined') {
+    try {
+      const fromStorage = window.sessionStorage.getItem(GUID_STORAGE_KEY)?.trim()
+      if (fromStorage) return fromStorage
+    } catch {
+      /* ignore */
+    }
+  }
+  return undefined
 }
 
 function withGuidParams(params: URLSearchParams, guid?: string): URLSearchParams {
@@ -1116,12 +1161,17 @@ export interface IdentityDocKindOption {
 }
 
 /**
- * Получить опции справочника видов документов, удостоверяющих личность (codeListId=2053)
+ * Получить опции справочника видов документов, удостоверяющих личность.
+ * При передаче country сервер возвращает записи без привязки к стране или с совпадающим COUNTRYCODE.
  */
-export async function getIdentityDocKindOptions(): Promise<IdentityDocKindOption[]> {
+export async function getIdentityDocKindOptions(country?: string): Promise<IdentityDocKindOption[]> {
   dictionaryLoadingStart()
   try {
-    const response = await fetch(withGuidUrl(`${getReferenceDataBaseUrl()}api/identity-doc-kinds/options`))
+    let url = withGuidUrl(`${getReferenceDataBaseUrl()}api/identity-doc-kinds/options`)
+    if (country != null && country.trim() !== '') {
+      url += `&country=${encodeURIComponent(country.trim())}`
+    }
+    const response = await fetch(url)
     if (!response.ok) {
       throw new Error(`Ошибка загрузки опций видов документов, удостоверяющих личность: ${response.statusText}`)
     }

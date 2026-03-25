@@ -356,10 +356,20 @@ public class DictionaryCache {
     public static class IdentityDocKindOption {
         public String code;
         public String name;
-        
+        /**
+         * Раздел справочника / привязка к стране документа (колонка IDENTITYDOCSECTIONCODE, напр. «BY»).
+         * Пусто — без ограничения; фильтр на сервлете сравнивается с параметром country.
+         */
+        public String countryCode;
+
         public IdentityDocKindOption(String code, String name) {
+            this(code, name, null);
+        }
+
+        public IdentityDocKindOption(String code, String name, String identityDocSectionCode) {
             this.code = code != null ? code : "";
             this.name = name != null ? name : "";
+            this.countryCode = identityDocSectionCode != null ? identityDocSectionCode.trim() : null;
         }
     }
     

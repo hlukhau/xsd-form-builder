@@ -25,7 +25,13 @@ const TSDTabEdit: React.FC<TSDTabEditProps> = ({ data, onChange }) => {
   const [selectedBatchIndex, setSelectedBatchIndex] = useState<number | null>(null)
   const [selectedDocumentIndex, setSelectedDocumentIndex] = useState<number | null>(null)
   const { options: measurementUnitOptions, loading: loadingMeasurementUnits, getSelectOptions: getMeasurementUnitSelectOptions, getUnitByCode } = useMeasurementUnitOptions()
-  const { options: shipDocKindOptions, loading: loadingShipDocKinds, getSelectOptions: getShipDocKindSelectOptions, getNameByCode: getShipDocKindNameByCode } = useShipDocKindOptions()
+  const {
+    options: shipDocKindOptions,
+    loading: loadingShipDocKinds,
+    error: shipDocKindsError,
+    getSelectOptions: getShipDocKindSelectOptions,
+    getNameByCode: getShipDocKindNameByCode,
+  } = useShipDocKindOptions()
   const [docKindErrors, setDocKindErrors] = useState<Map<string, boolean>>(new Map())
   const [commodityCodeErrors, setCommodityCodeErrors] = useState<Record<string, string>>({})
 
@@ -347,7 +353,38 @@ const TSDTabEdit: React.FC<TSDTabEditProps> = ({ data, onChange }) => {
       align: 'center' as const,
       render: (_: any, record: ShippingDocument, docIndex: number) => {
         const isExpanded = selectedDocumentIndex === docIndex && selectedBatchIndex === batchIndex
-        return isExpanded ? <CaretDownOutlined aria-label="Свернуть" /> : <CaretRightOutlined aria-label="Развернуть" />
+        return (
+          <span
+            role="button"
+            tabIndex={0}
+            aria-label={isExpanded ? 'Свернуть детали' : 'Развернуть детали'}
+            onClick={(e) => {
+              e.stopPropagation()
+              if (isExpanded) {
+                setSelectedDocumentIndex(null)
+                setSelectedBatchIndex(null)
+              } else {
+                setSelectedDocumentIndex(docIndex)
+                setSelectedBatchIndex(batchIndex)
+              }
+            }}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault()
+                if (isExpanded) {
+                  setSelectedDocumentIndex(null)
+                  setSelectedBatchIndex(null)
+                } else {
+                  setSelectedDocumentIndex(docIndex)
+                  setSelectedBatchIndex(batchIndex)
+                }
+              }
+            }}
+            style={{ cursor: 'pointer' }}
+          >
+            {isExpanded ? <CaretDownOutlined /> : <CaretRightOutlined />}
+          </span>
+        )
       },
     },
     {
@@ -361,15 +398,22 @@ const TSDTabEdit: React.FC<TSDTabEditProps> = ({ data, onChange }) => {
           loading={loadingShipDocKinds}
           value={record.docKindCode}
           onChange={(code) => handleDocKindSelect(batchIndex, docIndex, code)}
+          optionLabelProp="value"
           filterOption={(input, option) =>
             (option?.label ?? '').toLowerCase().includes(input.toLowerCase())
           }
           options={getShipDocKindSelectOptions()}
           allowClear
           status={docKindErrors.get(docKindErrorKey(batchIndex, docIndex)) ? 'error' : undefined}
-          style={{ width: '100%', minWidth: 100, maxWidth: 280 }}
-          dropdownStyle={{ maxWidth: 400 }}
-          dropdownMatchSelectWidth={false}
+          notFoundContent={
+            loadingShipDocKinds
+              ? 'Загрузка...'
+              : shipDocKindsError
+                ? `Справочник SHIPDOCKIND не загружен: ${shipDocKindsError}`
+                : 'Нет данных'
+          }
+          style={{ width: '100%' }}
+          dropdownMatchSelectWidth
           size="small"
         />
       ),
@@ -636,6 +680,13 @@ const TSDTabEdit: React.FC<TSDTabEditProps> = ({ data, onChange }) => {
                                   }
                                   options={getShipDocKindSelectOptions()}
                                   allowClear
+                                  notFoundContent={
+                                    loadingShipDocKinds
+                                      ? 'Загрузка...'
+                                      : shipDocKindsError
+                                        ? `Справочник SHIPDOCKIND не загружен: ${shipDocKindsError}`
+                                        : 'Нет данных'
+                                  }
                                   style={{ width: '100%', minWidth: 200 }}
                                   size="small"
                                 />
@@ -896,18 +947,6 @@ const TSDTabEdit: React.FC<TSDTabEditProps> = ({ data, onChange }) => {
             rowKey={(record, index) => `batch-${batchIndex}-doc-${index}`}
             pagination={false}
             scroll={{ x: 'max-content' }}
-            onRow={(record, docIndex) => ({
-              onClick: () => {
-                if (selectedDocumentIndex === docIndex && selectedBatchIndex === batchIndex) {
-                  setSelectedDocumentIndex(null)
-                  setSelectedBatchIndex(null)
-                } else {
-                  setSelectedDocumentIndex(docIndex ?? null)
-                  setSelectedBatchIndex(batchIndex)
-                }
-              },
-              style: { cursor: 'pointer' },
-            })}
             rowClassName={(record, docIndex) =>
               selectedBatchIndex === batchIndex && selectedDocumentIndex === docIndex ? 'ant-table-row-selected' : ''
             }

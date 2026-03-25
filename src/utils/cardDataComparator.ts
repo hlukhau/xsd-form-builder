@@ -70,6 +70,43 @@ function formatValueForDiff(path: string, value: unknown): string {
   return `${preview}… (длина ${s.length})`
 }
 
+function normalizeCardForCompare<T>(input: T): T {
+  const clone = JSON.parse(JSON.stringify(input ?? null))
+  if (!clone || typeof clone !== 'object') return input
+
+  const measures = (clone as { measures?: { measures?: unknown[] } }).measures?.measures
+  if (Array.isArray(measures)) {
+    measures.forEach((measure) => {
+      if (!measure || typeof measure !== 'object') return
+      const implList = (measure as { measureImplementationDetails?: unknown[] }).measureImplementationDetails
+      if (!Array.isArray(implList)) return
+
+      implList.forEach((impl) => {
+        if (!impl || typeof impl !== 'object') return
+        const i = impl as {
+          authorities?: unknown[]
+          authority?: unknown
+          subjectDetailsList?: unknown[]
+          subjectDetails?: unknown
+        }
+
+        if ((!Array.isArray(i.authorities) || i.authorities.length === 0) && i.authority) {
+          i.authorities = [i.authority]
+        }
+        if ((!Array.isArray(i.subjectDetailsList) || i.subjectDetailsList.length === 0) && i.subjectDetails) {
+          i.subjectDetailsList = [i.subjectDetails]
+        }
+
+        // Сравниваем в одном формате: только массивы.
+        delete i.authority
+        delete i.subjectDetails
+      })
+    })
+  }
+
+  return clone as T
+}
+
 /**
  * Сравнивает два объекта CardData и возвращает список различий
  */
@@ -79,6 +116,9 @@ export function compareCardData(original: CardData, exported: CardData): {
   warnings: string[]
   added: string[]
 } {
+  const normalizedOriginal = normalizeCardForCompare(original)
+  const normalizedExported = normalizeCardForCompare(exported)
+
   const differences: string[] = []
   const warnings: string[] = []
   const added: string[] = []
@@ -275,44 +315,44 @@ export function compareCardData(original: CardData, exported: CardData): {
   }
 
   // Сравниваем основные поля
-  compareValue('country', original.country, exported.country)
-  compareValue('registrationNumber', original.registrationNumber, exported.registrationNumber)
-  compareValue('version', original.version, exported.version)
+  compareValue('country', normalizedOriginal.country, normalizedExported.country)
+  compareValue('registrationNumber', normalizedOriginal.registrationNumber, normalizedExported.registrationNumber)
+  compareValue('version', normalizedOriginal.version, normalizedExported.version)
   
   // Сравниваем notification
-  compareValue('notification', original.notification, exported.notification)
+  compareValue('notification', normalizedOriginal.notification, normalizedExported.notification)
   
   // Сравниваем product
-  compareValue('product', original.product, exported.product)
+  compareValue('product', normalizedOriginal.product, normalizedExported.product)
   
   // Сравниваем tsd (по XSD нарушения и документы соответствия только внутри tsd.batches[])
-  compareValue('tsd', original.tsd, exported.tsd)
+  compareValue('tsd', normalizedOriginal.tsd, normalizedExported.tsd)
   
   const originalZones =
-    (original.spreadingZones && original.spreadingZones.length > 0)
-      ? original.spreadingZones
-      : (original.spreadingZone ? [original.spreadingZone] : [])
+    (normalizedOriginal.spreadingZones && normalizedOriginal.spreadingZones.length > 0)
+      ? normalizedOriginal.spreadingZones
+      : (normalizedOriginal.spreadingZone ? [normalizedOriginal.spreadingZone] : [])
   const exportedZones =
-    (exported.spreadingZones && exported.spreadingZones.length > 0)
-      ? exported.spreadingZones
-      : (exported.spreadingZone ? [exported.spreadingZone] : [])
+    (normalizedExported.spreadingZones && normalizedExported.spreadingZones.length > 0)
+      ? normalizedExported.spreadingZones
+      : (normalizedExported.spreadingZone ? [normalizedExported.spreadingZone] : [])
 
   // Сравниваем detectionPlace
-  compareValue('detectionPlace', original.detectionPlace, exported.detectionPlace)
+  compareValue('detectionPlace', normalizedOriginal.detectionPlace, normalizedExported.detectionPlace)
   // Сравниваем зоны распространения как массив мест (PHA)
   compareValue('spreadingZones', originalZones, exportedZones)
   
   // Сравниваем measures
-  compareValue('measures', original.measures, exported.measures)
+  compareValue('measures', normalizedOriginal.measures, normalizedExported.measures)
   
   // Сравниваем electronicDocument
-  compareValue('electronicDocument', original.electronicDocument, exported.electronicDocument)
+  compareValue('electronicDocument', normalizedOriginal.electronicDocument, normalizedExported.electronicDocument)
   
   // Сравниваем statusHistory
-  compareValue('statusHistory', original.statusHistory, exported.statusHistory)
+  compareValue('statusHistory', normalizedOriginal.statusHistory, normalizedExported.statusHistory)
   
   // Сравниваем accessList
-  compareValue('accessList', original.accessList, exported.accessList)
+  compareValue('accessList', normalizedOriginal.accessList, normalizedExported.accessList)
 
   return {
     isIdentical: differences.length === 0 && warnings.length === 0 && added.length === 0,

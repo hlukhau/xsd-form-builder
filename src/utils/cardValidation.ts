@@ -472,17 +472,23 @@ function addressHasContent(addr: AddressDetails): boolean {
   return !!(s(addr.country) || s(addr.territoryCode) || s(addr.regionName) || s(addr.districtName) || s(addr.cityName) || s(addr.settlementName) || s(addr.streetName) || s(addr.buildingNumberId) || s(addr.roomNumberId) || s(addr.postOfficeBoxId) || s(addr.postCode) || s(addr.fullAddress))
 }
 
-function checkAddress(errors: string[], path: string, addr: AddressDetails | undefined): void {
+function checkAddress(
+  errors: string[],
+  path: string,
+  addr: AddressDetails | undefined,
+  options?: { requireCountryAndCitySettlement?: boolean }
+): void {
   if (!addr) return
+  const requireCountryAndCitySettlement = options?.requireCountryAndCitySettlement ?? true
   if (addressHasContent(addr)) {
-    if (!(addr.country ?? '').trim()) {
+    if (requireCountryAndCitySettlement && !(addr.country ?? '').trim()) {
       errors.push(`${path}: при заполнении адреса обязательно укажите Страну.`)
     }
     const hasCity = (addr.cityName ?? '').trim() !== ''
     const hasSettlement = (addr.settlementName ?? '').trim() !== ''
     if (hasCity && hasSettlement) {
       errors.push(`${path}: укажите только один атрибут — Город или Населенный пункт.`)
-    } else if (!hasCity && !hasSettlement) {
+    } else if (requireCountryAndCitySettlement && !hasCity && !hasSettlement) {
       errors.push(`${path}: при заполнении адреса обязательно укажите Город или Населенный пункт.`)
     }
   }
@@ -492,12 +498,22 @@ function checkAddress(errors: string[], path: string, addr: AddressDetails | und
   }
 }
 
-function checkAddressList(errors: string[], path: string, list: AddressDetails[] | undefined): void {
+function checkAddressList(
+  errors: string[],
+  path: string,
+  list: AddressDetails[] | undefined,
+  options?: { requireCountryAndCitySettlement?: boolean }
+): void {
   if (!list?.length) return
-  list.forEach((addr, i) => checkAddress(errors, `${path} (адрес ${i + 1})`, addr))
+  list.forEach((addr, i) => checkAddress(errors, `${path} (адрес ${i + 1})`, addr, options))
 }
 
-function checkParty(errors: string[], path: string, party: SupplyChainPartyDetails | undefined): void {
+function checkParty(
+  errors: string[],
+  path: string,
+  party: SupplyChainPartyDetails | undefined,
+  options?: { requireAddressCountryAndCitySettlement?: boolean }
+): void {
   if (!party) return
   if (
     party.businessEntityTypeCodeListId === '2049' &&
@@ -516,12 +532,14 @@ function checkParty(errors: string[], path: string, party: SupplyChainPartyDetai
   pushFormatError(errors, `${path} → Идентификатор`, 'subjectIdentifier', party.subjectIdentifier)
   pushFormatError(errors, `${path} → ИНН`, 'taxpayerId', party.taxpayerId)
   pushFormatError(errors, `${path} → Таможенный номер`, 'customsNumber', party.customsNumber)
+  pushFormatError(errors, `${path} → Код причины постановки на учёт`, 'taxRegistrationReasonCode', party.taxRegistrationReasonCode)
+  const addressOptions = { requireCountryAndCitySettlement: options?.requireAddressCountryAndCitySettlement ?? true }
   const addrList = party.addresses ?? []
-  if (addrList.length) checkAddressList(errors, `${path} → Адрес`, addrList)
+  if (addrList.length) checkAddressList(errors, `${path} → Адрес`, addrList, addressOptions)
   else {
-    checkAddress(errors, `${path} → Регистрационный адрес`, party.registrationAddress)
-    checkAddress(errors, `${path} → Фактический адрес`, party.actualAddress)
-    checkAddress(errors, `${path} → Почтовый адрес`, party.mailingAddress)
+    checkAddress(errors, `${path} → Регистрационный адрес`, party.registrationAddress, addressOptions)
+    checkAddress(errors, `${path} → Фактический адрес`, party.actualAddress, addressOptions)
+    checkAddress(errors, `${path} → Почтовый адрес`, party.mailingAddress, addressOptions)
   }
   party.contacts?.forEach((c, i) => {
     pushFormatError(errors, `${path} → Контакт ${i + 1}`, 'communicationChannelId', c.communicationChannelId)
@@ -660,13 +678,14 @@ export function collectFormatValidationErrors(data: CardData): FormatValidationE
         pushFormatError(errors, `${mPath} → Документ меры → Номер`, 'docId', m.measureDocDetails.docId)
       }
       ;(m.measureInitiationBasisDetails ?? []).forEach((b, i) => {
-        pushFormatError(errors, `${mPath} → Основание ${i + 1} → Наименование`, 'docName', b.docName)
+        pushFormatError(errors, `${mPath} → Основание ${i + 1} → Вид`, 'measureInitiationBasisDocKind', b.docKindName)
+        pushFormatError(errors, `${mPath} → Основание ${i + 1} → Наименование`, 'measureInitiationBasisDocName', b.docName)
         pushFormatError(errors, `${mPath} → Основание ${i + 1} → Номер`, 'docId', b.docId)
       })
       ;(m.measureImplementationDetails ?? []).forEach((impl, i) => {
         const doc = impl.documentDetails
         if (doc) {
-          pushFormatError(errors, `${mPath} → Реализация ${i + 1} → Наименование`, 'docName', doc.docName)
+          pushFormatError(errors, `${mPath} → Реализация ${i + 1} → Наименование документа`, 'docName500', doc.docName)
           pushFormatError(errors, `${mPath} → Реализация ${i + 1} → Номер`, 'docId', doc.docId)
         }
       })

@@ -4,16 +4,100 @@ import { PlusOutlined, DeleteOutlined } from '@ant-design/icons'
 import ManufacturerDetailsEdit from '../../common/ManufacturerDetailsEdit'
 import CountrySelect from '../../common/CountrySelect'
 import type { DetectionPlaceData, AddressDetails, SupplyChainPartyDetails, BusinessEntityDetails } from '@/types/card'
+import { getAddressListFromParty } from '@/utils/addressFormatUtils'
 
-/** Редактор изготовителя ждёт SupplyChainPartyDetails.organizationalForm; из XML в OrganizationDetails приходит businessEntityTypeName. */
+/** Редактор изготовителя ждёт SupplyChainPartyDetails (subjectIdentifier); в XML/карте — businessEntityId. */
 function organizationToSupplyChainPartyEdit(org: DetectionPlaceData['organization'] | undefined): SupplyChainPartyDetails {
   if (!org) return { country: '' }
-  const o = org as BusinessEntityDetails & Partial<SupplyChainPartyDetails>
+  const isLegalForm = org.businessEntityTypeCodeListId === '2049' && !!(org.businessEntityTypeCode ?? '').trim()
   return {
-    ...(o as SupplyChainPartyDetails),
-    country: o.country ?? '',
-    organizationalForm: o.organizationalForm ?? o.businessEntityTypeName,
+    country: org.country ?? '',
+    businessEntityName: org.businessEntityName,
+    shortName: org.businessEntityBriefName,
+    organizationalForm: isLegalForm ? undefined : org.businessEntityTypeName,
+    businessEntityTypeCode: org.businessEntityTypeCode,
+    businessEntityTypeCodeListId: org.businessEntityTypeCodeListId,
+    subjectIdentifier: org.businessEntityId ?? '',
+    identificationMethod: org.identificationMethod,
+    customsNumber: org.customsNumber,
+    taxpayerId: org.taxpayerId,
+    taxRegistrationReasonCode: org.taxRegistrationReasonCode,
+    addresses: org.addresses,
+    contacts: org.contacts,
   }
+}
+
+/** Сохраняем в карте BusinessEntityDetails — в XML экспортеры берут businessEntityId, не subjectIdentifier. */
+function supplyChainPartyToBusinessEntity(org: SupplyChainPartyDetails): BusinessEntityDetails {
+  const list = getAddressListFromParty(org)
+  const isLegalForm = org.businessEntityTypeCodeListId === '2049' && !!(org.businessEntityTypeCode ?? '').trim()
+  const id = (org.subjectIdentifier ?? '').trim() || (org.businessEntityId ?? '').trim()
+  return {
+    country: trimStr(org.country) ? org.country : undefined,
+    businessEntityName: trimStr(org.businessEntityName) ? org.businessEntityName : undefined,
+    businessEntityBriefName: trimStr(org.shortName) ? org.shortName : undefined,
+    businessEntityTypeCode: trimStr(org.businessEntityTypeCode) ? org.businessEntityTypeCode : undefined,
+    businessEntityTypeCodeListId: org.businessEntityTypeCodeListId,
+    businessEntityTypeName: isLegalForm ? undefined : trimStr(org.organizationalForm) ? org.organizationalForm : undefined,
+    businessEntityId: id || undefined,
+    identificationMethod: trimStr(org.identificationMethod) ? org.identificationMethod : undefined,
+    customsNumber: trimStr(org.customsNumber) ? org.customsNumber : undefined,
+    taxpayerId: trimStr(org.taxpayerId) ? org.taxpayerId : undefined,
+    taxRegistrationReasonCode: trimStr(org.taxRegistrationReasonCode) ? org.taxRegistrationReasonCode : undefined,
+    addresses: list.length > 0 ? list : undefined,
+    contacts: org.contacts?.length ? org.contacts : undefined,
+  }
+}
+
+function trimStr(v: string | undefined | null): string {
+  return (v ?? '').trim()
+}
+
+function detectionAddressHasContent(addr: AddressDetails | undefined): boolean {
+  if (!addr) return false
+  const s = (x?: string) => trimStr(x)
+  return !!(
+    s(addr.country) ||
+    s(addr.territoryCode) ||
+    s(addr.regionName) ||
+    s(addr.districtName) ||
+    s(addr.cityName) ||
+    s(addr.settlementName) ||
+    s(addr.streetName) ||
+    s(addr.buildingNumberId) ||
+    s(addr.roomNumberId) ||
+    s(addr.postOfficeBoxId) ||
+    s(addr.postCode) ||
+    s(addr.fullAddress)
+  )
+}
+
+/** Все поля пустые — в модели места обнаружения не храним блок организации. */
+function detectionPlaceOrganizationEmpty(org: BusinessEntityDetails): boolean {
+  if (trimStr(org.country)) return false
+  if (trimStr(org.businessEntityName)) return false
+  if (trimStr(org.businessEntityBriefName)) return false
+  if (trimStr(org.businessEntityTypeCode)) return false
+  if (trimStr(org.businessEntityTypeName)) return false
+  if (trimStr(org.businessEntityId)) return false
+  if (trimStr(org.identificationMethod)) return false
+  if (trimStr(org.customsNumber)) return false
+  if (trimStr(org.taxpayerId)) return false
+  if (trimStr(org.taxRegistrationReasonCode)) return false
+  for (const a of org.addresses ?? []) {
+    if (detectionAddressHasContent(a)) return false
+  }
+  for (const c of org.contacts ?? []) {
+    if (
+      trimStr(c.communicationChannelCode) ||
+      trimStr(c.communicationChannelName) ||
+      trimStr(c.communicationChannelId) ||
+      trimStr(c.contactKind) ||
+      trimStr(c.contactValue)
+    )
+      return false
+  }
+  return true
 }
 import { useCountryOptions } from '@/hooks/shared/useCountryOptions'
 import { useBorderCheckpointOptions } from '@/hooks/shared/useBorderCheckpointOptions'
@@ -35,14 +119,26 @@ const DetectionPlaceTabEdit: React.FC<DetectionPlaceTabEditProps> = ({ data, onC
     })
   }
 
-  const handleAddressChange = (field: keyof AddressDetails, value: string) => {
-    const next = { ...data.address, [field]: value || undefined }
-    if (field === 'cityName' && (value ?? '').trim()) next.settlementName = ''
-    if (field === 'settlementName' && (value ?? '').trim()) next.cityName = ''
+  const handleAddressChange = (field: keyof AddressDetails, value: string | undefined) => {
+    const raw = value ?? ''
+    const v = raw.trim() === '' ? undefined : raw
+    const base = data.address ? { ...data.address } : {}
+    const next: AddressDetails = { ...base, [field]: v }
+    if (field === 'cityName' && v) next.settlementName = undefined
+    if (field === 'settlementName' && v) next.cityName = undefined
     onChange({
       ...data,
-      address: next,
+      address: detectionAddressHasContent(next) ? next : undefined,
     })
+  }
+
+  const handleOrganizationChange = (org: SupplyChainPartyDetails) => {
+    const be = supplyChainPartyToBusinessEntity(org)
+    if (detectionPlaceOrganizationEmpty(be)) {
+      onChange({ ...data, organization: undefined })
+    } else {
+      onChange({ ...data, organization: be })
+    }
   }
 
   const handleCheckpointChange = (field: string, value: string) => {
@@ -107,22 +203,17 @@ const DetectionPlaceTabEdit: React.FC<DetectionPlaceTabEditProps> = ({ data, onC
             label: 'Адрес',
             children: (() => {
               const addr = data.address
-              const s = (v: string | undefined) => (v ?? '').trim()
-              const addrHasContent = addr && !!(s(addr.country) || s(addr.territoryCode) || s(addr.regionName) || s(addr.districtName) || s(addr.cityName) || s(addr.settlementName) || s(addr.streetName) || s(addr.buildingNumberId) || s(addr.roomNumberId) || s(addr.postOfficeBoxId) || s(addr.postCode) || s(addr.fullAddress))
-              const addrCountryError = addrHasContent && !s(addr?.country) ? 'При заполнении адреса обязательно укажите Страну' : undefined
-              const hasCity = !!(addr?.cityName && addr.cityName.trim())
-              const hasSettlement = !!(addr?.settlementName && addr.settlementName.trim())
-              const addrCitySettlementError = addrHasContent ? (hasCity && hasSettlement ? 'Укажите только один — Город или Населенный пункт' : (!hasCity && !hasSettlement ? 'При заполнении адреса обязательно укажите Город или Населенный пункт' : undefined)) : undefined
               return (
               <Form layout="vertical" className="field-tag-form">
                 <div style={{ border: '1px solid #d9d9d9', borderRadius: 4, padding: 16, marginBottom: 0 }}>
                   <Space direction="vertical" style={{ width: '100%' }}>
-                    <Form.Item label="Страна" style={{ marginBottom: 0 }} validateStatus={addrCountryError ? 'error' : undefined} help={addrCountryError}>
+                    <Form.Item label="Страна" style={{ marginBottom: 0 }}>
                       <CountrySelect
                         placeholder="Страна"
                         loading={loading}
+                        allowClear
                         value={data.address?.country}
-                        onChange={(value) => handleAddressChange('country', value || '')}
+                        onChange={(value) => handleAddressChange('country', value)}
                         countryOptions={countryOptions}
                         normalizeCountryCode={normalizeCountryCode}
                       />
@@ -154,7 +245,7 @@ const DetectionPlaceTabEdit: React.FC<DetectionPlaceTabEditProps> = ({ data, onC
                         showCount
                       />
                     </Form.Item>
-                    <Form.Item label="Город" style={{ marginBottom: 0 }} validateStatus={addrCitySettlementError ? 'error' : undefined} help={addrCitySettlementError}>
+                    <Form.Item label="Город" style={{ marginBottom: 0 }}>
                       <Input
                         placeholder="Город"
                         value={data.address?.cityName}
@@ -163,7 +254,7 @@ const DetectionPlaceTabEdit: React.FC<DetectionPlaceTabEditProps> = ({ data, onC
                         showCount
                       />
                     </Form.Item>
-                    <Form.Item label="Населённый пункт" style={{ marginBottom: 0 }} validateStatus={addrCitySettlementError ? 'error' : undefined}>
+                    <Form.Item label="Населённый пункт" style={{ marginBottom: 0 }}>
                       <Input
                         placeholder="Например: г.п. Ушачи"
                         value={data.address?.settlementName}
@@ -211,7 +302,7 @@ const DetectionPlaceTabEdit: React.FC<DetectionPlaceTabEditProps> = ({ data, onC
             children: (
               <ManufacturerDetailsEdit
                 data={organizationToSupplyChainPartyEdit(data.organization)}
-                onChange={(org) => handleFieldChange('organization', org)}
+                onChange={handleOrganizationChange}
                 title=""
                 hideKindField
                 embeddedInCollapse

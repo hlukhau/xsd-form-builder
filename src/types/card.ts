@@ -392,6 +392,8 @@ export interface BusinessEntityDetails {
   businessEntityId?: string // BusinessEntityId
   identificationMethod?: string // из атрибута kindId
   customsNumber?: string // UniqueCustomsNumberId / CustomsNumber (таможенный номер)
+  /** Код причины постановки на налоговый учёт (csdo:TaxRegistrationReasonCode), 9 цифр. */
+  taxRegistrationReasonCode?: string
   taxpayerId?: string // TaxpayerId
   addresses?: AddressDetails[] // SubjectAddressDetails (может быть несколько)
   contacts?: ContactDetails[] // CommunicationDetails
@@ -465,7 +467,13 @@ export interface MeasureImplementationItem {
   endDate?: string // EndDate
   description?: string // DescriptionText
   measureAffectedObjectKindCode?: string // MeasureAffectedObjectKindCode
+  /** Множественные исполнители: в одном мероприятии может быть несколько УО. */
+  authorities?: UnifiedAuthorityDetails[]
+  /** Множественные исполнители: в одном мероприятии может быть несколько субъектов. */
+  subjectDetailsList?: SubjectDetails[]
+  /** @deprecated: оставлено для обратной совместимости (первый УО). */
   authority?: UnifiedAuthorityDetails // UnifiedAuthorityDetails
+  /** @deprecated: оставлено для обратной совместимости (первый субъект). */
   subjectDetails?: SubjectDetails // SubjectDetails (может быть юрлицо/ИП или физлицо)
   documentDetails?: DocumentReferenceDetails // DocReferenceDetails
   placeDetails?: MeasurePlaceDetails // Место проведения мероприятия
@@ -501,6 +509,7 @@ export interface IdentityDocDetails {
 export interface DocumentReferenceDetails {
   docKindCode?: string // DocKindCode
   docKindCodeListId?: string // codeListId атрибут
+  docKindName?: string // DocKindName (если вид документа задан текстом, а не кодом shipdockind)
   docName?: string // DocName
   docId?: string // DocId
   docCreationDate?: string // DocCreationDate

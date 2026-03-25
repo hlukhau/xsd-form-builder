@@ -61,6 +61,12 @@ export const XSD_FIELD_CONSTRAINTS: Record<string, FieldConstraint> = {
   subjectIdentifier: { maxLength: 20, messageMaxLength: 'Не более 20 символов (csdo:Id20Type)' },
   taxpayerId: { maxLength: 20, messageMaxLength: 'Не более 20 символов (csdo:TaxpayerIdType)' },
   customsNumber: { maxLength: 17, messageMaxLength: 'Не более 17 символов (csdo:UniqueCustomsNumberIdType)' },
+  /** csdo:TaxRegistrationReasonCodeType — ровно 9 цифр */
+  taxRegistrationReasonCode: {
+    pattern: /^$|^\d{9}$/,
+    messagePattern: 'Код причины постановки на учёт: ровно 9 цифр (csdo:TaxRegistrationReasonCode)',
+    formatHint: 'Ровно 9 цифр',
+  },
   communicationChannelId: { maxLength: 1000, messageMaxLength: 'Не более 1000 символов (csdo:CommunicationChannelIdType)' },
   communicationChannelName: { maxLength: 120, messageMaxLength: 'Не более 120 символов (csdo:Name120Type)' },
 
@@ -108,6 +114,10 @@ export const XSD_FIELD_CONSTRAINTS: Record<string, FieldConstraint> = {
   authorityBriefName: { maxLength: 120, messageMaxLength: 'Не более 120 символов (csdo:Name120Type)' },
   authorityId: { maxLength: 50, messageMaxLength: 'Не более 50 символов (csdo:Id50Type)' },
   registrationNumber: { maxLength: 50, messageMaxLength: 'Не более 50 символов (csdo:Id50Type)' },
+
+  /** Основание для введения меры (csdo:Name500Type) */
+  measureInitiationBasisDocKind: { maxLength: 500, messageMaxLength: 'Не более 500 символов (csdo:Name500Type)' },
+  measureInitiationBasisDocName: { maxLength: 500, messageMaxLength: 'Не более 500 символов (csdo:Name500Type)' },
 
   // Меры: обоснование, описания
   measureJustification: { maxLength: 4000, messageMaxLength: 'Не более 4000 символов (csdo:Text4000Type)' },

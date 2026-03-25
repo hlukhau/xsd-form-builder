@@ -3,12 +3,14 @@ import type { CountryOption } from '@/utils/referenceDataApi'
 
 interface CountrySelectProps {
   value?: string
-  onChange?: (value: string) => void
+  onChange?: (value: string | undefined) => void
   placeholder?: string
   loading?: boolean
   countryOptions: CountryOption[]
   normalizeCountryCode?: (country: string | undefined) => string | undefined
   style?: React.CSSProperties
+  /** Разрешить сброс значения (крестик в Select). По умолчанию выключено, чтобы не менять поведение старых форм. */
+  allowClear?: boolean
 }
 
 /**
@@ -22,12 +24,14 @@ const CountrySelect: React.FC<CountrySelectProps> = ({
   countryOptions,
   normalizeCountryCode,
   style,
+  allowClear = false,
 }) => {
   const normalizedValue = normalizeCountryCode ? normalizeCountryCode(value) : value
 
   return (
     <Select
       showSearch
+      allowClear={allowClear}
       placeholder={placeholder}
       loading={loading}
       value={normalizedValue}

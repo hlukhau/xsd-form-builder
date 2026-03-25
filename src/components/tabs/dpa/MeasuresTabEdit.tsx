@@ -9,11 +9,17 @@ import { useLanguageOptions } from '@/hooks/shared/useLanguageOptions'
 import { useMediaTypeOptions } from '@/hooks/shared/useMediaTypeOptions'
 import { useIdentityDocKindOptions } from '@/hooks/shared/useIdentityDocKindOptions'
 import { useLegalFormOptions } from '@/hooks/shared/useLegalFormOptions'
+import { useShipDocKindOptions } from '@/hooks/shared/useShipDocKindOptions'
+import { useIdentificationMethodOptions } from '@/hooks/shared/useIdentificationMethodOptions'
+import { useBorderCheckpointOptions } from '@/hooks/shared/useBorderCheckpointOptions'
+import { useCommunicationChannelOptions } from '@/hooks/shared/useCommunicationChannelOptions'
+import { FieldTagBlock } from '@/components/common/FieldTag'
+import { getDefaultAddressKindName } from '@/utils/addressFormatUtils'
 import CountrySelect from '@/components/common/CountrySelect'
 import { DpaEmbeddedUnifiedAuthorityForm } from '@/components/common/DpaEmbeddedUnifiedAuthorityForm'
 import { labelWithHelp } from '@/components/common/FieldHelp'
 import { FIELD_HELP } from '@/constants/fieldDescriptions'
-import { getMaxLength } from '@/constants/xsdFieldConstraints'
+import { getMaxLength, validateFieldValue, getFormatHint } from '@/constants/xsdFieldConstraints'
 import { DATE_DISPLAY_FORMAT } from '@/constants/dateFormat'
 import type { CountryOption } from '@/utils/referenceDataApi'
 import type {
@@ -23,10 +29,7 @@ import type {
   MeasureInitiationBasisItem,
   MeasureImplementationItem,
   SubjectDetails,
-  DocumentReferenceDetails,
-  MeasurePlaceDetails,
   BusinessEntityDetails,
-  IdentityDocDetails,
   AddressDetails,
   ContactDetails,
 } from '@/types/card'
@@ -36,13 +39,16 @@ const MeasureDocDetailsEditStandalone: React.FC<{
   doc?: MeasureDocDetails
   onChange: (doc: MeasureDocDetails) => void
   title: string
+  defaultLanguageCode?: string
   loadingCountries: boolean
   countryOptions: CountryOption[]
   normalizeCountryCode: (code: string | undefined) => string | undefined
   loadingMediaTypes: boolean
   getMediaTypeSelectOptions: () => Array<{ value: string; label: string }>
-}> = ({ doc, onChange, title, loadingCountries, countryOptions, normalizeCountryCode, loadingMediaTypes, getMediaTypeSelectOptions }) => {
+}> = ({ doc, onChange, title, defaultLanguageCode, loadingCountries, countryOptions, normalizeCountryCode, getMediaTypeSelectOptions }) => {
   const [uploadedFileName, setUploadedFileName] = useState<string>('')
+  const { getSelectOptions: getShipDocKindSelectOptions, loading: loadingShipDocKinds } = useShipDocKindOptions()
+  const { getLangCatalogSelectOptions } = useLanguageOptions()
 
   const detectMediaType = (file: File): { mime: string; ext: string } => {
     const ext = file.name.split('.').pop()?.toLowerCase() ?? ''
@@ -63,6 +69,7 @@ const MeasureDocDetailsEditStandalone: React.FC<{
   }
 
   const downloadBinary = () => {
+    if (!doc) return
     const bin = doc.docBinaryText
     if (!bin?.content) return
     try {
@@ -86,7 +93,7 @@ const MeasureDocDetailsEditStandalone: React.FC<{
       <Button
         type="dashed"
         icon={<PlusOutlined />}
-        onClick={() => onChange({})}
+        onClick={() => onChange(defaultLanguageCode ? { languageCode: defaultLanguageCode } : {})}
         style={{ width: '100%' }}
       >
         Добавить {title}
@@ -102,39 +109,68 @@ const MeasureDocDetailsEditStandalone: React.FC<{
           loading={loadingCountries}
           countryOptions={countryOptions}
           normalizeCountryCode={normalizeCountryCode}
+          allowClear
         />
       </Form.Item>
       <Form.Item label="Язык">
         <Select
           showSearch
           placeholder="Выберите язык"
-          value={doc.languageCode}
-          onChange={(value) => onChange({ ...doc, languageCode: value })}
+          allowClear
+          value={doc.languageCode || undefined}
+          onChange={(value) => onChange({ ...doc, languageCode: value ?? undefined })}
+          onClear={() => onChange({ ...doc, languageCode: undefined })}
           filterOption={(input, option) =>
-            (option?.label ?? '').toLowerCase().includes(input.toLowerCase())
+            String(option?.label ?? '').toLowerCase().includes(input.toLowerCase())
           }
           style={{ width: '100%' }}
-          allowClear
-        >
-          <Select.Option value="ru">RU - Русский</Select.Option>
-          <Select.Option value="en">EN - Английский</Select.Option>
-          <Select.Option value="by">BY - Белорусский</Select.Option>
-          <Select.Option value="kk">KK - Казахский</Select.Option>
-          <Select.Option value="ky">KY - Киргизский</Select.Option>
-          <Select.Option value="hy">HY - Армянский</Select.Option>
-          <Select.Option value="az">AZ - Азербайджанский</Select.Option>
-          <Select.Option value="ka">KA - Грузинский</Select.Option>
-          <Select.Option value="uk">UK - Украинский</Select.Option>
-        </Select>
-      </Form.Item>
-      <Form.Item label="Вид">
-        <Input
-          value={doc.docKindName}
-          onChange={(e) => onChange({ ...doc, docKindName: e.target.value })}
-          maxLength={getMaxLength('docKindName')}
-          showCount
+          options={getLangCatalogSelectOptions()}
         />
       </Form.Item>
+      <Form.Item label="Вид">
+        <Select
+          showSearch
+          allowClear
+          loading={loadingShipDocKinds}
+          placeholder="Выберите вид из справочника"
+          disabled={!!(doc.docKindName?.trim() && !doc.docKindCode?.trim())}
+          value={doc.docKindCode || undefined}
+          onChange={(code) => {
+            if (!code) {
+              onChange({ ...doc, docKindCode: undefined, docKindCodeListId: undefined })
+            } else {
+              onChange({
+                ...doc,
+                docKindCode: code,
+                docKindCodeListId: '2009',
+                docKindName: undefined,
+              })
+            }
+          }}
+          filterOption={(input, option) =>
+            String(option?.label ?? '').toLowerCase().includes(input.toLowerCase())
+          }
+          options={getShipDocKindSelectOptions()}
+          style={{ maxWidth: 520, width: '100%' }}
+        />
+      </Form.Item>
+      {!doc.docKindCode?.trim() && (
+        <Form.Item label="Вид (текст, если не из справочника)">
+          <Input
+            value={doc.docKindName ?? ''}
+            onChange={(e) =>
+              onChange({
+                ...doc,
+                docKindName: e.target.value || undefined,
+                docKindCode: undefined,
+                docKindCodeListId: undefined,
+              })
+            }
+            maxLength={getMaxLength('docKindName')}
+            showCount
+          />
+        </Form.Item>
+      )}
       <Form.Item label="Наименование">
         <Input
           value={doc.docName}
@@ -183,14 +219,6 @@ const MeasureDocDetailsEditStandalone: React.FC<{
           style={{ width: '100%' }}
         />
       </Form.Item>
-      <Form.Item label="Уполномоченный орган. Идентификатор">
-        <Input
-          value={doc.authorityId}
-          onChange={(e) => onChange({ ...doc, authorityId: e.target.value })}
-          maxLength={getMaxLength('authorityId')}
-          showCount
-        />
-      </Form.Item>
       <Form.Item label="Уполномоченный орган. Наименование">
         <Input
           value={doc.authorityName}
@@ -210,56 +238,60 @@ const MeasureDocDetailsEditStandalone: React.FC<{
       </Form.Item>
       <Form.Item label="Документ в бинарном виде">
         <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-          <Upload
-            beforeUpload={(file) => {
-              const detected = detectMediaType(file)
-              const allowed = getMediaTypeSelectOptions()
-              const allowedCodes = new Set(allowed.map((o) => String(o.value)))
-              const mimeToCode: Record<string, string> = {
-                'application/pdf': 'pdf',
-                'application/msword': 'doc',
-                'application/vnd.openxmlformats-officedocument.wordprocessingml.document': 'docx',
-                'application/zip': 'zip',
-                'application/x-zip-compressed': 'zip',
-                'image/jpeg': 'jpeg',
-                'image/png': 'png',
-                'image/tiff': 'tiff',
-              }
-              const normalizedCode =
-                (detected.ext && allowedCodes.has(detected.ext) ? detected.ext : undefined) ||
-                mimeToCode[detected.mime]
-              if (!normalizedCode || !allowedCodes.has(normalizedCode)) {
-                Modal.warning({
-                  title: 'Файл не может быть загружен',
-                  content: `Недопустимый тип файла: ${detected.mime}. Допустимые типы: ${allowed.map((o) => String(o.value)).join(', ')}`,
-                })
+          {!doc.docBinaryText?.content && (
+            <Upload
+              beforeUpload={(file) => {
+                const detected = detectMediaType(file)
+                const allowed = getMediaTypeSelectOptions()
+                const allowedCodes = new Set(allowed.map((o) => String(o.value)))
+                const mimeToCode: Record<string, string> = {
+                  'application/pdf': 'pdf',
+                  'application/msword': 'doc',
+                  'application/vnd.openxmlformats-officedocument.wordprocessingml.document': 'docx',
+                  'application/zip': 'zip',
+                  'application/x-zip-compressed': 'zip',
+                  'image/jpeg': 'jpeg',
+                  'image/png': 'png',
+                  'image/tiff': 'tiff',
+                }
+                const normalizedCode =
+                  (detected.ext && allowedCodes.has(detected.ext) ? detected.ext : undefined) ||
+                  mimeToCode[detected.mime]
+                if (!normalizedCode || !allowedCodes.has(normalizedCode)) {
+                  Modal.warning({
+                    title: 'Недопустимый тип файла',
+                    content: `Выберите файл одного из допустимых типов: ${allowed.map((o) => String(o.value)).join(', ')}`,
+                  })
+                  return false
+                }
+                const reader = new FileReader()
+                reader.onload = (e) => {
+                  const result = e.target?.result as string
+                  const base64Content = result.includes(',') ? result.split(',')[1] : result
+                  setUploadedFileName(file.name)
+                  onChange({
+                    ...doc,
+                    docBinaryText: { content: base64Content, mediaTypeCode: normalizedCode },
+                  })
+                  message.success(`Файл "${file.name}" загружен`)
+                }
+                reader.onerror = () => message.error('Ошибка при чтении файла')
+                reader.readAsDataURL(file)
                 return false
-              }
-              const reader = new FileReader()
-              reader.onload = (e) => {
-                const result = e.target?.result as string
-                const base64Content = result.includes(',') ? result.split(',')[1] : result
-                setUploadedFileName(file.name)
-                onChange({
-                  ...doc,
-                  docBinaryText: { content: base64Content, mediaTypeCode: normalizedCode },
-                })
-                message.success(`Файл "${file.name}" загружен`)
-              }
-              reader.onerror = () => message.error('Ошибка при чтении файла')
-              reader.readAsDataURL(file)
-              return false
-            }}
-            showUploadList={false}
-          >
-            <Button icon={<UploadOutlined />}>Загрузить файл</Button>
-          </Upload>
+              }}
+              showUploadList={false}
+            >
+              <Button icon={<UploadOutlined />}>Загрузить файл</Button>
+            </Upload>
+          )}
           {doc.docBinaryText?.content && (
             <div style={{ fontSize: '12px', color: '#999', display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
               <span style={{ color: '#1677ff', fontWeight: 600 }}>
-                Документ загружен: {uploadedFileName || 'файл'} ({doc.docBinaryText.mediaTypeCode || 'тип не указан'})
+                Файл в бинарном виде: {uploadedFileName || 'файл'} ({doc.docBinaryText.mediaTypeCode || 'тип не указан'})
               </span>
-              <Button size="small" icon={<DownloadOutlined />} onClick={downloadBinary}>Скачать</Button>
+              <Button size="small" icon={<DownloadOutlined />} onClick={downloadBinary}>
+                Выгрузить файл
+              </Button>
               <Button
                 size="small"
                 danger
@@ -269,21 +301,11 @@ const MeasureDocDetailsEditStandalone: React.FC<{
                   onChange({ ...doc, docBinaryText: undefined })
                 }}
               >
-                Удалить
+                Удалить файл
               </Button>
             </div>
           )}
         </div>
-      </Form.Item>
-      <Form.Item label="XML-документ">
-        <Input.TextArea
-          rows={6}
-          placeholder="Введите XML-документ"
-          value={doc.xmlDocument || ''}
-          onChange={(e) => onChange({ ...doc, xmlDocument: e.target.value })}
-          maxLength={getMaxLength('description')}
-          showCount
-        />
       </Form.Item>
       <Button
         type="link"
@@ -307,13 +329,12 @@ const MeasuresTabEdit: React.FC<MeasuresTabEditProps> = ({ data, onChange }) => 
   const { countryOptions, loading: loadingCountries, normalizeCountryCode } = useCountryOptions()
   const { getSelectOptions: getSanitaryMeasureObjKindSelectOptions, getNameByCode: getSanitaryMeasureObjKindNameByCode } = useSanitaryMeasureObjKindOptions()
   const { getSelectOptions: getSanitaryMeasureSelectOptions, loading: loadingSanitaryMeasures } = useSanitaryMeasureOptions()
-  const { getLanguageName } = useLanguageOptions()
+  const { getLanguageName, getLangCatalogSelectOptions } = useLanguageOptions()
   const { getSelectOptions: getMediaTypeSelectOptions, loading: loadingMediaTypes } = useMediaTypeOptions()
 
   const handleAddMeasure = () => {
     const newMeasure: SanitaryMeasure = {
       languageCode: 'ru',
-      measureName: '',
       startDate: '',
     }
     onChange({
@@ -340,23 +361,6 @@ const MeasuresTabEdit: React.FC<MeasuresTabEditProps> = ({ data, onChange }) => 
     onChange({
       ...data,
       measures: updated,
-    })
-  }
-
-  // MeasureDocDetails handlers
-  const handleMeasureDocChange = (measureIndex: number, field: string, value: any) => {
-    const measure = data.measures[measureIndex]
-    handleMeasureChange(measureIndex, 'measureDocDetails', {
-      ...measure.measureDocDetails,
-      [field]: value,
-    })
-  }
-
-  const handleInitialMeasureDocChange = (measureIndex: number, field: string, value: any) => {
-    const measure = data.measures[measureIndex]
-    handleMeasureChange(measureIndex, 'initialMeasureDocDetails', {
-      ...measure.initialMeasureDocDetails,
-      [field]: value,
     })
   }
 
@@ -455,98 +459,76 @@ const MeasuresTabEdit: React.FC<MeasuresTabEditProps> = ({ data, onChange }) => 
       ),
     },
     {
-      title: labelWithHelp('Код языка', FIELD_HELP.languageCode),
+      title: labelWithHelp('Язык', FIELD_HELP.languageCode),
       key: 'language',
-      width: 100,
-      render: (_: any, record: SanitaryMeasure, index: number) => (
-        <Select
-          value={record.languageCode}
-          onChange={(value) => handleMeasureChange(index, 'languageCode', value)}
-          style={{ width: '100%' }}
-        >
-          <Select.Option value="ru">Русский</Select.Option>
-          <Select.Option value="en">Английский</Select.Option>
-        </Select>
+      width: 140,
+      render: (_: unknown, record: SanitaryMeasure) => (
+        <span style={{ color: 'rgba(0,0,0,0.65)' }}>
+          {record.languageCode
+            ? (getLangCatalogSelectOptions().find((o) => o.value === record.languageCode)?.label ??
+                `${record.languageCode.toUpperCase()}-${getLanguageName(record.languageCode)}`)
+            : '—'}
+        </span>
       ),
     },
     {
-      title: labelWithHelp('Код / Наименование принятой меры', FIELD_HELP.measureName),
+      title: labelWithHelp('Наименование меры', FIELD_HELP.measureName),
       key: 'measureName',
-      width: 300,
-      render: (_: any, record: SanitaryMeasure, index: number) => {
-        // Всегда показываем Select для выбора из справочника
-        // Если measureCodeListId не указан, устанавливаем его при выборе
-        return (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-            <Select
-              showSearch
-              placeholder="Выберите меру из справочника"
-              loading={loadingSanitaryMeasures}
-              value={record.measureCode}
-              onChange={(value) => {
-                const selectedOption = getSanitaryMeasureSelectOptions().find(opt => opt.value === value)
-                if (selectedOption) {
-                  // Извлекаем наименование из label (формат: "код - наименование")
-                  const measureName = selectedOption.label.includes(' - ') 
-                    ? selectedOption.label.split(' - ').slice(1).join(' - ')
-                    : selectedOption.label
-                  
-                  // Обновляем все поля одновременно через один вызов onChange
-                  const updatedMeasures = [...(data.measures || [])]
-                  updatedMeasures[index] = {
-                    ...updatedMeasures[index],
-                    measureCode: value,
-                    measureCodeListId: '1026', // Идентификатор справочника санитарных мер
-                    measureName: measureName,
-                  }
-                  onChange({
-                    ...data,
-                    measures: updatedMeasures,
-                  })
-                } else if (value === null || value === undefined) {
-                  // Если значение очищено, сбрасываем все связанные поля
-                  const updatedMeasures = [...(data.measures || [])]
-                  updatedMeasures[index] = {
-                    ...updatedMeasures[index],
-                    measureCode: undefined,
-                    measureCodeListId: undefined,
-                    measureName: undefined,
-                  }
-                  onChange({
-                    ...data,
-                    measures: updatedMeasures,
-                  })
-                } else {
-                  // Если опция не найдена, устанавливаем только код
-                  handleMeasureChange(index, 'measureCode', value)
+      width: 360,
+      render: (_: unknown, record: SanitaryMeasure, index: number) => (
+        <div className="measure-name-cell" style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+          <Select
+            showSearch
+            placeholder="Выберите меру (код — наименование)"
+            loading={loadingSanitaryMeasures}
+            value={record.measureCode || undefined}
+            onChange={(value) => {
+              const updatedMeasures = [...(data.measures || [])]
+              const cur = updatedMeasures[index] ?? {}
+              if (value == null || value === '') {
+                updatedMeasures[index] = {
+                  ...cur,
+                  measureCode: undefined,
+                  measureCodeListId: undefined,
                 }
-              }}
-              filterOption={(input, option) =>
-                (option?.label ?? '').toLowerCase().includes(input.toLowerCase())
+              } else {
+                updatedMeasures[index] = {
+                  ...cur,
+                  measureCode: value,
+                  measureCodeListId: '1026',
+                  measureName: undefined,
+                }
               }
-              options={getSanitaryMeasureSelectOptions()}
-              style={{ width: '100%' }}
-              allowClear
+              onChange({ ...data, measures: updatedMeasures })
+            }}
+            filterOption={(input, option) =>
+              String(option?.label ?? '').toLowerCase().includes(input.toLowerCase())
+            }
+            options={getSanitaryMeasureSelectOptions()}
+            style={{ width: '100%' }}
+            allowClear
+          />
+          {!record.measureCode?.trim() && (
+            <Input
+              value={record.measureName ?? ''}
+              onChange={(e) => {
+                const v = e.target.value
+                const updatedMeasures = [...(data.measures || [])]
+                const cur = updatedMeasures[index] ?? {}
+                updatedMeasures[index] = {
+                  ...cur,
+                  measureName: v || undefined,
+                  measureCode: undefined,
+                  measureCodeListId: undefined,
+                }
+                onChange({ ...data, measures: updatedMeasures })
+              }}
+              placeholder="Или введите наименование меры текстом"
+              size="small"
             />
-            {/* Если measureCode не выбран, показываем Input для ручного ввода */}
-            {!record.measureCode && (
-              <Input
-                value={record.measureName || ''}
-                onChange={(e) => {
-                  handleMeasureChange(index, 'measureName', e.target.value)
-                  // Если вводим вручную, сбрасываем measureCode и measureCodeListId
-                  if (record.measureCode) {
-                    handleMeasureChange(index, 'measureCode', undefined)
-                    handleMeasureChange(index, 'measureCodeListId', undefined)
-                  }
-                }}
-                placeholder="Или введите наименование меры вручную"
-                size="small"
-              />
-            )}
-          </div>
-        )
-      },
+          )}
+        </div>
+      ),
     },
     {
       title: labelWithHelp('Вид объекта действия меры', FIELD_HELP.measureAffectedObjectKind),
@@ -657,6 +639,7 @@ const MeasuresTabEdit: React.FC<MeasuresTabEditProps> = ({ data, onChange }) => 
                   doc={measure.measureDocDetails}
                   onChange={(doc) => handleMeasureChange(measureIndex, 'measureDocDetails', doc)}
                   title="документ"
+                  defaultLanguageCode="ru"
                   loadingCountries={loadingCountries}
                   countryOptions={countryOptions}
                   normalizeCountryCode={normalizeCountryCode}
@@ -673,6 +656,7 @@ const MeasuresTabEdit: React.FC<MeasuresTabEditProps> = ({ data, onChange }) => 
                   doc={measure.initialMeasureDocDetails}
                   onChange={(doc) => handleMeasureChange(measureIndex, 'initialMeasureDocDetails', doc)}
                   title="исходный документ"
+                  defaultLanguageCode={undefined}
                   loadingCountries={loadingCountries}
                   countryOptions={countryOptions}
                   normalizeCountryCode={normalizeCountryCode}
@@ -696,7 +680,7 @@ const MeasuresTabEdit: React.FC<MeasuresTabEditProps> = ({ data, onChange }) => 
                           <Input
                             value={record.docKindName}
                             onChange={(e) => handleBasisChange(measureIndex, basisIndex, 'docKindName', e.target.value)}
-                            maxLength={getMaxLength('docKindName')}
+                            maxLength={getMaxLength('measureInitiationBasisDocKind')}
                             showCount
                           />
                         ),
@@ -708,7 +692,7 @@ const MeasuresTabEdit: React.FC<MeasuresTabEditProps> = ({ data, onChange }) => 
                           <Input
                             value={record.docName}
                             onChange={(e) => handleBasisChange(measureIndex, basisIndex, 'docName', e.target.value)}
-                            maxLength={getMaxLength('docName')}
+                            maxLength={getMaxLength('measureInitiationBasisDocName')}
                             showCount
                           />
                         ),
@@ -769,14 +753,14 @@ const MeasuresTabEdit: React.FC<MeasuresTabEditProps> = ({ data, onChange }) => 
             },
             {
               key: 'implementation',
-              label: labelWithHelp('Сведения о мероприятии, обеспечивающем соблюдение меры', FIELD_HELP.measureImplementation),
+              label: labelWithHelp('Мероприятия', FIELD_HELP.measureImplementation),
               children: (
                 <div>
                   <Collapse
                     accordion={false}
                     items={(measure.measureImplementationDetails || []).map((item, implIndex) => ({
                       key: String(implIndex),
-                      label: `Сведения об исполнителе — ${implIndex + 1}`,
+                      label: `Сведения о мероприятии — ${implIndex + 1}`,
                       extra: (
                         <Button
                           type="link"
@@ -836,6 +820,7 @@ const MeasuresTabEdit: React.FC<MeasuresTabEditProps> = ({ data, onChange }) => 
         </Button>
       </div>
       <Table
+        className="measures-edit-table"
         dataSource={data.measures || []}
         columns={columns}
         rowKey={(record, index) => `measure-${index}`}
@@ -866,6 +851,12 @@ const MeasureImplementationDetailsEdit: React.FC<{
   getSanitaryMeasureObjKindSelectOptions: () => Array<{ value: string; label: string }>
   getSanitaryMeasureObjKindNameByCode: (code: string | undefined) => string | null
 }> = ({ item, onChange, countryOptions, loadingCountries, normalizeCountryCode, getSanitaryMeasureObjKindSelectOptions, getSanitaryMeasureObjKindNameByCode }) => {
+  const { getSelectOptions: getShipDocKindSelectOptions, loading: loadingShipDocKinds } = useShipDocKindOptions()
+  const { getSelectOptions: getCheckpointSelectOptions, loading: loadingCheckpoints } =
+    useBorderCheckpointOptions()
+  const authorities = item.authorities?.length ? item.authorities : (item.authority ? [item.authority] : [])
+  const subjects = item.subjectDetailsList?.length ? item.subjectDetailsList : (item.subjectDetails ? [item.subjectDetails] : [])
+
   return (
     <div style={{ marginTop: '16px', padding: '12px', border: '1px solid #d9d9d9', borderRadius: '4px' }}>
       <h5>Детализация мероприятия</h5>
@@ -927,66 +918,73 @@ const MeasureImplementationDetailsEdit: React.FC<{
           {
             key: 'authority',
             label: 'Уполномоченный орган',
-            children: item.authority ? (
-              <Form layout="vertical" className="field-tag-form">
-                <DpaEmbeddedUnifiedAuthorityForm
-                  value={item.authority}
-                  onChange={(next) => onChange('authority', next)}
-                  countryOptions={countryOptions}
-                  loadingCountries={loadingCountries}
-                  normalizeCountryCode={normalizeCountryCode}
-                />
-                <Button
-                  type="link"
-                  danger
-                  icon={<DeleteOutlined />}
-                  onClick={() => onChange('authority', undefined)}
-                >
-                  Удалить уполномоченный орган
+            children: (
+              <div>
+                {authorities.map((authority, idx) => (
+                  <Form key={`authority-${idx}`} layout="vertical" className="field-tag-form" style={{ border: '1px solid #f0f0f0', borderRadius: 6, padding: 12, marginBottom: 8 }}>
+                    <div style={{ fontWeight: 500, marginBottom: 8 }}>Уполномоченный орган — {idx + 1}</div>
+                    <DpaEmbeddedUnifiedAuthorityForm
+                      value={authority}
+                      onChange={(next) => {
+                        const nextList = [...authorities]
+                        nextList[idx] = next
+                        onChange('authorities', nextList)
+                      }}
+                      countryOptions={countryOptions}
+                      loadingCountries={loadingCountries}
+                      normalizeCountryCode={normalizeCountryCode}
+                    />
+                    <Button type="link" danger icon={<DeleteOutlined />} onClick={() => {
+                      const nextList = authorities.filter((_, i) => i !== idx)
+                      onChange('authorities', nextList.length ? nextList : undefined)
+                    }}>
+                      Удалить уполномоченный орган
+                    </Button>
+                  </Form>
+                ))}
+                <Button type="dashed" icon={<PlusOutlined />} onClick={() => {
+                  const nextList = [...authorities, {}]
+                  onChange('authorities', nextList)
+                }} style={{ width: '100%' }}>
+                  Добавить уполномоченный орган
                 </Button>
-              </Form>
-            ) : (
-              <Button
-                type="dashed"
-                icon={<PlusOutlined />}
-                onClick={() => onChange('authority', {})}
-                style={{ width: '100%' }}
-              >
-                Добавить уполномоченный орган
-              </Button>
+              </div>
             ),
           },
           {
             key: 'subject',
             label: 'Субъект-исполнитель',
-            children: item.subjectDetails ? (
+            children: (
               <div>
-                <SubjectDetailsUnifiedEdit
-                  subject={item.subjectDetails}
-                  onChange={(subject) => onChange('subjectDetails', subject)}
-                  countryOptions={countryOptions}
-                  loadingCountries={loadingCountries}
-                  normalizeCountryCode={normalizeCountryCode}
-                />
-                <Button
-                  type="link"
-                  danger
-                  icon={<DeleteOutlined />}
-                  onClick={() => onChange('subjectDetails', undefined)}
-                  style={{ marginTop: '8px' }}
-                >
-                  Удалить субъект-исполнитель
+                {subjects.map((subject, idx) => (
+                  <div key={`subject-${idx}`} style={{ border: '1px solid #f0f0f0', borderRadius: 6, padding: 12, marginBottom: 8 }}>
+                    <div style={{ fontWeight: 500, marginBottom: 8 }}>Субъект-исполнитель — {idx + 1}</div>
+                    <SubjectDetailsUnifiedEdit
+                      subject={subject}
+                      onChange={(nextSubject) => {
+                        const nextList = [...subjects]
+                        nextList[idx] = nextSubject
+                        onChange('subjectDetailsList', nextList)
+                      }}
+                      countryOptions={countryOptions}
+                      loadingCountries={loadingCountries}
+                      normalizeCountryCode={normalizeCountryCode}
+                    />
+                    <Button type="link" danger icon={<DeleteOutlined />} onClick={() => {
+                      const nextList = subjects.filter((_, i) => i !== idx)
+                      onChange('subjectDetailsList', nextList.length ? nextList : undefined)
+                    }} style={{ marginTop: '8px' }}>
+                      Удалить субъект-исполнитель
+                    </Button>
+                  </div>
+                ))}
+                <Button type="dashed" icon={<PlusOutlined />} onClick={() => {
+                  const nextList = [...subjects, {}]
+                  onChange('subjectDetailsList', nextList)
+                }} style={{ width: '100%' }}>
+                  Добавить субъект-исполнитель
                 </Button>
               </div>
-            ) : (
-              <Button
-                type="dashed"
-                icon={<PlusOutlined />}
-                onClick={() => onChange('subjectDetails', {})}
-                style={{ width: '100%' }}
-              >
-                Добавить субъект-исполнитель
-              </Button>
             ),
           },
           {
@@ -995,18 +993,32 @@ const MeasureImplementationDetailsEdit: React.FC<{
             children: item.documentDetails ? (
               <Form layout="vertical" className="field-tag-form">
                 <Form.Item label={labelWithHelp('Код вида документа', FIELD_HELP.implDocKindCode)}>
-                  <Input
-                    value={item.documentDetails.docKindName}
-                    onChange={(e) => onChange('documentDetails', { ...item.documentDetails, docKindName: e.target.value })}
-                    maxLength={getMaxLength('docKindName')}
-                    showCount
+                  <Select
+                    showSearch
+                    allowClear
+                    loading={loadingShipDocKinds}
+                    placeholder="Выберите код вида документа"
+                    value={item.documentDetails.docKindCode || undefined}
+                    options={getShipDocKindSelectOptions()}
+                    onChange={(code) =>
+                      onChange('documentDetails', {
+                        ...item.documentDetails,
+                        docKindCode: code ?? undefined,
+                        docKindCodeListId: code ? '2009' : undefined,
+                        docKindName: undefined,
+                      })
+                    }
+                    filterOption={(input, option) =>
+                      String(option?.label ?? '').toLowerCase().includes(input.toLowerCase())
+                    }
+                    style={{ maxWidth: 520, width: '100%' }}
                   />
                 </Form.Item>
-                <Form.Item label={labelWithHelp('Наименование', FIELD_HELP.implDocName)}>
+                <Form.Item label={labelWithHelp('Наименование документа', FIELD_HELP.implDocName)}>
                   <Input
                     value={item.documentDetails.docName}
                     onChange={(e) => onChange('documentDetails', { ...item.documentDetails, docName: e.target.value })}
-                    maxLength={getMaxLength('docName')}
+                    maxLength={getMaxLength('docName500')}
                     showCount
                   />
                 </Form.Item>
@@ -1067,18 +1079,42 @@ const MeasureImplementationDetailsEdit: React.FC<{
                     showCount
                   />
                 </Form.Item>
-                <Form.Item label="Код пункта пропуска">
-                  <Input
-                    value={item.placeDetails.borderCheckpointCode}
-                    onChange={(e) => onChange('placeDetails', { ...item.placeDetails, borderCheckpointCode: e.target.value })}
-                    maxLength={getMaxLength('checkpointCode')}
-                    showCount
+                <Form.Item label="Код вида пункта пропуска">
+                  <Select
+                    showSearch
+                    allowClear
+                    loading={loadingCheckpoints}
+                    placeholder="Код вида пункта пропуска"
+                    value={item.placeDetails.borderCheckpointCode || undefined}
+                    options={getCheckpointSelectOptions()}
+                    onChange={(code) => {
+                      if (!code) {
+                        onChange('placeDetails', {
+                          ...item.placeDetails,
+                          borderCheckpointCode: undefined,
+                        })
+                      } else {
+                        onChange('placeDetails', {
+                          ...item.placeDetails,
+                          borderCheckpointCode: code,
+                        })
+                      }
+                    }}
+                    filterOption={(input, option) =>
+                      String(option?.label ?? '').toLowerCase().includes(input.toLowerCase())
+                    }
+                    style={{ maxWidth: 520, width: '100%' }}
                   />
                 </Form.Item>
                 <Form.Item label="Наименование пункта пропуска">
                   <Input
-                    value={item.placeDetails.borderCheckpointName}
-                    onChange={(e) => onChange('placeDetails', { ...item.placeDetails, borderCheckpointName: e.target.value })}
+                    value={item.placeDetails.borderCheckpointName ?? ''}
+                    onChange={(e) =>
+                      onChange('placeDetails', {
+                        ...item.placeDetails,
+                        borderCheckpointName: e.target.value || undefined,
+                      })
+                    }
                     maxLength={getMaxLength('checkpointName')}
                     showCount
                   />
@@ -1117,7 +1153,15 @@ const SubjectDetailsUnifiedEdit: React.FC<{
   loadingCountries: boolean
   normalizeCountryCode: (country: string | undefined) => string | undefined
 }> = ({ subject, onChange, countryOptions, loadingCountries, normalizeCountryCode }) => {
-  const { getSelectOptions: getIdentityDocKindSelectOptions, getNameByCode: getIdentityDocKindNameByCode, loading: loadingIdentityDocKinds } = useIdentityDocKindOptions()
+  const [addressErrors, setAddressErrors] = useState<Record<string, string>>({})
+  const embeddedInCollapse = false
+  const identityDocCountry = normalizeCountryCode(subject.identityDoc?.country)
+  const { getSelectOptions: getIdentityDocKindSelectOptions, loading: loadingIdentityDocKinds } =
+    useIdentityDocKindOptions(identityDocCountry)
+  const { getSelectOptions: getIdentificationMethodSelectOptions, loading: loadingIdMethods } =
+    useIdentificationMethodOptions(normalizeCountryCode(subject.country ?? subject.businessEntity?.country))
+  const { getSelectOptions: getCommunicationChannelSelectOptions, loading: loadingCommunicationChannels } =
+    useCommunicationChannelOptions()
   const be = subject.businessEntity
   const ensureBe = () => subject.businessEntity ?? {}
 
@@ -1150,6 +1194,50 @@ const SubjectDetailsUnifiedEdit: React.FC<{
   const identificationMethod = be?.identificationMethod
   const customsNumber = be?.customsNumber
   const taxpayerId = be?.taxpayerId
+
+  const addressList = be?.addresses ?? []
+  const syncAddresses = (list: AddressDetails[]) => {
+    upd({}, { addresses: list.length > 0 ? list : undefined })
+  }
+  const handleImplAddressChange = (index: number, field: keyof AddressDetails, value: string | undefined) => {
+    const list = [...addressList]
+    if (!list[index]) return
+    let next: AddressDetails = { ...list[index], [field]: value }
+    if (field === 'cityName' && value) next = { ...next, settlementName: undefined }
+    if (field === 'settlementName' && value) next = { ...next, cityName: undefined }
+    list[index] = next
+    syncAddresses(list)
+  }
+  const handleImplAddressAdd = () => syncAddresses([...addressList, { addressKindCode: '1' }])
+  const handleImplAddressRemove = (index: number) => syncAddresses(addressList.filter((_, i) => i !== index))
+
+  const contactList = be?.contacts ?? []
+  const syncContacts = (list: ContactDetails[]) => {
+    upd({}, { contacts: list.length > 0 ? list : undefined })
+  }
+  const handleImplContactChange = (index: number, field: keyof ContactDetails, value: string) => {
+    const list = [...contactList]
+    const cur = list[index] ?? {}
+    let next: ContactDetails = { ...cur }
+    if (field === 'communicationChannelCode') {
+      next.communicationChannelCode = value || undefined
+      if (value) next.communicationChannelName = undefined
+    } else if (field === 'communicationChannelName') {
+      next.communicationChannelName = value
+      if (value.trim()) next.communicationChannelCode = undefined
+    } else if (field === 'communicationChannelId' || field === 'contactValue') {
+      next.communicationChannelId = value
+      next.contactValue = value
+    }
+    list[index] = next
+    syncContacts(list)
+  }
+  const handleImplContactAdd = () =>
+    syncContacts([
+      ...contactList,
+      { communicationChannelId: '', contactKind: '', contactValue: '' },
+    ])
+  const handleImplContactRemove = (index: number) => syncContacts(contactList.filter((_, i) => i !== index))
 
   return (
     <Form layout="vertical" className="field-tag-form">
@@ -1184,11 +1272,11 @@ const SubjectDetailsUnifiedEdit: React.FC<{
           showCount
         />
       </Form.Item>
-      <Form.Item label="Организационно-правовая форма (справочник LEGALFORM)">
+      <Form.Item label="Организационно-правовая форма (справочник)">
         <Select
           showSearch
           allowClear
-          placeholder={countryForLegalForm ? 'Код — наименование (codeListId=2049)' : 'Сначала укажите страну'}
+          placeholder={countryForLegalForm ? 'Выберите значение' : 'Сначала укажите страну'}
           loading={loadingLegalForms}
           value={isLegalFormFromRef ? be?.businessEntityTypeCode : undefined}
           onChange={(v) => handleLegalFormSelect(v ?? null)}
@@ -1201,7 +1289,7 @@ const SubjectDetailsUnifiedEdit: React.FC<{
         />
       </Form.Item>
       {!isLegalFormFromRef && (
-        <Form.Item label="Организационно-правовая форма (свободный текст)">
+        <Form.Item label="Организационно-правовая форма (ручной ввод)">
           <Input
             value={be?.businessEntityTypeName ?? ''}
             onChange={(e) =>
@@ -1228,10 +1316,25 @@ const SubjectDetailsUnifiedEdit: React.FC<{
         />
       </Form.Item>
       <Form.Item label="Метод идентификации">
-        <Input
-          value={identificationMethod}
-          onChange={(e) => upd({}, { identificationMethod: e.target.value })}
-        />
+        <div className="subject-executor-id-method-wrap">
+          <Select
+            className="subject-executor-id-method-select"
+            showSearch
+            allowClear
+            placeholder={countryForLegalForm ? 'Выберите значение' : 'Сначала укажите страну'}
+            loading={loadingIdMethods}
+            disabled={!countryForLegalForm}
+            value={identificationMethod || undefined}
+            options={getIdentificationMethodSelectOptions().map((o) => ({
+              value: String(o.value),
+              label: `${o.value} — ${o.label}`,
+            }))}
+            onChange={(v) => upd({}, { identificationMethod: v ?? undefined })}
+            filterOption={(input, option) =>
+              String(option?.label ?? '').toLowerCase().includes(input.toLowerCase())
+            }
+          />
+        </div>
       </Form.Item>
       <Form.Item label="Таможенный номер">
         <Input
@@ -1263,13 +1366,17 @@ const SubjectDetailsUnifiedEdit: React.FC<{
                 normalizeCountryCode={normalizeCountryCode}
               />
             </Form.Item>
-            <Form.Item label="Вид документа">
+            <Form.Item label="Вид документа (справочник)">
               <Select
                 allowClear
-                placeholder="Выберите из справочника"
+                placeholder={identityDocCountry ? 'Выберите значение' : 'Сначала укажите страну документа'}
                 loading={loadingIdentityDocKinds}
                 options={getIdentityDocKindSelectOptions()}
-                value={subject.identityDoc.docKindCodeListId === '2053' ? subject.identityDoc.docKindCode : undefined}
+                disabled={
+                  !identityDocCountry ||
+                  !!(subject.identityDoc.docKindName?.trim() && !subject.identityDoc.docKindCode?.trim())
+                }
+                value={subject.identityDoc.docKindCode || undefined}
                 onChange={(code) => {
                   onChange({
                     ...subject,
@@ -1277,13 +1384,33 @@ const SubjectDetailsUnifiedEdit: React.FC<{
                       ...subject.identityDoc!,
                       docKindCode: code ?? undefined,
                       docKindCodeListId: code ? '2053' : undefined,
-                      docKindName: code ? (getIdentityDocKindNameByCode(code) ?? undefined) : undefined,
+                      docKindName: undefined,
                     },
                   })
                 }}
                 style={{ width: '100%' }}
               />
             </Form.Item>
+            {!subject.identityDoc.docKindCode?.trim() && (
+              <Form.Item label="Вид документа (ручной ввод)">
+                <Input
+                  value={subject.identityDoc.docKindName ?? ''}
+                  onChange={(e) =>
+                    onChange({
+                      ...subject,
+                      identityDoc: {
+                        ...subject.identityDoc!,
+                        docKindName: e.target.value || undefined,
+                        docKindCode: undefined,
+                        docKindCodeListId: undefined,
+                      },
+                    })
+                  }
+                  maxLength={getMaxLength('docKindName')}
+                  showCount
+                />
+              </Form.Item>
+            )}
             <Form.Item label="Серия">
               <Input
                 value={subject.identityDoc.docSeriesId}
@@ -1316,14 +1443,6 @@ const SubjectDetailsUnifiedEdit: React.FC<{
                 style={{ width: '100%' }}
               />
             </Form.Item>
-            <Form.Item label="Уполномоченный орган. Идентификатор">
-              <Input
-                value={subject.identityDoc.authorityId}
-                onChange={(e) => onChange({ ...subject, identityDoc: { ...subject.identityDoc!, authorityId: e.target.value } })}
-                maxLength={getMaxLength('authorityId')}
-                showCount
-              />
-            </Form.Item>
             <Form.Item label="Уполномоченный орган. Наименование">
               <Input
                 value={subject.identityDoc.authorityName}
@@ -1342,17 +1461,292 @@ const SubjectDetailsUnifiedEdit: React.FC<{
           Добавить удостоверение личности
         </Button>
       )}
-      {/* Адреса и контакты — упрощённо: ссылка на то же subject */}
-      {(subject.registrationAddress || subject.actualAddress || subject.mailingAddress || (be?.addresses && be.addresses.length > 0)) && (
-        <Form.Item label="Адреса">
-          <div style={{ color: '#666', fontSize: 12 }}>Редактирование адресов поддерживается в полной форме субъекта.</div>
-        </Form.Item>
-      )}
-      {((subject.contacts && subject.contacts.length > 0) || (be?.contacts && be.contacts.length > 0)) && (
-        <Form.Item label="Контактный реквизит">
-          <div style={{ color: '#666', fontSize: 12 }}>Редактирование контактов поддерживается в полной форме субъекта.</div>
-        </Form.Item>
-      )}
+      <div style={{ marginTop: 16 }}>
+        <h5>Адреса</h5>
+        {addressList.map((addr, index) => (
+          <div key={index} style={{ marginBottom: 16, padding: 12, border: '1px solid #d9d9d9', borderRadius: 4 }}>
+            <Space direction="vertical" style={{ width: '100%' }} size="small">
+              <Space wrap style={{ width: '100%', justifyContent: 'space-between' }}>
+                <Select
+                  placeholder="Вид адреса"
+                  value={addr.addressKindCode || undefined}
+                  onChange={(value) => handleImplAddressChange(index, 'addressKindCode', value ?? undefined)}
+                  style={{ minWidth: 200 }}
+                  options={[
+                    { value: '1', label: getDefaultAddressKindName('1') },
+                    { value: '2', label: getDefaultAddressKindName('2') },
+                    { value: '3', label: getDefaultAddressKindName('3') },
+                  ]}
+                  allowClear
+                />
+                <Button type="link" danger size="small" icon={<DeleteOutlined />} onClick={() => handleImplAddressRemove(index)}>
+                  Удалить адрес
+                </Button>
+              </Space>
+              <FieldTagBlock label="Страна">
+                <div>
+                  <CountrySelect
+                    placeholder="Страна"
+                    value={addr.country}
+                    onChange={(value) => handleImplAddressChange(index, 'country', value)}
+                    loading={loadingCountries}
+                    countryOptions={countryOptions}
+                    normalizeCountryCode={normalizeCountryCode}
+                    allowClear={embeddedInCollapse}
+                  />
+                  {(() => {
+                    const s = (v: string | undefined) => (v ?? '').trim()
+                    const hasContent = !!(
+                      s(addr.country) ||
+                      s(addr.territoryCode) ||
+                      s(addr.regionName) ||
+                      s(addr.districtName) ||
+                      s(addr.cityName) ||
+                      s(addr.settlementName) ||
+                      s(addr.streetName) ||
+                      s(addr.buildingNumberId) ||
+                      s(addr.roomNumberId) ||
+                      s(addr.postOfficeBoxId) ||
+                      s(addr.postCode) ||
+                      s(addr.fullAddress)
+                    )
+                    if (embeddedInCollapse) return null
+                    if (!hasContent || s(addr.country)) return null
+                    return <div style={{ fontSize: 12, color: '#ff4d4f', marginTop: 2 }}>При заполнении адреса обязательно укажите страну</div>
+                  })()}
+                </div>
+              </FieldTagBlock>
+              <FieldTagBlock label="Почтовый индекс">
+                <div>
+                  <Input
+                    placeholder="Почтовый индекс"
+                    value={addr.postCode}
+                    onChange={(e) => {
+                      const v = e.target.value || undefined
+                      handleImplAddressChange(index, 'postCode', v)
+                      const msg = validateFieldValue('postCode', v ?? '')
+                      setAddressErrors((prev) => ({ ...prev, [`addr-${index}-postCode`]: msg ?? '' }))
+                    }}
+                    onBlur={(e) => {
+                      const msg = validateFieldValue('postCode', e.target.value?.trim() || undefined)
+                      setAddressErrors((prev) => ({ ...prev, [`addr-${index}-postCode`]: msg ?? '' }))
+                    }}
+                    status={addressErrors[`addr-${index}-postCode`] ? 'error' : undefined}
+                  />
+                  {addressErrors[`addr-${index}-postCode`] && (
+                    <div style={{ fontSize: 12, color: '#ff4d4f', marginTop: 2 }}>
+                      {addressErrors[`addr-${index}-postCode`]}
+                      {getFormatHint('postCode') && ` (${getFormatHint('postCode')})`}
+                    </div>
+                  )}
+                </div>
+              </FieldTagBlock>
+              <FieldTagBlock label="Код территории">
+                <Input
+                  placeholder="Код территории"
+                  value={addr.territoryCode}
+                  onChange={(e) => handleImplAddressChange(index, 'territoryCode', e.target.value || undefined)}
+                  maxLength={getMaxLength('territoryCode')}
+                  showCount
+                />
+              </FieldTagBlock>
+              <FieldTagBlock label="Регион">
+                <Input
+                  placeholder="Регион"
+                  value={addr.regionName}
+                  onChange={(e) => handleImplAddressChange(index, 'regionName', e.target.value || undefined)}
+                  maxLength={getMaxLength('regionName')}
+                  showCount
+                />
+              </FieldTagBlock>
+              <FieldTagBlock label="Район">
+                <Input
+                  placeholder="Район"
+                  value={addr.districtName}
+                  onChange={(e) => handleImplAddressChange(index, 'districtName', e.target.value || undefined)}
+                  maxLength={getMaxLength('districtName')}
+                  showCount
+                />
+              </FieldTagBlock>
+              <FieldTagBlock label="Город">
+                <div>
+                  <Input
+                    placeholder="Город"
+                    value={addr.cityName}
+                    onChange={(e) => handleImplAddressChange(index, 'cityName', e.target.value || undefined)}
+                    maxLength={getMaxLength('cityName')}
+                    showCount
+                    status={(() => {
+                      const s = (v: string | undefined) => (v ?? '').trim()
+                      const hasContent = !!(
+                        s(addr.country) ||
+                        s(addr.territoryCode) ||
+                        s(addr.regionName) ||
+                        s(addr.districtName) ||
+                        s(addr.cityName) ||
+                        s(addr.settlementName) ||
+                        s(addr.streetName) ||
+                        s(addr.buildingNumberId) ||
+                        s(addr.roomNumberId) ||
+                        s(addr.postOfficeBoxId) ||
+                        s(addr.postCode) ||
+                        s(addr.fullAddress)
+                      )
+                      const hasCity = !!s(addr.cityName)
+                      const hasSettlement = !!s(addr.settlementName)
+                      if (embeddedInCollapse) return undefined
+                      const err = hasContent && (hasCity && hasSettlement ? true : !hasCity && !hasSettlement)
+                      return err ? 'error' : undefined
+                    })()}
+                  />
+                  {(() => {
+                    const s = (v: string | undefined) => (v ?? '').trim()
+                    const hasContent = !!(
+                      s(addr.country) ||
+                      s(addr.territoryCode) ||
+                      s(addr.regionName) ||
+                      s(addr.districtName) ||
+                      s(addr.cityName) ||
+                      s(addr.settlementName) ||
+                      s(addr.streetName) ||
+                      s(addr.buildingNumberId) ||
+                      s(addr.roomNumberId) ||
+                      s(addr.postOfficeBoxId) ||
+                      s(addr.postCode) ||
+                      s(addr.fullAddress)
+                    )
+                    const hasCity = !!s(addr.cityName)
+                    const hasSettlement = !!s(addr.settlementName)
+                    if (embeddedInCollapse) return null
+                    if (!hasContent) return null
+                    if (hasCity && hasSettlement)
+                      return <div style={{ fontSize: 12, color: '#ff4d4f', marginTop: 2 }}>Укажите только один — город или населённый пункт</div>
+                    if (!hasCity && !hasSettlement)
+                      return (
+                        <div style={{ fontSize: 12, color: '#ff4d4f', marginTop: 2 }}>
+                          При заполнении адреса обязательно укажите город или населённый пункт
+                        </div>
+                      )
+                    return null
+                  })()}
+                </div>
+              </FieldTagBlock>
+              <FieldTagBlock label="Населённый пункт">
+                <Input
+                  placeholder="Населённый пункт"
+                  value={addr.settlementName}
+                  onChange={(e) => handleImplAddressChange(index, 'settlementName', e.target.value || undefined)}
+                  maxLength={getMaxLength('settlementName')}
+                  showCount
+                />
+              </FieldTagBlock>
+              <FieldTagBlock label="Улица">
+                <Input
+                  placeholder="Улица"
+                  value={addr.streetName}
+                  onChange={(e) => handleImplAddressChange(index, 'streetName', e.target.value || undefined)}
+                  maxLength={getMaxLength('streetName')}
+                  showCount
+                />
+              </FieldTagBlock>
+              <Space wrap>
+                <FieldTagBlock label="Номер дома" style={{ width: 120 }}>
+                  <Input
+                    placeholder="Номер дома"
+                    value={addr.buildingNumberId}
+                    onChange={(e) => handleImplAddressChange(index, 'buildingNumberId', e.target.value || undefined)}
+                    style={{ width: 120 }}
+                    maxLength={getMaxLength('buildingNumberId')}
+                    showCount
+                  />
+                </FieldTagBlock>
+                <FieldTagBlock label="Номер помещения" style={{ width: 120 }}>
+                  <Input
+                    placeholder="Номер помещения"
+                    value={addr.roomNumberId}
+                    onChange={(e) => handleImplAddressChange(index, 'roomNumberId', e.target.value || undefined)}
+                    style={{ width: 120 }}
+                    maxLength={getMaxLength('roomNumberId')}
+                    showCount
+                  />
+                </FieldTagBlock>
+              </Space>
+              <FieldTagBlock label="Номер абонентского ящика">
+                <div>
+                  <Input
+                    placeholder="Номер абонентского ящика"
+                    value={addr.postOfficeBoxId}
+                    onChange={(e) => {
+                      const v = e.target.value || undefined
+                      handleImplAddressChange(index, 'postOfficeBoxId', v)
+                      const msg = validateFieldValue('postOfficeBoxId', v ?? '')
+                      setAddressErrors((prev) => ({ ...prev, [`addr-${index}-postOfficeBoxId`]: msg ?? '' }))
+                    }}
+                    onBlur={(e) => {
+                      const msg = validateFieldValue('postOfficeBoxId', e.target.value?.trim() || undefined)
+                      setAddressErrors((prev) => ({ ...prev, [`addr-${index}-postOfficeBoxId`]: msg ?? '' }))
+                    }}
+                    maxLength={getMaxLength('postOfficeBoxId')}
+                    showCount
+                    status={addressErrors[`addr-${index}-postOfficeBoxId`] ? 'error' : undefined}
+                  />
+                  {addressErrors[`addr-${index}-postOfficeBoxId`] && (
+                    <div style={{ fontSize: 12, color: '#ff4d4f', marginTop: 2 }}>{addressErrors[`addr-${index}-postOfficeBoxId`]}</div>
+                  )}
+                </div>
+              </FieldTagBlock>
+            </Space>
+          </div>
+        ))}
+        <Button type="dashed" icon={<PlusOutlined />} onClick={handleImplAddressAdd} style={{ width: '100%' }}>
+          Добавить адрес
+        </Button>
+      </div>
+
+      <div style={{ marginTop: 16 }}>
+        <h5>Контактные реквизиты</h5>
+        {contactList.map((contact, index) => (
+          <div key={index} style={{ marginBottom: 8, padding: 8, border: '1px solid #d9d9d9', borderRadius: 4 }}>
+            <Space direction="vertical" style={{ width: '100%' }}>
+              <FieldTagBlock label="Вид контакта">
+                <Select
+                  placeholder="Код — наименование"
+                  allowClear
+                  loading={loadingCommunicationChannels}
+                  value={contact.communicationChannelCode || undefined}
+                  options={getCommunicationChannelSelectOptions()}
+                  disabled={!!contact.communicationChannelName?.trim()}
+                  onChange={(value) => handleImplContactChange(index, 'communicationChannelCode', value ?? '')}
+                  style={{ width: '100%' }}
+                />
+              </FieldTagBlock>
+              <FieldTagBlock label="Наименование вида связи">
+                <Input
+                  value={contact.communicationChannelName ?? ''}
+                  onChange={(e) => handleImplContactChange(index, 'communicationChannelName', e.target.value)}
+                  disabled={!!contact.communicationChannelCode}
+                  maxLength={getMaxLength('communicationChannelName')}
+                  showCount
+                />
+              </FieldTagBlock>
+              <FieldTagBlock label="Значение">
+                <Input
+                  value={contact.communicationChannelId ?? contact.contactValue ?? ''}
+                  onChange={(e) => handleImplContactChange(index, 'communicationChannelId', e.target.value)}
+                  maxLength={getMaxLength('communicationChannelId')}
+                  showCount
+                />
+              </FieldTagBlock>
+              <Button type="link" danger icon={<DeleteOutlined />} onClick={() => handleImplContactRemove(index)}>
+                Удалить контакт
+              </Button>
+            </Space>
+          </div>
+        ))}
+        <Button type="dashed" icon={<PlusOutlined />} onClick={handleImplContactAdd} style={{ width: '100%' }}>
+          Добавить контакт
+        </Button>
+      </div>
     </Form>
   )
 }

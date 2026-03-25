@@ -2326,6 +2326,7 @@ function parseOrganizationDetails(placeElement: Element): BusinessEntityDetails 
     businessEntityTypeName = undefined
   }
   const customsNumber = getTextContent(orgElement, 'UniqueCustomsNumberId') || getTextContent(orgElement, 'CustomsNumber') || undefined
+  const taxRegistrationReasonCode = getTextContent(orgElement, 'TaxRegistrationReasonCode') || undefined
   const taxpayerId = getTextContent(orgElement, 'TaxpayerId') || undefined
   
   // BusinessEntityId с методом идентификации
@@ -2418,6 +2419,7 @@ function parseOrganizationDetails(placeElement: Element): BusinessEntityDetails 
     businessEntityId,
     identificationMethod,
     customsNumber,
+    taxRegistrationReasonCode,
     taxpayerId,
     addresses: addresses.length > 0 ? addresses : undefined,
     contacts: contacts.length > 0 ? contacts : undefined,
@@ -2915,11 +2917,26 @@ function parseMeasureImplementationItem(implElement: Element): MeasureImplementa
   const measureAffectedObjectKindCodesImpl = getAllTextContents(implElement, 'MeasureAffectedObjectKindCode')
   const measureAffectedObjectKindCode = measureAffectedObjectKindCodesImpl.length > 0 ? measureAffectedObjectKindCodesImpl.join(';') : undefined
 
-  // UnifiedAuthorityDetails
-  const authority = parseUnifiedAuthorityDetails(implElement)
-  
-  // SubjectDetails
-  const subjectDetails = parseSubjectDetails(implElement)
+  const implEntities = findChildElementsByLocalName(implElement, 'implementingentitydetails')
+  const authorities: UnifiedAuthorityDetails[] = []
+  const subjectDetailsList: SubjectDetails[] = []
+  if (implEntities.length > 0) {
+    implEntities.forEach((entityEl) => {
+      // По XSD внутри одного ImplementingEntityDetails допускается не более 1 УО и 1 Субъекта.
+      const entityAuthority = parseUnifiedAuthorityDetails(entityEl)
+      if (entityAuthority) authorities.push(entityAuthority)
+      const entitySubject = parseSubjectDetails(entityEl)
+      if (entitySubject) subjectDetailsList.push(entitySubject)
+    })
+  } else {
+    // Обратная совместимость: старые XML без обертки ImplementingEntityDetails.
+    const fallbackAuthorities = parseUnifiedAuthorityDetailsList(implElement)
+    const fallbackSubjects = parseSubjectDetailsList(implElement)
+    authorities.push(...fallbackAuthorities)
+    subjectDetailsList.push(...fallbackSubjects)
+  }
+  const authority = authorities[0]
+  const subjectDetails = subjectDetailsList[0]
   
   // DocReferenceDetails
   const documentDetails = parseDocumentReferenceDetails(implElement)
@@ -2933,11 +2950,61 @@ function parseMeasureImplementationItem(implElement: Element): MeasureImplementa
     endDate,
     description,
     measureAffectedObjectKindCode,
+    authorities: authorities.length > 0 ? authorities : undefined,
+    subjectDetailsList: subjectDetailsList.length > 0 ? subjectDetailsList : undefined,
     authority,
     subjectDetails,
     documentDetails,
     placeDetails,
   }
+}
+
+function parseUnifiedAuthorityDetailsList(parent: Element): UnifiedAuthorityDetails[] {
+  const result: UnifiedAuthorityDetails[] = []
+  try {
+    const direct = parent.getElementsByTagName('ccdo:UnifiedAuthorityDetails')
+    for (let i = 0; i < direct.length; i++) {
+      const parsed = parseUnifiedAuthorityDetails(direct[i] as unknown as Element)
+      if (parsed) result.push(parsed)
+    }
+  } catch {
+    // ignore
+  }
+  if (result.length > 0) return result
+  const all = parent.getElementsByTagName('*')
+  for (let i = 0; i < all.length; i++) {
+    const el = all[i]
+    const localName = (el.localName || el.tagName.split(':').pop() || '').toLowerCase()
+    if (localName === 'unifiedauthoritydetails') {
+      const parsed = parseUnifiedAuthorityDetails(el as unknown as Element)
+      if (parsed) result.push(parsed)
+    }
+  }
+  return result
+}
+
+function parseSubjectDetailsList(parent: Element): SubjectDetails[] {
+  const result: SubjectDetails[] = []
+  try {
+    const direct = parent.getElementsByTagName('smcdo:SubjectDetails')
+    for (let i = 0; i < direct.length; i++) {
+      const parsed = parseSubjectDetails(direct[i] as unknown as Element)
+      if (parsed) result.push(parsed)
+    }
+  } catch {
+    // ignore
+  }
+  if (result.length > 0) return result
+  const all = parent.getElementsByTagName('*')
+  for (let i = 0; i < all.length; i++) {
+    const el = all[i]
+    const localName = (el.localName || el.tagName.split(':').pop() || '').toLowerCase()
+    if (localName === 'subjectdetails') {
+      const parsed = parseSubjectDetails(el as unknown as Element)
+      if (parsed) result.push(parsed)
+    }
+  }
+  return result
 }
 
 /**
@@ -3124,7 +3191,30 @@ function parseSubjectDetails(parent: Element): SubjectDetails | undefined {
   if (!subjectElement) {
     return undefined
   }
-  
+ 
+  // Физлицо должно иметь приоритет, иначе SubjectName может ошибочно
+  // интерпретироваться как BusinessEntityName и identityDoc потеряется.
+  const identityDoc = parseIdentityDocDetails(subjectElement)
+  if (identityDoc) {
+    const country = getTextContent(subjectElement, 'UnifiedCountryCode') || undefined
+    const subjectName = getTextContent(subjectElement, 'SubjectName') || undefined
+    const addresses = parseAllAddresses(subjectElement)
+    const registrationAddress = addresses.find((a) => (a.addressKindCode || '').trim() === '1')
+    const actualAddress = addresses.find((a) => (a.addressKindCode || '').trim() === '2')
+    const mailingAddress = addresses.find((a) => (a.addressKindCode || '').trim() === '3')
+    const contacts = parseContacts(subjectElement)
+    return {
+      country,
+      subjectName,
+      identityDoc,
+      addresses: addresses.length > 0 ? addresses : undefined,
+      registrationAddress,
+      actualAddress,
+      mailingAddress,
+      contacts,
+    }
+  }
+
   // Юрлицо/ИП: сначала пробуем вложенный OrganizationDetails
   let businessEntity = parseOrganizationDetails(subjectElement)
   if (businessEntity) {
@@ -3140,7 +3230,6 @@ function parseSubjectDetails(parent: Element): SubjectDetails | undefined {
   // Физлицо
   const country = getTextContent(subjectElement, 'UnifiedCountryCode') || undefined
   const subjectName = getTextContent(subjectElement, 'SubjectName') || undefined
-  const identityDoc = parseIdentityDocDetails(subjectElement)
   const addresses = parseAllAddresses(subjectElement)
   const registrationAddress = addresses.find((a) => (a.addressKindCode || '').trim() === '1')
   const actualAddress = addresses.find((a) => (a.addressKindCode || '').trim() === '2')
@@ -3274,10 +3363,13 @@ function parseDocumentReferenceDetails(parent: Element): DocumentReferenceDetail
     docKindCode = docKindCodeEl.textContent?.trim() || undefined
     docKindCodeListId = docKindCodeEl.getAttribute('codeListId') || undefined
   }
-  
+
+  const docKindName = docKindCode ? undefined : getTextContent(docElement, 'DocKindName') || undefined
+
   return {
     docKindCode,
     docKindCodeListId,
+    docKindName,
     docName,
     docId,
     docCreationDate,
@@ -3288,15 +3380,36 @@ function parseDocumentReferenceDetails(parent: Element): DocumentReferenceDetail
 /**
  * Парсит MeasurePlaceDetails
  */
+function findFirstChildElementByLocalName(parent: Element, localLower: string): Element | null {
+  for (let i = 0; i < parent.children.length; i++) {
+    const el = parent.children[i] as Element
+    const ln = (el.localName || el.tagName.split(':').pop() || '').toLowerCase()
+    if (ln === localLower) return el
+  }
+  return null
+}
+
+function findChildElementsByLocalName(parent: Element, localLower: string): Element[] {
+  const result: Element[] = []
+  for (let i = 0; i < parent.children.length; i++) {
+    const el = parent.children[i] as Element
+    const ln = (el.localName || el.tagName.split(':').pop() || '').toLowerCase()
+    if (ln === localLower) result.push(el)
+  }
+  return result
+}
+
 function parseMeasurePlaceDetails(parent: Element): MeasurePlaceDetails | undefined {
-  const regionName = getTextContent(parent, 'RegionName') || undefined
-  const borderCheckpointCode = getTextContent(parent, 'BorderCheckpointCode') || undefined
-  const borderCheckpointName = getTextContent(parent, 'BorderCheckpointName') || undefined
-  
+  const placeEl = findFirstChildElementByLocalName(parent, 'measureplacedetails')
+  const scope = placeEl ?? parent
+  const regionName = getTextContent(scope, 'RegionName') || undefined
+  const borderCheckpointCode = getTextContent(scope, 'BorderCheckpointCode') || undefined
+  const borderCheckpointName = getTextContent(scope, 'BorderCheckpointName') || undefined
+
   if (!regionName && !borderCheckpointCode && !borderCheckpointName) {
     return undefined
   }
-  
+
   return {
     regionName,
     borderCheckpointCode,

@@ -105,6 +105,9 @@ const DetectionPlaceTab: React.FC<DetectionPlaceTabProps> = ({ data, label = 'м
                 <Descriptions.Item label="Идентификатор налогоплательщика">
                   {data.organization.taxpayerId || '-'}
                 </Descriptions.Item>
+                <Descriptions.Item label="Код причины постановки на учёт">
+                  {data.organization.taxRegistrationReasonCode || '-'}
+                </Descriptions.Item>
                 {(() => {
                   const list = getAddressListFromOrganization(data.organization)
                   const lines = formatAddressList(list, getDefaultAddressKindName, getCountryNameForAddress)

@@ -245,6 +245,7 @@ const ManufacturerDetailsEdit: React.FC<ManufacturerDetailsEditProps> = ({
                     loading={loading}
                     countryOptions={countryOptions}
                     normalizeCountryCode={normalizeCountryCode}
+                    allowClear={embeddedInCollapse}
                   />
                 </Form.Item>
                 {!hideKindField && (fixedSupplyChainPartyKindCode ? (
@@ -287,7 +288,7 @@ const ManufacturerDetailsEdit: React.FC<ManufacturerDetailsEditProps> = ({
                   <Input maxLength={getMaxLength('shortName')} showCount />
                 </Form.Item>
                 <Form.Item
-                  label="Организационно-правовая форма (из справочника)"
+                  label="Организационно-правовая форма (справочник)"
                   name="businessEntityTypeCode"
                   validateStatus={legalFormCodeNotInOptions ? 'warning' : undefined}
                   help={
@@ -298,7 +299,7 @@ const ManufacturerDetailsEdit: React.FC<ManufacturerDetailsEditProps> = ({
                 >
                   <Select
                     showSearch
-                    placeholder={countryForLegalForm ? 'Выберите по справочнику (код — наименование)' : 'Сначала укажите страну'}
+                    placeholder={countryForLegalForm ? 'Выберите значение' : 'Сначала укажите страну'}
                     allowClear
                     loading={loadingLegalForms}
                     onChange={handleLegalFormSelect}
@@ -312,11 +313,11 @@ const ManufacturerDetailsEdit: React.FC<ManufacturerDetailsEditProps> = ({
                 </Form.Item>
                 {!isLegalFormFromRef && (
                   <Form.Item
-                    label="Наименование организационно-правовой формы (вручную)"
+                    label="Организационно-правовая форма (ручной ввод)"
                     name="organizationalForm"
                     rules={getFormRules('organizationalForm')}
                   >
-                    <Input placeholder="Если не выбрано из справочника" maxLength={getMaxLength('organizationalForm')} showCount />
+                    <Input maxLength={getMaxLength('organizationalForm')} showCount />
                   </Form.Item>
                 )}
                 <Form.Item label="Идентификатор субъекта" name="subjectIdentifier" rules={getFormRules('subjectIdentifier')}>
@@ -342,7 +343,6 @@ const ManufacturerDetailsEdit: React.FC<ManufacturerDetailsEditProps> = ({
                 <Form.Item label="Идентификатор налогоплательщика" name="taxpayerId" rules={getFormRules('taxpayerId')}>
                   <Input maxLength={getMaxLength('taxpayerId')} showCount />
                 </Form.Item>
-
                 {/* Адреса — список с добавлением */}
                 <div style={{ marginTop: '16px' }}>
                   <h4>Адреса</h4>
@@ -372,13 +372,15 @@ const ManufacturerDetailsEdit: React.FC<ManufacturerDetailsEditProps> = ({
                               placeholder="Страна"
                               loading={loading}
                               value={addr.country}
-                              onChange={(value) => handleAddressChange(index, 'country', value || undefined)}
+                              onChange={(value) => handleAddressChange(index, 'country', value)}
                               countryOptions={countryOptions}
                               normalizeCountryCode={normalizeCountryCode}
+                              allowClear={embeddedInCollapse}
                             />
                             {(() => {
                               const s = (v: string | undefined) => (v ?? '').trim()
                               const hasContent = !!(s(addr.country) || s(addr.territoryCode) || s(addr.regionName) || s(addr.districtName) || s(addr.cityName) || s(addr.settlementName) || s(addr.streetName) || s(addr.buildingNumberId) || s(addr.roomNumberId) || s(addr.postOfficeBoxId) || s(addr.postCode) || s(addr.fullAddress))
+                              if (embeddedInCollapse) return null
                               if (!hasContent || s(addr.country)) return null
                               return <div style={{ fontSize: 12, color: '#ff4d4f', marginTop: 2 }}>При заполнении адреса обязательно укажите Страну</div>
                             })()}
@@ -425,6 +427,7 @@ const ManufacturerDetailsEdit: React.FC<ManufacturerDetailsEditProps> = ({
                               const hasContent = !!(s(addr.country) || s(addr.territoryCode) || s(addr.regionName) || s(addr.districtName) || s(addr.cityName) || s(addr.settlementName) || s(addr.streetName) || s(addr.buildingNumberId) || s(addr.roomNumberId) || s(addr.postOfficeBoxId) || s(addr.postCode) || s(addr.fullAddress))
                               const hasCity = !!s(addr.cityName)
                               const hasSettlement = !!s(addr.settlementName)
+                              if (embeddedInCollapse) return undefined
                               const err = hasContent && (hasCity && hasSettlement ? true : !hasCity && !hasSettlement)
                               return err ? 'error' : undefined
                             })()} />
@@ -433,6 +436,7 @@ const ManufacturerDetailsEdit: React.FC<ManufacturerDetailsEditProps> = ({
                               const hasContent = !!(s(addr.country) || s(addr.territoryCode) || s(addr.regionName) || s(addr.districtName) || s(addr.cityName) || s(addr.settlementName) || s(addr.streetName) || s(addr.buildingNumberId) || s(addr.roomNumberId) || s(addr.postOfficeBoxId) || s(addr.postCode) || s(addr.fullAddress))
                               const hasCity = !!s(addr.cityName)
                               const hasSettlement = !!s(addr.settlementName)
+                              if (embeddedInCollapse) return null
                               if (!hasContent) return null
                               if (hasCity && hasSettlement) return <div style={{ fontSize: 12, color: '#ff4d4f', marginTop: 2 }}>Укажите только один — Город или Населенный пункт</div>
                               if (!hasCity && !hasSettlement) return <div style={{ fontSize: 12, color: '#ff4d4f', marginTop: 2 }}>При заполнении адреса обязательно укажите Город или Населенный пункт</div>

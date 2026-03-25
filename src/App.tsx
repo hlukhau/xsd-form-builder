@@ -5,7 +5,15 @@ import { isPhaApp } from './cards/config'
 import { DangerousProductCard } from './cards/dpa'
 import { PhaCard } from './cards/pha'
 import type { CardData } from './types/card'
-import { fetchDpaXml, fetchDpaMetadata, fetchNextRegistrationNumber, fetchPhaNextRegistrationNumber, checkAccessRight, phaSourceToViewRight } from './utils/referenceDataApi'
+import {
+  fetchDpaXml,
+  fetchDpaMetadata,
+  fetchNextRegistrationNumber,
+  fetchPhaNextRegistrationNumber,
+  checkAccessRight,
+  phaSourceToViewRight,
+  setReferenceGuidContext,
+} from './utils/referenceDataApi'
 import { fetchPhaXml, fetchPhaMetadata, fetchPhaStatusHistory, postPhaStatus } from './cards/pha/phaApi'
 import { isPhaIncomingSource } from './utils/phaStatusButtonConfig'
 import { parsePhaXmlToCardData } from './cards/pha/phaXmlParser'
@@ -87,6 +95,10 @@ function AppContent() {
   const [searchParams] = useSearchParams()
   const navigate = useNavigate()
   const location = useLocation()
+
+  useEffect(() => {
+    setReferenceGuidContext(guid)
+  }, [guid])
 
   // Режим новой карты: /xsd_form_builder/-/1 — запросить регистрационный номер или открыть форму новой версии (Сделать копию)
   useEffect(() => {
@@ -306,6 +318,9 @@ function PhaAppContent() {
   const navigate = useNavigate()
   const location = useLocation()
   const phaid = phaidParam ?? ''
+  useEffect(() => {
+    setReferenceGuidContext(guid)
+  }, [guid])
   /** Счётчик запуска загрузки PHA: не даём Strict Mode / смене deps «отменить» успешный setCardData через cancelled. */
   const phaLoadSeqRef = useRef(0)
 
@@ -373,10 +388,9 @@ function PhaAppContent() {
           notification: card.notification
             ? {
                 ...card.notification,
-                endDate:
-                  (card.notification.endDate != null && String(card.notification.endDate).trim() !== '')
-                    ? card.notification.endDate
-                    : meta.situationEndDate ?? card.notification.endDate,
+                // Дата закрытия уведомления берётся только из XML PublicHealthAlertDetails/csdo:EndDate.
+                // Нельзя подставлять сюда situationEndDate (это иная дата — из блока болезни).
+                endDate: card.notification.endDate,
                 authorizedBody: card.notification.authorizedBody
                   ? {
                       ...card.notification.authorizedBody,
