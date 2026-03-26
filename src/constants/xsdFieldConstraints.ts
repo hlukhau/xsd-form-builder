@@ -127,14 +127,11 @@ export const XSD_FIELD_CONSTRAINTS: Record<string, FieldConstraint> = {
   violationDescription: { maxLength: 4000, messageMaxLength: 'Не более 4000 символов (csdo:Text4000Type)' },
   technicalRegulationId: { maxLength: 50, messageMaxLength: 'Не более 50 символов', formatHint: 'Например: ТР ТС 001/2011' },
   indicatorName: { maxLength: 300, messageMaxLength: 'Не более 300 символов' },
+  /** Значение показателя в нарушениях: строка до 100 символов */
   indicatorValue: {
-    maxLength: 250,
-    messageMaxLength: 'Не более 250 символов',
-    pattern: DECIMAL_18_6_PATTERN,
-    totalDigits: 24,
-    fractionDigits: 6,
-    formatHint: 'Число: до 18 цифр целой части и до 6 после точки (например 0.0042 или 123.456789). Разделитель — только точка.',
-    messagePattern: 'Введите число: до 18 цифр целой части и до 6 после точки (например 0.0042). Разделитель — только точка.',
+    maxLength: 100,
+    messageMaxLength: 'Не более 100 символов',
+    formatHint: 'Текст до 100 символов',
   },
 
   // PHA (EEC_R_SM_SS_08, smsdo/csdo)
@@ -241,7 +238,7 @@ export function getFormRules(fieldKey: string, options?: { required?: boolean })
 }
 
 /** Ключи полей, в которых вводятся десятичные числа (разделитель дробной части — только точка). */
-const NUMERIC_DECIMAL_FIELD_KEYS = new Set<string>(['geoCoordinate', 'indicatorValue', 'measureValue'])
+const NUMERIC_DECIMAL_FIELD_KEYS = new Set<string>(['geoCoordinate', 'measureValue'])
 
 /**
  * Валидирует значение по ограничениям поля. Возвращает сообщение об ошибке или null.

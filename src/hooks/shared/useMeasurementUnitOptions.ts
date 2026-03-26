@@ -12,8 +12,11 @@ export function useMeasurementUnitOptions() {
     setLoading(true)
     getMeasurementUnitOptions()
       .then((data) => {
-        console.log(`[useMeasurementUnitOptions] Загружено ${data.length} единиц измерения`)
-        setOptions(data)
+        const sorted = [...data].sort((a, b) =>
+          String(a.code).localeCompare(String(b.code), undefined, { numeric: true, sensitivity: 'base' })
+        )
+        console.log(`[useMeasurementUnitOptions] Загружено ${sorted.length} единиц измерения`)
+        setOptions(sorted)
       })
       .catch((error) => {
         console.error('Ошибка загрузки справочника единиц измерения:', error)

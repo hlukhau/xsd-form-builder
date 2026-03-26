@@ -13,6 +13,11 @@ export interface DpaEmbeddedUnifiedAuthorityFormProps {
   countryOptions: CountryOption[]
   loadingCountries: boolean
   normalizeCountryCode: (code: string | undefined) => string | undefined
+  /**
+   * Подписи и подсказки без XSD/названий объектов БД (модальное окно «Уполномоченный орган»
+   * на вкладке документов соответствия).
+   */
+  userFacingLabels?: boolean
 }
 
 /**
@@ -27,6 +32,7 @@ export function DpaEmbeddedUnifiedAuthorityForm({
   countryOptions,
   loadingCountries,
   normalizeCountryCode,
+  userFacingLabels = false,
 }: DpaEmbeddedUnifiedAuthorityFormProps) {
   const countryTrim = (value.country ?? '').trim()
   const { options, loading: loadingAuthorities, getSelectOptions } = useAuthorityOptions(
@@ -63,17 +69,27 @@ export function DpaEmbeddedUnifiedAuthorityForm({
       </Form.Item>
       <Form.Item label="Идентификатор">
         <Typography.Text type="secondary">—</Typography.Text>
-        <Typography.Paragraph type="secondary" style={{ marginBottom: 0, fontSize: 12 }}>
-          Не заполняется; в XML не выводится (csdo:AuthorityId).
-        </Typography.Paragraph>
+        {!userFacingLabels && (
+          <Typography.Paragraph type="secondary" style={{ marginBottom: 0, fontSize: 12 }}>
+            Не заполняется; в XML не выводится (csdo:AuthorityId).
+          </Typography.Paragraph>
+        )}
       </Form.Item>
-      <Form.Item label="Уполномоченный орган из справочника (необязательно)">
+      <Form.Item
+        label={
+          userFacingLabels
+            ? 'Выбор из справочника (необязательно)'
+            : 'Уполномоченный орган из справочника (необязательно)'
+        }
+      >
         <Select
           showSearch
           allowClear
           placeholder={
             countryTrim
-              ? 'Выберите из справочника AUTHORITY для выбранной страны'
+              ? userFacingLabels
+                ? 'Выберите уполномоченный орган для выбранной страны'
+                : 'Выберите из справочника AUTHORITY для выбранной страны'
               : 'Сначала укажите страну'
           }
           disabled={!countryTrim}
@@ -102,7 +118,9 @@ export function DpaEmbeddedUnifiedAuthorityForm({
           style={{ width: '100%' }}
         />
         <Typography.Paragraph type="secondary" style={{ marginTop: 8, marginBottom: 0, fontSize: 12 }}>
-          По умолчанию укажите наименование вручную. Выбор из справочника подставляет наименование и краткое наименование; их можно изменить.
+          {userFacingLabels
+            ? 'Наименование можно ввести вручную. При выборе из справочника подставляются наименование и краткое наименование; их можно изменить.'
+            : 'По умолчанию укажите наименование вручную. Выбор из справочника подставляет наименование и краткое наименование; их можно изменить.'}
         </Typography.Paragraph>
       </Form.Item>
       <Form.Item label="Наименование">

@@ -208,7 +208,7 @@ const ComplianceDocumentsTabEdit: React.FC<ComplianceDocumentsTabEditProps> = ({
       render: (_: any, record: ComplianceDocument, docIndex: number) => (
         <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: 2 }}>
           <Button type="link" icon={<EyeOutlined />} onClick={() => { setAuthorityContext({ batchIndex, docIndex }); setAuthorityModalVisible(true) }} style={{ padding: 0, height: 'auto' }}>
-            {labelWithHelp('Уполномоченный орган', FIELD_HELP.complianceAuthority)}
+            Уполномоченный орган
           </Button>
           {record.docKindCode === '25' && (
             <Button type="link" onClick={() => handleRequestProtocols(record)} style={{ padding: 0, height: 'auto' }}>
@@ -263,20 +263,21 @@ const ComplianceDocumentsTabEdit: React.FC<ComplianceDocumentsTabEditProps> = ({
       />
 
       <Modal
-        title={labelWithHelp('Уполномоченный орган', FIELD_HELP.complianceAuthority)}
+        title="Уполномоченный орган"
         open={authorityModalVisible}
         onCancel={() => { setAuthorityModalVisible(false); setAuthorityContext(null) }}
         footer={[<Button key="close" onClick={() => { setAuthorityModalVisible(false); setAuthorityContext(null) }}>Закрыть</Button>]}
         width={600}
       >
         {authorityContext !== null && batches[authorityContext.batchIndex]?.complianceDocuments?.[authorityContext.docIndex] && (
-          <Form layout="vertical" className="field-tag-form">
+          <Form layout="vertical">
             <DpaEmbeddedUnifiedAuthorityForm
               value={batches[authorityContext.batchIndex].complianceDocuments![authorityContext.docIndex].authority ?? {}}
               onChange={(next) => handleAuthoritySectionChange(authorityContext.batchIndex, authorityContext.docIndex, next)}
               countryOptions={countryOptions}
               loadingCountries={loadingCountries}
               normalizeCountryCode={normalizeCountryCode}
+              userFacingLabels
             />
           </Form>
         )}

@@ -5,7 +5,7 @@ import { format } from 'date-fns'
 import { ru } from 'date-fns/locale'
 import { labelWithHelp } from '@/components/common/FieldHelp'
 import { FIELD_HELP } from '@/constants/fieldDescriptions'
-import { getMaxLength, getFormatHint, validateFieldValue } from '@/constants/xsdFieldConstraints'
+import { getMaxLength, validateFieldValue } from '@/constants/xsdFieldConstraints'
 import type { ViolationsData, ViolatedRequirement, ViolatedIndicator, DocStructuralElement, TSDData, ProductBatchDetails } from '@/types/card'
 import { useTechRegulOptions } from '@/hooks/shared/useTechRegulOptions'
 import { useMeasurementUnitOptions } from '@/hooks/shared/useMeasurementUnitOptions'
@@ -156,7 +156,7 @@ const ViolationsTabEdit: React.FC<ViolationsTabEditProps> = ({ tsd, onTsdChange 
       { title: 'Нормативный показатель', key: 'isNormative', width: 150, render: (_: any, record: ViolatedIndicator, index: number) => (<Input type="checkbox" checked={record.isNormative} onChange={(e) => handleIndicatorChange(index, 'isNormative', e.target.checked)} />) },
       { title: labelWithHelp('Наименование показателя', FIELD_HELP.indicatorName), key: 'indicatorName', width: 200, render: (_: any, record: ViolatedIndicator, index: number) => (<Input value={record.indicatorName} onChange={(e) => handleIndicatorChange(index, 'indicatorName', e.target.value)} maxLength={getMaxLength('indicatorName')} showCount />) },
       {
-        title: labelWithHelp('Значение показателя', FIELD_HELP.indicatorValue),
+        title: labelWithHelp('Значения показателя', FIELD_HELP.indicatorValue),
         key: 'indicatorValue',
         width: 200,
         render: (_: any, record: ViolatedIndicator, index: number) => {
@@ -178,7 +178,6 @@ const ViolationsTabEdit: React.FC<ViolationsTabEditProps> = ({ tsd, onTsdChange 
                 maxLength={getMaxLength('indicatorValue')}
                 showCount
                 status={err ? 'error' : undefined}
-                placeholder={getFormatHint('indicatorValue')}
               />
               {err && <div style={{ fontSize: 12, color: '#ff4d4f', marginTop: 2 }}>{err}</div>}
             </div>

@@ -334,7 +334,7 @@ const ProductTabEdit: React.FC<ProductTabEditProps> = ({ data, onChange }) => {
                 <Form.Item label="Вид документа" style={{ marginBottom: 8 }}>
                   <Select
                     showSearch
-                    placeholder="Код — наименование вида (справочник SHIPDOCKIND)"
+                    placeholder="Код — наименование вида документа"
                     loading={loadingShipDocKinds}
                     value={doc.docKindCode || undefined}
                     onChange={(code) => handleTechnicalDocKindSelect(index, code ?? '')}

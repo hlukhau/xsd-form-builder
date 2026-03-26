@@ -185,7 +185,7 @@ const ViolationsTab: React.FC<ViolationsTabProps> = ({ tsd }) => {
       },
     },
     {
-      title: 'Значение показателя',
+      title: 'Значения показателя',
       dataIndex: 'indicatorValue',
       key: 'indicatorValue',
       width: 150,
