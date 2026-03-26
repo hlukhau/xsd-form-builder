@@ -933,6 +933,7 @@ const MeasureImplementationDetailsEdit: React.FC<{
                       countryOptions={countryOptions}
                       loadingCountries={loadingCountries}
                       normalizeCountryCode={normalizeCountryCode}
+                      userFacingLabels
                     />
                     <Button type="link" danger icon={<DeleteOutlined />} onClick={() => {
                       const nextList = authorities.filter((_, i) => i !== idx)

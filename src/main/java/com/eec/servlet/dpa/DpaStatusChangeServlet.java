@@ -59,6 +59,11 @@ public class DpaStatusChangeServlet extends HttpServlet {
             + "SELECT 1 FROM DPARESOLUTION r "
             + "JOIN TB_DEPKIND dk ON r.DEPKINDID = dk.DEPKINDID "
             + "WHERE r.DPAID = ? AND UPPER(TRIM(dk.DEPKINDCODE)) IN ('DEP0602','DEP0603') AND ROWNUM = 1";
+    /** Есть ли резолюция районного ЦГЭ (DEP0601) по карте. */
+    private static final String SQL_HAS_DISTRICT_RESOLUTION = ""
+            + "SELECT 1 FROM DPARESOLUTION r "
+            + "JOIN TB_DEPKIND dk ON r.DEPKINDID = dk.DEPKINDID "
+            + "WHERE r.DPAID = ? AND UPPER(TRIM(dk.DEPKINDCODE)) = 'DEP0601' AND ROWNUM = 1";
     /** PARENTDEPID по иерархии OS (Организационная структура) для подразделения — для отметки готовности районным ЦГЭ. */
     private static final String SQL_PARENT_DEPID_OS = ""
             + "SELECT dp.PARENTDEPID FROM TB_DEPLINK dp "
@@ -68,6 +73,8 @@ public class DpaStatusChangeServlet extends HttpServlet {
     private static final String SQL_DEPID_BY_DEPCODE_006 = "SELECT DEPID FROM TB_DEP WHERE TRIM(DEPCODE) = '006' AND ROWNUM = 1";
     private static final String SQL_INSERT_DPADEPPERMIS = "INSERT INTO DPADEPPERMIS (DPAID, DEPID, GRANTDATETIME) VALUES (?, ?, SYSDATE)";
     private static final String SQL_EXISTS_DEP = "SELECT 1 FROM TB_DEP WHERE DEPID = ?";
+    private static final String SQL_EXISTS_DPADEPPERMIS_ACTIVE = ""
+            + "SELECT 1 FROM DPADEPPERMIS WHERE DPAID = ? AND DEPID = ? AND REVOKEDATETIME IS NULL";
 
     @Override
     protected void doPost(HttpServletRequest request, HttpServletResponse response)
@@ -236,6 +243,11 @@ public class DpaStatusChangeServlet extends HttpServlet {
                 }
                 // При отметке готовности из черновика: добавить в DPADEPPERMIS вышестоящее ЦГЭ по уровню
                 insertDpaDepPermisOnDraftMarkReady(conn, dpaid, depKindCode, guid);
+            }
+            // При статусе «Новое» и резолюции районного уровня (dep0601), если отметку ставит областной уровень
+            // (dep0602), статус не меняется, но в доступ для просмотра добавляется республиканский ЦГЭ (DEPCODE=006).
+            if (currentStatusId == OUTGOING_NEW && "DEP0602".equalsIgnoreCase(depKindCode)) {
+                insertRepublicanDepPermisOnRegionalReadyForNew(conn, dpaid);
             }
             try (PreparedStatement ps = conn.prepareStatement(SQL_INSERT_RESOLUTION)) {
                 ps.setLong(1, dpaid);
@@ -423,6 +435,25 @@ public class DpaStatusChangeServlet extends HttpServlet {
         }
     }
 
+    private static void insertRepublicanDepPermisOnRegionalReadyForNew(Connection conn, long dpaid) throws SQLException {
+        if (!hasDistrictResolution(conn, dpaid)) {
+            return;
+        }
+        Integer depId006 = getDepIdByDepCode006(conn);
+        if (depId006 == null || !existsDepIdInTbDep(conn, depId006)) {
+            return;
+        }
+        if (hasActiveDpaDepPermis(conn, dpaid, depId006)) {
+            return;
+        }
+        try (PreparedStatement ps = conn.prepareStatement(SQL_INSERT_DPADEPPERMIS)) {
+            ps.setLong(1, dpaid);
+            ps.setInt(2, depId006);
+            ps.executeUpdate();
+            System.out.println("[DpaStatusChange] mark_ready new+DEP0602(+DEP0601 resolution): inserted DPADEPPERMIS DPAID=" + dpaid + " DEPID=" + depId006 + " (006)");
+        }
+    }
+
     private static Integer getDepartmentDepIdFromRights(String guid) {
         if (guid == null || guid.trim().isEmpty()) return null;
         String json = RightsJsonStore.guidMap.get(guid.trim());
@@ -458,6 +489,25 @@ public class DpaStatusChangeServlet extends HttpServlet {
     private static boolean existsDepIdInTbDep(Connection conn, int depId) throws SQLException {
         try (PreparedStatement ps = conn.prepareStatement(SQL_EXISTS_DEP)) {
             ps.setInt(1, depId);
+            try (ResultSet rs = ps.executeQuery()) {
+                return rs.next();
+            }
+        }
+    }
+
+    private static boolean hasDistrictResolution(Connection conn, long dpaid) throws SQLException {
+        try (PreparedStatement ps = conn.prepareStatement(SQL_HAS_DISTRICT_RESOLUTION)) {
+            ps.setLong(1, dpaid);
+            try (ResultSet rs = ps.executeQuery()) {
+                return rs.next();
+            }
+        }
+    }
+
+    private static boolean hasActiveDpaDepPermis(Connection conn, long dpaid, int depId) throws SQLException {
+        try (PreparedStatement ps = conn.prepareStatement(SQL_EXISTS_DPADEPPERMIS_ACTIVE)) {
+            ps.setLong(1, dpaid);
+            ps.setInt(2, depId);
             try (ResultSet rs = ps.executeQuery()) {
                 return rs.next();
             }
