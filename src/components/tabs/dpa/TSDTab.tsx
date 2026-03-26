@@ -14,6 +14,8 @@ import { useIdentificationMethodOptions } from '@/hooks/shared/useIdentification
 import { useMeasurementUnitOptions } from '@/hooks/shared/useMeasurementUnitOptions'
 import { useShipDocKindOptions } from '@/hooks/shared/useShipDocKindOptions'
 import { useCountryOptions } from '@/hooks/shared/useCountryOptions'
+import { useCommunicationChannelOptions } from '@/hooks/shared/useCommunicationChannelOptions'
+import { buildContactDisplayLines } from '@/utils/contactDisplayUtils'
 
 interface TSDTabProps {
   data: TSDData
@@ -29,6 +31,7 @@ const TSDTab: React.FC<TSDTabProps> = ({ data }) => {
   const { getDisplayLabel: getIdentificationMethodDisplayLabel } = useIdentificationMethodOptions(selectedParty?.country ?? '')
   const { getDisplayLabel: getMeasurementUnitDisplayLabel } = useMeasurementUnitOptions()
   const { getDisplayLabel: getShipDocKindDisplayLabel, getNameByCode: getShipDocKindNameByCode } = useShipDocKindOptions()
+  const { getNameByCode: getCommunicationChannelNameByCode } = useCommunicationChannelOptions()
 
   const formatDate = (date: string | null | undefined) => {
     if (!date) return '-'
@@ -375,17 +378,18 @@ const TSDTab: React.FC<TSDTabProps> = ({ data }) => {
                 </Descriptions.Item>
               ) : null
             })()}
-            {selectedParty.contacts && selectedParty.contacts.length > 0 && (
-              <Descriptions.Item label="Контактный реквизит">
-                <div>
-                  {selectedParty.contacts.map((contact, index) => (
-                    <div key={index} style={{ marginBottom: '4px' }}>
-                      {contact.contactKind && `${contact.contactKind}: `}{contact.contactValue || '-'}
-                    </div>
-                  ))}
-                </div>
-              </Descriptions.Item>
-            )}
+            {(() => {
+              const contactLines = buildContactDisplayLines(selectedParty.contacts, getCommunicationChannelNameByCode)
+              return contactLines.length > 0 ? (
+                <Descriptions.Item label="Контактный реквизит">
+                  <div>
+                    {contactLines.map((line, index) => (
+                      <div key={index} style={{ marginBottom: '4px' }}>{line}</div>
+                    ))}
+                  </div>
+                </Descriptions.Item>
+              ) : null
+            })()}
           </Descriptions>
         )}
       </Modal>

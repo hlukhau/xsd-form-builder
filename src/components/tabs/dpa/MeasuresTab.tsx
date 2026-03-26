@@ -18,6 +18,8 @@ import { useIdentityDocKindOptions } from '@/hooks/shared/useIdentityDocKindOpti
 import { useCountryOptions } from '@/hooks/shared/useCountryOptions'
 import { useLegalFormOptions } from '@/hooks/shared/useLegalFormOptions'
 import { useIdentificationMethodOptions } from '@/hooks/shared/useIdentificationMethodOptions'
+import { useCommunicationChannelOptions } from '@/hooks/shared/useCommunicationChannelOptions'
+import { buildContactDisplayLines } from '@/utils/contactDisplayUtils'
 import type {
   MeasuresData,
   SanitaryMeasure,
@@ -423,6 +425,7 @@ const MeasureImplementationDetailView: React.FC<{ item: MeasureImplementationIte
 const SubjectDetailsUnifiedView: React.FC<{ subject: SubjectDetails }> = ({ subject }) => {
   const { getNameByCode: getIdentityDocKindNameByCode } = useIdentityDocKindOptions()
   const { getDisplayLabel: getCountryDisplayLabel } = useCountryOptions()
+  const { getNameByCode: getCommunicationChannelNameByCode } = useCommunicationChannelOptions()
 
   const formatDate = (date: string | null | undefined) => {
     if (!date) return '-'
@@ -452,6 +455,7 @@ const SubjectDetailsUnifiedView: React.FC<{ subject: SubjectDetails }> = ({ subj
     : getAddressListFromSubject(subject)
   const addressLines = formatAddressList(addressList, getDefaultAddressKindName, getCountryDisplayLabel)
   const contacts = subject.contacts ?? be?.contacts ?? []
+  const contactDisplayLines = buildContactDisplayLines(contacts, getCommunicationChannelNameByCode)
 
   return (
     <Descriptions column={1} bordered size="small">
@@ -489,15 +493,13 @@ const SubjectDetailsUnifiedView: React.FC<{ subject: SubjectDetails }> = ({ subj
           </ul>
         </Descriptions.Item>
       )}
-      {contacts.length > 0 && (
+      {contactDisplayLines.length > 0 && (
         <Descriptions.Item label="Контактный реквизит">
-          <ul style={{ margin: 0, paddingLeft: '20px' }}>
-            {contacts.map((c, idx) => (
-              <li key={idx}>
-                {c.contactKind || ''}: {c.contactValue || ''}
-              </li>
+          <div>
+            {contactDisplayLines.map((line, idx) => (
+              <div key={idx} style={{ marginBottom: '4px' }}>{line}</div>
             ))}
-          </ul>
+          </div>
         </Descriptions.Item>
       )}
     </Descriptions>

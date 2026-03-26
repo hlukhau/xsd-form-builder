@@ -10,6 +10,8 @@ import {
 import { useIdentificationMethodOptions } from '@/hooks/shared/useIdentificationMethodOptions'
 import { useCountryOptions } from '@/hooks/shared/useCountryOptions'
 import { useLegalFormOptions } from '@/hooks/shared/useLegalFormOptions'
+import { useCommunicationChannelOptions } from '@/hooks/shared/useCommunicationChannelOptions'
+import { buildContactDisplayLines } from '@/utils/contactDisplayUtils'
 
 interface DetectionPlaceTabProps {
   data: DetectionPlaceData
@@ -21,6 +23,7 @@ const DetectionPlaceTab: React.FC<DetectionPlaceTabProps> = ({ data, label = 'м
   const { getDisplayLabel: getIdentificationMethodDisplayLabel } = useIdentificationMethodOptions(data?.organization?.country ?? '')
   const { getDisplayLabel: getCountryDisplayLabel } = useCountryOptions()
   const { getNameByCode: getLegalFormNameByCode } = useLegalFormOptions(data?.organization?.country)
+  const { getNameByCode: getCommunicationChannelNameByCode } = useCommunicationChannelOptions()
   const getCountryNameForAddress = (code?: string) => getCountryDisplayLabel(code) || getDefaultCountryName(code) || '-'
 
   const formatOrgLegalForm = (org: BusinessEntityDetails) => {
@@ -121,17 +124,18 @@ const DetectionPlaceTab: React.FC<DetectionPlaceTabProps> = ({ data, label = 'м
                     </Descriptions.Item>
                   ) : null
                 })()}
-                {data.organization.contacts && data.organization.contacts.length > 0 && (
-                  <Descriptions.Item label="Контактный реквизит">
-                    <div>
-                      {data.organization.contacts.map((contact, index) => (
-                        <div key={index} style={{ marginBottom: '4px' }}>
-                          {contact.contactKind || ''}: {contact.contactValue || ''}
-                        </div>
-                      ))}
-                    </div>
-                  </Descriptions.Item>
-                )}
+                {(() => {
+                  const contactLines = buildContactDisplayLines(data.organization.contacts, getCommunicationChannelNameByCode)
+                  return contactLines.length > 0 ? (
+                    <Descriptions.Item label="Контактный реквизит">
+                      <div>
+                        {contactLines.map((line, index) => (
+                          <div key={index} style={{ marginBottom: '4px' }}>{line}</div>
+                        ))}
+                      </div>
+                    </Descriptions.Item>
+                  ) : null
+                })()}
               </Descriptions>
             ) : (
               <div style={{ color: '#999', fontStyle: 'italic' }}>
