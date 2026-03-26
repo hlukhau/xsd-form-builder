@@ -34,13 +34,15 @@ import type {
   MeasurePlaceDetails,
 } from '@/types/card'
 import { getIncidentAlertKindNameByCode, checkIncidentAlertKindExists, getIncidentAlertKindOptions, checkSanitaryProdTypeExists, getSanitaryProdTypeOptions, checkShipDocKindExists, checkSupplyChainPartyKindExists, checkSanitaryMeasureObjKindExists } from '@/utils/referenceDataApi'
+import { DPA_CANONICAL_XML_NAMESPACES, normalizeXmlNamespaces } from '@/utils/xmlNamespaceNormalizer'
 
 /**
  * Парсит XML документ и преобразует его в структуру CardData
  */
 export function parseXMLToCardData(xmlText: string): CardData {
+  const xmlTextNormalized = normalizeXmlNamespaces(xmlText, DPA_CANONICAL_XML_NAMESPACES)
   const parser = new DOMParser()
-  const xmlDoc = parser.parseFromString(xmlText, 'text/xml')
+  const xmlDoc = parser.parseFromString(xmlTextNormalized, 'text/xml')
 
   // Проверка на ошибки парсинга
   const parserError = xmlDoc.querySelector('parsererror')

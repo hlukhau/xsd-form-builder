@@ -11,6 +11,7 @@
 import type { CardData, ElectronicDocument, PhaDiseaseDetails, PhaPathogenDetails, PhaPatientGroupItem, SanitaryMeasure } from '@/types/card'
 import { createNewCardData } from '@/utils/newCardData'
 import { parseDetectionPlaceDetails } from '@/utils/xmlParser'
+import { normalizeXmlNamespaces, PHA_CANONICAL_XML_NAMESPACES } from '@/utils/xmlNamespaceNormalizer'
 
 /** Извлекает текст первого найденного потомка по локальному имени (без учёта namespace). */
 function getTextByLocalName(parent: Element | null, localName: string): string | null {
@@ -76,8 +77,9 @@ function findAllElementsByLocalName(parent: Element | null, localName: string): 
  * Полностью отделён от DPA-парсера; структура по схеме PublicHealthAlert.
  */
 export function parsePhaXmlToCardData(xmlText: string): CardData {
+  const xmlTextNormalized = normalizeXmlNamespaces(xmlText, PHA_CANONICAL_XML_NAMESPACES)
   const parser = new DOMParser()
-  const xmlDoc = parser.parseFromString(xmlText, 'text/xml')
+  const xmlDoc = parser.parseFromString(xmlTextNormalized, 'text/xml')
 
   const parserError = xmlDoc.querySelector('parsererror')
   if (parserError) {
