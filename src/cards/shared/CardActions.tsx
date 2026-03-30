@@ -20,6 +20,9 @@ interface CardActionsProps {
   deleteButtonHint?: string
   showCopyButton?: boolean
   onCopy?: () => void
+  /** Неактивна (например, пока проверка API или условия не выполнены) — title с причиной. */
+  copyButtonDisabled?: boolean
+  copyButtonHint?: string
   onShowRightsDebug?: () => void
 }
 
@@ -38,6 +41,8 @@ const CardActions: React.FC<CardActionsProps> = ({
   deleteButtonHint,
   showCopyButton,
   onCopy,
+  copyButtonDisabled,
+  copyButtonHint,
   onShowRightsDebug,
 }) => {
   const statusButtonNode = statusButton ? (
@@ -109,9 +114,18 @@ const CardActions: React.FC<CardActionsProps> = ({
           </Tooltip>
         )}
         {showCopyButton && onCopy && (
-          <Button size="small" icon={<CopyOutlined />} onClick={onCopy}>
-            Сделать копию
-          </Button>
+          <Tooltip title={copyButtonHint}>
+            <span>
+              <Button
+                size="small"
+                icon={<CopyOutlined />}
+                disabled={copyButtonDisabled}
+                onClick={() => !copyButtonDisabled && onCopy()}
+              >
+                Сделать копию
+              </Button>
+            </span>
+          </Tooltip>
         )}
         <a onClick={onElectronicDocumentClick} style={{ cursor: 'pointer', fontSize: 13 }}>
           Электронный документ

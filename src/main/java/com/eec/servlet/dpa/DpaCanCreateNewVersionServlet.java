@@ -86,7 +86,12 @@ public class DpaCanCreateNewVersionServlet extends HttpServlet {
                 datasourceKindCode = rs.getString("DATASOURCEKINDCODE");
                 incidentId = rs.getString("INCIDENTID");
                 version = rs.getInt("DPAVERSION");
-                alertCountryId = (Integer) rs.getObject("ALERTCOUNTRYID");
+                Object alertCountryRaw = rs.getObject("ALERTCOUNTRYID");
+                if (alertCountryRaw instanceof Number) {
+                    alertCountryId = ((Number) alertCountryRaw).intValue();
+                } else {
+                    alertCountryId = null;
+                }
                 endDate = rs.getDate("ENDDATE");
             }
 

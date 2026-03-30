@@ -22,7 +22,7 @@ import type {
   MeasureInitiationBasisItem,
   MeasureImplementationItem,
 } from '@/types/card'
-import { mergeComplianceDocumentsFromBatches, mergeViolationsFromBatches } from '@/utils/xmlParser'
+import { mergeComplianceDocumentsFromBatches } from '@/utils/xmlParser'
 import { validateFieldValue } from '@/constants/xsdFieldConstraints'
 
 export interface ValidationResult {
@@ -217,13 +217,17 @@ export function validateOutgoingCard(data: CardData): ValidationResult {
   if (sectionCompliance.remarks.length) sections.push(sectionCompliance)
 
   // —— Нарушения (по XSD только в tsd.batches[]) ——
-  const violations = mergeViolationsFromBatches(data.tsd)
   if (batches.length > 0) {
-    const reqs = violations?.violatedRequirements ?? []
-    const inds = violations?.violatedIndicators ?? []
-    if (reqs.length === 0) {
+    const allViolations = batches.flatMap((b) => b?.violations ?? [])
+    if (allViolations.length === 0) {
       add(sectionViolations, 'В каждом составе сведений о серии или партии продукции должно быть указано хотя бы одно нарушение')
     }
+    const hasViolationWithoutRequirements = allViolations.some((v) => (v?.violatedRequirements?.length ?? 0) === 0)
+    if (hasViolationWithoutRequirements) {
+      add(sectionViolations, 'В каждом составе сведений о нарушении должны быть указаны сведения хотя бы об одном нарушенном требовании')
+    }
+    const reqs = allViolations.flatMap((v) => v?.violatedRequirements ?? [])
+    const inds = allViolations.flatMap((v) => v?.violatedIndicators ?? [])
     const hasReqDetails = reqs.some((r) => !empty(r?.technicalRegulationId))
     if (reqs.length > 0 && !hasReqDetails) {
       add(sectionViolations, 'В каждом составе сведении о нарушенных требованиях должен быть указан номер техрегламента')
@@ -355,55 +359,61 @@ export function validateOutgoingCard(data: CardData): ValidationResult {
     }
   }
   const implList = measuresList.flatMap((m) => m?.measureImplementationDetails ?? [])
+  const getAuthorities = (impl: MeasureImplementationItem) =>
+    (impl.authorities && impl.authorities.length > 0 ? impl.authorities : (impl.authority ? [impl.authority] : []))
+  const getSubjects = (impl: MeasureImplementationItem) =>
+    (impl.subjectDetailsList && impl.subjectDetailsList.length > 0 ? impl.subjectDetailsList : (impl.subjectDetails ? [impl.subjectDetails] : []))
   for (const impl of implList) {
-    const hasEntity = !!(impl?.authority || impl?.subjectDetails)
+    const hasEntity = getAuthorities(impl).length > 0 || getSubjects(impl).length > 0
     const hasDoc = !!impl?.documentDetails
     if (!hasEntity || !hasDoc) {
       add(sectionMeasures, 'В составе каждого набора сведений о мероприятии, обеспечивающем соблюдение меры должны быть указаны сведения об исполнителе и документ, устанавливающий мероприятие')
     }
   }
   for (const impl of implList) {
-    const hasAuthority = !!impl?.authority
-    const hasSubject = !!impl?.subjectDetails
+    const hasAuthority = getAuthorities(impl).length > 0
+    const hasSubject = getSubjects(impl).length > 0
     if (!hasAuthority && !hasSubject) {
       add(sectionMeasures, 'В составе каждого набора сведений об исполнителе мероприятия, обеспечивающего соблюдение меры, должен быть указан один из следующих реквизитов: "Уполномоченный орган", "Субъект"')
     }
   }
   for (const impl of implList) {
-    if (impl?.authority) {
-      if (empty(impl.authority.country)) {
+    for (const authority of getAuthorities(impl)) {
+      if (empty(authority.country)) {
         add(sectionMeasures, 'Страна уполномоченного органа, обеспечивающего соблюдение меры должна быть указана')
       }
-      if (empty(impl.authority.authorityName)) {
+      if (empty(authority.authorityName)) {
         add(sectionMeasures, 'Наименование уполномоченного органа, обеспечивающего соблюдение меры должно быть указано')
       }
     }
   }
   for (const impl of implList) {
-    const subj = impl?.subjectDetails
-    const identityDoc = subj?.identityDoc ?? (subj as { identityDoc?: { docId?: string } })?.identityDoc
-    if (identityDoc && empty(identityDoc?.docId)) {
-      add(sectionMeasures, 'В составе сведений об удостоверении личности субъекта, обеспечивающего соблюдение меры должен быть указан номер документа')
+    for (const subj of getSubjects(impl)) {
+      const identityDoc = subj?.identityDoc ?? (subj as { identityDoc?: { docId?: string } })?.identityDoc
+      if (identityDoc && empty(identityDoc?.docId)) {
+        add(sectionMeasures, 'В составе сведений об удостоверении личности субъекта, обеспечивающего соблюдение меры должен быть указан номер документа')
+      }
     }
   }
   for (const impl of implList) {
-    const subj = impl?.subjectDetails
-    if (!subj) continue
-    const subjAddrs = getAddresses(subj)
-    if (subjAddrs.length === 0) continue
-    for (const addr of subjAddrs) {
-      if (empty(addr?.country)) {
-        add(sectionMeasures, 'Для каждого адреса субъекта-исполнителя мероприятия должна быть указана страна')
+    for (const subj of getSubjects(impl)) {
+      if (!subj) continue
+      const subjAddrs = getAddresses(subj)
+      if (subjAddrs.length === 0) continue
+      for (const addr of subjAddrs) {
+        if (empty(addr?.country)) {
+          add(sectionMeasures, 'Для каждого адреса субъекта-исполнителя мероприятия должна быть указана страна')
+        }
       }
-    }
-    let noCityOrSettlement = false
-    for (const addr of subjAddrs) {
-      if (!empty(addr?.cityName) || !empty(addr?.settlementName)) continue
-      noCityOrSettlement = true
-      break
-    }
-    if (noCityOrSettlement) {
-      add(sectionMeasures, 'В составе каждого адреса субъекта-исполнителя мероприятия должен быть указан или город, или населенный пункт')
+      let noCityOrSettlement = false
+      for (const addr of subjAddrs) {
+        if (!empty(addr?.cityName) || !empty(addr?.settlementName)) continue
+        noCityOrSettlement = true
+        break
+      }
+      if (noCityOrSettlement) {
+        add(sectionMeasures, 'В составе каждого адреса субъекта-исполнителя мероприятия должен быть указан или город, или населенный пункт')
+      }
     }
   }
   for (const impl of implList) {

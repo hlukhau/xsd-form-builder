@@ -48,6 +48,8 @@ import XMLComparisonModal, { type ComparisonResultShape } from '@/components/mod
 import ValidationResultModal from '@/components/modals/dpa/ValidationResultModal'
 import StatusHistoryModal from '@/components/modals/dpa/StatusHistoryModal'
 import ElectronicDocumentModal from '@/components/modals/dpa/ElectronicDocumentModal'
+import { useCountryOptions } from '@/hooks/shared/useCountryOptions'
+import { resolveAlertCountryNameForPostMessage } from '@/utils/alertCountryDisplay'
 
 interface PhaCardProps {
   data: CardData
@@ -184,6 +186,7 @@ const PhaCard: React.FC<PhaCardProps> = ({
   const [hasPhaSendRight, setHasPhaSendRight] = useState(false)
   /** Право publicHealthOut:edit — сохранение и удаление исходящей карты в допустимом статусе. */
   const [hasPhaEditRight, setHasPhaEditRight] = useState(false)
+  const { countryOptions } = useCountryOptions()
 
   useEffect(() => {
     setBaselineXml(originalXML ?? null)
@@ -1050,13 +1053,19 @@ const PhaCard: React.FC<PhaCardProps> = ({
             }
           }}
           onOpenAllVersions={() => {
+            const countryForMessage = resolveAlertCountryNameForPostMessage(
+              currentData.country,
+              currentData.alertCountryName,
+              countryOptions
+            )
             const payload = {
               code: 'all_version' as const,
               INCIDENTID: currentData.registrationNumber ?? '',
-              COUNTRY: currentData.country ?? '',
+              COUNTRY: countryForMessage,
             }
             if (typeof window !== 'undefined') {
               window.parent.postMessage(payload, '*')
+              console.log('[Открыть все версии] Сообщение отправлено родительскому окну:', payload)
             }
           }}
           statusButton={phaStatusResult.config}

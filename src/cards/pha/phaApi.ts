@@ -34,6 +34,8 @@ export async function fetchPhaMetadata(phaid: string, guid?: string): Promise<{
   incidentId: string
   phaVersion: number
   alertCountryCode?: string
+  /** Наименование страны инцидента (COUNTRY.COUNTRYNAME) */
+  alertCountryName?: string | null
   /** Код источника PHA (DATASOURCEKINDCODE): 1 — входящие, 2 — исходящие */
   dataSourceKindCode?: string
   /** Источник: Входящие сведения, Исходящие сведения, Данные ЕЭК (VW_PHA + DATASOURCEKIND) */

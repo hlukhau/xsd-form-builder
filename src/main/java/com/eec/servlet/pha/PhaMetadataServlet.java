@@ -28,7 +28,7 @@ public class PhaMetadataServlet extends HttpServlet {
     /** Таблица PHA — приоритетный источник метаданных и статуса. */
     private static final String SQL_PHA =
             "SELECT p.PHAID, p.INCIDENTID, p.PHAVERSION, p.ALERTCOUNTRYID, p.CREATIONDATETIME, p.MODIFICATIONDATETIME, p.PHASTATUSID, p.DATASOURCEKINDCODE, p.ENDDATE, "
-                    + "t1.DATASOURCEKINDNAME, c.COUNTRYCODE AS ALERTCOUNTRYCODE, ps.PHASTATUSNAME, auth.AUTHORITYUID AS AUTHORITYUID "
+                    + "t1.DATASOURCEKINDNAME, c.COUNTRYCODE AS ALERTCOUNTRYCODE, c.COUNTRYNAME AS ALERTCOUNTRYNAME, ps.PHASTATUSNAME, auth.AUTHORITYUID AS AUTHORITYUID "
                     + "FROM PHA p "
                     + "LEFT JOIN DATASOURCEKIND t1 ON p.DATASOURCEKINDCODE = t1.DATASOURCEKINDCODE "
                     + "LEFT JOIN COUNTRY c ON p.ALERTCOUNTRYID = c.COUNTRYID "
@@ -38,7 +38,7 @@ public class PhaMetadataServlet extends HttpServlet {
     /** Резерв: представление VW_PHA, если по PHAID в PHA нет строки. */
     private static final String SQL_VW =
             "SELECT vw.PHAID, vw.INCIDENTID, vw.PHAVERSION, vw.ALERTCOUNTRYID, vw.CREATIONDATETIME, vw.MODIFICATIONDATETIME, vw.PHASTATUSID, vw.DATASOURCEKINDCODE, vw.ENDDATE, "
-                    + "t1.DATASOURCEKINDNAME, c.COUNTRYCODE AS ALERTCOUNTRYCODE, ps.PHASTATUSNAME, auth.AUTHORITYUID AS AUTHORITYUID "
+                    + "t1.DATASOURCEKINDNAME, c.COUNTRYCODE AS ALERTCOUNTRYCODE, c.COUNTRYNAME AS ALERTCOUNTRYNAME, ps.PHASTATUSNAME, auth.AUTHORITYUID AS AUTHORITYUID "
                     + "FROM VW_PHA vw "
                     + "LEFT JOIN DATASOURCEKIND t1 ON vw.DATASOURCEKINDCODE = t1.DATASOURCEKINDCODE "
                     + "LEFT JOIN COUNTRY c ON vw.ALERTCOUNTRYID = c.COUNTRYID "
@@ -46,7 +46,7 @@ public class PhaMetadataServlet extends HttpServlet {
                     + "LEFT JOIN PHA pauth ON pauth.PHAID = vw.PHAID "
                     + "LEFT JOIN AUTHORITY auth ON pauth.AUTHORITYID = auth.AUTHORITYID "
                     + "WHERE vw.PHAID = ?";
-    private static final String SQL_COUNTRY = "SELECT COUNTRYCODE FROM COUNTRY WHERE COUNTRYID = ?";
+    private static final String SQL_COUNTRY = "SELECT COUNTRYCODE, COUNTRYNAME FROM COUNTRY WHERE COUNTRYID = ?";
     private static final String SQL_STATUS = "SELECT PHASTATUSNAME FROM PHASTATUS WHERE PHASTATUSID = ?";
     private static final String SQL_DEPS = "SELECT DEPID FROM PHADEPPERMIS WHERE PHAID = ?";
 
@@ -132,6 +132,11 @@ public class PhaMetadataServlet extends HttpServlet {
                 Integer phaStatusId = toNullableInt(rs.getObject("PHASTATUSID"));
                 String alertCountryCode = rs.getString("ALERTCOUNTRYCODE");
                 if (alertCountryCode != null) alertCountryCode = alertCountryCode.trim();
+                String alertCountryName = rs.getString("ALERTCOUNTRYNAME");
+                if (alertCountryName != null) {
+                    alertCountryName = alertCountryName.trim();
+                    if (alertCountryName.isEmpty()) alertCountryName = null;
+                }
                 String phaStatusName = rs.getString("PHASTATUSNAME");
                 if (phaStatusName != null) phaStatusName = phaStatusName.trim();
                 String dataSourceKindName = rs.getString("DATASOURCEKINDNAME");
@@ -157,12 +162,28 @@ public class PhaMetadataServlet extends HttpServlet {
                     /* колонка AUTHORITYUID / связь с AUTHORITY может отсутствовать в старых схемах */
                 }
 
-                if (alertCountryCode == null || alertCountryCode.isEmpty()) {
-                    if (alertCountryId != null) {
-                        try (PreparedStatement ps3 = conn.prepareStatement(SQL_COUNTRY)) {
-                            ps3.setInt(1, alertCountryId);
-                            try (ResultSet rs3 = ps3.executeQuery()) {
-                                if (rs3.next()) alertCountryCode = rs3.getString("COUNTRYCODE");
+                if (alertCountryId != null
+                        && ((alertCountryCode == null || alertCountryCode.isEmpty())
+                                || alertCountryName == null
+                                || alertCountryName.isEmpty())) {
+                    try (PreparedStatement ps3 = conn.prepareStatement(SQL_COUNTRY)) {
+                        ps3.setInt(1, alertCountryId);
+                        try (ResultSet rs3 = ps3.executeQuery()) {
+                            if (rs3.next()) {
+                                if (alertCountryCode == null || alertCountryCode.isEmpty()) {
+                                    String cc = rs3.getString("COUNTRYCODE");
+                                    if (cc != null) {
+                                        cc = cc.trim();
+                                        if (!cc.isEmpty()) alertCountryCode = cc;
+                                    }
+                                }
+                                if (alertCountryName == null || alertCountryName.isEmpty()) {
+                                    String cn = rs3.getString("COUNTRYNAME");
+                                    if (cn != null) {
+                                        cn = cn.trim();
+                                        if (!cn.isEmpty()) alertCountryName = cn;
+                                    }
+                                }
                             }
                         }
                     }
@@ -183,6 +204,9 @@ public class PhaMetadataServlet extends HttpServlet {
                 json.append(",\"incidentId\":\"").append(escapeJson(incidentId != null ? incidentId : ""));
                 json.append("\",\"phaVersion\":").append(phaVersion);
                 if (alertCountryCode != null) json.append(",\"alertCountryCode\":\"").append(escapeJson(alertCountryCode)).append("\"");
+                if (alertCountryName != null && !alertCountryName.isEmpty()) {
+                    json.append(",\"alertCountryName\":\"").append(escapeJson(alertCountryName)).append("\"");
+                }
                 if (dataSourceKindName != null && !dataSourceKindName.isEmpty()) {
                     json.append(",\"dataSourceKindName\":\"").append(escapeJson(dataSourceKindName)).append("\"");
                 }

@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useEffect, useMemo, useRef } from 'react'
 import { Card, Tabs, Button, Space, Switch, message, Modal, Spin, Input } from 'antd'
 import { EditOutlined, EyeOutlined, DownloadOutlined, PlusOutlined } from '@ant-design/icons'
 import ProductTabEdit from '../tabs/dpa/ProductTabEdit'
@@ -26,10 +26,13 @@ import { fetchDpaStatusHistory, fetchDpaElectronicDocs, changeDpaStatus, checkAc
 import { getStatusButtonConfig } from '@/utils/statusButtonConfig'
 import { parseElectronicDocContentBody } from '@/utils/xmlParser'
 import { openLegacyRegisterAllVersions, isLegacyRegisterConfigured } from '@/utils/legacyRegisterUrl'
+import { useCountryOptions } from '@/hooks/shared/useCountryOptions'
+import { resolveAlertCountryNameForPostMessage } from '@/utils/alertCountryDisplay'
 import XMLComparisonModal, { type ComparisonResultShape } from '../modals/dpa/XMLComparisonModal'
 import ValidationResultModal from '../modals/dpa/ValidationResultModal'
 import { validateOutgoingCard, collectFormatValidationErrors, type ValidationResult } from '@/utils/cardValidation'
 import type { CardData, StatusHistoryItem, ElectronicDocument } from '@/types/card'
+import { format } from 'date-fns'
 
 /** Статусы исходящей карты, при которых разрешено редактирование (DPASTATUSID). */
 const EDITABLE_OUTGOING_STATUS_IDS = [5, 6, 9, 10, 12] // DRAFT, NEW, FAILED, ERROR, EDITED
@@ -51,6 +54,8 @@ interface DangerousProductCardProps {
   copyFromDpaid?: number
   /** Открыть форму новой версии (после «Сделать копию») — навигация с state */
   onMakeCopy?: (initialCardData: CardData, sourceDpaid: number) => void
+  /** Автоматически выполнить сценарий кнопки «Сделать копию» (для URL ?command=copy). */
+  autoRunCopyFromUrl?: boolean
 }
 
 const DangerousProductCard: React.FC<DangerousProductCardProps> = ({
@@ -64,6 +69,7 @@ const DangerousProductCard: React.FC<DangerousProductCardProps> = ({
   onCardDeleted,
   copyFromDpaid,
   onMakeCopy,
+  autoRunCopyFromUrl,
 }) => {
   // Отладочный вывод
   console.log('DangerousProductCard получил данные:', data)
@@ -108,8 +114,16 @@ const DangerousProductCard: React.FC<DangerousProductCardProps> = ({
   const [rightsDebugRawText, setRightsDebugRawText] = useState<string | null>(null)
   const [rightsDebugDraft, setRightsDebugDraft] = useState('')
   const [rightsOverride, setRightsOverride] = useState<RightsJson | null>(null)
+  const copyAutoSaveStartedRef = useRef(false)
+  const copyCommandHandledRef = useRef(false)
+  /** Предпроверка GET /api/dpa/can-create-new-version — чтобы кнопка «Сделать копию» была неактивна с подсказкой. */
+  const [copyCanCreateLoading, setCopyCanCreateLoading] = useState(false)
+  const [copyCanCreateAllowed, setCopyCanCreateAllowed] = useState<boolean | null>(null)
+  const [copyCanCreateReason, setCopyCanCreateReason] = useState<string | null>(null)
+  const { countryOptions } = useCountryOptions()
 
   const effectiveDpaid = (dpaid !== '-' && dpaid) ? dpaid : (savedDpaid != null ? String(savedDpaid) : '-')
+  const hasPersistedDpaid = !!effectiveDpaid && /^\d+$/.test(effectiveDpaid) && Number(effectiveDpaid) > 0
   // Новая карта (/-/) всегда исходящая; иначе — по DPA DATASOURCEKINDCODE ("2") или по названию источника (код 3 — из БД ЕЭК)
   const datasourceKindCode = data?.datasourceKindCode != null ? String(data.datasourceKindCode) : ''
   const sourceFromData = data?.source ?? ''
@@ -143,7 +157,7 @@ const DangerousProductCard: React.FC<DangerousProductCardProps> = ({
 
   // Права и уровень пользователя / резолюции по карте (исходящие)
   useEffect(() => {
-    if (!effectiveDpaid) return
+    if (!hasPersistedDpaid) return
     if (!isOutgoingSource) {
       const src = (data?.source ?? '').toLowerCase()
       if (src.includes('входящ')) {
@@ -222,7 +236,42 @@ const DangerousProductCard: React.FC<DangerousProductCardProps> = ({
         setHasResolution(list.length > 0)
       })
     }
-  }, [effectiveDpaid, isOutgoingSource, data?.source, guid])
+  }, [hasPersistedDpaid, effectiveDpaid, isOutgoingSource, data?.source, guid])
+
+  // Новая версия (сделать копию): сразу сохраняем черновик, чтобы получить DPAID
+  // и избежать вызовов access/resolutions с dpaid='-'.
+  useEffect(() => {
+    if (copyAutoSaveStartedRef.current) return
+    if (copyFromDpaid == null) return
+    if (dpaid !== '-') return
+    if (savedDpaid != null) return
+    if (!guid) return
+    copyAutoSaveStartedRef.current = true
+    const xmlBody = exportCardDataToXML(editedData)
+    const metadata = buildSaveMetadataFromCardData(editedData)
+    setSaving(true)
+    saveDpaCard({
+      isNew: true,
+      xmlBody,
+      metadata,
+      copyFromDpaid,
+      guid,
+    })
+      .then((res) => {
+        setSavedDpaid(res.dpaid)
+        setOriginalXML(xmlBody)
+        onUpdate(editedData)
+        message.success(`Копия сохранена в БД с DPAID ${res.dpaid}`)
+        onSaveNewCard?.(res.dpaid)
+      })
+      .catch((err) => {
+        copyAutoSaveStartedRef.current = false
+        const msg = err instanceof Error ? err.message : 'Ошибка автосохранения копии в БД'
+        console.error('[DangerousProductCard] Copy auto-save failed:', err)
+        message.error(msg)
+      })
+      .finally(() => setSaving(false))
+  }, [copyFromDpaid, dpaid, savedDpaid, guid, editedData, onSaveNewCard, onUpdate])
 
   // Исходящая карта: при наличии права dangerousProductOut:edit и статусе, допускающем редактирование, включаем режим редактирования автоматически
   useEffect(() => {
@@ -292,6 +341,67 @@ const DangerousProductCard: React.FC<DangerousProductCardProps> = ({
       ? 'GUID не задан: не удалось определить права доступа.'
       : undefined
 
+  const copyButtonEligible = useMemo(
+    () =>
+      isOutgoingSource &&
+      effectiveHasSaveRight &&
+      effectiveDpaid !== '-' &&
+      effectiveDpaid != null &&
+      !!guid &&
+      !!onMakeCopy &&
+      (editedData.statusId ?? data.statusId) === 11,
+    [
+      isOutgoingSource,
+      effectiveHasSaveRight,
+      effectiveDpaid,
+      guid,
+      onMakeCopy,
+      editedData.statusId,
+      data.statusId,
+    ]
+  )
+
+  useEffect(() => {
+    if (!copyButtonEligible || !effectiveDpaid || !guid) {
+      setCopyCanCreateLoading(false)
+      setCopyCanCreateAllowed(null)
+      setCopyCanCreateReason(null)
+      return
+    }
+    let cancelled = false
+    setCopyCanCreateLoading(true)
+    setCopyCanCreateAllowed(null)
+    setCopyCanCreateReason(null)
+    canCreateNewVersion(String(effectiveDpaid), guid)
+      .then((res) => {
+        if (cancelled) return
+        setCopyCanCreateAllowed(res.allowed)
+        setCopyCanCreateReason(res.reason ?? null)
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setCopyCanCreateAllowed(false)
+          setCopyCanCreateReason('Не удалось проверить условия создания новой версии')
+        }
+      })
+      .finally(() => {
+        if (!cancelled) setCopyCanCreateLoading(false)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [copyButtonEligible, effectiveDpaid, guid])
+
+  const copyButtonDisabled =
+    copyButtonEligible && (copyCanCreateLoading || copyCanCreateAllowed !== true)
+  const copyButtonHint = !copyButtonEligible
+    ? undefined
+    : copyCanCreateLoading
+      ? 'Проверка условий создания новой версии…'
+      : copyCanCreateAllowed === false
+        ? copyCanCreateReason ?? 'Создание новой версии недоступно'
+        : undefined
+
   const handleDelete = () => {
     const regNumber = editedData.registrationNumber ?? data.registrationNumber ?? effectiveDpaid ?? ''
     Modal.confirm({
@@ -312,25 +422,16 @@ const DangerousProductCard: React.FC<DangerousProductCardProps> = ({
     })
   }
 
-  // Кнопка «Сделать копию»: исходящая карта, статус Доставлено (11), право dangerousProductOut:edit, есть guid
-  const showCopyButton =
-    isOutgoingSource &&
-    effectiveHasSaveRight &&
-    effectiveDpaid !== '-' &&
-    effectiveDpaid != null &&
-    !!guid &&
-    !!onMakeCopy &&
-    (editedData.statusId ?? data.statusId) === 11
-
   const handleCopy = async () => {
     if (!effectiveDpaid || !guid || !onMakeCopy) return
+    if (copyButtonDisabled) return
     try {
       const res = await canCreateNewVersion(String(effectiveDpaid), guid)
       if (!res.allowed) {
         message.error(res.reason ?? 'Создание новой версии недоступно')
         return
       }
-      const today = new Date().toISOString().slice(0, 10)
+      const today = format(new Date(), 'yyyy-MM-dd')
       const initialCardData: CardData = {
         ...currentData,
         version: (currentData.version ?? 1) + 1,
@@ -347,6 +448,13 @@ const DangerousProductCard: React.FC<DangerousProductCardProps> = ({
       message.error(e instanceof Error ? e.message : 'Ошибка проверки возможности создания копии')
     }
   }
+
+  useEffect(() => {
+    if (!autoRunCopyFromUrl) return
+    if (copyCommandHandledRef.current) return
+    copyCommandHandledRef.current = true
+    void handleCopy()
+  }, [autoRunCopyFromUrl, handleCopy])
   
   // Синхронизируем originalXML только при изменении пропса от родителя.
   // Локальное обновление после успешного save (setOriginalXML(xmlJustSaved))
@@ -920,13 +1028,20 @@ const DangerousProductCard: React.FC<DangerousProductCardProps> = ({
           deleteButtonDisabled={!canDeleteCard}
           deleteButtonHint={deleteButtonHint}
           onDelete={handleDelete}
-          showCopyButton={showCopyButton}
+          showCopyButton={copyButtonEligible}
           onCopy={handleCopy}
+          copyButtonDisabled={copyButtonDisabled}
+          copyButtonHint={copyButtonHint}
           onOpenAllVersions={() => {
+            const countryForMessage = resolveAlertCountryNameForPostMessage(
+              currentData.country,
+              currentData.alertCountryName,
+              countryOptions
+            )
             const payload = {
               code: 'all_version' as const,
               INCIDENTID: currentData.registrationNumber ?? '',
-              COUNTRY: currentData.country ?? '',
+              COUNTRY: countryForMessage,
             }
             if (typeof window !== 'undefined') {
               window.parent.postMessage(payload, '*')
@@ -1181,7 +1296,7 @@ const DangerousProductCard: React.FC<DangerousProductCardProps> = ({
               onUpdate({ ...currentData, accessList })
             }
           }}
-          dpaid={effectiveDpaid}
+          dpaid={hasPersistedDpaid ? effectiveDpaid : undefined}
           source={currentData.source}
           countryCode={currentData.country}
           guid={guid}

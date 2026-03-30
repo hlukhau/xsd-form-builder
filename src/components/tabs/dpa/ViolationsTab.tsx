@@ -11,13 +11,6 @@ interface ViolationsTabProps {
 
 const ViolationsTab: React.FC<ViolationsTabProps> = ({ tsd }) => {
   const { getDisplayLabel: getMeasurementUnitDisplayLabel } = useMeasurementUnitOptions()
-  const formatDate = (date: string | null | undefined) => {
-    if (!date) return '-'
-    const dateObj = new Date(date)
-    if (isNaN(dateObj.getTime())) return date
-    return format(dateObj, 'dd.MM.yyyy', { locale: ru })
-  }
-
   const formatStructuralElements = (elements?: Array<{ elementName?: string; elementId?: string }>) => {
     if (!elements || elements.length === 0) return '-'
     return elements.map((el, idx) => {
@@ -82,58 +75,6 @@ const ViolationsTab: React.FC<ViolationsTabProps> = ({ tsd }) => {
       render: (_: any, record: ViolatedRequirement) => {
         if (!record.structuralElements || record.structuralElements.length === 0) return '-'
         const text = record.structuralElements.map(el => el.elementId || '-').join('; ')
-        return (
-          <div style={{ wordWrap: 'break-word', whiteSpace: 'normal' }}>
-            {text}
-          </div>
-        )
-      },
-    },
-    {
-      title: 'Наименование утверждающего документа',
-      key: 'approvingDocName',
-      width: 180,
-      render: (_: any, record: ViolatedRequirement) => {
-        const text = record.approvingDocument?.docName || '-'
-        return (
-          <div style={{ wordWrap: 'break-word', whiteSpace: 'normal' }}>
-            {text}
-          </div>
-        )
-      },
-    },
-    {
-      title: 'Номер утверждающего документа',
-      key: 'approvingDocId',
-      width: 120,
-      render: (_: any, record: ViolatedRequirement) => {
-        const text = record.approvingDocument?.docId || '-'
-        return (
-          <div style={{ wordWrap: 'break-word', whiteSpace: 'normal' }}>
-            {text}
-          </div>
-        )
-      },
-    },
-    {
-      title: 'Дата утверждающего документа',
-      key: 'approvingDocDate',
-      width: 120,
-      render: (_: any, record: ViolatedRequirement) => {
-        const text = formatDate(record.approvingDocument?.docCreationDate)
-        return (
-          <div style={{ wordWrap: 'break-word', whiteSpace: 'normal' }}>
-            {text}
-          </div>
-        )
-      },
-    },
-    {
-      title: 'Дата начала действия утверждающего документа',
-      key: 'approvingDocStartDate',
-      width: 180,
-      render: (_: any, record: ViolatedRequirement) => {
-        const text = formatDate(record.approvingDocument?.docStartDate)
         return (
           <div style={{ wordWrap: 'break-word', whiteSpace: 'normal' }}>
             {text}

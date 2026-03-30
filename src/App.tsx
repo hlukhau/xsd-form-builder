@@ -188,6 +188,7 @@ function AppContent() {
             ...card,
             registrationNumber: meta.incidentId ?? card.registrationNumber,
             country: (meta.alertCountryCode ?? meta.alertCountryName ?? card.country).trim() || card.country,
+            alertCountryName: meta.alertCountryName ?? card.alertCountryName,
             version: meta.dpaVersion ?? card.version,
             source: meta.datasourceKindName ?? card.source,
             datasourceKindCode: meta.datasourceKindCode ?? card.datasourceKindCode,
@@ -225,6 +226,28 @@ function AppContent() {
     }
   }, [dpaid, guid])
 
+  /** «Сделать копию»: до срабатывания useEffect cardData ещё от предыдущего DPAID — иначе первая отрисовка и автосохранение копии берут старые Дата формирования / Вид из уведомления. */
+  const copyRouteState = location.state as { newVersionFrom?: number; initialCardData?: CardData } | null
+  const isNewVersionFromCopy =
+    dpaid === '-' &&
+    copyRouteState?.initialCardData != null &&
+    copyRouteState?.newVersionFrom != null
+  let dataForCard: CardData | null = cardData
+  let copyFromForCard: number | null = copyFromDpaid
+  if (isNewVersionFromCopy && copyRouteState.initialCardData) {
+    const init = copyRouteState.initialCardData
+    copyFromForCard = copyRouteState.newVersionFrom ?? null
+    if (
+      !cardData ||
+      (cardData.registrationNumber === init.registrationNumber &&
+        (cardData.version ?? 0) < (init.version ?? 0))
+    ) {
+      dataForCard = init
+    } else {
+      dataForCard = cardData
+    }
+  }
+
   return (
     <div className="app">
       {loadByDpaidState.loading && (
@@ -260,14 +283,15 @@ function AppContent() {
           </div>
         )
       })()}
-      {!loadByDpaidState.loading && !loadByDpaidState.error && cardData && (
+      {!loadByDpaidState.loading && !loadByDpaidState.error && dataForCard && (
         <DangerousProductCard
-          data={cardData}
+          key={location.key}
+          data={dataForCard}
           onUpdate={setCardData}
           originalXML={originalXML}
           dpaid={dpaid ?? undefined}
           guid={guid ?? undefined}
-          copyFromDpaid={copyFromDpaid ?? undefined}
+          copyFromDpaid={copyFromForCard ?? undefined}
           onSaveNewCard={(newDpaid) => {
             try {
               sessionStorage.setItem('xsd_form_builder_last_saved_dpaid', String(newDpaid))
@@ -284,9 +308,10 @@ function AppContent() {
           onMakeCopy={(initialCardData, sourceDpaid) => {
             navigate(`/-/${guid ?? ''}`, { state: { newVersionFrom: sourceDpaid, initialCardData } })
           }}
+          autoRunCopyFromUrl={(searchParams.get('command') ?? '').toLowerCase() === 'copy'}
         />
       )}
-      {!loadByDpaidState.loading && !loadByDpaidState.error && !cardData && (
+      {!loadByDpaidState.loading && !loadByDpaidState.error && !dataForCard && (
         <div className="empty-state">
           <div style={{ fontSize: '48px', marginBottom: '16px', opacity: 0.3 }}>📄</div>
           <div style={{ fontSize: '18px', fontWeight: 500, color: '#595959', marginBottom: '8px' }}>
@@ -378,6 +403,7 @@ function PhaAppContent() {
           version: versionFromPha,
           registrationNumber: meta.incidentId ?? card.registrationNumber,
           country: meta.alertCountryCode ?? card.country,
+          alertCountryName: meta.alertCountryName ?? card.alertCountryName,
           source: meta.dataSourceKindName ?? card.source,
           datasourceKindCode: meta.dataSourceKindCode ?? card.datasourceKindCode,
           phaAccessibleDepIds: meta.phaAccessibleDepIds,

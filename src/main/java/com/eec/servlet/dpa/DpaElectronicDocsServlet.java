@@ -33,6 +33,13 @@ public class DpaElectronicDocsServlet extends HttpServlet {
             + "LEFT JOIN VW_PACKAGEMESSAGE ms ON ms.EDOCID = dpe.EDOCID "
             + "WHERE dp.DPAID = ? "
             + "ORDER BY dc.EDOCDATETIME";
+    private static final String SQL_FALLBACK_NO_MESSAGE_VIEW = ""
+            + "SELECT dc.INFENVELOPECODE, dc.EDOCCODE, dc.EDOCID, dc.EDOCDATETIME, dc.LANGUAGECODE, dc.EDOCREFID, CAST(NULL AS CLOB) AS CONTENTBODY "
+            + "FROM DPA dp "
+            + "JOIN DPA2EDOCLINK dpe ON dpe.DPAID = dp.DPAID "
+            + "JOIN EDOC dc ON dc.EDOCID = dpe.EDOCID "
+            + "WHERE dp.DPAID = ? "
+            + "ORDER BY dc.EDOCDATETIME";
 
     @Override
     public void init() throws ServletException {
@@ -66,14 +73,34 @@ public class DpaElectronicDocsServlet extends HttpServlet {
 
         try {
             conn = DatabaseUtil.getConnectionForRequest(request);
-            ps = conn.prepareStatement(SQL);
+            long dpaidLong;
+            boolean dpaidIsLong = true;
             try {
-                ps.setLong(1, Long.parseLong(dpaidStr));
+                dpaidLong = Long.parseLong(dpaidStr);
             } catch (NumberFormatException e) {
-                ps.setString(1, dpaidStr);
+                dpaidLong = -1L;
+                dpaidIsLong = false;
             }
 
-            rs = ps.executeQuery();
+            try {
+                ps = conn.prepareStatement(SQL);
+                if (dpaidIsLong) ps.setLong(1, dpaidLong);
+                else ps.setString(1, dpaidStr);
+                rs = ps.executeQuery();
+            } catch (SQLException firstEx) {
+                final String msg = firstEx.getMessage() != null ? firstEx.getMessage() : "";
+                if (msg.contains("ORA-00942")) {
+                    if (rs != null) try { rs.close(); } catch (SQLException ignored) { }
+                    if (ps != null) try { ps.close(); } catch (SQLException ignored) { }
+                    System.err.println("[DpaElectronicDocsServlet] VW_PACKAGEMESSAGE недоступна, используем fallback без CONTENTBODY. DPAID=" + dpaidStr);
+                    ps = conn.prepareStatement(SQL_FALLBACK_NO_MESSAGE_VIEW);
+                    if (dpaidIsLong) ps.setLong(1, dpaidLong);
+                    else ps.setString(1, dpaidStr);
+                    rs = ps.executeQuery();
+                } else {
+                    throw firstEx;
+                }
+            }
             List<String> items = new ArrayList<>();
 
             while (rs.next()) {

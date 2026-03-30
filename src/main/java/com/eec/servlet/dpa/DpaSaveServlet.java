@@ -203,7 +203,7 @@ public class DpaSaveServlet extends HttpServlet {
                     ps.setString(i++, incId);
                     setIntOrNull(ps, i++, authorityIdResolved);
                     ps.setString(i++, incidentAlertKindCode != null ? incidentAlertKindCode : "");
-                    setDateOrNull(ps, i++, docCreationDate);
+                    setDocCreationDateForDpaInsert(ps, i++, docCreationDate);
                     setIntOrNull(ps, i++, draftStatusId);
                     ps.setString(i++, commodityCode != null ? commodityCode : "");
                     setIntOrNull(ps, i++, sanitaryProdTypeId);
@@ -503,6 +503,24 @@ public class DpaSaveServlet extends HttpServlet {
         }
     }
 
+    /**
+     * DOCCREATIONDATE в таблице DPA — NOT NULL: при отсутствии или невалидной дате в metadata подставляем текущую дату.
+     */
+    private static void setDocCreationDateForDpaInsert(PreparedStatement ps, int index, String dateStr) throws SQLException {
+        if (dateStr == null || dateStr.trim().isEmpty()) {
+            java.sql.Date d = new java.sql.Date(System.currentTimeMillis());
+            ps.setTimestamp(index, new Timestamp(d.getTime()));
+            return;
+        }
+        try {
+            java.sql.Date d = java.sql.Date.valueOf(dateStr.trim());
+            ps.setTimestamp(index, new Timestamp(d.getTime()));
+        } catch (Exception e) {
+            java.sql.Date d = new java.sql.Date(System.currentTimeMillis());
+            ps.setTimestamp(index, new Timestamp(d.getTime()));
+        }
+    }
+
     private long getNextDpaid(Connection conn) throws SQLException {
         try (PreparedStatement ps = conn.prepareStatement(SQL_NEXT_DPAID);
              ResultSet rs = ps.executeQuery()) {
@@ -584,12 +602,16 @@ public class DpaSaveServlet extends HttpServlet {
             }
             String incidentId = rs.getString("INCIDENTID");
             int sourceVersion = rs.getInt("DPAVERSION");
-            Integer alertCountryId = (Integer) rs.getObject("ALERTCOUNTRYID");
-            Integer authorityId = (Integer) rs.getObject("AUTHORITYID");
+            Integer alertCountryId = getIntObject(rs, "ALERTCOUNTRYID");
+            Integer authorityId = getIntObject(rs, "AUTHORITYID");
+            String sourceIncidentAlertKindCode = rs.getString("INCIDENTALERTKINDCODE");
+            if (sourceIncidentAlertKindCode != null) {
+                sourceIncidentAlertKindCode = sourceIncidentAlertKindCode.trim();
+            }
             String commodityCode = rs.getString("COMMODITYCODE");
-            Integer sanitaryProdTypeId = (Integer) rs.getObject("SANITARYPRODTYPEID");
+            Integer sanitaryProdTypeId = getIntObject(rs, "SANITARYPRODTYPEID");
             String sanitaryProdName = rs.getString("SANITARYPRODNAME");
-            Integer manufCountryId = (Integer) rs.getObject("MANUFCOUNTRYID");
+            Integer manufCountryId = getIntObject(rs, "MANUFCOUNTRYID");
             String manufBusEntName = rs.getString("MANUFBUSENTNAME");
             String manufBusEntBriefName = rs.getString("MANUFBUSENTBRIEFNAME");
             String sanitaryProdTypeName = rs.getString("SANITARYPRODTYPENAME");
@@ -617,7 +639,9 @@ public class DpaSaveServlet extends HttpServlet {
                     if (depId != null && !depId.trim().isEmpty()) cardDepIds.add(depId.trim());
                 }
             }
-            String rightsJson = RightsJsonStore.guidMap.get(guid);
+            String rightsJson = (guid != null && !guid.trim().isEmpty())
+                    ? RightsJsonStore.guidMap.get(guid.trim())
+                    : null;
             // Проверка права edit — пропускаем при вызове по command=copy (без проверки прав)
             boolean commandInvoke = Boolean.TRUE.equals(request.getAttribute("com.eec.command.invoke"));
             if (!commandInvoke) {
@@ -648,6 +672,14 @@ public class DpaSaveServlet extends HttpServlet {
                 return;
             }
 
+            // metadata из API (command=copy) может быть пустым; пустая строка в Oracle VARCHAR2 даёт NULL — колонка NOT NULL
+            String effectiveIncidentAlertKind = (incidentAlertKindCode != null && !incidentAlertKindCode.trim().isEmpty())
+                    ? incidentAlertKindCode.trim()
+                    : sourceIncidentAlertKindCode;
+            if (effectiveIncidentAlertKind == null || effectiveIncidentAlertKind.isEmpty()) {
+                effectiveIncidentAlertKind = " ";
+            }
+
             String sqlInsertDpaCopy = ""
                 + "INSERT INTO DPA (DPAID, DATASOURCEKINDCODE, ALERTCOUNTRYID, INCIDENTID, DPAVERSION, AUTHORITYID, "
                 + "INCIDENTALERTKINDCODE, DOCCREATIONDATE, DPASTATUSID, COMMODITYCODE, SANITARYPRODTYPEID, SANITARYPRODNAME, "
@@ -661,8 +693,8 @@ public class DpaSaveServlet extends HttpServlet {
                 ps2.setString(i++, incidentId != null ? incidentId : "");
                 ps2.setInt(i++, sourceVersion + 1);
                 setIntOrNull(ps2, i++, authorityId);
-                ps2.setString(i++, incidentAlertKindCode != null ? incidentAlertKindCode.trim() : "");
-                setDateOrNull(ps2, i++, docCreationDate);
+                ps2.setString(i++, effectiveIncidentAlertKind);
+                setDocCreationDateForDpaInsert(ps2, i++, docCreationDate);
                 ps2.setInt(i++, draftStatusId);
                 ps2.setString(i++, commodityCode != null ? commodityCode : "");
                 setIntOrNull(ps2, i++, sanitaryProdTypeId);
@@ -696,23 +728,20 @@ public class DpaSaveServlet extends HttpServlet {
                 ps2.executeUpdate();
             }
 
-            // Копируем все записи доступа из исходной карты (DPADEPPERMIS) в новую версию; вставляем только те DEPID, что есть в TB_DEP (FK)
-            int copiedCount = 0;
-            try (PreparedStatement ps2 = conn.prepareStatement(SQL_INSERT_DPADEPPERMIS)) {
-                for (String depIdStr : cardDepIds) {
-                    try {
-                        int depId = Integer.parseInt(depIdStr);
-                        if (!existsDepIdInTbDep(conn, depId)) continue;
-                        ps2.setLong(1, newDpaid);
-                        ps2.setInt(2, depId);
-                        ps2.executeUpdate();
-                        copiedCount++;
-                    } catch (NumberFormatException e) {
-                        // пропускаем некорректный DEPID
-                    }
+            // Доступ к новой версии: только подразделение пользователя, выполнившего сохранение (не копировать список с исходной карты)
+            Integer creatorDepId = getDepartmentDepIdFromRights(rightsJson);
+            if (creatorDepId != null && existsDepIdInTbDep(conn, creatorDepId)) {
+                try (PreparedStatement psDep = conn.prepareStatement(SQL_INSERT_DPADEPPERMIS)) {
+                    psDep.setLong(1, newDpaid);
+                    psDep.setInt(2, creatorDepId);
+                    psDep.executeUpdate();
                 }
+                System.out.println("[DpaSaveServlet] New version DPADEPPERMIS (creator only): DPAID=" + newDpaid + ", DEPID=" + creatorDepId);
+            } else if (creatorDepId != null) {
+                System.out.println("[DpaSaveServlet] New version: DEPID=" + creatorDepId + " not found in TB_DEP, DPADEPPERMIS not inserted");
+            } else {
+                System.out.println("[DpaSaveServlet] New version: No department.depid in rights for guid=" + guid + ", DPADEPPERMIS not inserted");
             }
-            System.out.println("[DpaSaveServlet] Copied DPADEPPERMIS from DPAID=" + sourceDpaid + " to new DPAID=" + newDpaid + ", count=" + copiedCount);
 
             conn.commit();
             response.setStatus(HttpServletResponse.SC_OK);
@@ -797,6 +826,18 @@ public class DpaSaveServlet extends HttpServlet {
             try (ResultSet rs = ps.executeQuery()) {
                 return rs.next() ? rs.getInt("SANITARYPRODTYPEID") : null;
             }
+        }
+    }
+
+    /** Безопасно читает NUMBER/INTEGER колонку Oracle как Integer (в т.ч. когда драйвер возвращает BigDecimal). */
+    private static Integer getIntObject(ResultSet rs, String column) throws SQLException {
+        Object v = rs.getObject(column);
+        if (v == null) return null;
+        if (v instanceof Number) return ((Number) v).intValue();
+        try {
+            return Integer.parseInt(String.valueOf(v));
+        } catch (NumberFormatException e) {
+            return null;
         }
     }
 }

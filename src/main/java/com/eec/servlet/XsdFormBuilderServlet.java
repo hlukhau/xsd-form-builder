@@ -1,7 +1,5 @@
 package com.eec.servlet;
 
-import com.eec.util.DatabaseUtil;
-
 import javax.servlet.ReadListener;
 import javax.servlet.ServletException;
 import javax.servlet.ServletInputStream;
@@ -15,13 +13,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.io.OutputStream;
-import java.io.Reader;
 import java.nio.charset.StandardCharsets;
-import java.sql.Connection;
-import java.sql.PreparedStatement;
-import java.sql.ResultSet;
-import java.sql.SQLException;
-import java.sql.Clob;
 /**
  * Сервлет для работы с XSD Form Builder.
  * POST /xsd_form_builder - принимает JSON с GUID и сохраняет в мапу
@@ -253,10 +245,14 @@ public class XsdFormBuilderServlet extends HttpServlet {
                         response.getWriter().print("{\"success\":false,\"message\":\"Неверный DPAID\"}");
                         return;
                     }
-                    String body = "{\"dpaid\":" + dpaid + ",\"guid\":\"" + escapeJsonString(guid) + "\"}";
+                    boolean phaContext = request.getRequestURI() != null && request.getRequestURI().contains("/xsd_form_builder_57/");
+                    String body = phaContext
+                            ? "{\"phaid\":" + dpaid + ",\"guid\":\"" + escapeJsonString(guid) + "\"}"
+                            : "{\"dpaid\":" + dpaid + ",\"guid\":\"" + escapeJsonString(guid) + "\"}";
                     HttpServletRequest wrapped = new PostBodyRequestWrapper(request, body, true);
                     try {
-                        request.getRequestDispatcher("/api/dpa/delete").forward(wrapped, response);
+                        String deleteApi = phaContext ? "/api/pha/delete" : "/api/dpa/delete";
+                        request.getRequestDispatcher(deleteApi).forward(wrapped, response);
                     } catch (Exception e) {
                         System.err.println("[XsdFormBuilderServlet] command=delete forward error: " + e.getMessage());
                         response.setStatus(HttpServletResponse.SC_INTERNAL_SERVER_ERROR);
@@ -266,43 +262,9 @@ public class XsdFormBuilderServlet extends HttpServlet {
                     return;
                 }
                 if ("copy".equals(cmd)) {
-                    long dpaid;
-                    try {
-                        dpaid = Long.parseLong(dpaidStr);
-                    } catch (NumberFormatException e) {
-                        response.setStatus(HttpServletResponse.SC_BAD_REQUEST);
-                        response.setContentType("application/json;charset=UTF-8");
-                        response.getWriter().print("{\"success\":false,\"message\":\"Неверный DPAID\"}");
-                        return;
-                    }
-                    Connection conn = null;
-                    try {
-                        conn = DatabaseUtil.getConnectionForRequest(request, guid);
-                        String xmlBody = getXmlBodyByDpaid(conn, dpaid);
-                        if (xmlBody == null || xmlBody.trim().isEmpty()) {
-                            response.setStatus(HttpServletResponse.SC_NOT_FOUND);
-                            response.setContentType("application/json;charset=UTF-8");
-                            response.getWriter().print("{\"success\":false,\"message\":\"Карта с DPAID " + dpaid + " не найдена или пустой XML\"}");
-                            return;
-                        }
-                        String body = buildCopySaveBody(dpaid, guid, xmlBody);
-                        HttpServletRequest wrapped = new PostBodyRequestWrapper(request, body, true);
-                        request.getRequestDispatcher("/api/dpa/save").forward(wrapped, response);
-                    } catch (SQLException e) {
-                        System.err.println("[XsdFormBuilderServlet] command=copy DB error: " + e.getMessage());
-                        response.setStatus(HttpServletResponse.SC_INTERNAL_SERVER_ERROR);
-                        response.setContentType("application/json;charset=UTF-8");
-                        response.getWriter().print("{\"success\":false,\"message\":\"" + escapeJsonString("Ошибка БД: " + e.getMessage()) + "\"}");
-                    } catch (Exception e) {
-                        System.err.println("[XsdFormBuilderServlet] command=copy forward error: " + e.getMessage());
-                        response.setStatus(HttpServletResponse.SC_INTERNAL_SERVER_ERROR);
-                        response.setContentType("application/json;charset=UTF-8");
-                        response.getWriter().print("{\"success\":false,\"message\":\"" + escapeJsonString(e.getMessage()) + "\"}");
-                    } finally {
-                        if (conn != null) {
-                            try { conn.close(); } catch (SQLException ignored) {}
-                        }
-                    }
+                    // Для эквивалентности нажатия кнопки «Сделать копию» copy выполняется на фронтенде:
+                    // загрузка карты, проверка can-create-new-version, формирование initialCardData и автосохранение.
+                    forwardToSpa(request, response);
                     return;
                 }
             }
@@ -528,33 +490,6 @@ public class XsdFormBuilderServlet extends HttpServlet {
         if (s == null) return "";
         return s.replace("\\", "\\\\").replace("\"", "\\\"")
                 .replace("\n", "\\n").replace("\r", "\\r").replace("\t", "\\t");
-    }
-
-    private static final String SQL_GET_XML_BODY = "SELECT DPAXMLBODY FROM DPAXML WHERE DPAID = ?";
-
-    /** Читает XML-тело карты по DPAID из DPAXML. */
-    private String getXmlBodyByDpaid(Connection conn, long dpaid) throws SQLException, IOException {
-        try (PreparedStatement ps = conn.prepareStatement(SQL_GET_XML_BODY)) {
-            ps.setLong(1, dpaid);
-            try (ResultSet rs = ps.executeQuery()) {
-                if (!rs.next()) return null;
-                Clob clob = rs.getClob("DPAXMLBODY");
-                if (clob == null) return null;
-                try (Reader r = clob.getCharacterStream()) {
-                    StringBuilder sb = new StringBuilder();
-                    char[] buf = new char[4096];
-                    int n;
-                    while ((n = r.read(buf)) >= 0) sb.append(buf, 0, n);
-                    return sb.toString();
-                }
-            }
-        }
-    }
-
-    /** Формирует тело POST для создания новой версии (copy): isNew, copyFromDpaid, guid, xmlBody, metadata. */
-    private String buildCopySaveBody(long copyFromDpaid, String guid, String xmlBody) {
-        String escaped = escapeJsonString(xmlBody);
-        return "{\"isNew\":true,\"copyFromDpaid\":" + copyFromDpaid + ",\"guid\":\"" + escapeJsonString(guid) + "\",\"xmlBody\":\"" + escaped + "\",\"metadata\":{}}";
     }
 
     /**

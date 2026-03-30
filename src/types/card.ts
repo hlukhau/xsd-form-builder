@@ -3,6 +3,8 @@
 export interface CardData {
   // Метаинформация (при загрузке по DPAID берутся из VW_DPA)
   country: string
+  /** Наименование страны инцидента из БД (COUNTRY.COUNTRYNAME); для интеграций (postMessage all_version). */
+  alertCountryName?: string | null
   registrationNumber: string
   version: number
   source: string // напр. "Входящие сведения", "Исходящие сведения", "Данные ЕЭК"
