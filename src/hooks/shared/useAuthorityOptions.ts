@@ -5,7 +5,7 @@ import { getAuthorityOptions, type AuthorityOption } from '@/utils/referenceData
  * Хук для загрузки и работы со справочником уполномоченных органов
  * @param countryCode - код страны для фильтрации
  * @param forOutgoingCreation - если true, запрашивать только УО из карты прав create (передаётся authorityIds)
- * @param allowedAuthorityIds - ключи из dangerousProductOut.create (DEPID); при forOutgoingCreation передаются как depIds в API
+ * @param allowedAuthorityIds - DEPID из карт прав (create / edit / др.); при forOutgoingCreation передаются как depIds. undefined — права ещё не загружены, запрос не выполняется (не показывать весь справочник).
  * @param fetchOptions.enabled - если false, запрос к API не выполняется (пустой список). По умолчанию true — поведение как раньше (в т.ч. закладка «Уведомление»).
  */
 export function useAuthorityOptions(
@@ -20,6 +20,11 @@ export function useAuthorityOptions(
 
   useEffect(() => {
     if (!enabled) {
+      setOptions([])
+      setLoading(false)
+      return
+    }
+    if (forOutgoingCreation && allowedAuthorityIds === undefined) {
       setOptions([])
       setLoading(false)
       return

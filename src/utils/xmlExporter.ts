@@ -1374,6 +1374,29 @@ function normalizeXML(doc: Document): string {
   return doc.documentElement.outerHTML
 }
 
+function getFirstChildTextByLocalName(element: Element, localName: string): string {
+  const lower = localName.toLowerCase()
+  return (
+    Array.from(element.getElementsByTagName('*')).find((el) => {
+      const ln = el.localName || el.tagName.split(':').pop()?.toLowerCase()
+      return ln === lower
+    })?.textContent?.trim() || ''
+  )
+}
+
+function getRequirementsDocStructuralSignature(element: Element): string {
+  const rows: string[] = []
+  const directChildren = Array.from(element.children)
+  directChildren.forEach((child) => {
+    const ln = (child.localName || child.tagName.split(':').pop()?.toLowerCase() || '').toLowerCase()
+    if (ln !== 'docstructuralelementdetails') return
+    const name = getFirstChildTextByLocalName(child, 'DocStructuralElementName')
+    const id = getFirstChildTextByLocalName(child, 'DocStructuralElementId')
+    rows.push(`${name}|${id}`)
+  })
+  return rows.join('||')
+}
+
 /**
  * Упрощенная функция сравнения XML элементов - рекурсивно проходит по всем элементам
  */
@@ -1531,23 +1554,12 @@ function compareElementsSimple(
   
   // Дополнительно: для RequirementsDocDetails сравниваем значения полей напрямую
   if (originalLocalName === 'requirementsdocdetails') {
-    const origTechRegId = Array.from(original.getElementsByTagName('*')).find(el => {
-      const ln = el.localName || el.tagName.split(':').pop()?.toLowerCase()
-      return ln === 'technicalregulationid'
-    })?.textContent?.trim()
-    const expTechRegId = Array.from(exported.getElementsByTagName('*')).find(el => {
-      const ln = el.localName || el.tagName.split(':').pop()?.toLowerCase()
-      return ln === 'technicalregulationid'
-    })?.textContent?.trim()
-    
-    const origDocName = Array.from(original.getElementsByTagName('*')).find(el => {
-      const ln = el.localName || el.tagName.split(':').pop()?.toLowerCase()
-      return ln === 'docname'
-    })?.textContent?.trim()
-    const expDocName = Array.from(exported.getElementsByTagName('*')).find(el => {
-      const ln = el.localName || el.tagName.split(':').pop()?.toLowerCase()
-      return ln === 'docname'
-    })?.textContent?.trim()
+    const origTechRegId = getFirstChildTextByLocalName(original, 'TechnicalRegulationId')
+    const expTechRegId = getFirstChildTextByLocalName(exported, 'TechnicalRegulationId')
+    const origDocName = getFirstChildTextByLocalName(original, 'DocName')
+    const expDocName = getFirstChildTextByLocalName(exported, 'DocName')
+    const origStructural = getRequirementsDocStructuralSignature(original)
+    const expStructural = getRequirementsDocStructuralSignature(exported)
     
     // Сравниваем ключевые поля
     if (origTechRegId !== expTechRegId) {
@@ -1558,6 +1570,11 @@ function compareElementsSimple(
     
     if (origDocName !== expDocName) {
       const warning = `Разное значение DocName на пути ${currentPath}: "${origDocName}" vs "${expDocName}"`
+      warnings.push(warning)
+      console.log(`[compareElementsSimple] ${warning}`)
+    }
+    if (origStructural !== expStructural) {
+      const warning = `Разные структурные элементы документа на пути ${currentPath}: "${origStructural}" vs "${expStructural}"`
       warnings.push(warning)
       console.log(`[compareElementsSimple] ${warning}`)
     }

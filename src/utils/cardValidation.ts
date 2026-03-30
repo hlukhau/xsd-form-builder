@@ -629,6 +629,20 @@ export function collectFormatValidationErrors(data: CardData): FormatValidationE
         ;(v.violatedRequirements ?? []).forEach((r, ri) => {
           pushFormatError(errors, `${vPath} → Требование ${ri + 1} → Номер техрегламента`, 'technicalRegulationId', r.technicalRegulationId)
           pushFormatError(errors, `${vPath} → Требование ${ri + 1} → Описание`, 'description', r.description)
+          ;(r.structuralElements ?? []).forEach((se, si) => {
+            pushFormatError(
+              errors,
+              `${vPath} → Требование ${ri + 1} → Структурный элемент ${si + 1} → Вид структурного документа`,
+              'docStructuralElementName',
+              se.elementName
+            )
+            pushFormatError(
+              errors,
+              `${vPath} → Требование ${ri + 1} → Структурный элемент ${si + 1} → Номер структурного элемента`,
+              'docStructuralElementId',
+              se.elementId
+            )
+          })
         })
         ;(v.violatedIndicators ?? []).forEach((ind, ii) => {
           pushFormatError(errors, `${vPath} → Показатель ${ii + 1} → Наименование`, 'indicatorName', ind.indicatorName)

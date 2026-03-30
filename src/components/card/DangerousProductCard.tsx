@@ -22,7 +22,7 @@ import MeasuresTab from '../tabs/dpa/MeasuresTab'
 import { exportCardDataToXML, getEmptyTagsWarnings } from '@/utils/xmlExporter'
 import { parseXMLToCardData } from '@/utils/xmlParser'
 import { compareCardData, getCardDataReview } from '@/utils/cardDataComparator'
-import { fetchDpaStatusHistory, fetchDpaElectronicDocs, changeDpaStatus, checkAccessRight, fetchCurrentUser, fetchDpaResolutions, fetchRightsByGuid, fetchRightsByGuidRaw, getCreateAuthorityIdsFromRights, fetchDepInfo, saveDpaCard, buildSaveMetadataFromCardData, deleteDpaCard, canCreateNewVersion, type DpaSaveMetadata, type RightsJson } from '@/utils/referenceDataApi'
+import { fetchDpaStatusHistory, fetchDpaElectronicDocs, changeDpaStatus, checkAccessRight, fetchCurrentUser, fetchDpaResolutions, fetchRightsByGuid, fetchRightsByGuidRaw, getOutgoingAuthorityFilterDepIdsFromRights, fetchDepInfo, saveDpaCard, buildSaveMetadataFromCardData, deleteDpaCard, canCreateNewVersion, type DpaSaveMetadata, type RightsJson } from '@/utils/referenceDataApi'
 import { getStatusButtonConfig } from '@/utils/statusButtonConfig'
 import { parseElectronicDocContentBody } from '@/utils/xmlParser'
 import { openLegacyRegisterAllVersions, isLegacyRegisterConfigured } from '@/utils/legacyRegisterUrl'
@@ -101,7 +101,7 @@ const DangerousProductCard: React.FC<DangerousProductCardProps> = ({
   /** Уровень ЦГЭ по depid из карты прав (когда текущий пользователь не загружен) — для подсказки в черновике */
   const [rightsDepKindCode, setRightsDepKindCode] = useState<string | null>(null)
   const [rightsDepKindName, setRightsDepKindName] = useState<string | null>(null)
-  /** AUTHORITYID из dangerousProductOut.create — только эти УО показывать в выборе при исходящей карте */
+  /** DEPID из прав (create / publicHealthOut.edit / violations / ВСМ и т.д.) → на сервере в AUTHORITYID; только эти УО в выборе при черновике исходящей */
   const [createAuthorityIds, setCreateAuthorityIds] = useState<string[] | null>(null)
   const [dpaResolutionDepKindCodes, setDpaResolutionDepKindCodes] = useState<string[]>([])
   /** После успешного создания — dpaid сохранённой карты; до редиректа все сохранения идут как update по нему */
@@ -151,13 +151,20 @@ const DangerousProductCard: React.FC<DangerousProductCardProps> = ({
   const canEditByStatus =
     !isOutgoingSource || currentStatusId === undefined || EDITABLE_OUTGOING_STATUS_IDS.includes(currentStatusId)
 
+  /** depIds для фильтра УО: при отладочном override — из JSON; иначе из GET /api/rights (не сбрасываем при сбое fetchDepInfo). */
+  const outgoingAuthorityFilterDepIds = useMemo(() => {
+    const fromOverride = rightsOverride ? getOutgoingAuthorityFilterDepIdsFromRights(rightsOverride) : []
+    if (fromOverride.length > 0) return fromOverride
+    return createAuthorityIds
+  }, [rightsOverride, createAuthorityIds])
+
   useEffect(() => {
     if (dpaid !== '-') setSavedDpaid(null)
   }, [dpaid])
 
   // Права и уровень пользователя / резолюции по карте (исходящие)
+  // Важно: для новой исходящей карты (dpaid '-') hasPersistedDpaid = false, но JSON прав и depIds для УО всё равно нужны — иначе список УО остаётся пустым.
   useEffect(() => {
-    if (!hasPersistedDpaid) return
     if (!isOutgoingSource) {
       const src = (data?.source ?? '').toLowerCase()
       if (src.includes('входящ')) {
@@ -191,8 +198,8 @@ const DangerousProductCard: React.FC<DangerousProductCardProps> = ({
       })
       if (guid) {
         fetchRightsByGuid(guid)
-          .then((r) => {
-            setCreateAuthorityIds(getCreateAuthorityIdsFromRights(r))
+          .then(async (r) => {
+            setCreateAuthorityIds(getOutgoingAuthorityFilterDepIdsFromRights(r))
 
             const depid = r.department?.depid != null ? String(r.department.depid) : null
             const hasRightInMap = (map: Record<string, unknown> | undefined | null): boolean => {
@@ -217,24 +224,37 @@ const DangerousProductCard: React.FC<DangerousProductCardProps> = ({
               setHasSaveRight((prev) => prev && false)
             }
 
-            return r.department?.depid != null
-              ? fetchDepInfo(r.department.depid, guid)
-              : Promise.resolve({ depKindCode: null, depKindName: null })
+            try {
+              const level =
+                r.department?.depid != null
+                  ? await fetchDepInfo(r.department.depid, guid)
+                  : { depKindCode: null, depKindName: null }
+              setRightsDepKindCode(level.depKindCode ?? null)
+              setRightsDepKindName(level.depKindName ?? null)
+            } catch {
+              setRightsDepKindCode(null)
+              setRightsDepKindName(null)
+            }
           })
-          .then((level) => {
-            setRightsDepKindCode(level.depKindCode ?? null)
-            setRightsDepKindName(level.depKindName ?? null)
+          .catch(() => {
+            setCreateAuthorityIds(null)
+            setRightsDepKindCode(null)
+            setRightsDepKindName(null)
           })
-          .catch(() => { setRightsDepKindCode(null); setRightsDepKindName(null); setCreateAuthorityIds(null) })
       } else {
         setRightsDepKindCode(null)
         setRightsDepKindName(null)
         setCreateAuthorityIds(null)
       }
-      fetchDpaResolutions(effectiveDpaid, guid).then((list) => {
-        setDpaResolutionDepKindCodes(list.map((r) => r.depKindCode))
-        setHasResolution(list.length > 0)
-      })
+      if (hasPersistedDpaid) {
+        fetchDpaResolutions(effectiveDpaid, guid).then((list) => {
+          setDpaResolutionDepKindCodes(list.map((r) => r.depKindCode))
+          setHasResolution(list.length > 0)
+        })
+      } else {
+        setDpaResolutionDepKindCodes([])
+        setHasResolution(false)
+      }
     }
   }, [hasPersistedDpaid, effectiveDpaid, isOutgoingSource, data?.source, guid])
 
@@ -764,7 +784,7 @@ const DangerousProductCard: React.FC<DangerousProductCardProps> = ({
               version={currentData.version ?? 1}
               isDraft={effectiveDpaid === '-' || (currentStatusId === 5) || /черновик/i.test(editedData.status ?? data.status ?? '')}
               isOutgoing={isOutgoingSource}
-              allowedAuthorityIds={isOutgoingSource && (effectiveDpaid === '-' || isDraftStatus) ? createAuthorityIds ?? undefined : undefined}
+              allowedAuthorityIds={isOutgoingSource && (effectiveDpaid === '-' || isDraftStatus) ? outgoingAuthorityFilterDepIds ?? undefined : undefined}
             />
           )
           break

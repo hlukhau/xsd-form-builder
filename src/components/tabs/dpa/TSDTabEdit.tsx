@@ -31,7 +31,13 @@ const TSDTabEdit: React.FC<TSDTabEditProps> = ({ data, onChange }) => {
     error: shipDocKindsError,
     getSelectOptions: getShipDocKindSelectOptions,
     getNameByCode: getShipDocKindNameByCode,
+    getDisplayLabel: getShipDocKindDisplayLabel,
   } = useShipDocKindOptions()
+
+  const shipDocKindLabelRender = (props: { label: React.ReactNode; value: string | number }) => {
+    const code = props.value != null && props.value !== '' ? String(props.value) : ''
+    return code ? getShipDocKindDisplayLabel(code) : props.label
+  }
   const [docKindErrors, setDocKindErrors] = useState<Map<string, boolean>>(new Map())
   const [commodityCodeErrors, setCommodityCodeErrors] = useState<Record<string, string>>({})
 
@@ -398,7 +404,7 @@ const TSDTabEdit: React.FC<TSDTabEditProps> = ({ data, onChange }) => {
           loading={loadingShipDocKinds}
           value={record.docKindCode}
           onChange={(code) => handleDocKindSelect(batchIndex, docIndex, code)}
-          optionLabelProp="value"
+          labelRender={shipDocKindLabelRender}
           filterOption={(input, option) =>
             (option?.label ?? '').toLowerCase().includes(input.toLowerCase())
           }
@@ -675,6 +681,7 @@ const TSDTabEdit: React.FC<TSDTabEditProps> = ({ data, onChange }) => {
                                   value={td.docKindCode || undefined}
                                   onChange={(code) => handleProductTechnicalDocKindSelect(batchIndex, docIndex, pIndex, tdIndex, code ?? '')}
                                   onClear={() => handleProductTechnicalDocKindSelect(batchIndex, docIndex, pIndex, tdIndex, '')}
+                                  labelRender={shipDocKindLabelRender}
                                   filterOption={(input, option) =>
                                     (option?.label ?? '').toLowerCase().includes(input.toLowerCase())
                                   }

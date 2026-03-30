@@ -24,7 +24,7 @@ export interface NotificationTabEditProps {
   isDraft?: boolean
   /** Исходящие сведения: список УО ограничен картой прав create */
   isOutgoing?: boolean
-  /** AUTHORITYID из dangerousProductOut.create — только эти УО показывать в списке (при isOutgoing && isDraft) */
+  /** DEPID из карт прав (объединённые) — только соответствующие УО в списке (при isOutgoing && isDraft) */
   allowedAuthorityIds?: string[]
 }
 

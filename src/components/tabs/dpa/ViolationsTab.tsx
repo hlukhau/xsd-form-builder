@@ -13,11 +13,14 @@ const ViolationsTab: React.FC<ViolationsTabProps> = ({ tsd }) => {
   const { getDisplayLabel: getMeasurementUnitDisplayLabel } = useMeasurementUnitOptions()
   const formatStructuralElements = (elements?: Array<{ elementName?: string; elementId?: string }>) => {
     if (!elements || elements.length === 0) return '-'
-    return elements.map((el, idx) => {
-      const name = el.elementName || ''
-      const id = el.elementId || ''
-      return `${name}${id ? ` ${id}` : ''}`
-    }).join('; ')
+    return elements
+      .map((el) => {
+        const name = (el.elementName ?? '').trim()
+        const id = (el.elementId ?? '').trim()
+        const pair = `${name}${name && id ? ' ' : ''}${id}`.trim()
+        return pair || '-'
+      })
+      .join(', ')
   }
 
   const requirementsColumns = [
@@ -55,32 +58,14 @@ const ViolationsTab: React.FC<ViolationsTabProps> = ({ tsd }) => {
       ),
     },
     {
-      title: 'Вид структурного элемента',
-      key: 'structuralElementName',
-      width: 120,
-      render: (_: any, record: ViolatedRequirement) => {
-        if (!record.structuralElements || record.structuralElements.length === 0) return '-'
-        const text = record.structuralElements.map(el => el.elementName || '-').join('; ')
-        return (
-          <div style={{ wordWrap: 'break-word', whiteSpace: 'normal' }}>
-            {text}
-          </div>
-        )
-      },
-    },
-    {
-      title: 'Номер структурного элемента',
-      key: 'structuralElementId',
-      width: 120,
-      render: (_: any, record: ViolatedRequirement) => {
-        if (!record.structuralElements || record.structuralElements.length === 0) return '-'
-        const text = record.structuralElements.map(el => el.elementId || '-').join('; ')
-        return (
-          <div style={{ wordWrap: 'break-word', whiteSpace: 'normal' }}>
-            {text}
-          </div>
-        )
-      },
+      title: 'Структурные элементы документа',
+      key: 'structuralElements',
+      width: 220,
+      render: (_: any, record: ViolatedRequirement) => (
+        <div style={{ wordWrap: 'break-word', whiteSpace: 'normal' }}>
+          {formatStructuralElements(record.structuralElements)}
+        </div>
+      ),
     },
     {
       title: 'Описание',

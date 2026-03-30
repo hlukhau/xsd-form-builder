@@ -125,6 +125,16 @@ export const XSD_FIELD_CONSTRAINTS: Record<string, FieldConstraint> = {
 
   // Нарушения
   violationDescription: { maxLength: 4000, messageMaxLength: 'Не более 4000 символов (csdo:Text4000Type)' },
+  /** smsdo:DocStructuralElementName (вид структурного элемента документа) */
+  docStructuralElementName: {
+    maxLength: 120,
+    messageMaxLength: 'Не более 120 символов (smsdo:DocStructuralElementName)',
+  },
+  /** smsdo:DocStructuralElementId (номер структурного элемента документа) */
+  docStructuralElementId: {
+    maxLength: 20,
+    messageMaxLength: 'Не более 20 символов (smsdo:DocStructuralElementId)',
+  },
   technicalRegulationId: { maxLength: 50, messageMaxLength: 'Не более 50 символов', formatHint: 'Например: ТР ТС 001/2011' },
   indicatorName: { maxLength: 300, messageMaxLength: 'Не более 300 символов' },
   /** Значение показателя в нарушениях: строка до 100 символов */

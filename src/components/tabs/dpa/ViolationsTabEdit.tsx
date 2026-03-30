@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Form, Input, Button, Table, Space, Descriptions, Select, Collapse } from 'antd'
+import { Form, Input, Button, Table, Descriptions, Select, Collapse } from 'antd'
 import { PlusOutlined, DeleteOutlined } from '@ant-design/icons'
 import { format } from 'date-fns'
 import { ru } from 'date-fns/locale'
@@ -19,11 +19,20 @@ interface ViolationsTabEditProps {
 const ViolationsTabEdit: React.FC<ViolationsTabEditProps> = ({ tsd, onTsdChange }) => {
   const [form] = Form.useForm()
   const [indicatorValueErrors, setIndicatorValueErrors] = useState<Record<string, string>>({})
+  const [structuralElementErrors, setStructuralElementErrors] = useState<Record<string, string>>({})
   const { options: techRegulOptions, loading: loadingTechReguls, getSelectOptions: getTechRegulSelectOptions } = useTechRegulOptions()
   const { options: measurementUnitOptions, loading: loadingMeasurementUnits, getSelectOptions: getMeasurementUnitSelectOptions, getUnitByCode } = useMeasurementUnitOptions()
 
   const indicatorValueErrorKey = (batchIdx: number, violationIdx: number, indicatorIdx: number) =>
     `ind-${batchIdx}-${violationIdx}-${indicatorIdx}`
+
+  const structuralElementErrorKey = (
+    batchIdx: number,
+    violationIdx: number,
+    reqIdx: number,
+    elIdx: number,
+    field: 'name' | 'id'
+  ) => `struct-${batchIdx}-${violationIdx}-${reqIdx}-${elIdx}-${field}`
 
   const formatDateShort = (date: string | null | undefined) => {
     if (!date) return '-'
@@ -151,11 +160,8 @@ const ViolationsTabEdit: React.FC<ViolationsTabEditProps> = ({ tsd, onTsdChange 
         : [{ elementName: '', elementId: '' }]
 
     const commitStructuralElements = (reqIndex: number, rows: DocStructuralElement[]) => {
-      const cleaned = rows.filter(
-        (e) => (e.elementName ?? '').trim() !== '' || (e.elementId ?? '').trim() !== ''
-      )
       const updated = [...(vData.violatedRequirements || [])]
-      updated[reqIndex] = { ...updated[reqIndex], structuralElements: cleaned.length > 0 ? cleaned : undefined }
+      updated[reqIndex] = { ...updated[reqIndex], structuralElements: rows.length > 0 ? rows : undefined }
       onVChange({ ...vData, violatedRequirements: updated })
     }
 
@@ -187,52 +193,109 @@ const ViolationsTabEdit: React.FC<ViolationsTabEditProps> = ({ tsd, onTsdChange 
       { title: labelWithHelp('Наименование техрегламента', FIELD_HELP.technicalRegulationName), key: 'technicalRegulationName', width: 300, render: (_: any, record: ViolatedRequirement, index: number) => (<Select showSearch placeholder="Выберите техрегламент" loading={loadingTechReguls} value={record.technicalRegulationId || undefined} onChange={(code) => code ? handleTechRegulSelect(index, code) : onVChange({ ...vData, violatedRequirements: (vData.violatedRequirements || []).map((r, i) => i === index ? { ...r, technicalRegulationId: '', technicalRegulationName: '' } : r) })} filterOption={(input, option) => (option?.label ?? '').toLowerCase().includes(input.toLowerCase())} options={getTechRegulSelectOptions()} allowClear style={{ width: '100%' }} />) },
       { title: labelWithHelp('Регистрационный номер', FIELD_HELP.registrationNumber), key: 'registrationNumber', width: 120, render: (_: any, record: ViolatedRequirement, index: number) => (<Input value={record.registrationNumber} onChange={(e) => handleRequirementChange(index, 'registrationNumber', e.target.value)} maxLength={getMaxLength('registrationNumber')} showCount />) },
       {
-        title: labelWithHelp('Вид структурного элемента', FIELD_HELP.structuralElement),
-        key: 'structuralElementName',
-        width: 160,
+        title: labelWithHelp('Структурные элементы документа', FIELD_HELP.structuralElement),
+        key: 'structuralElements',
+        width: 460,
         render: (_: unknown, record: ViolatedRequirement, reqIndex: number) => {
           const rows = getStructuralEditRows(record)
           return (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 6, minWidth: 140 }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 6, minWidth: 420 }}>
               {rows.map((el, elIdx) => (
-                <Space key={elIdx} style={{ width: '100%' }} direction="vertical" size={4}>
-                  <Input
-                    placeholder="Наименование вида"
-                    value={el.elementName ?? ''}
-                    onChange={(e) => patchStructuralRow(reqIndex, elIdx, { elementName: e.target.value })}
-                    maxLength={getMaxLength('docName')}
-                  />
+                <div
+                  key={elIdx}
+                  style={{
+                    display: 'flex',
+                    flexDirection: 'row',
+                    alignItems: 'flex-start',
+                    gap: 8,
+                    flexWrap: 'nowrap',
+                    width: '100%',
+                  }}
+                >
+                  <div style={{ flex: '1 1 0', minWidth: 0 }}>
+                    <Input
+                      placeholder="Вид структурного документа"
+                      value={el.elementName ?? ''}
+                      onChange={(e) => {
+                        const v = e.target.value
+                        patchStructuralRow(reqIndex, elIdx, { elementName: v })
+                        const k = structuralElementErrorKey(batchIndex, violationIndex, reqIndex, elIdx, 'name')
+                        const msg = validateFieldValue('docStructuralElementName', v?.trim() || undefined)
+                        setStructuralElementErrors((prev) => (msg ? { ...prev, [k]: msg } : { ...prev, [k]: '' }))
+                      }}
+                      onBlur={(e) => {
+                        const k = structuralElementErrorKey(batchIndex, violationIndex, reqIndex, elIdx, 'name')
+                        const msg = validateFieldValue('docStructuralElementName', e.target.value?.trim() || undefined)
+                        setStructuralElementErrors((prev) => (msg ? { ...prev, [k]: msg } : { ...prev, [k]: '' }))
+                      }}
+                      maxLength={getMaxLength('docStructuralElementName')}
+                      showCount
+                      status={
+                        structuralElementErrors[
+                          structuralElementErrorKey(batchIndex, violationIndex, reqIndex, elIdx, 'name')
+                        ]
+                          ? 'error'
+                          : undefined
+                      }
+                      style={{ width: '100%' }}
+                    />
+                    {structuralElementErrors[
+                      structuralElementErrorKey(batchIndex, violationIndex, reqIndex, elIdx, 'name')
+                    ] && (
+                      <div style={{ fontSize: 12, color: '#ff4d4f', marginTop: 2 }}>
+                        {structuralElementErrors[
+                          structuralElementErrorKey(batchIndex, violationIndex, reqIndex, elIdx, 'name')
+                        ]}
+                      </div>
+                    )}
+                  </div>
+                  <div style={{ flex: '1 1 0', minWidth: 0 }}>
+                    <Input
+                      placeholder="Номер структурного элемента"
+                      value={el.elementId ?? ''}
+                      onChange={(e) => {
+                        const v = e.target.value
+                        patchStructuralRow(reqIndex, elIdx, { elementId: v })
+                        const k = structuralElementErrorKey(batchIndex, violationIndex, reqIndex, elIdx, 'id')
+                        const msg = validateFieldValue('docStructuralElementId', v?.trim() || undefined)
+                        setStructuralElementErrors((prev) => (msg ? { ...prev, [k]: msg } : { ...prev, [k]: '' }))
+                      }}
+                      onBlur={(e) => {
+                        const k = structuralElementErrorKey(batchIndex, violationIndex, reqIndex, elIdx, 'id')
+                        const msg = validateFieldValue('docStructuralElementId', e.target.value?.trim() || undefined)
+                        setStructuralElementErrors((prev) => (msg ? { ...prev, [k]: msg } : { ...prev, [k]: '' }))
+                      }}
+                      maxLength={getMaxLength('docStructuralElementId')}
+                      showCount
+                      status={
+                        structuralElementErrors[
+                          structuralElementErrorKey(batchIndex, violationIndex, reqIndex, elIdx, 'id')
+                        ]
+                          ? 'error'
+                          : undefined
+                      }
+                      style={{ width: '100%' }}
+                    />
+                    {structuralElementErrors[
+                      structuralElementErrorKey(batchIndex, violationIndex, reqIndex, elIdx, 'id')
+                    ] && (
+                      <div style={{ fontSize: 12, color: '#ff4d4f', marginTop: 2 }}>
+                        {structuralElementErrors[
+                          structuralElementErrorKey(batchIndex, violationIndex, reqIndex, elIdx, 'id')
+                        ]}
+                      </div>
+                    )}
+                  </div>
                   {rows.length > 1 && (
-                    <Button type="link" danger size="small" style={{ padding: 0, height: 'auto' }} onClick={() => removeStructuralRow(reqIndex, elIdx)}>
+                    <Button type="link" danger size="small" style={{ padding: 0, height: 'auto', flexShrink: 0 }} onClick={() => removeStructuralRow(reqIndex, elIdx)}>
                       Удалить строку
                     </Button>
                   )}
-                </Space>
+                </div>
               ))}
               <Button type="link" size="small" style={{ padding: 0, height: 'auto' }} onClick={() => addStructuralRow(reqIndex)}>
                 + структурный элемент
               </Button>
-            </div>
-          )
-        },
-      },
-      {
-        title: 'Номер структурного элемента',
-        key: 'structuralElementId',
-        width: 140,
-        render: (_: unknown, record: ViolatedRequirement, reqIndex: number) => {
-          const rows = getStructuralEditRows(record)
-          return (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 6, minWidth: 120 }}>
-              {rows.map((el, elIdx) => (
-                <Input
-                  key={elIdx}
-                  placeholder="Номер"
-                  value={el.elementId ?? ''}
-                  onChange={(e) => patchStructuralRow(reqIndex, elIdx, { elementId: e.target.value })}
-                  maxLength={100}
-                />
-              ))}
             </div>
           )
         },

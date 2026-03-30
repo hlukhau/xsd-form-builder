@@ -707,6 +707,10 @@ export interface RightsJson {
       edit?: Record<string, unknown>
       status?: Record<string, unknown>
       send?: Record<string, unknown>
+      /** Объект «Нарушения»: ключи — DEPID подразделений ЦГЭ (если есть в security JSON) */
+      violations?: Record<string, unknown>
+      /** Временные санитарные меры: ключи — DEPID */
+      temporarySanitaryMeasures?: Record<string, unknown>
     }
     /** PHA: просмотр входящих сведений об обнаружении болезней */
     publicHealthIn?: { view?: Record<string, unknown>; status?: Record<string, unknown> }
@@ -719,18 +723,43 @@ export interface RightsJson {
     }
     /** PHA: просмотр данных ЕЭК */
     publicHealthDB?: { view?: Record<string, unknown> }
+    /** Опционально на верхнем уровне up: нарушения / ВСМ (если security JSON так отдаёт объект) */
+    violations?: Record<string, unknown>
+    temporarySanitaryMeasures?: Record<string, unknown>
   }
 }
 
+function depIdsFromRightsBlock(block: unknown): string[] {
+  if (!block || typeof block !== 'object' || Array.isArray(block)) return []
+  return Object.keys(block as Record<string, unknown>).filter((k) => k != null && String(k).trim() !== '')
+}
+
 /**
- * Извлечь список ключей из up.dangerousProductOut.create для фильтра списка УО.
- * В JSON ключи — DEPID (подразделения); бэкенд резолвит их в AUTHORITYID через AUTHORITY.AUTHORITYUID = TB_DEP.DEPCODE.
- * При создании/редактировании черновика список УО ограничивается только этими органами.
+ * DEPID для фильтра списка УО при создании исходящей карты (DPA): объединение подразделений,
+ * в пределах которых выданы соответствующие права. Бэкенд: AUTHORITY ⟕ TB_DEP ON AUTHORITYUID = DEPCODE, DEPID IN (...).
+ * Берём ключи из: dangerousProductOut.create, publicHealthOut.edit, dangerousProductOut.violations,
+ * dangerousProductOut.temporarySanitaryMeasures (если блоки есть в JSON прав).
+ */
+export function getOutgoingAuthorityFilterDepIdsFromRights(rights: RightsJson | null | undefined): string[] {
+  const up = rights?.up
+  const out = up?.dangerousProductOut
+  const parts = [
+    depIdsFromRightsBlock(out?.create),
+    depIdsFromRightsBlock(up?.publicHealthOut?.edit),
+    depIdsFromRightsBlock(out?.violations),
+    depIdsFromRightsBlock(out?.temporarySanitaryMeasures),
+    depIdsFromRightsBlock(up?.violations),
+    depIdsFromRightsBlock(up?.temporarySanitaryMeasures),
+  ]
+  const merged = [...new Set(parts.flat())]
+  return merged
+}
+
+/**
+ * @deprecated Используйте {@link getOutgoingAuthorityFilterDepIdsFromRights} — учитывает все объекты прав для фильтра УО.
  */
 export function getCreateAuthorityIdsFromRights(rights: RightsJson | null | undefined): string[] {
-  const create = rights?.up?.dangerousProductOut?.create
-  if (!create || typeof create !== 'object') return []
-  return Object.keys(create).filter((k) => k != null && String(k).trim() !== '')
+  return depIdsFromRightsBlock(rights?.up?.dangerousProductOut?.create)
 }
 
 /**
@@ -1009,7 +1038,7 @@ export async function fetchDepOptions(): Promise<DepOption[]> {
  * Получить опции для выпадающего списка уполномоченных органов
  * @param countryCode - код страны для фильтрации (опционально)
  * @param forOutgoingCreation - если true, передаём depIds (только УО из карты прав create)
- * @param createKeys - ключи из dangerousProductOut.create (в JSON это DEPID); при указании возвращаются только эти УО
+ * @param createKeys - DEPID из карты прав; при forOutgoingCreation обязательно передавать (в т.ч. []), иначе пустой depIds на сервере отфильтрует список
  */
 export async function getAuthorityOptions(
   countryCode?: string,
@@ -1020,9 +1049,11 @@ export async function getAuthorityOptions(
   try {
     const params = withGuidParams(new URLSearchParams())
     if (countryCode) params.set('countryCode', countryCode)
-    if (forOutgoingCreation) params.set('forOutgoingCreation', '1')
-    if (forOutgoingCreation && createKeys != null) {
-      params.set('depIds', createKeys.join(','))
+    if (forOutgoingCreation) {
+      params.set('forOutgoingCreation', '1')
+      if (createKeys !== undefined) {
+        params.set('depIds', createKeys.join(','))
+      }
     }
     const qs = params.toString()
     const url = qs ? `${getReferenceDataBaseUrl()}api/authorities/options?${qs}` : `${getReferenceDataBaseUrl()}api/authorities/options`

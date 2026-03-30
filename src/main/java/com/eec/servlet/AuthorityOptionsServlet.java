@@ -52,8 +52,10 @@ public class AuthorityOptionsServlet extends HttpServlet {
         String countryCode = request.getParameter("countryCode");
         String authorityIdsParam = request.getParameter("authorityIds");
         String depIdsParam = request.getParameter("depIds");
+        String forOutgoingCreationParam = request.getParameter("forOutgoingCreation");
+        boolean restrictOutgoing = "1".equals(forOutgoingCreationParam) || "true".equalsIgnoreCase(forOutgoingCreationParam);
         String guid = request.getParameter("guid");
-        System.out.println("[AuthorityOptionsServlet] Loading authorities from cache, countryCode: " + countryCode + ", authorityIds: " + authorityIdsParam + ", depIds: " + depIdsParam);
+        System.out.println("[AuthorityOptionsServlet] Loading authorities from cache, countryCode: " + countryCode + ", authorityIds: " + authorityIdsParam + ", depIds: " + depIdsParam + ", forOutgoingCreation: " + forOutgoingCreationParam);
         
         response.setContentType("application/json;charset=UTF-8");
         response.setCharacterEncoding("UTF-8");
@@ -87,31 +89,39 @@ public class AuthorityOptionsServlet extends HttpServlet {
             // Разрешённые AUTHORITYID из карты прав (dangerousProductOut.create) — только эти УО показывать в списке
             // Приоритет: depIds (ключи в JSON = DEPID) → authorityIds (ключи в JSON = AUTHORITYID)
             Set<Integer> allowedAuthorityIds = null;
-            if (depIdsParam != null && !depIdsParam.trim().isEmpty()) {
-                List<Integer> depIds = Arrays.stream(depIdsParam.trim().split(","))
-                    .map(String::trim)
-                    .filter(s -> !s.isEmpty())
-                    .map(s -> {
-                        try { return Integer.valueOf(s); } catch (NumberFormatException e) { return null; }
-                    })
-                    .filter(id -> id != null)
-                    .collect(Collectors.toList());
-                if (depIds.isEmpty()) {
+            if (depIdsParam != null) {
+                if (depIdsParam.trim().isEmpty()) {
                     allowedAuthorityIds = Collections.emptySet();
-                    System.out.println("[AuthorityOptionsServlet] Filter by create rights (depIds), allowedAuthorityIds: (empty)");
+                    System.out.println("[AuthorityOptionsServlet] depIds explicit empty -> no УО");
                 } else {
-                    Connection conn = null;
-                    try {
-                        conn = DatabaseUtil.getConnectionForRequest(request, guid);
-                        allowedAuthorityIds = resolveAuthorityIdsByDepIds(conn, depIds);
-                        System.out.println("[AuthorityOptionsServlet] Filter by create rights (depIds=" + depIds + "), resolved AUTHORITYIDs: " + allowedAuthorityIds);
-                    } catch (SQLException e) {
-                        System.err.println("[AuthorityOptionsServlet] resolveAuthorityIdsByDepIds: " + e.getMessage());
+                    List<Integer> depIds = Arrays.stream(depIdsParam.trim().split(","))
+                        .map(String::trim)
+                        .filter(s -> !s.isEmpty())
+                        .map(s -> {
+                            try { return Integer.valueOf(s); } catch (NumberFormatException e) { return null; }
+                        })
+                        .filter(id -> id != null)
+                        .collect(Collectors.toList());
+                    if (depIds.isEmpty()) {
                         allowedAuthorityIds = Collections.emptySet();
-                    } finally {
-                        DatabaseUtil.closeConnection(conn);
+                        System.out.println("[AuthorityOptionsServlet] Filter by depIds (none parsed), allowedAuthorityIds: (empty)");
+                    } else {
+                        Connection conn = null;
+                        try {
+                            conn = DatabaseUtil.getConnectionForRequest(request, guid);
+                            allowedAuthorityIds = resolveAuthorityIdsByDepIds(conn, depIds);
+                            System.out.println("[AuthorityOptionsServlet] Filter by depIds (" + depIds + "), resolved AUTHORITYIDs: " + allowedAuthorityIds);
+                        } catch (SQLException e) {
+                            System.err.println("[AuthorityOptionsServlet] resolveAuthorityIdsByDepIds: " + e.getMessage());
+                            allowedAuthorityIds = Collections.emptySet();
+                        } finally {
+                            DatabaseUtil.closeConnection(conn);
+                        }
                     }
                 }
+            } else if (restrictOutgoing) {
+                allowedAuthorityIds = Collections.emptySet();
+                System.out.println("[AuthorityOptionsServlet] forOutgoingCreation without depIds -> empty list (не показывать весь справочник)");
             } else if (authorityIdsParam != null) {
                 String trimmed = authorityIdsParam.trim();
                 if (trimmed.isEmpty()) {
