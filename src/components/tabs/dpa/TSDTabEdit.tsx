@@ -396,32 +396,36 @@ const TSDTabEdit: React.FC<TSDTabEditProps> = ({ data, onChange }) => {
     {
       title: labelWithHelp('Код вида документа', FIELD_HELP.tsdDocKindCode),
       key: 'docKindCode',
-      width: 120,
+      width: 280,
+      onCell: () => ({ className: 'compliance-doc-kind-edit-cell' }),
       render: (_: any, record: ShippingDocument, docIndex: number) => (
-        <Select
-          showSearch
-          placeholder="Вид"
-          loading={loadingShipDocKinds}
-          value={record.docKindCode}
-          onChange={(code) => handleDocKindSelect(batchIndex, docIndex, code)}
-          labelRender={shipDocKindLabelRender}
-          filterOption={(input, option) =>
-            (option?.label ?? '').toLowerCase().includes(input.toLowerCase())
-          }
-          options={getShipDocKindSelectOptions()}
-          allowClear
-          status={docKindErrors.get(docKindErrorKey(batchIndex, docIndex)) ? 'error' : undefined}
-          notFoundContent={
-            loadingShipDocKinds
-              ? 'Загрузка...'
-              : shipDocKindsError
-                ? `Справочник SHIPDOCKIND не загружен: ${shipDocKindsError}`
-                : 'Нет данных'
-          }
-          style={{ width: '100%' }}
-          dropdownMatchSelectWidth
-          size="small"
-        />
+        <div className="compliance-doc-kind-cell">
+          <Select
+            showSearch
+            placeholder="Вид"
+            loading={loadingShipDocKinds}
+            value={record.docKindCode}
+            onChange={(code) => handleDocKindSelect(batchIndex, docIndex, code)}
+            labelRender={shipDocKindLabelRender}
+            filterOption={(input, option) =>
+              (option?.label ?? '').toLowerCase().includes(input.toLowerCase())
+            }
+            options={getShipDocKindSelectOptions()}
+            allowClear
+            status={docKindErrors.get(docKindErrorKey(batchIndex, docIndex)) ? 'error' : undefined}
+            notFoundContent={
+              loadingShipDocKinds
+                ? 'Загрузка...'
+                : shipDocKindsError
+                  ? `Справочник SHIPDOCKIND не загружен: ${shipDocKindsError}`
+                  : 'Нет данных'
+            }
+            style={{ width: '100%' }}
+            dropdownMatchSelectWidth
+            popupClassName="tsd-ship-doc-kind-dropdown"
+            size="small"
+          />
+        </div>
       ),
     },
     {
@@ -674,29 +678,32 @@ const TSDTabEdit: React.FC<TSDTabEditProps> = ({ data, onChange }) => {
                           <div key={tdIndex} style={{ marginBottom: 12, padding: 8, border: '1px solid #f0f0f0', borderRadius: 4 }}>
                             <Space direction="vertical" style={{ width: '100%' }} size="small">
                               <FieldTagBlock label="Вид документа">
-                                <Select
-                                  showSearch
-                                  placeholder="Вид документа (SHIPDOCKIND)"
-                                  loading={loadingShipDocKinds}
-                                  value={td.docKindCode || undefined}
-                                  onChange={(code) => handleProductTechnicalDocKindSelect(batchIndex, docIndex, pIndex, tdIndex, code ?? '')}
-                                  onClear={() => handleProductTechnicalDocKindSelect(batchIndex, docIndex, pIndex, tdIndex, '')}
-                                  labelRender={shipDocKindLabelRender}
-                                  filterOption={(input, option) =>
-                                    (option?.label ?? '').toLowerCase().includes(input.toLowerCase())
-                                  }
-                                  options={getShipDocKindSelectOptions()}
-                                  allowClear
-                                  notFoundContent={
-                                    loadingShipDocKinds
-                                      ? 'Загрузка...'
-                                      : shipDocKindsError
-                                        ? `Справочник SHIPDOCKIND не загружен: ${shipDocKindsError}`
-                                        : 'Нет данных'
-                                  }
-                                  style={{ width: '100%', minWidth: 200 }}
-                                  size="small"
-                                />
+                                <div className="compliance-doc-kind-cell">
+                                  <Select
+                                    showSearch
+                                    placeholder="Вид документа (SHIPDOCKIND)"
+                                    loading={loadingShipDocKinds}
+                                    value={td.docKindCode || undefined}
+                                    onChange={(code) => handleProductTechnicalDocKindSelect(batchIndex, docIndex, pIndex, tdIndex, code ?? '')}
+                                    onClear={() => handleProductTechnicalDocKindSelect(batchIndex, docIndex, pIndex, tdIndex, '')}
+                                    labelRender={shipDocKindLabelRender}
+                                    filterOption={(input, option) =>
+                                      (option?.label ?? '').toLowerCase().includes(input.toLowerCase())
+                                    }
+                                    options={getShipDocKindSelectOptions()}
+                                    allowClear
+                                    notFoundContent={
+                                      loadingShipDocKinds
+                                        ? 'Загрузка...'
+                                        : shipDocKindsError
+                                          ? `Справочник SHIPDOCKIND не загружен: ${shipDocKindsError}`
+                                          : 'Нет данных'
+                                    }
+                                    style={{ width: '100%', minWidth: 200 }}
+                                    popupClassName="tsd-ship-doc-kind-dropdown"
+                                    size="small"
+                                  />
+                                </div>
                               </FieldTagBlock>
                               <FieldTagBlock label="Наименование документа">
                                 <Input
@@ -949,6 +956,7 @@ const TSDTabEdit: React.FC<TSDTabEditProps> = ({ data, onChange }) => {
             </Space>
           </div>
           <Table
+            className="tsd-shipping-docs-edit-table"
             dataSource={docs}
             columns={getDocumentColumns(batchIndex)}
             rowKey={(record, index) => `batch-${batchIndex}-doc-${index}`}

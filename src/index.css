@@ -978,3 +978,16 @@ body {
   transform: none !important;
 }
 
+/* ТСД: те же правила высоты строк, что у таблицы документов соответствия */
+.tsd-shipping-docs-edit-table .ant-table-tbody > tr > td {
+  height: auto !important;
+}
+.tsd-shipping-docs-edit-table .ant-table-tbody > tr {
+  height: auto !important;
+}
+
+/* ТСД SHIPDOCKIND: перенос подписей в выпадающем списке */
+.tsd-ship-doc-kind-dropdown.ant-select-dropdown .ant-select-item-option-content {
+  white-space: normal;
+  word-break: break-word;
+}
