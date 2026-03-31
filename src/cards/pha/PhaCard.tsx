@@ -581,6 +581,9 @@ const PhaCard: React.FC<PhaCardProps> = ({
           }
           await deletePhaCard(Number(effectivePhaid), guid!)
           message.success('Карта удалена')
+          const exitPayload = { code: 'exit', tab: 'outgoing', registry: 'morbidity' } as const
+          console.log('[PhaCard] Sending exit message to parent after delete:', exitPayload)
+          window.parent.postMessage(exitPayload, '*')
           onCardDeleted?.()
         } catch (e) {
           message.error(e instanceof Error ? e.message : 'Ошибка удаления')

@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { Form, Input, Button, Table, Space, DatePicker, Modal, Descriptions, Collapse, Select, message } from 'antd'
 import { PlusOutlined, DeleteOutlined, EyeOutlined, DownloadOutlined } from '@ant-design/icons'
 import dayjs from 'dayjs'
@@ -34,6 +34,8 @@ interface ComplianceDocumentsTabEditProps {
   guid?: string | null
 }
 
+const EAUE_COUNTRY_CODES = new Set(['AM', 'BY', 'KZ', 'KG', 'RU'])
+
 const ComplianceDocumentsTabEdit: React.FC<ComplianceDocumentsTabEditProps> = ({ tsd, onTsdChange, guid }) => {
   const batches = tsd.batches?.length ? tsd.batches : []
   const [authorityModalVisible, setAuthorityModalVisible] = useState(false)
@@ -44,6 +46,10 @@ const ComplianceDocumentsTabEdit: React.FC<ComplianceDocumentsTabEditProps> = ({
   const [protocolsData, setProtocolsData] = useState<LaboratoryProtocolsData | null>(null)
   const [expandedLabCountry, setExpandedLabCountry] = useState<string>('')
   const { countryOptions, loading: loadingCountries, normalizeCountryCode, getDisplayLabel: getCountryDisplayLabel } = useCountryOptions()
+  const eaueCountryOptions = useMemo(
+    () => countryOptions.filter((opt) => EAUE_COUNTRY_CODES.has(String(opt.code || '').toUpperCase())),
+    [countryOptions]
+  )
   const { getSelectOptions: getConformityDocKindSelectOptions, loading: loadingConformityDocKinds } = useConformityDocKindOptions()
   const labCountry = expandedLabCountry
   const { getDisplayLabel: getShipDocKindDisplayLabel } = useShipDocKindOptions()
@@ -274,7 +280,7 @@ const ComplianceDocumentsTabEdit: React.FC<ComplianceDocumentsTabEditProps> = ({
             <DpaEmbeddedUnifiedAuthorityForm
               value={batches[authorityContext.batchIndex].complianceDocuments![authorityContext.docIndex].authority ?? {}}
               onChange={(next) => handleAuthoritySectionChange(authorityContext.batchIndex, authorityContext.docIndex, next)}
-              countryOptions={countryOptions}
+              countryOptions={eaueCountryOptions}
               loadingCountries={loadingCountries}
               normalizeCountryCode={normalizeCountryCode}
               userFacingLabels

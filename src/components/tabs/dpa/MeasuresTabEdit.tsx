@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { Form, Input, Button, Table, Space, DatePicker, Collapse, Select, Upload, message, Modal } from 'antd'
 import { PlusOutlined, DeleteOutlined, UploadOutlined, CaretRightOutlined, CaretDownOutlined, DownloadOutlined } from '@ant-design/icons'
 import dayjs from 'dayjs'
@@ -324,9 +324,15 @@ interface MeasuresTabEditProps {
   onChange: (data: MeasuresData) => void
 }
 
+const EAUE_COUNTRY_CODES = new Set(['AM', 'BY', 'KZ', 'KG', 'RU'])
+
 const MeasuresTabEdit: React.FC<MeasuresTabEditProps> = ({ data, onChange }) => {
   const [selectedMeasureIndex, setSelectedMeasureIndex] = useState<number | null>(null)
   const { countryOptions, loading: loadingCountries, normalizeCountryCode } = useCountryOptions()
+  const eaueCountryOptions = useMemo(
+    () => countryOptions.filter((opt) => EAUE_COUNTRY_CODES.has(String(opt.code || '').toUpperCase())),
+    [countryOptions]
+  )
   const { getSelectOptions: getSanitaryMeasureObjKindSelectOptions, getNameByCode: getSanitaryMeasureObjKindNameByCode } = useSanitaryMeasureObjKindOptions()
   const { getSelectOptions: getSanitaryMeasureSelectOptions, loading: loadingSanitaryMeasures } = useSanitaryMeasureOptions()
   const { getLanguageName, getLangCatalogSelectOptions } = useLanguageOptions()
@@ -782,6 +788,7 @@ const MeasuresTabEdit: React.FC<MeasuresTabEditProps> = ({ data, onChange }) => 
                           item={item}
                           onChange={(field, value) => handleImplementationChange(measureIndex, implIndex, field, value)}
                           countryOptions={countryOptions}
+                          authorityCountryOptions={eaueCountryOptions}
                           loadingCountries={loadingCountries}
                           normalizeCountryCode={normalizeCountryCode}
                           getSanitaryMeasureObjKindSelectOptions={getSanitaryMeasureObjKindSelectOptions}
@@ -846,11 +853,12 @@ const MeasureImplementationDetailsEdit: React.FC<{
   item: MeasureImplementationItem
   onChange: (field: string, value: any) => void
   countryOptions: CountryOption[]
+  authorityCountryOptions: CountryOption[]
   loadingCountries: boolean
   normalizeCountryCode: (country: string | undefined) => string | undefined
   getSanitaryMeasureObjKindSelectOptions: () => Array<{ value: string; label: string }>
   getSanitaryMeasureObjKindNameByCode: (code: string | undefined) => string | null
-}> = ({ item, onChange, countryOptions, loadingCountries, normalizeCountryCode, getSanitaryMeasureObjKindSelectOptions, getSanitaryMeasureObjKindNameByCode }) => {
+}> = ({ item, onChange, countryOptions, authorityCountryOptions, loadingCountries, normalizeCountryCode, getSanitaryMeasureObjKindSelectOptions, getSanitaryMeasureObjKindNameByCode }) => {
   const { getSelectOptions: getShipDocKindSelectOptions, loading: loadingShipDocKinds } = useShipDocKindOptions()
   const { getSelectOptions: getCheckpointSelectOptions, loading: loadingCheckpoints } =
     useBorderCheckpointOptions()
@@ -930,7 +938,7 @@ const MeasureImplementationDetailsEdit: React.FC<{
                         nextList[idx] = next
                         onChange('authorities', nextList)
                       }}
-                      countryOptions={countryOptions}
+                      countryOptions={authorityCountryOptions}
                       loadingCountries={loadingCountries}
                       normalizeCountryCode={normalizeCountryCode}
                       userFacingLabels

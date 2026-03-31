@@ -398,6 +398,8 @@ const DangerousProductCard: React.FC<DangerousProductCardProps> = ({
         try {
           await deleteDpaCard(Number(effectiveDpaid), guid!)
           message.success('Карта удалена')
+          console.log('[DangerousProductCard] Sending exit message to parent after delete')
+          window.parent.postMessage({ code: 'exit' }, '*')
           onCardDeleted?.()
         } catch (e) {
           message.error(e instanceof Error ? e.message : 'Ошибка удаления')
