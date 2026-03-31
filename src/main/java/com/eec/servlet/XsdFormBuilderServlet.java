@@ -263,7 +263,8 @@ public class XsdFormBuilderServlet extends HttpServlet {
                 }
                 if ("copy".equals(cmd)) {
                     // Для эквивалентности нажатия кнопки «Сделать копию» copy выполняется на фронтенде:
-                    // загрузка карты, проверка can-create-new-version, формирование initialCardData и автосохранение.
+                    // загрузка карты, проверка can-create-new-version и формирование initialCardData
+                    // c переходом на /-/GUID без автосохранения.
                     forwardToSpa(request, response);
                     return;
                 }

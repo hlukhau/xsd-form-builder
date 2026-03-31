@@ -114,7 +114,6 @@ const DangerousProductCard: React.FC<DangerousProductCardProps> = ({
   const [rightsDebugRawText, setRightsDebugRawText] = useState<string | null>(null)
   const [rightsDebugDraft, setRightsDebugDraft] = useState('')
   const [rightsOverride, setRightsOverride] = useState<RightsJson | null>(null)
-  const copyAutoSaveStartedRef = useRef(false)
   const copyCommandHandledRef = useRef(false)
   /** Предпроверка GET /api/dpa/can-create-new-version — чтобы кнопка «Сделать копию» была неактивна с подсказкой. */
   const [copyCanCreateLoading, setCopyCanCreateLoading] = useState(false)
@@ -257,41 +256,6 @@ const DangerousProductCard: React.FC<DangerousProductCardProps> = ({
       }
     }
   }, [hasPersistedDpaid, effectiveDpaid, isOutgoingSource, data?.source, guid])
-
-  // Новая версия (сделать копию): сразу сохраняем черновик, чтобы получить DPAID
-  // и избежать вызовов access/resolutions с dpaid='-'.
-  useEffect(() => {
-    if (copyAutoSaveStartedRef.current) return
-    if (copyFromDpaid == null) return
-    if (dpaid !== '-') return
-    if (savedDpaid != null) return
-    if (!guid) return
-    copyAutoSaveStartedRef.current = true
-    const xmlBody = exportCardDataToXML(editedData)
-    const metadata = buildSaveMetadataFromCardData(editedData)
-    setSaving(true)
-    saveDpaCard({
-      isNew: true,
-      xmlBody,
-      metadata,
-      copyFromDpaid,
-      guid,
-    })
-      .then((res) => {
-        setSavedDpaid(res.dpaid)
-        setOriginalXML(xmlBody)
-        onUpdate(editedData)
-        message.success(`Копия сохранена в БД с DPAID ${res.dpaid}`)
-        onSaveNewCard?.(res.dpaid)
-      })
-      .catch((err) => {
-        copyAutoSaveStartedRef.current = false
-        const msg = err instanceof Error ? err.message : 'Ошибка автосохранения копии в БД'
-        console.error('[DangerousProductCard] Copy auto-save failed:', err)
-        message.error(msg)
-      })
-      .finally(() => setSaving(false))
-  }, [copyFromDpaid, dpaid, savedDpaid, guid, editedData, onSaveNewCard, onUpdate])
 
   // Исходящая карта: при наличии права dangerousProductOut:edit и статусе, допускающем редактирование, включаем режим редактирования автоматически
   useEffect(() => {
