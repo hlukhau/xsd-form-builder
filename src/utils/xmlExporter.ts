@@ -357,9 +357,11 @@ function appendBusinessEntityLegalFormToXml(
   }
 }
 
-function exportSupplyChainParty(xmlParts: string[], party: SupplyChainPartyDetails, kindCode: string, indent: string) {
+function exportSupplyChainParty(xmlParts: string[], party: SupplyChainPartyDetails, kindCode: string | undefined, indent: string) {
   xmlParts.push(`${indent}<ccdo:SupplyChainPartyDetails>`)
-  xmlParts.push(`${indent}  <csdo:SupplyChainPartyKindCode>${escapeXML(kindCode)}</csdo:SupplyChainPartyKindCode>`)
+  if ((kindCode ?? '').trim()) {
+    xmlParts.push(`${indent}  <csdo:SupplyChainPartyKindCode>${escapeXML(kindCode!)}</csdo:SupplyChainPartyKindCode>`)
+  }
   if (party.country) xmlParts.push(`${indent}  <csdo:UnifiedCountryCode codeListId="2021">${escapeXML(party.country)}</csdo:UnifiedCountryCode>`)
   if (party.businessEntityName) xmlParts.push(`${indent}  <csdo:BusinessEntityName>${escapeXML(party.businessEntityName)}</csdo:BusinessEntityName>`)
   if (party.shortName) xmlParts.push(`${indent}  <csdo:BusinessEntityBriefName>${escapeXML(party.shortName)}</csdo:BusinessEntityBriefName>`)
@@ -811,8 +813,8 @@ function exportShippingDocument(xmlParts: string[], doc: ShippingDocument, inden
 
   const partiesWithContent = (doc.supplyChainParties ?? []).filter(hasSupplyChainPartyContent)
   if (partiesWithContent.length > 0) {
-    partiesWithContent.forEach((party, index) => {
-      const kindCode = party.supplyChainPartyKindCode || party.subjectIdentifier || String(index)
+    partiesWithContent.forEach((party) => {
+      const kindCode = (party.supplyChainPartyKindCode ?? '').trim() || undefined
       exportSupplyChainParty(xmlParts, party, kindCode, `${indent}    `)
     })
   }

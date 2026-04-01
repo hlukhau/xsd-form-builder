@@ -26,13 +26,26 @@ export interface NotificationTabEditProps {
   isOutgoing?: boolean
   /** DEPID из карт прав (объединённые) — только соответствующие УО в списке (при isOutgoing && isDraft) */
   allowedAuthorityIds?: string[]
+  /**
+   * Несохранённая новая версия по «Сделать копию»: вид сброшен, но isNewCard остаётся true —
+   * показываем выбор «Вид» как у сохранённой карты, а не только текст в Descriptions.
+   */
+  unsavedNewVersionFromCopy?: boolean
 }
 
 const VERSION_1_KIND_CODES = ['7']
 const OTHER_VERSIONS_KIND_CODES = ['8', '9']
 
 const NotificationTabEdit: React.FC<NotificationTabEditProps> = ({
-  data, onChange, isNewCard, cardCountry, version = 1, isDraft = false, isOutgoing = false, allowedAuthorityIds,
+  data,
+  onChange,
+  isNewCard,
+  cardCountry,
+  version = 1,
+  isDraft = false,
+  isOutgoing = false,
+  allowedAuthorityIds,
+  unsavedNewVersionFromCopy = false,
 }) => {
   const [form] = Form.useForm()
   const { options: incidentAlertKindOptions, loading: loadingIncidentAlertKinds, getSelectOptions: getIncidentAlertKindSelectOptions, getNameByCode: getIncidentAlertKindNameByCode } = useIncidentAlertKindOptions()
@@ -147,6 +160,22 @@ const NotificationTabEdit: React.FC<NotificationTabEditProps> = ({
     ? format(parseISO(formationDateOnly), 'dd.MM.yyyy', { locale: ru })
     : '-'
   const incidentKindName = getIncidentAlertKindNameByCode(data.type) || ''
+  /** В режиме новой карты «Вид» обычно только чтение; для копии до сохранения — Select, как после сохранения. */
+  const showKindSelectInNewCardLayout =
+    unsavedNewVersionFromCopy || !(data.type ?? '').trim()
+
+  const kindSelectControl = (
+    <Select
+      showSearch
+      placeholder="Выберите вид уведомления"
+      loading={loadingIncidentAlertKinds}
+      filterOption={(input, option) =>
+        (option?.label ?? '').toLowerCase().includes(input.toLowerCase())
+      }
+      options={incidentKindSelectOptions}
+      style={{ width: '100%' }}
+    />
+  )
 
   return (
     <Form
@@ -163,8 +192,23 @@ const NotificationTabEdit: React.FC<NotificationTabEditProps> = ({
           <Descriptions.Item label="Регистрационный номер">
             {data.registrationNumber}
           </Descriptions.Item>
-          <Descriptions.Item label="Вид">
-            {data.type ? `${data.type}${incidentKindName ? ` — ${incidentKindName}` : ''}` : '-'}
+          <Descriptions.Item
+            label="Вид"
+            styles={
+              showKindSelectInNewCardLayout
+                ? { content: { width: '100%', maxWidth: '100%', minWidth: 0 } }
+                : undefined
+            }
+          >
+            {showKindSelectInNewCardLayout ? (
+              <Form.Item name="type" noStyle>
+                {kindSelectControl}
+              </Form.Item>
+            ) : data.type ? (
+              `${data.type}${incidentKindName ? ` — ${incidentKindName}` : ''}`
+            ) : (
+              '-'
+            )}
           </Descriptions.Item>
           <Descriptions.Item label="Дата формирования">
             {formationDateFormatted}
@@ -177,15 +221,7 @@ const NotificationTabEdit: React.FC<NotificationTabEditProps> = ({
             <Input readOnly />
           </Form.Item>
           <Form.Item label="Вид" name="type">
-            <Select
-              showSearch
-              placeholder="Выберите вид уведомления"
-              loading={loadingIncidentAlertKinds}
-              filterOption={(input, option) =>
-                (option?.label ?? '').toLowerCase().includes(input.toLowerCase())
-              }
-              options={incidentKindSelectOptions}
-            />
+            {kindSelectControl}
           </Form.Item>
           <Form.Item label="Дата формирования">
             <Input readOnly value={formationDateOnly ? format(parseISO(formationDateOnly), 'dd.MM.yyyy', { locale: ru }) : ''} />
