@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Form, Input, DatePicker, Select, Descriptions } from 'antd'
+import { Form, Input, DatePicker, Select } from 'antd'
 import { DATE_DISPLAY_FORMAT } from '@/constants/dateFormat'
 import dayjs from 'dayjs'
 import { format, parseISO } from 'date-fns'
@@ -14,10 +14,8 @@ import { FIELD_HELP } from '@/constants/fieldDescriptions'
 export interface NotificationTabEditProps {
   data: Notification
   onChange: (data: Notification) => void
-  /** Режим новой карты: рег. номер, дата формирования только для просмотра; дата формирования и страна УО по умолчанию */
+  /** Режим новой карты (/-): подстановка даты формирования и страны УО по умолчанию */
   isNewCard?: boolean
-  /** Код страны карты (для отображения в режиме новой карты) */
-  cardCountry?: string
   /** Версия карты: 1 — вид только 7; иначе — 8 и 9 */
   version?: number
   /** Черновик: разрешён выбор уполномоченного органа */
@@ -26,11 +24,6 @@ export interface NotificationTabEditProps {
   isOutgoing?: boolean
   /** DEPID из карт прав (объединённые) — только соответствующие УО в списке (при isOutgoing && isDraft) */
   allowedAuthorityIds?: string[]
-  /**
-   * Несохранённая новая версия по «Сделать копию»: вид сброшен, но isNewCard остаётся true —
-   * показываем выбор «Вид» как у сохранённой карты, а не только текст в Descriptions.
-   */
-  unsavedNewVersionFromCopy?: boolean
 }
 
 const VERSION_1_KIND_CODES = ['7']
@@ -40,15 +33,13 @@ const NotificationTabEdit: React.FC<NotificationTabEditProps> = ({
   data,
   onChange,
   isNewCard,
-  cardCountry,
   version = 1,
   isDraft = false,
   isOutgoing = false,
   allowedAuthorityIds,
-  unsavedNewVersionFromCopy = false,
 }) => {
   const [form] = Form.useForm()
-  const { options: incidentAlertKindOptions, loading: loadingIncidentAlertKinds, getSelectOptions: getIncidentAlertKindSelectOptions, getNameByCode: getIncidentAlertKindNameByCode } = useIncidentAlertKindOptions()
+  const { loading: loadingIncidentAlertKinds, getSelectOptions: getIncidentAlertKindSelectOptions } = useIncidentAlertKindOptions()
   const { getDisplayLabel: getCountryDisplayLabel } = useCountryOptions()
   const authorizedBodyCountryCode = (data.authorizedBody?.country ?? '').trim() || undefined
   const { options: authorityOptions, loading: loadingAuthorities, getSelectOptions: getAuthoritySelectOptions, getAuthorityByUid } = useAuthorityOptions(
@@ -156,16 +147,10 @@ const NotificationTabEdit: React.FC<NotificationTabEditProps> = ({
     })
   }
 
-  const formationDateFormatted = formationDateOnly
-    ? format(parseISO(formationDateOnly), 'dd.MM.yyyy', { locale: ru })
-    : '-'
-  const incidentKindName = getIncidentAlertKindNameByCode(data.type) || ''
-  /** В режиме новой карты «Вид» обычно только чтение; для копии до сохранения — Select, как после сохранения. */
-  const showKindSelectInNewCardLayout =
-    unsavedNewVersionFromCopy || !(data.type ?? '').trim()
-
   const kindSelectControl = (
     <Select
+      className="notification-incident-kind-select"
+      popupClassName="notification-incident-kind-select-dropdown"
       showSearch
       placeholder="Выберите вид уведомления"
       loading={loadingIncidentAlertKinds}
@@ -184,50 +169,15 @@ const NotificationTabEdit: React.FC<NotificationTabEditProps> = ({
       className="field-tag-form"
       onValuesChange={handleValuesChange}
     >
-      {isNewCard && (
-        <Descriptions column={1} bordered size="small" style={{ marginBottom: 16 }}>
-          <Descriptions.Item label="Код страны">
-            {getCountryDisplayLabel(cardCountry ?? data.country ?? '')}
-          </Descriptions.Item>
-          <Descriptions.Item label="Регистрационный номер">
-            {data.registrationNumber}
-          </Descriptions.Item>
-          <Descriptions.Item
-            label="Вид"
-            styles={
-              showKindSelectInNewCardLayout
-                ? { content: { width: '100%', maxWidth: '100%', minWidth: 0 } }
-                : undefined
-            }
-          >
-            {showKindSelectInNewCardLayout ? (
-              <Form.Item name="type" noStyle>
-                {kindSelectControl}
-              </Form.Item>
-            ) : data.type ? (
-              `${data.type}${incidentKindName ? ` — ${incidentKindName}` : ''}`
-            ) : (
-              '-'
-            )}
-          </Descriptions.Item>
-          <Descriptions.Item label="Дата формирования">
-            {formationDateFormatted}
-          </Descriptions.Item>
-        </Descriptions>
-      )}
-      {!isNewCard && (
-        <>
-          <Form.Item label="Регистрационный номер" name="registrationNumber">
-            <Input readOnly />
-          </Form.Item>
-          <Form.Item label="Вид" name="type">
-            {kindSelectControl}
-          </Form.Item>
-          <Form.Item label="Дата формирования">
-            <Input readOnly value={formationDateOnly ? format(parseISO(formationDateOnly), 'dd.MM.yyyy', { locale: ru }) : ''} />
-          </Form.Item>
-        </>
-      )}
+      <Form.Item label="Регистрационный номер" name="registrationNumber">
+        <Input readOnly />
+      </Form.Item>
+      <Form.Item label="Вид" name="type">
+        {kindSelectControl}
+      </Form.Item>
+      <Form.Item label="Дата формирования">
+        <Input readOnly value={formationDateOnly ? format(parseISO(formationDateOnly), 'dd.MM.yyyy', { locale: ru }) : ''} />
+      </Form.Item>
       <Form.Item label="Дата закрытия" name="endDate">
         <DatePicker format={DATE_DISPLAY_FORMAT} style={{ width: '100%' }} allowClear />
       </Form.Item>

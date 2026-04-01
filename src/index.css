@@ -322,6 +322,36 @@ body {
   display: none !important;
 }
 
+/* DPA уведомление: «Вид» — перенос длинного текста в закрытом Select (не одна строка с …) */
+.field-tag-form .notification-incident-kind-select.ant-select.ant-select-single .ant-select-selector {
+  height: auto !important;
+  min-height: 32px;
+  align-items: flex-start;
+  padding-block: 4px;
+}
+.field-tag-form .notification-incident-kind-select.ant-select.ant-select-single .ant-select-selection-item,
+.field-tag-form .notification-incident-kind-select.ant-select.ant-select-single .ant-select-selection-placeholder {
+  white-space: normal !important;
+  word-break: break-word;
+  line-height: 1.45;
+  overflow: visible !important;
+  text-overflow: clip !important;
+}
+.field-tag-form .notification-incident-kind-select.ant-select.ant-select-single .ant-select-selection-search {
+  inset-inline-start: 11px;
+  inset-inline-end: 28px;
+}
+.field-tag-form .notification-incident-kind-select.ant-select.ant-select-single .ant-select-selection-search-input {
+  height: auto !important;
+  min-height: 22px;
+}
+
+.notification-incident-kind-select-dropdown .ant-select-item-option-content {
+  white-space: normal;
+  word-break: break-word;
+  line-height: 1.45;
+}
+
 /* Вкладки: без рамки и тени */
 .ant-tabs {
   background: #ffffff;
