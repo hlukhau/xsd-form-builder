@@ -92,6 +92,8 @@ const DangerousProductCard: React.FC<DangerousProductCardProps> = ({
   const [pendingSavePayload, setPendingSavePayload] = useState<{ xmlBody: string; metadata: DpaSaveMetadata } | null>(null)
   /** Ошибки формата полей (XSD) перед сохранением; блокируют кнопку «Сохранить в БД». */
   const [formatValidationErrors, setFormatValidationErrors] = useState<string[]>([])
+  /** Логические проверки карты (в т.ч. «Вид» уведомления) перед сохранением в БД. */
+  const [comparisonLogicalValidationErrors, setComparisonLogicalValidationErrors] = useState<string[]>([])
   const [hasStatusRight, setHasStatusRight] = useState(false)
   const [hasSendRight, setHasSendRight] = useState(false)
   const [hasSaveRight, setHasSaveRight] = useState(false)
@@ -579,6 +581,15 @@ const DangerousProductCard: React.FC<DangerousProductCardProps> = ({
   }
 
   const handleSave = () => {
+    const outgoingValidation = validateOutgoingCard(editedData)
+    setComparisonLogicalValidationErrors(
+      outgoingValidation.success
+        ? []
+        : outgoingValidation.sections.flatMap((s) =>
+            s.remarks.map((r) => `${s.sectionName}: ${r}`)
+          )
+    )
+
     const xmlBody = exportCardDataToXML(editedData)
     const metadata = buildSaveMetadataFromCardData(editedData)
     const isNewCard = effectiveDpaid === '-'
@@ -640,6 +651,18 @@ const DangerousProductCard: React.FC<DangerousProductCardProps> = ({
 
   const handleSaveToDbFromModal = async () => {
     if (!pendingSavePayload) return
+    const outgoingValidation = validateOutgoingCard(editedData)
+    if (!outgoingValidation.success) {
+      setComparisonLogicalValidationErrors(
+        outgoingValidation.sections.flatMap((s) =>
+          s.remarks.map((r) => `${s.sectionName}: ${r}`)
+        )
+      )
+      message.error(
+        'Сохранение в БД невозможно: исправьте замечания проверки карты (обязательные поля и логика, в том числе поле «Вид» в разделе «Уведомление»).'
+      )
+      return
+    }
     const xmlJustSaved = pendingSavePayload.xmlBody
     setSaving(true)
     const isNewCard = effectiveDpaid === '-'
@@ -1403,8 +1426,10 @@ const DangerousProductCard: React.FC<DangerousProductCardProps> = ({
               setComparisonModalVisible(false)
               setPendingSavePayload(null)
               setFormatValidationErrors([])
+              setComparisonLogicalValidationErrors([])
             }}
             formatValidationErrors={formatValidationErrors}
+            logicalValidationErrors={comparisonLogicalValidationErrors}
             onSaveToDb={pendingSavePayload ? handleSaveToDbFromModal : undefined}
             saving={saving}
           />

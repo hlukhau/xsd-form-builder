@@ -59,18 +59,44 @@ const NotificationTabEdit: React.FC<NotificationTabEditProps> = ({
   // Только дата (yyyy-MM-dd), без времени — для корректного отображения и хранения
   const formationDateOnly = data.formationDate?.trim().slice(0, 10) || undefined
 
+  /**
+   * Синхронизация формы с данными карты. Зависимости — только примитивы из notification:
+   * иначе при любом new object reference от родителя частый setFieldsValue сбрасывал ошибки «Вид».
+   * Сразу после setFieldsValue валидируем «Вид», чтобы копия с пустым типом всегда была с подсветкой.
+   */
   useEffect(() => {
     const authorityUid = data.authorizedBody?.identifier
     setSelectedAuthorityUid(authorityUid)
-    
+
+    const trimmed = data.type?.trim() ?? ''
+    if (trimmed && !allowedKindCodes.includes(trimmed)) {
+      onChange({ ...data, type: '' })
+      return
+    }
+
+    const typeInForm = trimmed ? trimmed : undefined
+
     form.setFieldsValue({
       registrationNumber: data.registrationNumber,
-      type: data.type,
+      type: typeInForm,
       formationDate: formationDateOnly ? dayjs(formationDateOnly) : undefined,
       endDate: data.endDate ? dayjs(data.endDate) : undefined,
       authorizedBodyCountry: data.authorizedBody?.country ?? '',
     })
-  }, [data, form])
+    void form.validateFields(['type']).catch(() => {})
+    // Не зависим от всего data/onChange: иначе эффект на каждом рендере и setFieldsValue гасит ошибку «Вид».
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- onChange + прочие поля data: берём замыкание при смене перечисленных deps
+  }, [
+    form,
+    version,
+    data.registrationNumber,
+    data.type,
+    data.formationDate,
+    data.endDate,
+    data.authorizedBody?.identifier,
+    data.authorizedBody?.country,
+    formationDateOnly,
+  ])
 
   // При создании новой карточки: дата формирования = сегодня, страна УО = BY
   useEffect(() => {
@@ -172,7 +198,36 @@ const NotificationTabEdit: React.FC<NotificationTabEditProps> = ({
       <Form.Item label="Регистрационный номер" name="registrationNumber">
         <Input readOnly />
       </Form.Item>
-      <Form.Item label="Вид" name="type">
+      <Form.Item
+        label={
+          <span className="notification-kind-label-wrap">
+            <span className="notification-kind-required-star" aria-hidden="true">
+              *
+            </span>
+            Вид
+          </span>
+        }
+        name="type"
+        rules={[
+          { required: true, message: 'Укажите вид уведомления' },
+          {
+            validator: async (_, value) => {
+              if (value == null || String(value).trim() === '') {
+                return Promise.resolve()
+              }
+              const v = String(value).trim()
+              if (version === 1 && v !== '7') {
+                return Promise.reject(new Error('Для версии 1 карты допустим только вид «7»'))
+              }
+              if (version !== 1 && v !== '8' && v !== '9') {
+                return Promise.reject(new Error('Для версии 2 и выше укажите вид «8» или «9»'))
+              }
+              return Promise.resolve()
+            },
+          },
+        ]}
+        validateTrigger={['onChange', 'onBlur']}
+      >
         {kindSelectControl}
       </Form.Item>
       <Form.Item label="Дата формирования">

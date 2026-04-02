@@ -322,6 +322,39 @@ body {
   display: none !important;
 }
 
+/* Обязательное поле: звезда заметна на «бейдже» метки (field-tag) */
+.field-tag-form .ant-form-item-label > label.ant-form-item-required:not(.ant-form-item-required-mark-hidden)::before {
+  color: #ff4d4f !important;
+  font-size: 12px !important;
+  line-height: 1 !important;
+  margin-inline-end: 4px !important;
+}
+
+/* Одна звезда: своя в label + скрываем дубликат от Ant Design ::before */
+.field-tag-form .ant-form-item-label > label.ant-form-item-required:has(.notification-kind-label-wrap)::before {
+  display: none !important;
+}
+
+.field-tag-form .notification-kind-required-star {
+  display: inline-block;
+  color: #ff4d4f;
+  font-weight: 700;
+  font-size: 12px;
+  line-height: 1;
+  margin-right: 4px;
+  vertical-align: middle;
+}
+
+.field-tag-form .ant-form-item-has-error .notification-incident-kind-select.ant-select .ant-select-selector {
+  border-color: #ff4d4f !important;
+}
+
+.field-tag-form .ant-form-item-has-error .notification-incident-kind-select.ant-select-focused .ant-select-selector,
+.field-tag-form .ant-form-item-has-error .notification-incident-kind-select.ant-select:hover .ant-select-selector {
+  border-color: #ff4d4f !important;
+  box-shadow: 0 0 0 2px rgba(255, 77, 79, 0.15) !important;
+}
+
 /* DPA уведомление: «Вид» — перенос длинного текста в закрытом Select (не одна строка с …) */
 .field-tag-form .notification-incident-kind-select.ant-select.ant-select-single .ant-select-selector {
   height: auto !important;
