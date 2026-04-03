@@ -13,7 +13,6 @@ import type {
   ComplianceDocument,
   ViolationsData,
   ViolatedRequirement,
-  ViolatedIndicator,
   AddressDetails,
   SupplyChainPartyDetails,
   DetectionPlaceData,
@@ -40,6 +39,12 @@ function hasAtLeastOneAddress(party: { registrationAddress?: unknown; actualAddr
 
 function hasAtLeastOneAddressFromArray(addresses: unknown[] | undefined): boolean {
   return !!(addresses && addresses.length > 0)
+}
+
+function normalizeBatchViolations(batch: ProductBatchDetails): ViolationsData[] {
+  const v = batch.violations
+  if (v == null) return []
+  return Array.isArray(v) ? v : [v as ViolationsData]
 }
 
 function getAddresses(party: {
@@ -158,7 +163,6 @@ export function validateOutgoingCard(data: CardData): ValidationResult {
     const batch = batches[i]
     const docs = batch?.shippingDocuments ?? []
     if (docs.length === 0) {
-      add(sectionTsd, 'В каждом составе сведений о серии или партии продукции должен быть указан хотя бы один товаросопроводительный документ')
       continue
     }
     for (const d of docs) {
@@ -181,8 +185,23 @@ export function validateOutgoingCard(data: CardData): ValidationResult {
 
   // —— Документы соответствия (по XSD только в tsd.batches[]) ——
   const complianceList = mergeComplianceDocumentsFromBatches(data.tsd)?.documents ?? []
-  if (batches.length > 0 && complianceList.length === 0) {
-    add(sectionCompliance, 'В каждом составе сведений о серии или партии продукции должен быть указан хотя бы один документ об оценке соответствия продукции')
+  // П.1 ТЗ: ТСД по каждой партии — замечание в разделе «Документы соответствия»; плюс документ соответствия по каждой партии
+  for (let bi = 0; bi < batches.length; bi++) {
+    const batch = batches[bi]
+    const shipping = batch?.shippingDocuments ?? []
+    if (shipping.length === 0) {
+      add(
+        sectionCompliance,
+        'В каждом составе сведений о серии или партии продукции должен быть указан хотя бы один товаросопроводительный документ'
+      )
+    }
+    const batchCompliance = batch?.complianceDocuments ?? []
+    if (batchCompliance.length === 0) {
+      add(
+        sectionCompliance,
+        'В каждом составе сведений о серии или партии продукции должен быть указан хотя бы один документ об оценке соответствия продукции'
+      )
+    }
   }
   for (const doc of complianceList) {
     if (empty(doc?.docKindCode)) {
@@ -218,31 +237,35 @@ export function validateOutgoingCard(data: CardData): ValidationResult {
 
   // —— Нарушения (по XSD только в tsd.batches[]) ——
   if (batches.length > 0) {
-    const allViolations = batches.flatMap((b) => b?.violations ?? [])
-    if (allViolations.length === 0) {
-      add(sectionViolations, 'В каждом составе сведений о серии или партии продукции должно быть указано хотя бы одно нарушение')
-    }
-    const hasViolationWithoutRequirements = allViolations.some((v) => (v?.violatedRequirements?.length ?? 0) === 0)
-    if (hasViolationWithoutRequirements) {
-      add(sectionViolations, 'В каждом составе сведений о нарушении должны быть указаны сведения хотя бы об одном нарушенном требовании')
+    const allViolations: ViolationsData[] = batches.flatMap((b) => normalizeBatchViolations(b))
+    for (const batch of batches) {
+      const batchViol = normalizeBatchViolations(batch)
+      if (batchViol.length === 0) {
+        add(sectionViolations, 'В каждом составе сведений о серии или партии продукции должно быть указано хотя бы одно нарушение')
+      }
+      for (const v of batchViol) {
+        if ((v?.violatedRequirements?.length ?? 0) === 0) {
+          add(sectionViolations, 'В каждом составе сведений о нарушении должны быть указаны сведения хотя бы об одном нарушенном требовании')
+        }
+      }
     }
     const reqs = allViolations.flatMap((v) => v?.violatedRequirements ?? [])
+    for (const r of reqs) {
+      if (empty(r?.technicalRegulationId)) {
+        add(sectionViolations, 'В каждом составе сведении о нарушенных требованиях должен быть указан номер техрегламента')
+      }
+    }
     const inds = allViolations.flatMap((v) => v?.violatedIndicators ?? [])
-    const hasReqDetails = reqs.some((r) => !empty(r?.technicalRegulationId))
-    if (reqs.length > 0 && !hasReqDetails) {
-      add(sectionViolations, 'В каждом составе сведении о нарушенных требованиях должен быть указан номер техрегламента')
-    }
-    const hasNormative = inds.some((i) => i?.isNormative !== undefined && i?.isNormative !== null)
-    if (inds.length > 0 && !hasNormative) {
-      add(sectionViolations, 'В каждом составе сведении о нарушенных показателях должен быть указан признак нормативного показателя')
-    }
-    const hasIndicatorName = inds.some((i) => !empty(i?.indicatorName))
-    if (inds.length > 0 && !hasIndicatorName) {
-      add(sectionViolations, 'В каждом составе сведении о нарушенных показателях должно быть указано наименование показателя')
-    }
-    const hasIndicatorValue = inds.some((i) => !empty(i?.indicatorValue))
-    if (inds.length > 0 && !hasIndicatorValue) {
-      add(sectionViolations, 'В каждом составе сведении о нарушенных показателях должно быть указано значение показателя')
+    for (const ind of inds) {
+      if (ind?.isNormative === undefined || ind?.isNormative === null) {
+        add(sectionViolations, 'В каждом составе сведении о нарушенных показателях должен быть указан признак нормативного показателя')
+      }
+      if (empty(ind?.indicatorName)) {
+        add(sectionViolations, 'В каждом составе сведении о нарушенных показателях должно быть указано наименование показателя')
+      }
+      if (empty(ind?.indicatorValue)) {
+        add(sectionViolations, 'В каждом составе сведении о нарушенных показателях должно быть указано значение показателя')
+      }
     }
   }
   if (sectionViolations.remarks.length) sections.push(sectionViolations)
@@ -323,8 +346,26 @@ export function validateOutgoingCard(data: CardData): ValidationResult {
 
   // —— Принятые меры ——
   const measuresList = data.measures?.measures ?? []
-  if (measuresList.length === 0) {
-    add(sectionMeasures, 'Раздел «Принятые меры» не заполнен. Необходимо указать хотя бы одну принятую меру.')
+  for (const m of measuresList) {
+    if (empty(m?.startDate)) {
+      add(sectionMeasures, 'В составе каждого набора сведений о принятой мере должна быть указана Начальная дата')
+    }
+    const basisList = m?.measureInitiationBasisDetails
+    if (basisList && basisList.length > 0) {
+      const anyBasisIncomplete = basisList.some(
+        (basis) =>
+          empty(basis?.docKindName) ||
+          empty(basis?.docName) ||
+          empty(basis?.docId) ||
+          empty(basis?.docCreationDate)
+      )
+      if (anyBasisIncomplete) {
+        add(
+          sectionMeasures,
+          'В составе каждого набора основания для введения меры должны быть указаны Наименование вида документа, Наименование документа, Номер документа, Дата документа'
+        )
+      }
+    }
   }
   for (const m of measuresList) {
     if (empty(m?.measureCode) && empty(m?.measureName)) {

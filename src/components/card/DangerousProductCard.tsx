@@ -93,6 +93,7 @@ const DangerousProductCard: React.FC<DangerousProductCardProps> = ({
   /** Ошибки формата полей (XSD) перед сохранением; блокируют кнопку «Сохранить в БД». */
   const [formatValidationErrors, setFormatValidationErrors] = useState<string[]>([])
   /** Логические проверки карты (в т.ч. «Вид» уведомления) перед сохранением в БД. */
+  /** Только сценарий «новая версия по копии»: блок «Сохранить в БД» по пустому/неверному «Вид». */
   const [comparisonLogicalValidationErrors, setComparisonLogicalValidationErrors] = useState<string[]>([])
   const [hasStatusRight, setHasStatusRight] = useState(false)
   const [hasSendRight, setHasSendRight] = useState(false)
@@ -581,14 +582,21 @@ const DangerousProductCard: React.FC<DangerousProductCardProps> = ({
   }
 
   const handleSave = () => {
-    const outgoingValidation = validateOutgoingCard(editedData)
-    setComparisonLogicalValidationErrors(
-      outgoingValidation.success
-        ? []
-        : outgoingValidation.sections.flatMap((s) =>
-            s.remarks.map((r) => `${s.sectionName}: ${r}`)
-          )
-    )
+    if (copyFromDpaid != null) {
+      const v = editedData.version ?? 1
+      const kind = editedData.notification?.type?.trim() ?? ''
+      const kindErrors: string[] = []
+      if (!kind) {
+        kindErrors.push('Уведомление: Вид уведомления должен быть указан')
+      } else if (v === 1 && kind !== '7') {
+        kindErrors.push('Уведомление: Неверно указан вид уведомления')
+      } else if (v !== 1 && kind !== '8' && kind !== '9') {
+        kindErrors.push('Уведомление: Неверно указан вид уведомления')
+      }
+      setComparisonLogicalValidationErrors(kindErrors)
+    } else {
+      setComparisonLogicalValidationErrors([])
+    }
 
     const xmlBody = exportCardDataToXML(editedData)
     const metadata = buildSaveMetadataFromCardData(editedData)
@@ -651,17 +659,22 @@ const DangerousProductCard: React.FC<DangerousProductCardProps> = ({
 
   const handleSaveToDbFromModal = async () => {
     if (!pendingSavePayload) return
-    const outgoingValidation = validateOutgoingCard(editedData)
-    if (!outgoingValidation.success) {
-      setComparisonLogicalValidationErrors(
-        outgoingValidation.sections.flatMap((s) =>
-          s.remarks.map((r) => `${s.sectionName}: ${r}`)
-        )
-      )
-      message.error(
-        'Сохранение в БД невозможно: исправьте замечания проверки карты (обязательные поля и логика, в том числе поле «Вид» в разделе «Уведомление»).'
-      )
-      return
+    if (copyFromDpaid != null) {
+      const v = editedData.version ?? 1
+      const kind = editedData.notification?.type?.trim() ?? ''
+      const kindErrors: string[] = []
+      if (!kind) {
+        kindErrors.push('Уведомление: Вид уведомления должен быть указан')
+      } else if (v === 1 && kind !== '7') {
+        kindErrors.push('Уведомление: Неверно указан вид уведомления')
+      } else if (v !== 1 && kind !== '8' && kind !== '9') {
+        kindErrors.push('Уведомление: Неверно указан вид уведомления')
+      }
+      if (kindErrors.length > 0) {
+        setComparisonLogicalValidationErrors(kindErrors)
+        message.error('Сохранение в БД невозможно: укажите корректный вид уведомления для новой версии карты.')
+        return
+      }
     }
     const xmlJustSaved = pendingSavePayload.xmlBody
     setSaving(true)
@@ -769,6 +782,7 @@ const DangerousProductCard: React.FC<DangerousProductCardProps> = ({
               data={currentData.notification}
               onChange={(notification) => setEditedData((prev) => ({ ...prev, notification }))}
               isNewCard={effectiveDpaid === '-'}
+              enforceIncidentKindForCopy={copyFromDpaid != null}
               version={currentData.version ?? 1}
               isDraft={effectiveDpaid === '-' || (currentStatusId === 5) || /черновик/i.test(editedData.status ?? data.status ?? '')}
               isOutgoing={isOutgoingSource}

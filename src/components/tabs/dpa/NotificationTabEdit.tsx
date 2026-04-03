@@ -24,6 +24,11 @@ export interface NotificationTabEditProps {
   isOutgoing?: boolean
   /** DEPID из карт прав (объединённые) — только соответствующие УО в списке (при isOutgoing && isDraft) */
   allowedAuthorityIds?: string[]
+  /**
+   * Новая версия по копии (/- с copyFromDpaid): подсветка и валидация поля «Вид».
+   * Обычное создание DPA — без этого (вид по умолчанию, сохранение без логической блокировки разделов).
+   */
+  enforceIncidentKindForCopy?: boolean
 }
 
 const VERSION_1_KIND_CODES = ['7']
@@ -37,6 +42,7 @@ const NotificationTabEdit: React.FC<NotificationTabEditProps> = ({
   isDraft = false,
   isOutgoing = false,
   allowedAuthorityIds,
+  enforceIncidentKindForCopy = false,
 }) => {
   const [form] = Form.useForm()
   const { loading: loadingIncidentAlertKinds, getSelectOptions: getIncidentAlertKindSelectOptions } = useIncidentAlertKindOptions()
@@ -69,7 +75,7 @@ const NotificationTabEdit: React.FC<NotificationTabEditProps> = ({
     setSelectedAuthorityUid(authorityUid)
 
     const trimmed = data.type?.trim() ?? ''
-    if (trimmed && !allowedKindCodes.includes(trimmed)) {
+    if (enforceIncidentKindForCopy && trimmed && !allowedKindCodes.includes(trimmed)) {
       onChange({ ...data, type: '' })
       return
     }
@@ -83,7 +89,9 @@ const NotificationTabEdit: React.FC<NotificationTabEditProps> = ({
       endDate: data.endDate ? dayjs(data.endDate) : undefined,
       authorizedBodyCountry: data.authorizedBody?.country ?? '',
     })
-    void form.validateFields(['type']).catch(() => {})
+    if (enforceIncidentKindForCopy) {
+      void form.validateFields(['type']).catch(() => {})
+    }
     // Не зависим от всего data/onChange: иначе эффект на каждом рендере и setFieldsValue гасит ошибку «Вид».
     // eslint-disable-next-line react-hooks/exhaustive-deps -- onChange + прочие поля data: берём замыкание при смене перечисленных deps
   }, [
@@ -96,6 +104,7 @@ const NotificationTabEdit: React.FC<NotificationTabEditProps> = ({
     data.authorizedBody?.identifier,
     data.authorizedBody?.country,
     formationDateOnly,
+    enforceIncidentKindForCopy,
   ])
 
   // При создании новой карточки: дата формирования = сегодня, страна УО = BY
@@ -200,33 +209,41 @@ const NotificationTabEdit: React.FC<NotificationTabEditProps> = ({
       </Form.Item>
       <Form.Item
         label={
-          <span className="notification-kind-label-wrap">
-            <span className="notification-kind-required-star" aria-hidden="true">
-              *
+          enforceIncidentKindForCopy ? (
+            <span className="notification-kind-label-wrap">
+              <span className="notification-kind-required-star" aria-hidden="true">
+                *
+              </span>
+              Вид
             </span>
-            Вид
-          </span>
+          ) : (
+            'Вид'
+          )
         }
         name="type"
-        rules={[
-          { required: true, message: 'Укажите вид уведомления' },
-          {
-            validator: async (_, value) => {
-              if (value == null || String(value).trim() === '') {
-                return Promise.resolve()
-              }
-              const v = String(value).trim()
-              if (version === 1 && v !== '7') {
-                return Promise.reject(new Error('Для версии 1 карты допустим только вид «7»'))
-              }
-              if (version !== 1 && v !== '8' && v !== '9') {
-                return Promise.reject(new Error('Для версии 2 и выше укажите вид «8» или «9»'))
-              }
-              return Promise.resolve()
-            },
-          },
-        ]}
-        validateTrigger={['onChange', 'onBlur']}
+        rules={
+          enforceIncidentKindForCopy
+            ? [
+                { required: true, message: 'Укажите вид уведомления' },
+                {
+                  validator: async (_, value) => {
+                    if (value == null || String(value).trim() === '') {
+                      return Promise.resolve()
+                    }
+                    const v = String(value).trim()
+                    if (version === 1 && v !== '7') {
+                      return Promise.reject(new Error('Для версии 1 карты допустим только вид «7»'))
+                    }
+                    if (version !== 1 && v !== '8' && v !== '9') {
+                      return Promise.reject(new Error('Для версии 2 и выше укажите вид «8» или «9»'))
+                    }
+                    return Promise.resolve()
+                  },
+                },
+              ]
+            : undefined
+        }
+        validateTrigger={enforceIncidentKindForCopy ? ['onChange', 'onBlur'] : undefined}
       >
         {kindSelectControl}
       </Form.Item>
