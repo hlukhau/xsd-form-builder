@@ -626,6 +626,14 @@ export function collectFormatValidationErrors(data: CardData): FormatValidationE
   const errors: string[] = []
 
   const product: ProductData | undefined = data.product
+  if (product) {
+    pushFormatError(
+      errors,
+      'Продукция → Наименование вида продукции',
+      'sanitaryProductTypeName',
+      product.typeName
+    )
+  }
   if (product?.productDetails) {
     const pd = product.productDetails
     const base = 'Продукция'

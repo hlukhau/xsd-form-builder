@@ -270,11 +270,14 @@ const ProductTabEdit: React.FC<ProductTabEditProps> = ({ data, onChange }) => {
           label={labelWithHelp('Наименование вида продукции', FIELD_HELP.productTypeName)}
           name="typeName"
           style={{ marginTop: 0 }}
+          rules={getFormRules('sanitaryProductTypeName')}
         >
           <Input
             placeholder="Введите наименование вида продукции"
             value={data.typeName ?? ''}
             onChange={handleProductTypeNameChange}
+            maxLength={getMaxLength('sanitaryProductTypeName')}
+            showCount
           />
         </Form.Item>
       )}

@@ -40,10 +40,13 @@ export const DECIMAL_SEPARATOR_COMMA_MESSAGE = 'Для числовых поле
 export const XSD_FIELD_CONSTRAINTS: Record<string, FieldConstraint> = {
   // Продукция (вкладка «Продукция», блок продукции в ТСД)
   productId: { maxLength: 50, messageMaxLength: 'Не более 50 символов (csdo:Id50Type)' },
-  /** csdo:ProductName — в XSD до 300 символов; по требованию формы контроль длины не применяется. */
-  productName: {},
-  /** smsdo:ProductTradeName — в XSD до 300 символов; по требованию формы контроль длины не применяется. */
-  tradeName: {},
+  productName: { maxLength: 300, messageMaxLength: 'Не более 300 символов (csdo:Name300Type)' },
+  tradeName: { maxLength: 300, messageMaxLength: 'Не более 300 символов (csdo:Name300Type)' },
+  /** smsdo:SanitaryProductTypeName → csdo:Name300Type */
+  sanitaryProductTypeName: {
+    maxLength: 300,
+    messageMaxLength: 'Не более 300 символов (csdo:Name300Type, smsdo:SanitaryProductTypeName)',
+  },
   description: { maxLength: 4000, messageMaxLength: 'Не более 4000 символов (csdo:Text4000Type)' },
   commodityCode: {
     pattern: COMMODITY_CODE_PATTERN,
