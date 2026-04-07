@@ -155,11 +155,16 @@ const DangerousProductCard: React.FC<DangerousProductCardProps> = ({
   const datasourceKindForEditPolicy =
     editedData.datasourceKindCode != null ? String(editedData.datasourceKindCode) : datasourceKindCode
   const sourceForEditPolicy = (editedData.source ?? sourceFromData) || ''
+  const srcLowerForEdit = sourceForEditPolicy.toLowerCase()
   const isIncomingNoEdit =
     datasourceKindForEditPolicy === '1' ||
-    (sourceForEditPolicy.toLowerCase().includes('входящ') &&
+    datasourceKindForEditPolicy === '3' ||
+    (srcLowerForEdit.includes('входящ') &&
       datasourceKindForEditPolicy !== '2' &&
-      datasourceKindForEditPolicy !== '3')
+      datasourceKindForEditPolicy !== '3') ||
+    (srcLowerForEdit.includes('еэк') &&
+      datasourceKindForEditPolicy !== '1' &&
+      datasourceKindForEditPolicy !== '2')
 
   /** depIds для фильтра УО: при отладочном override — из JSON; иначе из GET /api/rights (не сбрасываем при сбое fetchDepInfo). */
   const outgoingAuthorityFilterDepIds = useMemo(() => {

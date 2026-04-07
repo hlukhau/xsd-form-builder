@@ -157,8 +157,14 @@ export function validateOutgoingCard(data: CardData): ValidationResult {
   }
   if (sectionProduct.remarks.length) sections.push(sectionProduct)
 
-  // —— ТСД (по партиям) ——
+  // —— ТСД (по партиям) —— smcdo:NonCompliantSanitaryProductBatchDetails в составе DangerousProductAlertDetails
   const batches = data.tsd?.batches ?? []
+  if (batches.length === 0) {
+    add(
+      sectionTsd,
+      'В составе сведений об обнаружении опасной продукции должны быть указаны хотя бы одни сведения о серии или партии продукции'
+    )
+  }
   for (let i = 0; i < batches.length; i++) {
     const batch = batches[i]
     const docs = batch?.shippingDocuments ?? []
