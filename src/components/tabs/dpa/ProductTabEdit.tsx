@@ -24,7 +24,7 @@ const ProductTabEdit: React.FC<ProductTabEditProps> = ({ data, onChange }) => {
   const [typeCodeError, setTypeCodeError] = useState<boolean>(false)
   // Режим переключателя «Код / Наименование» храним в state, чтобы при переключении на «Код» не откатываться обратно (когда оба поля пусты)
   const [productTypeMode, setProductTypeMode] = useState<'code' | 'name'>(() =>
-    data.typeCode?.trim() ? 'code' : 'name'
+    data.typeCode?.trim() ? 'code' : data.typeName?.trim() ? 'name' : 'code'
   )
 
   const tradeNamesList = data.productDetails.tradeNames?.length
@@ -35,6 +35,7 @@ const ProductTabEdit: React.FC<ProductTabEditProps> = ({ data, onChange }) => {
   useEffect(() => {
     if (data.typeCode?.trim()) setProductTypeMode('code')
     else if (data.typeName?.trim()) setProductTypeMode('name')
+    else setProductTypeMode('code')
   }, [data.typeCode, data.typeName])
 
   // Синхронизация формы с data — без обращения к справочнику
@@ -223,7 +224,7 @@ const ProductTabEdit: React.FC<ProductTabEditProps> = ({ data, onChange }) => {
       className="field-tag-form"
       onValuesChange={handleValuesChange}
     >
-      <Form.Item label={labelWithHelp('Вид продукции', FIELD_HELP.productTypeCode)}>
+      <Form.Item label="Вид продукции" style={{ marginBottom: 4 }}>
         <Radio.Group
           value={productTypeMode}
           onChange={(e) => {
@@ -235,7 +236,7 @@ const ProductTabEdit: React.FC<ProductTabEditProps> = ({ data, onChange }) => {
               onChange({ ...data, typeCode: '', typeName: data.typeName || '' })
             }
           }}
-          style={{ marginBottom: 8 }}
+          style={{ marginBottom: 0 }}
         >
           <Radio value="code">Код вида продукции</Radio>
           <Radio value="name">Наименование вида продукции</Radio>
@@ -243,8 +244,9 @@ const ProductTabEdit: React.FC<ProductTabEditProps> = ({ data, onChange }) => {
       </Form.Item>
       {productTypeMode === 'code' && (
         <Form.Item
-          label="Код вида продукции"
+          label={labelWithHelp('Код вида продукции', FIELD_HELP.productTypeCode)}
           name="typeCode"
+          style={{ marginTop: 0 }}
           validateStatus={typeCodeError ? 'error' : ''}
           help={typeCodeError ? 'Код не найден в справочнике' : ''}
         >
@@ -264,7 +266,11 @@ const ProductTabEdit: React.FC<ProductTabEditProps> = ({ data, onChange }) => {
         </Form.Item>
       )}
       {productTypeMode === 'name' && (
-        <Form.Item label="Наименование вида продукции" name="typeName">
+        <Form.Item
+          label={labelWithHelp('Наименование вида продукции', FIELD_HELP.productTypeName)}
+          name="typeName"
+          style={{ marginTop: 0 }}
+        >
           <Input
             placeholder="Введите наименование вида продукции"
             value={data.typeName ?? ''}
