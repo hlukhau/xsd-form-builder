@@ -518,6 +518,18 @@ function pushFormatError(errors: string[], path: string, fieldKey: string, value
   errors.push(path ? `${path}: ${displayMsg}` : displayMsg)
 }
 
+/** Убирает повторы одной и той же строки (один и тот же путь и текст — без двойного показа в модалке). */
+function dedupeFormatErrorsPreservingOrder(items: string[]): string[] {
+  const seen = new Set<string>()
+  const out: string[] = []
+  for (const item of items) {
+    if (seen.has(item)) continue
+    seen.add(item)
+    out.push(item)
+  }
+  return out
+}
+
 function addressHasContent(addr: AddressDetails): boolean {
   const s = (v: string | undefined) => (v ?? '').trim()
   return !!(s(addr.country) || s(addr.territoryCode) || s(addr.regionName) || s(addr.districtName) || s(addr.cityName) || s(addr.settlementName) || s(addr.streetName) || s(addr.buildingNumberId) || s(addr.roomNumberId) || s(addr.postOfficeBoxId) || s(addr.postCode) || s(addr.fullAddress))
@@ -635,6 +647,8 @@ export function collectFormatValidationErrors(data: CardData): FormatValidationE
   }
 
   const tsd: TSDData | undefined = data.tsd
+  /** Код ТН ВЭД с вкладки «Продукция»: те же значения во вложенных продуктах ТСД не считаем второй раз (избегаем дубля в отчёте). */
+  const mainCommodityTrimmed = (data.product?.productDetails?.commodityCode ?? '').trim()
   if (tsd?.batches?.length) {
     tsd.batches.forEach((batch, bi) => {
       const batchPath = `ТСД → Партия ${bi + 1}`
@@ -658,6 +672,17 @@ export function collectFormatValidationErrors(data: CardData): FormatValidationE
         pushFormatError(errors, `${docPath} → Наименование`, 'docName500', doc.docName)
         pushFormatError(errors, `${docPath} → Номер`, 'docId', doc.docId)
         ;(doc.products ?? []).forEach((p, pi) => {
+          const pCc = (p.commodityCode ?? '').trim()
+          const sameAsMainProductTab =
+            mainCommodityTrimmed !== '' && pCc === mainCommodityTrimmed
+          if (!sameAsMainProductTab) {
+            pushFormatError(
+              errors,
+              `${docPath} → Продукт ${pi + 1}`,
+              'commodityCode',
+              p.commodityCode
+            )
+          }
           checkTechnicalDocs(errors, `${docPath} → Продукт ${pi + 1} → Техническая документация`, p.technicalDocs)
         })
         ;(doc.supplyChainParties ?? []).forEach((party, pi) => {
@@ -759,7 +784,7 @@ export function collectFormatValidationErrors(data: CardData): FormatValidationE
 
   pushPhaXsdFormatErrors(errors, data)
 
-  return { errors }
+  return { errors: dedupeFormatErrorsPreservingOrder(errors) }
 }
 
 /** Карта PHA (R.SM.SS.08.001): дополнительные проверки типов smsdo/csdo по XSD. */
