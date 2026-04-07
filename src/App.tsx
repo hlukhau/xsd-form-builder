@@ -14,6 +14,7 @@ import {
   phaSourceToViewRight,
   setReferenceGuidContext,
   getPersistedReferenceGuid,
+  changeDpaStatus,
 } from './utils/referenceDataApi'
 import { fetchPhaXml, fetchPhaMetadata, fetchPhaStatusHistory, postPhaStatus } from './cards/pha/phaApi'
 import { isPhaIncomingSource } from './utils/phaStatusButtonConfig'
@@ -211,8 +212,10 @@ function AppContent() {
         validationResult.validationWarnings.forEach((w) => message.warning(w))
         validationResult.validationErrors.forEach((e) => message.error(e))
         let card = validationResult.cardData
+        let incomingMetaForFirstOpen: { datasourceKindCode?: string; dpaStatusId?: number } | null = null
         try {
           const meta = await fetchDpaMetadata(dpaid, guid)
+          incomingMetaForFirstOpen = meta
           // УО: идентификатор и страна — из БД (DPA.AUTHORITYID → справочник); наименование и краткое наименование — всегда из XML (csdo:AuthorityName, csdo:AuthorityBriefName)
           const authorityFromDb = (meta.authorityUid != null && meta.authorityUid.trim() !== '')
             ? {
@@ -243,6 +246,25 @@ function AppContent() {
           }
         } catch (e) {
           console.warn('Метаданные VW_DPA не загружены:', e)
+        }
+        if (
+          !cancelled &&
+          incomingMetaForFirstOpen != null &&
+          String(incomingMetaForFirstOpen.datasourceKindCode ?? '').trim() === '1' &&
+          incomingMetaForFirstOpen.dpaStatusId === 1
+        ) {
+          try {
+            const res = await changeDpaStatus(dpaid, 'first_open', { guid })
+            if (res.changed === true && res.newStatus) {
+              card = {
+                ...card,
+                status: res.newStatus,
+                statusId: res.newStatusId ?? card.statusId,
+              }
+            }
+          } catch {
+            /* автопереход не выполнен — отображаем карту в статусе из метаданных */
+          }
         }
         if (!cancelled) {
           setCardData(card)

@@ -992,12 +992,12 @@ export async function checkAccessRight(id: string | null, right: string): Promis
   return data.allowed === true
 }
 
-/** Смена статуса карты. Входящие: complete_processing, close. Исходящие: mark_ready (передайте depKindCode), to_new (Отправка не удалась/Ошибка обработки → Новое), send, close. guid — для USERID и depKindCode из карты прав. POST /api/dpa/status */
+/** Смена статуса карты. Входящие: first_open (Получено→В обработке при открытии; без проверки прав), complete_processing, close. Исходящие: mark_ready (передайте depKindCode), to_new, send, close. guid — для USERID в истории и depKindCode. POST /api/dpa/status */
 export async function changeDpaStatus(
   dpaid: string,
   action: string,
   options?: { depKindCode?: string; guid?: string }
-): Promise<{ newStatus: string }> {
+): Promise<{ newStatus: string; changed?: boolean; newStatusId?: number }> {
   const body: { dpaid: string; action: string; depKindCode?: string; guid?: string } = { dpaid, action }
   if (options?.depKindCode != null && options.depKindCode !== '') body.depKindCode = options.depKindCode
   const resolvedGuid = resolveGuid(options?.guid)

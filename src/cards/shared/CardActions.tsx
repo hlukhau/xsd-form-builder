@@ -122,7 +122,7 @@ const CardActions: React.FC<CardActionsProps> = ({
                 disabled={copyButtonDisabled}
                 onClick={() => !copyButtonDisabled && onCopy()}
               >
-                Сделать копию
+                Создать новую версию
               </Button>
             </span>
           </Tooltip>

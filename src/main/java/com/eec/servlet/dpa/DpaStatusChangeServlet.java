@@ -14,19 +14,25 @@ import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
+import java.sql.Types;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 /**
  * Смена статуса карты DPA.
- * Входящие: action complete_processing | close, право dangerousProductIn:status.
+ * Входящие: action first_open | complete_processing | close;
+ * first_open — Получено→В обработке при открытии карты; права не проверяются (оператор сразу видит «В обработке»).
+ * complete_processing | close — право dangerousProductIn:status.
  * Исходящие: action mark_ready | send | close; mark_ready/close — dangerousProductOut:status, send — dangerousProductOut:send.
  * mark_ready: тело { "dpaid", "action": "mark_ready", "depKindCode": "dep0601"|"dep0602"|"dep0603" }.
  * Обновляется DPA.DPASTATUSID, DPASTATUSHIST (и при mark_ready — DPARESOLUTION).
  */
 public class DpaStatusChangeServlet extends HttpServlet {
 
+    private static final int INCOMING_RECEIVED = 1;
     private static final int INCOMING_COMPLETED = 4;
+    private static final String DATASOURCEKIND_INCOMING = "1";
+    private static final String DATASOURCEKIND_OUTGOING = "2";
     private static final int OUTGOING_DRAFT = 5;
     private static final int OUTGOING_NEW = 6;
     private static final int OUTGOING_PENDING = 7;
@@ -38,7 +44,7 @@ public class DpaStatusChangeServlet extends HttpServlet {
 
     /** Текущее состояние: DPAID, DPASTATUSID, DPASTATUSNAME, источник */
     private static final String SQL_CURRENT = ""
-            + "SELECT vw.DPAID, vw.DPASTATUSID, vw.DPASTATUSNAME, t.DATASOURCEKINDNAME "
+            + "SELECT vw.DPAID, vw.DPASTATUSID, vw.DPASTATUSNAME, t.DATASOURCEKINDNAME, vw.DATASOURCEKINDCODE "
             + "FROM VW_DPA vw "
             + "LEFT JOIN DATASOURCEKIND t ON vw.DATASOURCEKINDCODE = t.DATASOURCEKINDCODE "
             + "WHERE vw.DPAID = ?";
@@ -136,18 +142,22 @@ public class DpaStatusChangeServlet extends HttpServlet {
             currentStatusId = rs.getInt("DPASTATUSID");
             currentStatusName = rs.getString("DPASTATUSNAME");
             sourceName = rs.getString("DATASOURCEKINDNAME");
+            String datasourceKindCodeRow = rs.getString("DATASOURCEKINDCODE");
             rs.close();
             ps.close();
 
-            boolean incoming = sourceName != null && sourceName.toLowerCase().contains("входящ");
-            boolean outgoing = sourceName != null && sourceName.toLowerCase().contains("исходящ");
+            String dsc = datasourceKindCodeRow != null ? datasourceKindCodeRow.trim() : "";
+            boolean incoming = DATASOURCEKIND_INCOMING.equals(dsc)
+                    || (sourceName != null && sourceName.toLowerCase().contains("входящ"));
+            boolean outgoing = DATASOURCEKIND_OUTGOING.equals(dsc)
+                    || (sourceName != null && sourceName.toLowerCase().contains("исходящ"));
 
             if (incoming) {
-                if (userId == null) {
+                if (!"first_open".equals(action) && userId == null) {
                     sendJsonError(response, HttpServletResponse.SC_BAD_REQUEST, "Укажите guid в теле запроса (в карте прав должен быть атрибут userId)");
                     return;
                 }
-                handleIncoming(response, conn, dpaidNum, action, currentStatusId, currentStatusName, userId, rightsJson);
+                handleIncoming(response, conn, dpaidNum, action, currentStatusId, currentStatusName, userId, rightsJson, dsc);
                 return;
             }
             if (outgoing) {
@@ -168,7 +178,22 @@ public class DpaStatusChangeServlet extends HttpServlet {
     }
 
     private void handleIncoming(HttpServletResponse response, Connection conn, long dpaid, String action,
-                                int currentStatusId, String currentStatusName, Integer userId, String rightsJson) throws IOException, SQLException {
+                                int currentStatusId, String currentStatusName, Integer userId, String rightsJson,
+                                String datasourceKindCode) throws IOException, SQLException {
+        if ("first_open".equals(action)) {
+            if (!DATASOURCEKIND_INCOMING.equals(datasourceKindCode != null ? datasourceKindCode.trim() : "")) {
+                sendJsonError(response, HttpServletResponse.SC_BAD_REQUEST,
+                        "Первичное открытие (Получено→В обработке) доступно только для входящей карты (DATASOURCEKINDCODE=1)");
+                return;
+            }
+            boolean isReceived = currentStatusId == INCOMING_RECEIVED || isIncomingReceivedStatusName(currentStatusName);
+            if (!isReceived) {
+                response.getWriter().print(buildDpaFirstOpenJson(false, currentStatusName, currentStatusId));
+                return;
+            }
+            applyNewStatus(response, conn, dpaid, "В обработке", userId, true);
+            return;
+        }
         if (!AccessRightService.hasDangerousProductInStatus(rightsJson)) {
             sendJsonError(response, HttpServletResponse.SC_FORBIDDEN,
                     "Нет права управления статусом входящих сведений (dangerousProductIn:status)");
@@ -203,7 +228,20 @@ public class DpaStatusChangeServlet extends HttpServlet {
             sendJsonError(response, HttpServletResponse.SC_BAD_REQUEST, "Неизвестное действие: " + action);
             return;
         }
-        applyNewStatus(response, conn, dpaid, newStatusName, userId);
+        applyNewStatus(response, conn, dpaid, newStatusName, userId, false);
+    }
+
+    private static boolean isIncomingReceivedStatusName(String currentStatusName) {
+        if (currentStatusName == null || currentStatusName.trim().isEmpty()) return false;
+        String n = currentStatusName.toLowerCase();
+        return n.contains("получено") && !n.contains("обработ");
+    }
+
+    private static String buildDpaFirstOpenJson(boolean changed, String statusName, int statusId) {
+        String name = statusName != null ? statusName : "";
+        return "{\"ok\":true,\"changed\":" + changed
+                + ",\"newStatus\":\"" + escapeJson(name) + "\""
+                + ",\"newStatusId\":" + statusId + "}";
     }
 
     private void handleOutgoing(HttpServletResponse response, Connection conn,
@@ -537,7 +575,8 @@ public class DpaStatusChangeServlet extends HttpServlet {
         }
     }
 
-    private void applyNewStatus(HttpServletResponse response, Connection conn, long dpaid, String newStatusName, Integer userId) throws IOException, SQLException {
+    private void applyNewStatus(HttpServletResponse response, Connection conn, long dpaid, String newStatusName, Integer userId,
+                                boolean firstOpenResponse) throws IOException, SQLException {
         PreparedStatement ps = conn.prepareStatement(SQL_STATUS_ID);
         ps.setString(1, newStatusName);
         ResultSet rs = ps.executeQuery();
@@ -560,10 +599,20 @@ public class DpaStatusChangeServlet extends HttpServlet {
         ps = conn.prepareStatement(SQL_INSERT_HIST);
         ps.setLong(1, dpaid);
         ps.setInt(2, newStatusId);
-        ps.setInt(3, userId);
+        if (userId != null) {
+            ps.setInt(3, userId);
+        } else {
+            ps.setNull(3, Types.INTEGER);
+        }
         ps.executeUpdate();
         ps.close();
-        response.getWriter().print("{\"ok\":true,\"newStatus\":\"" + escapeJson(newStatusName) + "\"}");
+        if (firstOpenResponse) {
+            response.getWriter().print("{\"ok\":true,\"changed\":true,\"newStatus\":\"" + escapeJson(newStatusName)
+                    + "\",\"newStatusId\":" + newStatusId + "}");
+        } else {
+            response.getWriter().print("{\"ok\":true,\"newStatus\":\"" + escapeJson(newStatusName) + "\""
+                    + ",\"newStatusId\":" + newStatusId + "}");
+        }
     }
 
     private static String readBody(HttpServletRequest request) throws IOException {

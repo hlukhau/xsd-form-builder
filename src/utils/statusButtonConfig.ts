@@ -21,8 +21,10 @@ export interface StatusButtonResult {
 }
 
 /** DPASTATUSID: входящие 1–4, исходящие 5–13 (DRAFT=5, NEW=6, PENDING=7, SENT=8, FAILED=9, ERROR=10, DELIVERED=11, EDITED=12, COMPLETED=13) */
+const INCOMING_RECEIVED = 1
 const INCOMING_PROCESSING = 2
 const INCOMING_PROCESSED = 3
+const INCOMING_COMPLETED = 4
 const OUTGOING_DRAFT = 5
 const OUTGOING_NEW = 6
 const OUTGOING_PENDING = 7
@@ -55,6 +57,18 @@ function incomingStatusButton(
     const s = norm(status)
     const isProcessing = statusId === INCOMING_PROCESSING || s.includes('в обработке')
     const isProcessed = statusId === INCOMING_PROCESSED || (s.includes('обработано') && !s.includes('завершено'))
+    const hideInactivePlaceholder =
+      statusId === INCOMING_RECEIVED ||
+      statusId === INCOMING_COMPLETED ||
+      (s.includes('получено') && !s.includes('обработ')) ||
+      s.includes('завершено')
+    if (hideInactivePlaceholder && !isProcessing && !isProcessed) {
+      return {
+        config: null,
+        comment:
+          'Кнопка смены статуса не отображается: для статуса «Получено» или «Завершено» при отсутствии права dangerousProductIn:status действие недоступно.',
+      }
+    }
     const label = isProcessing ? 'Завершение обработки' : isProcessed ? 'Закрытие карты' : 'Смена статуса'
     const action = isProcessing ? 'complete_processing' : isProcessed ? 'close' : 'complete_processing'
     return {
@@ -592,6 +606,12 @@ export function getStatusButtonConfig(
       userDepKindName ?? null,
       notificationEndDate ?? null
     )
+  }
+  if (code === '3') {
+    return {
+      config: null,
+      comment: 'Кнопка смены статуса не отображается: для карт из БД ЕЭК смена статуса не предусмотрена.',
+    }
   }
 
   // Иначе — по названию источника (для карт без кода или до сохранения)
