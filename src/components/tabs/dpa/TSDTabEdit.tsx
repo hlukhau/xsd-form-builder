@@ -681,7 +681,7 @@ const TSDTabEdit: React.FC<TSDTabEditProps> = ({ data, onChange }) => {
                                 <div className="compliance-doc-kind-cell">
                                   <Select
                                     showSearch
-                                    placeholder="Вид документа (SHIPDOCKIND)"
+                                    placeholder="Вид документа"
                                     loading={loadingShipDocKinds}
                                     value={td.docKindCode || undefined}
                                     onChange={(code) => handleProductTechnicalDocKindSelect(batchIndex, docIndex, pIndex, tdIndex, code ?? '')}
@@ -696,7 +696,7 @@ const TSDTabEdit: React.FC<TSDTabEditProps> = ({ data, onChange }) => {
                                       loadingShipDocKinds
                                         ? 'Загрузка...'
                                         : shipDocKindsError
-                                          ? `Справочник SHIPDOCKIND не загружен: ${shipDocKindsError}`
+                                          ? `Справочник не загружен: ${shipDocKindsError}`
                                           : 'Нет данных'
                                     }
                                     style={{ width: '100%', minWidth: 200 }}
