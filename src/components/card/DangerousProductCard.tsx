@@ -152,6 +152,15 @@ const DangerousProductCard: React.FC<DangerousProductCardProps> = ({
   const canEditByStatus =
     !isOutgoingSource || currentStatusId === undefined || EDITABLE_OUTGOING_STATUS_IDS.includes(currentStatusId)
 
+  const datasourceKindForEditPolicy =
+    editedData.datasourceKindCode != null ? String(editedData.datasourceKindCode) : datasourceKindCode
+  const sourceForEditPolicy = (editedData.source ?? sourceFromData) || ''
+  const isIncomingNoEdit =
+    datasourceKindForEditPolicy === '1' ||
+    (sourceForEditPolicy.toLowerCase().includes('входящ') &&
+      datasourceKindForEditPolicy !== '2' &&
+      datasourceKindForEditPolicy !== '3')
+
   /** depIds для фильтра УО: при отладочном override — из JSON; иначе из GET /api/rights (не сбрасываем при сбое fetchDepInfo). */
   const outgoingAuthorityFilterDepIds = useMemo(() => {
     const fromOverride = rightsOverride ? getOutgoingAuthorityFilterDepIdsFromRights(rightsOverride) : []
@@ -259,7 +268,11 @@ const DangerousProductCard: React.FC<DangerousProductCardProps> = ({
     }
   }, [hasPersistedDpaid, effectiveDpaid, isOutgoingSource, data?.source, guid])
 
-  const editSwitchDisabled = isOutgoingSource && !canEditByStatus
+  const editSwitchDisabled = isIncomingNoEdit || (isOutgoingSource && !canEditByStatus)
+
+  useEffect(() => {
+    if (isIncomingNoEdit) setIsEditMode(false)
+  }, [isIncomingNoEdit])
 
   // Новая карта (/-/) всегда исходящая — подставляем код "2", т.к. метаданные ещё могут быть не заполнены
   const effectiveDatasourceKindCode =

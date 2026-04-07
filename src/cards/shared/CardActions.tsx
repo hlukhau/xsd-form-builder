@@ -1,5 +1,5 @@
 import { Button, Space, Tooltip } from 'antd'
-import { InfoCircleOutlined, DeleteOutlined, CopyOutlined } from '@ant-design/icons'
+import { DeleteOutlined, CopyOutlined } from '@ant-design/icons'
 import type { CardData } from '@/types/card'
 import type { StatusButtonConfig } from '@/utils/statusButtonConfig'
 
@@ -9,6 +9,7 @@ interface CardActionsProps {
   onDefineAccess?: () => void
   onOpenAllVersions: () => void
   statusButton: StatusButtonConfig | null
+  /** Подсказка к активной кнопке статуса (если у кнопки нет своего hint) */
   statusButtonComment?: string
   closeButton?: StatusButtonConfig | null
   onStatusAction: (action: string) => void
@@ -56,13 +57,6 @@ const CardActions: React.FC<CardActionsProps> = ({
         >
           {statusButton.label}
         </Button>
-      </span>
-    </Tooltip>
-  ) : statusButtonComment ? (
-    <Tooltip title={statusButtonComment}>
-      <span style={{ display: 'inline-flex', alignItems: 'center', color: '#8c8c8c' }}>
-        <InfoCircleOutlined style={{ fontSize: 14 }} />
-        <span style={{ marginLeft: 4, fontSize: 12 }}>Смена статуса</span>
       </span>
     </Tooltip>
   ) : null

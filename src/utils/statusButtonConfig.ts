@@ -38,6 +38,13 @@ function norm(s: string | undefined): string {
   return (s ?? '').trim().toLowerCase()
 }
 
+/** DPASTATUSID из карты/метаданных (иногда строка с JSON) */
+function incomingDpStatusId(statusId: number | null | undefined): number | undefined {
+  if (statusId == null) return undefined
+  const n = Number(statusId)
+  return Number.isFinite(n) ? n : undefined
+}
+
 /** Подсказка при отсутствии права: кнопка отображается задизейбленной */
 const HINT_NO_STATUS_RIGHT_IN =
   'Недостаточно прав: для смены статуса входящих сведений требуется право dangerousProductIn:status.'
@@ -53,22 +60,26 @@ function incomingStatusButton(
   hasRight: boolean,
   _notificationEndDate?: string | null
 ): StatusButtonResult {
-  if (!hasRight) {
-    const s = norm(status)
-    const isProcessing = statusId === INCOMING_PROCESSING || s.includes('в обработке')
-    const isProcessed = statusId === INCOMING_PROCESSED || (s.includes('обработано') && !s.includes('завершено'))
-    const hideInactivePlaceholder =
-      statusId === INCOMING_RECEIVED ||
-      statusId === INCOMING_COMPLETED ||
-      (s.includes('получено') && !s.includes('обработ')) ||
-      s.includes('завершено')
-    if (hideInactivePlaceholder && !isProcessing && !isProcessed) {
-      return {
-        config: null,
-        comment:
-          'Кнопка смены статуса не отображается: для статуса «Получено» или «Завершено» при отсутствии права dangerousProductIn:status действие недоступно.',
-      }
+  const sid = incomingDpStatusId(statusId)
+  const s = norm(status)
+
+  /** «Получено» / «Завершено»: переходы с формы не показываем (для «Получено» — только автоматически при открытии). */
+  const isReceivedOrCompleted =
+    sid === INCOMING_RECEIVED ||
+    sid === INCOMING_COMPLETED ||
+    (sid === undefined && s.includes('получено') && !s.includes('обработ')) ||
+    (sid === undefined && s.includes('завершено'))
+  if (isReceivedOrCompleted) {
+    return {
+      config: null,
+      comment:
+        'Кнопка смены статуса не отображается для входящих сведений в статусе «Получено» или «Завершено».',
     }
+  }
+
+  if (!hasRight) {
+    const isProcessing = sid === INCOMING_PROCESSING || s.includes('в обработке')
+    const isProcessed = sid === INCOMING_PROCESSED || (s.includes('обработано') && !s.includes('завершено'))
     const label = isProcessing ? 'Завершение обработки' : isProcessed ? 'Закрытие карты' : 'Смена статуса'
     const action = isProcessing ? 'complete_processing' : isProcessed ? 'close' : 'complete_processing'
     return {
@@ -76,7 +87,7 @@ function incomingStatusButton(
       comment: HINT_NO_STATUS_RIGHT_IN,
     }
   }
-  if (statusId === INCOMING_PROCESSING) {
+  if (sid === INCOMING_PROCESSING) {
     return {
       config: {
         label: 'Завершение обработки',
@@ -86,7 +97,7 @@ function incomingStatusButton(
       comment: 'Переход карты в состояние «Обработано».',
     }
   }
-  if (statusId === INCOMING_PROCESSED) {
+  if (sid === INCOMING_PROCESSED) {
     return {
       config: {
         label: 'Закрытие карты',
@@ -96,7 +107,6 @@ function incomingStatusButton(
       comment: 'Переход карты в состояние «Завершено».',
     }
   }
-  const s = norm(status)
   if (s.includes('в обработке')) {
     return {
       config: {
