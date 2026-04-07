@@ -326,16 +326,7 @@ function outgoingStatusButton(
     }
   }
   if (statusId === OUTGOING_PENDING) {
-    const comment = 'Ожидает отправки в ЕЭК'
-    return {
-      config: {
-        label: comment,
-        action: 'pending_system',
-        disabled: true,
-        hint: comment,
-      },
-      comment,
-    }
+    return { config: null, comment: '' }
   }
   // Статус «Отредактировано» (12) более не используется: переходы из него отключены; сохраните карту — статус изменится на «Новое».
   if (statusId === OUTGOING_EDITED) {
@@ -385,19 +376,7 @@ function outgoingStatusButton(
     }
   }
   if (statusId === OUTGOING_SENT || statusId === 13) {
-    const comment =
-      statusId === OUTGOING_SENT
-        ? 'Карта уже в состоянии «Отправлено», дальнейшие переходы выполняются системой.'
-        : 'Карта в состоянии «Завершено», дальнейшие переходы не предусмотрены.'
-    return {
-      config: {
-        label: 'Смена статуса',
-        action: statusId === OUTGOING_SENT ? 'sent_system' : 'completed_no_transitions',
-        disabled: true,
-        hint: comment,
-      },
-      comment,
-    }
+    return { config: null, comment: '' }
   }
 
   // Запасная проверка по названию (карты без statusId, например из XML)
@@ -512,16 +491,7 @@ function outgoingStatusButton(
     }
   }
   if (s.includes('ожидает отправки')) {
-    const comment = 'Ожидает отправки в ЕЭК'
-    return {
-      config: {
-        label: comment,
-        action: 'pending_system',
-        disabled: true,
-        hint: comment,
-      },
-      comment,
-    }
+    return { config: null, comment: '' }
   }
   if (s.includes('отредактировано')) {
     const obsoleteHint = 'Статус «Отредактировано» более не используется. Сохраните карту — статус изменится на «Новое».'
@@ -568,6 +538,12 @@ function outgoingStatusButton(
       config: { label: 'Закрытие карты', action: 'close', hint: hintClose },
       comment: hintClose,
     }
+  }
+  if (s === 'отправлено') {
+    return { config: null, comment: '' }
+  }
+  if (s === 'завершено') {
+    return { config: null, comment: '' }
   }
   return {
     config: null,
