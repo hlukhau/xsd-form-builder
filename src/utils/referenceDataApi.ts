@@ -91,13 +91,23 @@ export function setReferenceGuidContext(guid?: string) {
   explicitGuidContext = normalized
   if (typeof window === 'undefined') return
   try {
+    /** Записываем только при явном guid; не очищаем sessionStorage при undefined — иначе теряется GUID после перехода на «/» в SPA и запросы уходят без guid. */
     if (normalized) {
       window.sessionStorage.setItem(GUID_STORAGE_KEY, normalized)
-    } else {
-      window.sessionStorage.removeItem(GUID_STORAGE_KEY)
     }
   } catch {
     /* ignore */
+  }
+}
+
+/** Последний сохранённый GUID (после открытия карты по пути /…/{id}/{guid}). */
+export function getPersistedReferenceGuid(): string | undefined {
+  if (typeof window === 'undefined') return undefined
+  try {
+    const s = window.sessionStorage.getItem(GUID_STORAGE_KEY)?.trim()
+    return s || undefined
+  } catch {
+    return undefined
   }
 }
 
@@ -408,7 +418,12 @@ export async function fetchPhaNextRegistrationNumber(countryCode: string, guid?:
   const country = (countryCode || 'BY').trim().toUpperCase().slice(0, 2) || 'BY'
   const params = withGuidParams(new URLSearchParams({ country }), guid)
   const url = `${BASE_URL}api/pha/next-registration-number?${params.toString()}`
-  const response = await fetch(url)
+  const resolvedGuid = resolveGuid(guid)
+  const headers: HeadersInit = {}
+  if (resolvedGuid) {
+    headers['X-GUID'] = resolvedGuid
+  }
+  const response = await fetch(url, { headers, credentials: 'same-origin' })
   const text = await response.text()
   if (!response.ok) {
     throw new Error(text || response.statusText)

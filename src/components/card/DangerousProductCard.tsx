@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo, useRef } from 'react'
-import { Card, Tabs, Button, Space, Switch, message, Modal, Spin, Input } from 'antd'
-import { EditOutlined, EyeOutlined, DownloadOutlined, PlusOutlined } from '@ant-design/icons'
+import { Card, Tabs, Button, Space, message, Modal, Spin, Input } from 'antd'
+import { PlusOutlined } from '@ant-design/icons'
 import ProductTabEdit from '../tabs/dpa/ProductTabEdit'
 import ViolationsTabEdit from '../tabs/dpa/ViolationsTabEdit'
 import NotificationTabEdit from '../tabs/dpa/NotificationTabEdit'
@@ -21,6 +21,7 @@ import DetectionPlaceTab from '../tabs/dpa/DetectionPlaceTab'
 import MeasuresTab from '../tabs/dpa/MeasuresTab'
 import { exportCardDataToXML, getEmptyTagsWarnings } from '@/utils/xmlExporter'
 import { parseXMLToCardData } from '@/utils/xmlParser'
+import { loadDpaCardFromDb } from '@/utils/loadDpaCardFromDb'
 import { compareCardData, getCardDataReview } from '@/utils/cardDataComparator'
 import { fetchDpaStatusHistory, fetchDpaElectronicDocs, changeDpaStatus, checkAccessRight, fetchCurrentUser, fetchDpaResolutions, fetchRightsByGuid, fetchRightsByGuidRaw, getOutgoingAuthorityFilterDepIdsFromRights, fetchDepInfo, saveDpaCard, buildSaveMetadataFromCardData, deleteDpaCard, canCreateNewVersion, type DpaSaveMetadata, type RightsJson } from '@/utils/referenceDataApi'
 import { getStatusButtonConfig } from '@/utils/statusButtonConfig'
@@ -44,8 +45,6 @@ interface DangerousProductCardProps {
   dpaid?: string
   /** GUID из URL — для получения JSON прав (department.depid при «Определить доступ») */
   guid?: string
-  /** Открыть карту сразу в режиме редактирования (например после редиректа по сохранению новой карты) */
-  initialEditMode?: boolean
   /** После успешного сохранения новой карты (dpaid === '-') вызывается с новым DPAID для редиректа */
   onSaveNewCard?: (newDpaid: number) => void
   /** После успешного удаления карты (закрыть форму и показать сообщение) */
@@ -64,7 +63,6 @@ const DangerousProductCard: React.FC<DangerousProductCardProps> = ({
   originalXML: propOriginalXML,
   dpaid,
   guid,
-  initialEditMode,
   onSaveNewCard,
   onCardDeleted,
   copyFromDpaid,
@@ -81,7 +79,8 @@ const DangerousProductCard: React.FC<DangerousProductCardProps> = ({
   const [electronicDocList, setElectronicDocList] = useState<ElectronicDocument[]>([])
   const [electronicDocLoading, setElectronicDocLoading] = useState(false)
   const [accessModalVisible, setAccessModalVisible] = useState(false)
-  const [isEditMode, setIsEditMode] = useState(() => dpaid === '-' || initialEditMode === true)
+  const [isEditMode, setIsEditMode] = useState(() => dpaid === '-')
+  const [cancelReloading, setCancelReloading] = useState(false)
   const [editedData, setEditedData] = useState<CardData>(data)
   const [originalXML, setOriginalXML] = useState<string | null>(propOriginalXML || null)
   const [comparisonResult, setComparisonResult] = useState<ComparisonResultShape | null>(null)
@@ -260,19 +259,7 @@ const DangerousProductCard: React.FC<DangerousProductCardProps> = ({
     }
   }, [hasPersistedDpaid, effectiveDpaid, isOutgoingSource, data?.source, guid])
 
-  // Исходящая карта: при наличии права dangerousProductOut:edit и статусе, допускающем редактирование, включаем режим редактирования автоматически
-  useEffect(() => {
-    if (isOutgoingSource && effectiveHasSaveRight && canEditByStatus) {
-      setIsEditMode(true)
-    }
-  }, [isOutgoingSource, effectiveHasSaveRight, canEditByStatus])
-
-  // Для статусов, не допускающих редактирование, принудительно выключаем режим редактирования
-  useEffect(() => {
-    if (isOutgoingSource && !canEditByStatus) {
-      setIsEditMode(false)
-    }
-  }, [isOutgoingSource, canEditByStatus])
+  const editSwitchDisabled = isOutgoingSource && !canEditByStatus
 
   // Новая карта (/-/) всегда исходящая — подставляем код "2", т.к. метаданные ещё могут быть не заполнены
   const effectiveDatasourceKindCode =
@@ -529,55 +516,23 @@ const DangerousProductCard: React.FC<DangerousProductCardProps> = ({
     },
   ], [currentData])
 
-  const handleExportXML = () => {
-    const xmlString = exportCardDataToXML(editedData)
-    const blob = new Blob([xmlString], { type: 'application/xml' })
-    const url = URL.createObjectURL(blob)
-    const link = document.createElement('a')
-    link.href = url
-    link.download = `dangerous-product-alert-${editedData.registrationNumber}.xml`
-    document.body.appendChild(link)
-    link.click()
-    document.body.removeChild(link)
-    URL.revokeObjectURL(url)
-  }
-
-  const handleCompareXML = () => {
-    // Только свой «оригинал» из состояния вкладки, без localStorage — чтобы не подставлять документ из другой вкладки
-    const xmlToCompare = originalXML
-
-    if (!xmlToCompare) {
-      alert('Исходный XML не найден. Пожалуйста, загрузите XML файл сначала.')
-      return
-    }
-    
+  const handleCancelEdit = async () => {
+    if (!hasPersistedDpaid || !effectiveDpaid || effectiveDpaid === '-') return
+    setCancelReloading(true)
     try {
-      // Парсим исходный XML в объект (структура после парсинга: нарушения и др. могут быть в «слитом» виде)
-      const originalData = parseXMLToCardData(xmlToCompare)
-      console.log('[handleCompareXML] Исходные данные после парсинга:', originalData)
-      // Сравниваем с текущим состоянием формы, а не с повторно распарсенным экспортом:
-      // иначе при нескольких нарушениях в партии парсер сливает все в одно и сравнение даёт
-      // ложные различия (violations[0].violatedRequirements 1 vs 2 и т.п.)
-      const result = compareCardData(originalData, editedData)
-      const emptyTagsWarnings = getEmptyTagsWarnings(editedData)
-      const resultWithWarnings = emptyTagsWarnings.length > 0
-        ? { ...result, warnings: [...(result.warnings ?? []), ...emptyTagsWarnings] }
-        : result
-      console.log('[handleCompareXML] Результат сравнения:', result)
-      console.log('[handleCompareXML] Количество различий:', result.differences.length)
-      console.log('[handleCompareXML] Количество предупреждений:', resultWithWarnings.warnings.length)
-      if (resultWithWarnings.warnings.length > 0) {
-        console.log('[handleCompareXML] Предупреждения:', resultWithWarnings.warnings)
-      }
-      if (result.differences.length > 0) {
-        console.log('[handleCompareXML] Различия:', result.differences)
-      }
-      
-      setComparisonResult(resultWithWarnings)
-      setComparisonModalVisible(true)
-    } catch (error) {
-      console.error('[handleCompareXML] Ошибка при сравнении:', error)
-      alert(`Ошибка при сравнении XML: ${error instanceof Error ? error.message : String(error)}`)
+      const { card, xmlText } = await loadDpaCardFromDb(effectiveDpaid, guid)
+      onUpdate(card)
+      setEditedData(card)
+      setOriginalXML(xmlText)
+      setIsEditMode(false)
+      setPendingSavePayload(null)
+      setComparisonModalVisible(false)
+      setFormatValidationErrors([])
+      setComparisonLogicalValidationErrors([])
+    } catch (e) {
+      message.error(e instanceof Error ? e.message : 'Не удалось загрузить данные карты из БД')
+    } finally {
+      setCancelReloading(false)
     }
   }
 
@@ -943,49 +898,76 @@ const DangerousProductCard: React.FC<DangerousProductCardProps> = ({
         <div className="card-sticky-header-title-row">
           <span className="card-sticky-header-title">Карта сведений об обнаружении опасной продукции</span>
           <Space size="small" wrap>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-              <Switch
-                checked={isEditMode}
-                onChange={setIsEditMode}
-                checkedChildren={<EditOutlined />}
-                unCheckedChildren={<EyeOutlined />}
-                disabled={isOutgoingSource && !canEditByStatus}
-                title={isOutgoingSource && !canEditByStatus ? 'Редактирование недоступно для текущего статуса карты' : undefined}
-              />
-              <span className="card-sticky-header-mode-label">
-                Режим редактирования
-                {isOutgoingSource && !canEditByStatus && ' (недоступен для текущего статуса)'}
-              </span>
-            </div>
+            {!isEditMode && (
+              <>
+                <Button
+                  type="default"
+                  onClick={() => setIsEditMode(true)}
+                  disabled={editSwitchDisabled}
+                  title={
+                    editSwitchDisabled
+                      ? 'Редактирование недоступно для текущего статуса карты'
+                      : undefined
+                  }
+                >
+                  Редактировать
+                </Button>
+                {isOutgoingSource && (
+                  <Button
+                    onClick={() => {
+                      setValidationResult(validateOutgoingCard(currentData))
+                      setValidationModalVisible(true)
+                    }}
+                  >
+                    Валидация карты
+                  </Button>
+                )}
+                <Button
+                  onClick={() => {
+                    if (typeof window !== 'undefined') {
+                      window.parent.postMessage({ code: 'exit' }, '*')
+                    }
+                  }}
+                >
+                  {effectiveDpaid === '-' ? 'Отменить создание' : 'Закрыть'}
+                </Button>
+              </>
+            )}
             {isEditMode && (
               <>
                 {(effectiveDpaid === '-' || (isOutgoingSource && effectiveHasSaveRight && canEditByStatus)) && (
-                  <Button type="primary" onClick={handleSave} loading={saving}>Сохранить</Button>
+                  <Button type="primary" onClick={handleSave} loading={saving}>
+                    Сохранить
+                  </Button>
                 )}
-                <Button icon={<DownloadOutlined />} onClick={handleExportXML}>Экспорт XML</Button>
-                <Button onClick={handleCompareXML}>Сравнить с исходным</Button>
+                {hasPersistedDpaid && (
+                  <Button onClick={() => void handleCancelEdit()} loading={cancelReloading} disabled={cancelReloading}>
+                    Отменить
+                  </Button>
+                )}
+                {effectiveDpaid === '-' && (
+                  <Button
+                    onClick={() => {
+                      if (typeof window !== 'undefined') {
+                        window.parent.postMessage({ code: 'exit' }, '*')
+                      }
+                    }}
+                  >
+                    Отменить создание
+                  </Button>
+                )}
+                {isOutgoingSource && (
+                  <Button
+                    onClick={() => {
+                      setValidationResult(validateOutgoingCard(editedData))
+                      setValidationModalVisible(true)
+                    }}
+                  >
+                    Валидация карты
+                  </Button>
+                )}
               </>
             )}
-            {isOutgoingSource && (
-              <Button
-                onClick={() => {
-                  const dataToValidate = isEditMode ? editedData : currentData
-                  setValidationResult(validateOutgoingCard(dataToValidate))
-                  setValidationModalVisible(true)
-                }}
-              >
-                Валидация карты
-              </Button>
-            )}
-            <Button
-              onClick={() => {
-                if (typeof window !== 'undefined') {
-                  window.parent.postMessage({ code: 'exit' }, '*')
-                }
-              }}
-            >
-              {effectiveDpaid === '-' ? 'Отменить создание' : 'Закрыть'}
-            </Button>
           </Space>
         </div>
         <CardHeader
@@ -1013,6 +995,7 @@ const DangerousProductCard: React.FC<DangerousProductCardProps> = ({
             }
           }}
         />
+        {!isEditMode && (
         <CardActions
           data={currentData}
           onDefineAccess={() => setAccessModalVisible(true)}
@@ -1271,6 +1254,7 @@ const DangerousProductCard: React.FC<DangerousProductCardProps> = ({
             }
           }}
         />
+        )}
         <div className="card-tabs-wrapper">
           <Tabs defaultActiveKey="notification" items={tabItemsWithEdit} />
         </div>

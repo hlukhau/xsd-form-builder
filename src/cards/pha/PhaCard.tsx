@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
-import { Tabs, Switch, Button, Space, message, Modal, Spin, Collapse, Input } from 'antd'
-import { EditOutlined, EyeOutlined, DownloadOutlined, PlusOutlined, DeleteOutlined } from '@ant-design/icons'
+import { Tabs, Button, Space, message, Modal, Spin, Collapse, Input } from 'antd'
+import { PlusOutlined, DeleteOutlined } from '@ant-design/icons'
 import type { CardData, StatusHistoryItem } from '@/types/card'
 import { CardHeader, CardActions } from '@/cards/shared'
 import {
@@ -24,7 +24,7 @@ import {
   canCreatePhaNewVersion,
 } from '@/cards/pha/phaApi'
 import { exportPhaCardDataToXML } from '@/cards/pha/phaXmlExporter'
-import { parsePhaXmlToCardData } from '@/cards/pha/phaXmlParser'
+import { alignPhaParsedCardForCompare, parsePhaXmlToCardData } from '@/cards/pha/phaXmlParser'
 import {
   validatePhaOutgoingCardFull,
   collectPhaFormatValidationErrors,
@@ -50,6 +50,7 @@ import StatusHistoryModal from '@/components/modals/dpa/StatusHistoryModal'
 import ElectronicDocumentModal from '@/components/modals/dpa/ElectronicDocumentModal'
 import { useCountryOptions } from '@/hooks/shared/useCountryOptions'
 import { resolveAlertCountryNameForPostMessage } from '@/utils/alertCountryDisplay'
+import { loadPhaCardFromDb } from '@/cards/pha/loadPhaCardFromDb'
 
 interface PhaCardProps {
   data: CardData
@@ -59,8 +60,6 @@ interface PhaCardProps {
   originalXML?: string | null
   /** Обновление данных карты (после сохранения или при переключении с бэкенда). */
   onUpdate?: (data: CardData) => void
-  /** Включить режим редактирования по умолчанию (например, для новой карты). */
-  initialEditMode?: boolean
   /** После первого сохранения новой карты — переход на URL с реальным PHAID */
   onSaveNewCard?: (newPhaid: number) => void
   /** После удаления карты — закрыть форму и показать сообщение (как DPA) */
@@ -148,7 +147,6 @@ const PhaCard: React.FC<PhaCardProps> = ({
   guid,
   originalXML,
   onUpdate,
-  initialEditMode = false,
   onSaveNewCard,
   onCardDeleted,
   onMakeCopy,
@@ -157,7 +155,8 @@ const PhaCard: React.FC<PhaCardProps> = ({
   const effectivePhaid =
     phaid && phaid !== '-' ? phaid : savedPhaid != null ? String(savedPhaid) : '-'
 
-  const [isEditMode, setIsEditMode] = useState(initialEditMode)
+  const [isEditMode, setIsEditMode] = useState(() => phaid === '-')
+  const [cancelReloading, setCancelReloading] = useState(false)
   const [editedData, setEditedData] = useState<CardData>(data)
   const [saving, setSaving] = useState(false)
   const [comparisonResult, setComparisonResult] = useState<ComparisonResultShape | null>(null)
@@ -316,17 +315,7 @@ const PhaCard: React.FC<PhaCardProps> = ({
     }
   }, [guid, editedData.source, effectivePhaid, editedData.phaAccessibleDepIds, data.phaAccessibleDepIds, data.source])
 
-  useEffect(() => {
-    if (isOutgoingPha && effectivePhaEditRight && canEditByStatus) {
-      setIsEditMode(true)
-    }
-  }, [isOutgoingPha, effectivePhaEditRight, canEditByStatus])
-
-  useEffect(() => {
-    if (isOutgoingPha && !canEditByStatus) {
-      setIsEditMode(false)
-    }
-  }, [isOutgoingPha, canEditByStatus])
+  const editSwitchDisabled = isOutgoingPha && !canEditByStatus
 
   const situationEndFilled = phaSituationEndDateFilled(currentData.notification?.endDate)
 
@@ -581,9 +570,8 @@ const PhaCard: React.FC<PhaCardProps> = ({
           }
           await deletePhaCard(Number(effectivePhaid), guid!)
           message.success('Карта удалена')
-          const exitPayload = { code: 'exit', tab: 'outgoing', registry: 'morbidity' } as const
-          console.log('[PhaCard] Sending exit message to parent after delete:', exitPayload)
-          window.parent.postMessage(exitPayload, '*')
+          console.log('[PhaCard] Sending exit message to parent after delete')
+          window.parent.postMessage({ code: 'exit' }, '*')
           onCardDeleted?.()
         } catch (e) {
           message.error(e instanceof Error ? e.message : 'Ошибка удаления')
@@ -665,8 +653,24 @@ const PhaCard: React.FC<PhaCardProps> = ({
     }
   }
 
-  const handleSwitchEdit = (checked: boolean) => {
-    setIsEditMode(checked)
+  const handleCancelEdit = async () => {
+    if (!effectivePhaid || effectivePhaid === '-' || !/^\d+$/.test(effectivePhaid)) return
+    setCancelReloading(true)
+    try {
+      const { card, xmlText } = await loadPhaCardFromDb(effectivePhaid, guid)
+      onUpdate?.(card)
+      setEditedData(card)
+      setBaselineXml(xmlText)
+      setIsEditMode(false)
+      setPendingSavePayload(null)
+      setComparisonModalVisible(false)
+      setFormatValidationErrors([])
+      setLogicalValidationErrors([])
+    } catch (e) {
+      message.error(e instanceof Error ? e.message : 'Не удалось загрузить данные карты из БД')
+    } finally {
+      setCancelReloading(false)
+    }
   }
 
   const handleSaveToDbFromModal = async () => {
@@ -746,7 +750,10 @@ const PhaCard: React.FC<PhaCardProps> = ({
     const xmlToCompare = baselineXml
     if (xmlToCompare) {
       try {
-        const originalData = parsePhaXmlToCardData(xmlToCompare)
+        const originalData = alignPhaParsedCardForCompare(
+          parsePhaXmlToCardData(xmlToCompare),
+          editedData
+        )
         const result = compareCardData(originalData, editedData)
         const emptyTagsWarnings = [
           ...getEmptyTagsWarnings(editedData),
@@ -779,42 +786,6 @@ const PhaCard: React.FC<PhaCardProps> = ({
         added: [],
       })
       setComparisonModalVisible(true)
-    }
-  }
-
-  const handleExportXML = () => {
-    const xmlString = exportPhaCardDataToXML(editedData)
-    const blob = new Blob([xmlString], { type: 'application/xml' })
-    const url = URL.createObjectURL(blob)
-    const link = document.createElement('a')
-    link.href = url
-    link.download = `public-health-alert-${editedData.notification?.registrationNumber || editedData.registrationNumber || 'export'}.xml`
-    document.body.appendChild(link)
-    link.click()
-    document.body.removeChild(link)
-    URL.revokeObjectURL(url)
-  }
-
-  const handleCompareXML = () => {
-    const xmlToCompare = baselineXml
-    if (!xmlToCompare) {
-      message.warning('Исходный XML не найден. Загрузите карту с сервера.')
-      return
-    }
-    try {
-      const originalData = parsePhaXmlToCardData(xmlToCompare)
-      const result = compareCardData(originalData, editedData)
-      const emptyTagsWarnings = [
-        ...getEmptyTagsWarnings(editedData),
-        ...getPhaEmptyTagsWarnings(editedData),
-      ]
-      const resultWithWarnings = emptyTagsWarnings.length > 0
-        ? { ...result, warnings: [...(result.warnings ?? []), ...emptyTagsWarnings] }
-        : result
-      setComparisonResult(resultWithWarnings)
-      setComparisonModalVisible(true)
-    } catch (err) {
-      message.error(`Ошибка при сравнении: ${err instanceof Error ? err.message : String(err)}`)
     }
   }
 
@@ -943,20 +914,44 @@ const PhaCard: React.FC<PhaCardProps> = ({
               : 'Карта сведений об обнаружении болезни'}
           </span>
           <Space size="small" wrap>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-              <Switch
-                checked={isEditMode}
-                onChange={handleSwitchEdit}
-                checkedChildren={<EditOutlined />}
-                unCheckedChildren={<EyeOutlined />}
-                disabled={isOutgoingPha && !canEditByStatus}
-                title={isOutgoingPha && !canEditByStatus ? 'Редактирование недоступно для текущего статуса карты' : undefined}
-              />
-              <span className="card-sticky-header-mode-label">
-                Режим редактирования
-                {isOutgoingPha && !canEditByStatus && ' (недоступен для текущего статуса)'}
-              </span>
-            </div>
+            {!isEditMode && (
+              <>
+                <Button
+                  type="default"
+                  onClick={() => setIsEditMode(true)}
+                  disabled={editSwitchDisabled}
+                  title={
+                    editSwitchDisabled
+                      ? 'Редактирование недоступно для текущего статуса карты'
+                      : undefined
+                  }
+                >
+                  Редактировать
+                </Button>
+                {isOutgoingPha && (
+                  <Button
+                    onClick={() => {
+                      setValidationResult(validatePhaOutgoingCardFull(currentData))
+                      setValidationModalVisible(true)
+                    }}
+                  >
+                    Валидация карты
+                  </Button>
+                )}
+                {showCopyButton && (
+                  <Button onClick={handleCopy}>Новая версия</Button>
+                )}
+                <Button
+                  onClick={() => {
+                    if (typeof window !== 'undefined') {
+                      window.parent.postMessage({ code: 'exit' }, '*')
+                    }
+                  }}
+                >
+                  {effectivePhaid === '-' ? 'Отменить создание' : 'Закрыть'}
+                </Button>
+              </>
+            )}
             {isEditMode && (
               <>
                 {showSaveButton && (
@@ -964,33 +959,34 @@ const PhaCard: React.FC<PhaCardProps> = ({
                     Сохранить
                   </Button>
                 )}
-                <Button icon={<DownloadOutlined />} onClick={handleExportXML}>Экспорт XML</Button>
-                <Button onClick={handleCompareXML}>Сравнить с исходным</Button>
+                {effectivePhaid !== '-' && /^\d+$/.test(effectivePhaid) && (
+                  <Button onClick={() => void handleCancelEdit()} loading={cancelReloading} disabled={cancelReloading}>
+                    Отменить
+                  </Button>
+                )}
+                {effectivePhaid === '-' && (
+                  <Button
+                    onClick={() => {
+                      if (typeof window !== 'undefined') {
+                        window.parent.postMessage({ code: 'exit' }, '*')
+                      }
+                    }}
+                  >
+                    Отменить создание
+                  </Button>
+                )}
+                {isOutgoingPha && (
+                  <Button
+                    onClick={() => {
+                      setValidationResult(validatePhaOutgoingCardFull(editedData))
+                      setValidationModalVisible(true)
+                    }}
+                  >
+                    Валидация карты
+                  </Button>
+                )}
               </>
             )}
-            {isOutgoingPha && (
-              <Button
-                onClick={() => {
-                  const dataToValidate = isEditMode ? editedData : currentData
-                  setValidationResult(validatePhaOutgoingCardFull(dataToValidate))
-                  setValidationModalVisible(true)
-                }}
-              >
-                Валидация карты
-              </Button>
-            )}
-            {showCopyButton && (
-              <Button onClick={handleCopy}>Новая версия</Button>
-            )}
-            <Button
-              onClick={() => {
-                if (typeof window !== 'undefined') {
-                  window.parent.postMessage({ code: 'exit' }, '*')
-                }
-              }}
-            >
-              {effectivePhaid === '-' ? 'Отменить создание' : 'Закрыть'}
-            </Button>
           </Space>
         </div>
         <CardHeader
@@ -1023,6 +1019,7 @@ const PhaCard: React.FC<PhaCardProps> = ({
             }
           }}
         />
+        {!isEditMode && (
         <CardActions
           data={currentData}
           onShowRightsDebug={() => {
@@ -1079,6 +1076,7 @@ const PhaCard: React.FC<PhaCardProps> = ({
           showDeleteButton={showDeleteButton}
           onDelete={handleDelete}
         />
+        )}
         <div className="card-tabs-wrapper">
           <Tabs defaultActiveKey="notification" items={tabItems} />
         </div>

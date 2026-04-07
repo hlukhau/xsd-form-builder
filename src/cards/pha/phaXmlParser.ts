@@ -262,3 +262,24 @@ export function parsePhaXmlToCardData(xmlText: string): CardData {
 
   return cardData
 }
+
+/**
+ * Поля версии/статуса/источника и доступа к карте задаются в БД (метаданные PHA), парсер XML их не заполняет.
+ * Без выравнивания compareCardData даёт ложные «Добавлен атрибут version: 1» при сохранении без изменений.
+ */
+export function alignPhaParsedCardForCompare(parsed: CardData, reference: CardData): CardData {
+  return {
+    ...parsed,
+    version: parsed.version ?? reference.version,
+    statusId: parsed.statusId ?? reference.statusId,
+    status: parsed.status ?? reference.status,
+    datasourceKindCode: parsed.datasourceKindCode ?? reference.datasourceKindCode,
+    source: parsed.source ?? reference.source,
+    phaAccessibleDepIds: parsed.phaAccessibleDepIds ?? reference.phaAccessibleDepIds,
+    country: parsed.country || reference.country,
+    alertCountryName: parsed.alertCountryName ?? reference.alertCountryName,
+    registrationNumber: parsed.registrationNumber || reference.registrationNumber,
+    createdAt: parsed.createdAt ?? reference.createdAt,
+    modifiedAt: parsed.modifiedAt ?? reference.modifiedAt,
+  }
+}

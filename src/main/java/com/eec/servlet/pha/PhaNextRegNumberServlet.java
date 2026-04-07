@@ -57,8 +57,17 @@ public class PhaNextRegNumberServlet extends HttpServlet {
             response.setStatus(HttpServletResponse.SC_OK);
             response.getWriter().print("{\"registrationNumber\":\"" + registrationNumber.replace("\\", "\\\\").replace("\"", "\\\"") + "\"}");
         } catch (SQLException e) {
-            response.setStatus(HttpServletResponse.SC_INTERNAL_SERVER_ERROR);
-            response.getWriter().print("{\"error\":\"Ошибка БД\"}");
+            String msg = e.getMessage() != null ? e.getMessage() : "Ошибка БД";
+            System.err.println("[PhaNextRegNumberServlet] " + msg);
+            int status = HttpServletResponse.SC_INTERNAL_SERVER_ERROR;
+            if (msg.contains("GUID не задан")) {
+                status = HttpServletResponse.SC_BAD_REQUEST;
+                msg = msg + " Укажите guid в query (?guid=...) или заголовок X-GUID.";
+            } else if (msg.contains("Права по GUID не найдены")) {
+                status = HttpServletResponse.SC_FORBIDDEN;
+            }
+            response.setStatus(status);
+            response.getWriter().print("{\"error\":\"" + jsonEscape(msg) + "\"}");
         } finally {
             DatabaseUtil.closeConnection(conn);
         }
@@ -72,5 +81,10 @@ public class PhaNextRegNumberServlet extends HttpServlet {
             }
         }
         return null;
+    }
+
+    private static String jsonEscape(String s) {
+        if (s == null) return "";
+        return s.replace("\\", "\\\\").replace("\"", "\\\"").replace("\n", " ").replace("\r", " ");
     }
 }

@@ -13,12 +13,46 @@ import {
   checkAccessRight,
   phaSourceToViewRight,
   setReferenceGuidContext,
+  getPersistedReferenceGuid,
 } from './utils/referenceDataApi'
 import { fetchPhaXml, fetchPhaMetadata, fetchPhaStatusHistory, postPhaStatus } from './cards/pha/phaApi'
 import { isPhaIncomingSource } from './utils/phaStatusButtonConfig'
 import { parsePhaXmlToCardData } from './cards/pha/phaXmlParser'
 import { parseXMLToCardData, validateAndEnrichCardData, getTextContent } from './utils/xmlParser'
 import { createNewCardData } from './utils/newCardData'
+
+/** После удаления карты: родитель может перегрузить iframe на базовый URL без React state — сохраняем флаг для экрана «Карта успешно удалена». */
+const CARD_DELETED_SESSION_KEY = 'xsd-form-builder-card-deleted'
+
+function markCardDeletedInSession() {
+  try {
+    sessionStorage.setItem(CARD_DELETED_SESSION_KEY, '1')
+  } catch {
+    /* ignore */
+  }
+}
+
+function useCardDeletedBanner(location: ReturnType<typeof useLocation>, hasCard: boolean) {
+  const [show, setShow] = useState(false)
+  useEffect(() => {
+    if (hasCard) {
+      setShow(false)
+      return
+    }
+    const fromState = Boolean((location.state as { cardDeleted?: boolean } | null)?.cardDeleted)
+    let fromStorage = false
+    try {
+      if (sessionStorage.getItem(CARD_DELETED_SESSION_KEY) === '1') {
+        fromStorage = true
+        sessionStorage.removeItem(CARD_DELETED_SESSION_KEY)
+      }
+    } catch {
+      /* ignore */
+    }
+    setShow(fromState || fromStorage)
+  }, [location.state, location.key, hasCard])
+  return show
+}
 
 // Моковые данные для демонстрации
 const mockCardData: CardData = {
@@ -91,10 +125,14 @@ function AppContent() {
     loading: boolean
     error: string | null
   }>({ loading: false, error: null })
-  const { dpaid, guid } = useParams<{ dpaid: string; guid?: string }>()
+  const { dpaid, guid: guidFromRoute } = useParams<{ dpaid: string; guid?: string }>()
   const [searchParams] = useSearchParams()
   const navigate = useNavigate()
   const location = useLocation()
+  const guid =
+    guidFromRoute?.trim() ||
+    searchParams.get('guid')?.trim() ||
+    undefined
 
   useEffect(() => {
     setReferenceGuidContext(guid)
@@ -248,6 +286,8 @@ function AppContent() {
     }
   }
 
+  const showCardDeletedBanner = useCardDeletedBanner(location, !!dataForCard)
+
   return (
     <div className="app">
       {loadByDpaidState.loading && (
@@ -300,6 +340,7 @@ function AppContent() {
             navigate(`/${newDpaid}/${guid ?? ''}`, { replace: true })
           }}
           onCardDeleted={() => {
+            markCardDeletedInSession()
             setCardData(null)
             setOriginalXML(null)
             setLoadByDpaidState({ loading: false, error: null })
@@ -315,12 +356,10 @@ function AppContent() {
         <div className="empty-state">
           <div style={{ fontSize: '48px', marginBottom: '16px', opacity: 0.3 }}>📄</div>
           <div style={{ fontSize: '18px', fontWeight: 500, color: '#595959', marginBottom: '8px' }}>
-            {(location.state as { cardDeleted?: boolean } | null)?.cardDeleted
-              ? 'Карта успешно удалена'
-              : 'Нет данных для отображения'}
+            {showCardDeletedBanner ? 'Карта успешно удалена' : 'Нет данных для отображения'}
           </div>
           <div style={{ fontSize: '14px', color: '#8c8c8c' }}>
-            {(location.state as { cardDeleted?: boolean } | null)?.cardDeleted
+            {showCardDeletedBanner
               ? 'Вы можете открыть другую карту или создать новую.'
               : 'Выберите карту для просмотра или создайте новую.'}
           </div>
@@ -338,11 +377,17 @@ function PhaAppContent() {
   const [error, setError] = useState<string | null>(null)
   /** Блокировка просмотра: нет права publicHealthIn/Out/DB:view для источника карты */
   const [viewDenied, setViewDenied] = useState(false)
-  const { dpaid: phaidParam, guid } = useParams<{ dpaid: string; guid?: string }>()
+  const { dpaid: phaidParam, guid: guidFromRoute } = useParams<{ dpaid: string; guid?: string }>()
   const [searchParams] = useSearchParams()
   const navigate = useNavigate()
   const location = useLocation()
   const phaid = phaidParam ?? ''
+  /** GUID из пути …/{PHAID}/{GUID} или из ?guid= / sessionStorage (как DPA). */
+  const guid =
+    guidFromRoute?.trim() ||
+    searchParams.get('guid')?.trim() ||
+    getPersistedReferenceGuid() ||
+    undefined
   useEffect(() => {
     setReferenceGuidContext(guid)
   }, [guid])
@@ -352,7 +397,17 @@ function PhaAppContent() {
   useEffect(() => {
     const seq = ++phaLoadSeqRef.current
 
-    if (!phaid || phaid === '-') {
+    /** Корень приложения без PHAID — как DPA: не запрашиваем номер, экран пустого состояния (в т.ч. «удалена»). */
+    if (!phaid) {
+      setViewDenied(false)
+      setOriginalXML(null)
+      setCardData(null)
+      setError(null)
+      setLoading(false)
+      return
+    }
+
+    if (phaid === '-') {
       const state = location.state as { newVersionFrom?: number; initialCardData?: CardData } | null
       if (state?.newVersionFrom != null && state?.initialCardData) {
         setCardData(state.initialCardData)
@@ -495,6 +550,8 @@ function PhaAppContent() {
       .catch(() => { setViewDenied(true) })
   }, [cardData, phaid, guid])
 
+  const showCardDeletedBanner = useCardDeletedBanner(location, !!cardData)
+
   if (loading) return <div style={{ textAlign: 'center', padding: 16 }}><Spin size="large" tip="Загрузка карты PHA..." /></div>
   if (error) return <div className="empty-state"><div style={{ color: '#ff4d4f' }}>{error}</div></div>
   if (viewDenied) return (
@@ -510,7 +567,6 @@ function PhaAppContent() {
       guid={guid}
       originalXML={originalXML}
       onUpdate={setCardData}
-      initialEditMode={phaid === '-' || !phaid}
       onSaveNewCard={(newPhaid) => {
         try {
           sessionStorage.setItem('xsd_form_builder_last_saved_phaid', String(newPhaid))
@@ -519,6 +575,7 @@ function PhaAppContent() {
         navigate(`/${newPhaid}/${guid ?? ''}`, { replace: true })
       }}
       onCardDeleted={() => {
+        markCardDeletedInSession()
         setCardData(null)
         setOriginalXML(null)
         navigate('/', { replace: true, state: { cardDeleted: true } })
@@ -532,12 +589,10 @@ function PhaAppContent() {
     <div className="empty-state">
       <div style={{ fontSize: '48px', marginBottom: '16px', opacity: 0.3 }}>📄</div>
       <div style={{ fontSize: '18px', fontWeight: 500, color: '#595959', marginBottom: '8px' }}>
-        {(location.state as { cardDeleted?: boolean } | null)?.cardDeleted
-          ? 'Карта успешно удалена'
-          : 'Нет данных для отображения'}
+        {showCardDeletedBanner ? 'Карта успешно удалена' : 'Нет данных для отображения'}
       </div>
       <div style={{ fontSize: '14px', color: '#8c8c8c' }}>
-        {(location.state as { cardDeleted?: boolean } | null)?.cardDeleted
+        {showCardDeletedBanner
           ? 'Вы можете открыть другую карту или создать новую.'
           : 'Откройте карту по PHAID или создайте новую.'}
       </div>
