@@ -900,18 +900,14 @@ const DangerousProductCard: React.FC<DangerousProductCardProps> = ({
           <Space size="small" wrap>
             {!isEditMode && (
               <>
-                <Button
-                  type="default"
-                  onClick={() => setIsEditMode(true)}
-                  disabled={editSwitchDisabled}
-                  title={
-                    editSwitchDisabled
-                      ? 'Редактирование недоступно для текущего статуса карты'
-                      : undefined
-                  }
-                >
-                  Редактировать
-                </Button>
+                {!editSwitchDisabled && (
+                  <Button
+                    type="default"
+                    onClick={() => setIsEditMode(true)}
+                  >
+                    Редактировать
+                  </Button>
+                )}
                 {isOutgoingSource && (
                   <Button
                     onClick={() => {
@@ -940,6 +936,16 @@ const DangerousProductCard: React.FC<DangerousProductCardProps> = ({
                     Сохранить
                   </Button>
                 )}
+                {isOutgoingSource && (
+                  <Button
+                    onClick={() => {
+                      setValidationResult(validateOutgoingCard(editedData))
+                      setValidationModalVisible(true)
+                    }}
+                  >
+                    Валидация карты
+                  </Button>
+                )}
                 {hasPersistedDpaid && (
                   <Button onClick={() => void handleCancelEdit()} loading={cancelReloading} disabled={cancelReloading}>
                     Отменить
@@ -954,16 +960,6 @@ const DangerousProductCard: React.FC<DangerousProductCardProps> = ({
                     }}
                   >
                     Отменить создание
-                  </Button>
-                )}
-                {isOutgoingSource && (
-                  <Button
-                    onClick={() => {
-                      setValidationResult(validateOutgoingCard(editedData))
-                      setValidationModalVisible(true)
-                    }}
-                  >
-                    Валидация карты
                   </Button>
                 )}
               </>
@@ -1058,7 +1054,7 @@ const DangerousProductCard: React.FC<DangerousProductCardProps> = ({
           }}
           statusButton={effectiveStatusButton}
           statusButtonComment={effectiveStatusButtonComment}
-          closeButton={effectiveCloseButton}
+          closeButton={effectiveCloseButton && !effectiveCloseButton.disabled ? effectiveCloseButton : null}
           onStatusAction={(action) => {
             if (!effectiveDpaid || effectiveDpaid === '-') {
               message.warning('Сначала сохраните карту перед сменой статуса')

@@ -916,18 +916,14 @@ const PhaCard: React.FC<PhaCardProps> = ({
           <Space size="small" wrap>
             {!isEditMode && (
               <>
-                <Button
-                  type="default"
-                  onClick={() => setIsEditMode(true)}
-                  disabled={editSwitchDisabled}
-                  title={
-                    editSwitchDisabled
-                      ? 'Редактирование недоступно для текущего статуса карты'
-                      : undefined
-                  }
-                >
-                  Редактировать
-                </Button>
+                {!editSwitchDisabled && (
+                  <Button
+                    type="default"
+                    onClick={() => setIsEditMode(true)}
+                  >
+                    Редактировать
+                  </Button>
+                )}
                 {isOutgoingPha && (
                   <Button
                     onClick={() => {
@@ -959,6 +955,16 @@ const PhaCard: React.FC<PhaCardProps> = ({
                     Сохранить
                   </Button>
                 )}
+                {isOutgoingPha && (
+                  <Button
+                    onClick={() => {
+                      setValidationResult(validatePhaOutgoingCardFull(editedData))
+                      setValidationModalVisible(true)
+                    }}
+                  >
+                    Валидация карты
+                  </Button>
+                )}
                 {effectivePhaid !== '-' && /^\d+$/.test(effectivePhaid) && (
                   <Button onClick={() => void handleCancelEdit()} loading={cancelReloading} disabled={cancelReloading}>
                     Отменить
@@ -973,16 +979,6 @@ const PhaCard: React.FC<PhaCardProps> = ({
                     }}
                   >
                     Отменить создание
-                  </Button>
-                )}
-                {isOutgoingPha && (
-                  <Button
-                    onClick={() => {
-                      setValidationResult(validatePhaOutgoingCardFull(editedData))
-                      setValidationModalVisible(true)
-                    }}
-                  >
-                    Валидация карты
                   </Button>
                 )}
               </>
@@ -1070,7 +1066,7 @@ const PhaCard: React.FC<PhaCardProps> = ({
           }}
           statusButton={phaStatusResult.config}
           statusButtonComment={phaStatusResult.comment || undefined}
-          closeButton={phaStatusResult.closeConfig}
+          closeButton={phaStatusResult.closeConfig && !phaStatusResult.closeConfig.disabled ? phaStatusResult.closeConfig : null}
           onStatusAction={handlePhaStatusAction}
           onElectronicDocumentClick={() => setElectronicDocumentVisible(true)}
           showDeleteButton={showDeleteButton}
