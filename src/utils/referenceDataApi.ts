@@ -193,6 +193,8 @@ export interface MeasurementUnitOption {
 export interface ShipDocKindOption {
   code: string
   name: string
+  /** SHIPDOCKINDGR.SHIPDOCKINDGRCODE (например, "2." — транспортные документы) */
+  groupCode?: string
 }
 
 export interface SupplyChainPartyKindOption {

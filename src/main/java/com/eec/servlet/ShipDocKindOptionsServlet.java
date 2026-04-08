@@ -64,12 +64,14 @@ public class ShipDocKindOptionsServlet extends HttpServlet {
                 
                 String code = kind.code != null ? kind.code : "";
                 String name = kind.name != null ? kind.name : "";
+                String groupCode = kind.groupCode != null ? kind.groupCode : "";
                 
                 // Экранируем кавычки
                 code = code.replace("\\", "\\\\").replace("\"", "\\\"");
                 name = name.replace("\\", "\\\\").replace("\"", "\\\"");
+                groupCode = groupCode.replace("\\", "\\\\").replace("\"", "\\\"");
                 
-                out.print("{\"code\":\"" + code + "\",\"name\":\"" + name + "\"}");
+                out.print("{\"code\":\"" + code + "\",\"name\":\"" + name + "\",\"groupCode\":\"" + groupCode + "\"}");
             }
             
             out.print("]");

@@ -38,6 +38,12 @@ const TSDTabEdit: React.FC<TSDTabEditProps> = ({ data, onChange }) => {
     const code = props.value != null && props.value !== '' ? String(props.value) : ''
     return code ? getShipDocKindDisplayLabel(code) : props.label
   }
+  const shipDocKindTransportSelectOptions = shipDocKindOptions
+    .filter((opt) => String(opt.groupCode ?? '').trim() === '2.')
+    .map((opt) => ({
+      value: opt.code,
+      label: `${opt.code} - ${opt.name}`,
+    }))
   const [docKindErrors, setDocKindErrors] = useState<Map<string, boolean>>(new Map())
   const [commodityCodeErrors, setCommodityCodeErrors] = useState<Record<string, string>>({})
 
@@ -410,7 +416,7 @@ const TSDTabEdit: React.FC<TSDTabEditProps> = ({ data, onChange }) => {
             filterOption={(input, option) =>
               (option?.label ?? '').toLowerCase().includes(input.toLowerCase())
             }
-            options={getShipDocKindSelectOptions()}
+            options={shipDocKindTransportSelectOptions}
             allowClear
             status={docKindErrors.get(docKindErrorKey(batchIndex, docIndex)) ? 'error' : undefined}
             notFoundContent={

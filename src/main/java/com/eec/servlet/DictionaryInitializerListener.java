@@ -461,11 +461,12 @@ public class DictionaryInitializerListener implements ServletContextListener {
             
             // Загружаем активные записи по периоду действия:
             // SHIPDOCKINDSDATE <= SYSDATE и (SHIPDOCKINDEDATE IS NULL или SHIPDOCKINDEDATE >= SYSDATE).
-            String sql = "SELECT SHIPDOCKINDCODE, SHIPDOCKINDNAME " +
-                        "FROM SHIPDOCKIND " +
+            String sql = "SELECT s.SHIPDOCKINDCODE, s.SHIPDOCKINDNAME, sg.SHIPDOCKINDGRCODE " +
+                        "FROM SHIPDOCKIND s " +
+                        "LEFT JOIN SHIPDOCKINDGR sg ON sg.SHIPDOCKINDGRID = s.SHIPDOCKINDGRID " +
                         "WHERE (SHIPDOCKINDSDATE IS NULL OR SHIPDOCKINDSDATE <= SYSDATE) " +
                         "AND (SHIPDOCKINDEDATE IS NULL OR SHIPDOCKINDEDATE >= SYSDATE) " +
-                        "ORDER BY NVL(SEQNUM, 999999), SHIPDOCKINDCODE";
+                        "ORDER BY NVL(s.SEQNUM, 999999), s.SHIPDOCKINDCODE";
             
             PreparedStatement stmt = conn.prepareStatement(sql);
             ResultSet rs = stmt.executeQuery();
@@ -476,10 +477,12 @@ public class DictionaryInitializerListener implements ServletContextListener {
             while (rs.next()) {
                 String code = rs.getString("SHIPDOCKINDCODE");
                 String name = rs.getString("SHIPDOCKINDNAME");
+                String groupCode = rs.getString("SHIPDOCKINDGRCODE");
                 
                 kinds.add(new ShipDocKindOption(
                     code != null ? code : "",
-                    name != null ? name : ""
+                    name != null ? name : "",
+                    groupCode != null ? groupCode : ""
                 ));
                 count++;
             }

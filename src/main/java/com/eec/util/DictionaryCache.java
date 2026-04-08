@@ -201,10 +201,12 @@ public class DictionaryCache {
     public static class ShipDocKindOption {
         public String code;
         public String name;
+        public String groupCode;
         
-        public ShipDocKindOption(String code, String name) {
+        public ShipDocKindOption(String code, String name, String groupCode) {
             this.code = code;
             this.name = name;
+            this.groupCode = groupCode;
         }
     }
     
