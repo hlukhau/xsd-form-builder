@@ -22,7 +22,7 @@ export function getPhaEmptyTagsWarnings(data: CardData): string[] {
   const empty = groups.filter((g) => !hasPhaPatientGroupExportContent(g)).length
   if (empty > 0) {
     warnings.push(
-      `Обнаружены пустые группы пациентов (${empty}): тег smcdo:PatientGroupDetails не включается в XML; пустые строки при сохранении не записываются (как для пустых партий в DPA).`
+      `Обнаружены пустые группы пациентов (${empty}): такие строки в XML не включаются; при сохранении не записываются (аналогично пустым партиям в DPA).`
     )
   }
   return warnings

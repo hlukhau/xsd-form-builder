@@ -728,7 +728,7 @@ export function collectFormatValidationErrors(data: CardData): FormatValidationE
           pushFormatError(errors, `${vPath} → Показатель ${ii + 1} → Наименование`, 'indicatorName', ind.indicatorName)
           pushFormatError(errors, `${vPath} → Показатель ${ii + 1} → Значение`, 'indicatorValue', ind.indicatorValue)
           if ((ind.indicatorValue ?? '').trim() && !(ind.unitCode ?? '').trim()) {
-            errors.push(`${vPath} → Показатель ${ii + 1}: при заполненном значении показателя обязательно указывать единицу измерения (csdo:UnifiedMeasurementUnitCode).`)
+            errors.push(`${vPath} → Показатель ${ii + 1}: при заполненном значении показателя обязательно указывать единицу измерения.`)
           }
           pushFormatError(errors, `${vPath} → Показатель ${ii + 1} → Примечание`, 'noteText', ind.note)
         })
@@ -817,14 +817,14 @@ function pushPhaXsdFormatErrors(errors: string[], data: CardData): void {
 
   const notif = data.notification
   if (notif?.registrationNumber !== undefined && notif.registrationNumber !== '') {
-    pushFormatError(errors, 'Уведомление → Регистрационный номер (smsdo:IncidentId)', 'phaIncidentId', notif.registrationNumber)
+    pushFormatError(errors, 'Уведомление → Регистрационный номер', 'phaIncidentId', notif.registrationNumber)
   }
 
   ;(data.phaCauseNotifications ?? []).forEach((c, i) => {
     if ((c.registrationNumber ?? '').trim() !== '') {
       pushFormatError(
         errors,
-        `Уведомление → Причинное уведомление ${i + 1} → Рег. номер (smsdo:IncidentId)`,
+        `Уведомление → Причинное уведомление ${i + 1} → Рег. номер`,
         'phaIncidentId',
         c.registrationNumber
       )
@@ -833,22 +833,22 @@ function pushPhaXsdFormatErrors(errors: string[], data: CardData): void {
 
   const d = data.phaDisease
   if (d?.diseaseName != null && String(d.diseaseName).trim() !== '') {
-    pushFormatError(errors, 'Болезнь → Наименование (smsdo:DiseaseHealthProblemName)', 'phaDiseaseHealthProblemName', d.diseaseName)
+    pushFormatError(errors, 'Болезнь → Наименование', 'phaDiseaseHealthProblemName', d.diseaseName)
   }
 
   ;(d?.pathogens ?? []).forEach((p, i) => {
     if ((p.pathogenKindName ?? '').trim() !== '') {
-      pushFormatError(errors, `Болезнь → Возбудитель ${i + 1} → Тип (smsdo:PathogenKindName)`, 'pathogenKindName', p.pathogenKindName)
+      pushFormatError(errors, `Болезнь → Возбудитель ${i + 1} → Тип`, 'pathogenKindName', p.pathogenKindName)
     }
     if ((p.pathogenName ?? '').trim() !== '') {
-      pushFormatError(errors, `Болезнь → Возбудитель ${i + 1} → Наименование (smsdo:PathogenName)`, 'pathogenName', p.pathogenName)
+      pushFormatError(errors, `Болезнь → Возбудитель ${i + 1} → Наименование`, 'pathogenName', p.pathogenName)
     }
   })
 
   ;(data.phaPatientGroups ?? []).forEach((g, i) => {
     const pq = g.personQuantity != null && g.personQuantity !== '' ? String(g.personQuantity) : undefined
     if (pq !== undefined && pq.trim() !== '') {
-      pushFormatError(errors, `Группа пациентов ${i + 1} → Количество человек (smsdo:PersonQuantity)`, 'personQuantity', pq)
+      pushFormatError(errors, `Группа пациентов ${i + 1} → Количество человек`, 'personQuantity', pq)
     }
     if ((g.ageGroupCode ?? '').trim() !== '') {
       pushFormatError(errors, `Группа пациентов ${i + 1} → Возрастная группа`, 'ageGroupCode', g.ageGroupCode)
@@ -860,7 +860,7 @@ function pushPhaXsdFormatErrors(errors: string[], data: CardData): void {
 
   ;(data.measures?.measures ?? []).forEach((m, i) => {
     if (m.measureName != null && String(m.measureName).trim() !== '' && (m.measureCode == null || m.measureCode === '')) {
-      pushFormatError(errors, `Санитарные меры → Мера ${i + 1} → Наименование (smsdo:MeasureName)`, 'phaMeasureName', m.measureName)
+      pushFormatError(errors, `Санитарные меры → Мера ${i + 1} → Наименование`, 'phaMeasureName', m.measureName)
     }
   })
 }

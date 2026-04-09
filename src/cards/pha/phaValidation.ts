@@ -3,9 +3,17 @@
  * Используется в «Валидация карты» и перед направлением ОП 57 (validatePhaOutgoingCardFull).
  * Перед сохранением в БД блокируются только несоответствия формата заполненных полей (collectPhaFormatValidationErrors).
  */
-import type { CardData, DetectionPlaceData, AddressDetails, PhaCauseNotificationItem, PhaPathogenDetails } from '@/types/card'
+import type {
+  CardData,
+  ContactDetails,
+  DetectionPlaceData,
+  AddressDetails,
+  PhaCauseNotificationItem,
+  PhaPathogenDetails,
+} from '@/types/card'
 import { validateFieldValue } from '@/constants/xsdFieldConstraints'
 import { collectFormatValidationErrors, type ValidationResult } from '@/utils/cardValidation'
+import { phaShouldExportPublicHealthIncident } from '@/cards/pha/phaXmlExporter'
 
 export type { ValidationResult }
 
@@ -44,6 +52,26 @@ function objectAddressHasMinimum(a: AddressDetails | undefined): boolean {
   return !empty(a.country) || addressHasCityOrSettlement(a) || !empty(a.fullAddress)
 }
 
+function contactNeedsCommunicationValue(c: ContactDetails): boolean {
+  return (
+    !empty(c.communicationChannelCode) ||
+    !empty(c.communicationChannelName) ||
+    !empty(c.communicationChannelId) ||
+    !empty(c.contactKind)
+  )
+}
+
+function collectOrgContactRemarks(contacts: ContactDetails[] | undefined): string[] {
+  if (!contacts?.length) return []
+  for (const c of contacts) {
+    if (!contactNeedsCommunicationValue(c)) continue
+    if (empty(c.contactValue)) {
+      return ['Для контактного реквизита должно быть указано значение']
+    }
+  }
+  return []
+}
+
 function hasPlaceAnyBlock(place: DetectionPlaceData | undefined): boolean {
   if (!place) return false
   const o = place.organization
@@ -53,6 +81,7 @@ function hasPlaceAnyBlock(place: DetectionPlaceData | undefined): boolean {
       o.businessEntityName?.trim() ||
       o.businessEntityBriefName?.trim() ||
       (o.addresses && o.addresses.length > 0) ||
+      (o.contacts && o.contacts.length > 0) ||
       o.businessEntityId?.trim() ||
       o.identificationMethod?.trim() ||
       o.customsNumber?.trim() ||
@@ -95,15 +124,13 @@ function collectPlaceRemarks(place: DetectionPlaceData | undefined): string[] {
       !empty(o.taxpayerId)
     if (orgTouched) {
       if (empty(o.country)) {
-        add('Организация: не указана страна (csdo:UnifiedCountryCode)')
+        add('Организация: не указана страна')
       }
       if (empty(o.businessEntityName)) {
-        add('Организация: не указано наименование субъекта (csdo:BusinessEntityName)')
+        add('Организация: не указано наименование субъекта')
       }
       if (!(o.addresses && o.addresses.length > 0)) {
-        add(
-          'Организация: не указан адрес субъекта (ccdo:SubjectAddressDetails — добавьте хотя бы один адрес в блоке организации)'
-        )
+        add('Организация: не указан адрес субъекта — добавьте хотя бы один адрес в блоке организации')
       }
       if (!empty(o.businessEntityId) && empty(o.identificationMethod)) {
         add('Если указан идентификатор хозяйствующего субъекта, то метод идентификации должен быть указан обязательно')
@@ -115,6 +142,7 @@ function collectPlaceRemarks(place: DetectionPlaceData | undefined): string[] {
         }
       }
     }
+    for (const msg of collectOrgContactRemarks(o.contacts)) add(msg)
   }
 
   const bc = place?.borderCheckpoint
@@ -266,6 +294,10 @@ export function validatePhaOutgoingCard(data: CardData): ValidationResult {
     add(sectionDisease, 'Наименование болезни должно быть указано')
   }
 
+  if (phaShouldExportPublicHealthIncident(data) && empty(d?.firstCaseDate)) {
+    add(sectionDisease, 'Дата первого случая должна быть указана')
+  }
+
   ;(d?.pathogens ?? []).forEach((p) => {
     if (pathogenDetailsTouched(p) && empty(p.pathogenKindName)) {
       add(sectionDisease, 'Наименование типа возбудителя должно быть указано')
@@ -282,7 +314,7 @@ export function validatePhaOutgoingCard(data: CardData): ValidationResult {
     groups.forEach((g, i) => {
       const pq = g.personQuantity != null ? String(g.personQuantity).trim() : ''
       if (empty(pq)) {
-        add(sectionPatients, `Группа ${i + 1}: укажите количество человек (smsdo:PersonQuantity)`)
+        add(sectionPatients, `Группа ${i + 1}: укажите количество человек`)
       } else {
         const fmt = validateFieldValue('personQuantity', pq)
         if (fmt) add(sectionPatients, `Группа ${i + 1}: количество — ${fmt}`)

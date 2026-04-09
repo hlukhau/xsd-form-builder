@@ -1090,7 +1090,8 @@ function parseContacts(parent: Element): ContactDetails[] {
       const channelId = getTextContent(el, 'CommunicationChannelId') || undefined
       
       const contactKind = getTextContent(el, 'ContactKind') || undefined
-      const contactValue = getTextContent(el, 'ContactValue') || undefined
+      const communication = getTextContent(el, 'Communication') || undefined
+      const contactValue = getTextContent(el, 'ContactValue') || communication || undefined
       
       if (channelCode || channelName || channelId || contactKind || contactValue) {
         contacts.push({
@@ -1121,7 +1122,8 @@ function parseContacts(parent: Element): ContactDetails[] {
         const channelName = getTextContent(el, 'CommunicationChannelName') || undefined
         const channelId = getTextContent(el, 'CommunicationChannelId') || undefined
         const contactKind = getTextContent(el, 'ContactKind') || undefined
-        const contactValue = getTextContent(el, 'ContactValue') || undefined
+        const communication = getTextContent(el, 'Communication') || undefined
+        const contactValue = getTextContent(el, 'ContactValue') || communication || undefined
         
         if (channelCode || channelName || channelId || contactKind || contactValue) {
           contacts.push({
@@ -2407,7 +2409,20 @@ function parseOrganizationDetails(placeElement: Element): BusinessEntityDetails 
   // Контакты (CommunicationDetails)
   const contacts = parseContacts(orgElement)
   
-  if (!country && !businessEntityName) {
+  const hasOrgContent =
+    !!country?.trim() ||
+    !!businessEntityName?.trim() ||
+    !!businessEntityBriefName?.trim() ||
+    !!businessEntityTypeCode?.trim() ||
+    !!businessEntityTypeName?.trim() ||
+    !!businessEntityId?.trim() ||
+    !!identificationMethod?.trim() ||
+    !!customsNumber?.trim() ||
+    !!taxRegistrationReasonCode?.trim() ||
+    !!taxpayerId?.trim() ||
+    addresses.length > 0 ||
+    contacts.length > 0
+  if (!hasOrgContent) {
     return undefined
   }
   

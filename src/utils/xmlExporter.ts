@@ -964,6 +964,8 @@ export function exportDetectionPlace(
         if (contact.communicationChannelCode) xmlParts.push(`${indent}          <csdo:CommunicationChannelCode>${escapeXML(contact.communicationChannelCode)}</csdo:CommunicationChannelCode>`)
         if (contact.communicationChannelName) xmlParts.push(`${indent}          <csdo:CommunicationChannelName>${escapeXML(contact.communicationChannelName)}</csdo:CommunicationChannelName>`)
         if (contact.communicationChannelId) xmlParts.push(`${indent}          <csdo:CommunicationChannelId>${escapeXML(contact.communicationChannelId)}</csdo:CommunicationChannelId>`)
+        if (contact.contactKind) xmlParts.push(`${indent}          <csdo:ContactKind>${escapeXML(contact.contactKind)}</csdo:ContactKind>`)
+        if (contact.contactValue) xmlParts.push(`${indent}          <csdo:Communication>${escapeXML(contact.contactValue)}</csdo:Communication>`)
         xmlParts.push(`${indent}        </ccdo:CommunicationDetails>`)
       })
     }
@@ -983,8 +985,8 @@ export function exportDetectionPlace(
     for (const coord of place.geoCoordinates) {
       if (coord.longitude || coord.latitude) {
         xmlParts.push(`${indent}    <ccdo:GeoCoordinateDetails>`)
-        if (coord.longitude) xmlParts.push(`${indent}        <ccdo:LongitudeMeasure>${escapeXML(coord.longitude)}</ccdo:LongitudeMeasure>`)
-        if (coord.latitude) xmlParts.push(`${indent}        <ccdo:LatitudeMeasure>${escapeXML(coord.latitude)}</ccdo:LatitudeMeasure>`)
+        if (coord.longitude) xmlParts.push(`${indent}        <csdo:LongitudeMeasure>${escapeXML(coord.longitude)}</csdo:LongitudeMeasure>`)
+        if (coord.latitude) xmlParts.push(`${indent}        <csdo:LatitudeMeasure>${escapeXML(coord.latitude)}</csdo:LatitudeMeasure>`)
         xmlParts.push(`${indent}    </ccdo:GeoCoordinateDetails>`)
       }
     }

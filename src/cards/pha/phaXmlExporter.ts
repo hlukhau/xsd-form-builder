@@ -26,6 +26,34 @@ function toISODateTimeForXml(dateTime: string | null | undefined): string {
   return d.toISOString().replace('Z', '')
 }
 
+/** Совпадает с условием вывода smcdo:PublicHealthIncidentDetails (валидация, отчёт). */
+export function phaShouldExportPublicHealthIncident(data: CardData): boolean {
+  const disease = data.phaDisease
+  const hasDisease =
+    disease &&
+    (disease.diseaseName ||
+      disease.firstCaseDate ||
+      disease.lastCaseDate != null ||
+      disease.crossborderSpreadRiskIndicator != null ||
+      (disease.pathogens?.length ?? 0) > 0)
+  const patientGroups = data.phaPatientGroups ?? []
+  const patientGroupsToExport = patientGroups.filter(hasPhaPatientGroupExportContent)
+  const spreadingZonesList =
+    data.spreadingZones && data.spreadingZones.length > 0
+      ? data.spreadingZones
+      : data.spreadingZone
+        ? [data.spreadingZone]
+        : []
+  return (
+    !!hasDisease ||
+    patientGroupsToExport.length > 0 ||
+    !!data.detectionPlace ||
+    spreadingZonesList.length > 0 ||
+    disease?.crossborderSpreadRiskIndicator === 0 ||
+    disease?.crossborderSpreadRiskIndicator === 1
+  )
+}
+
 export function exportPhaCardDataToXML(data: CardData): string {
   const xmlParts: string[] = []
   xmlParts.push('<?xml version="1.0" encoding="UTF-8"?>')
@@ -83,41 +111,36 @@ export function exportPhaCardDataToXML(data: CardData): string {
   const disease = data.phaDisease
   const patientGroups = data.phaPatientGroups ?? []
   const patientGroupsToExport = patientGroups.filter(hasPhaPatientGroupExportContent)
-  const hasDisease =
-    disease &&
-    (disease.diseaseName ||
-      disease.firstCaseDate ||
-      disease.lastCaseDate != null ||
-      disease.crossborderSpreadRiskIndicator != null ||
-      (disease.pathogens?.length ?? 0) > 0)
   const spreadingZonesList =
     data.spreadingZones && data.spreadingZones.length > 0
       ? data.spreadingZones
       : data.spreadingZone
         ? [data.spreadingZone]
         : []
-  const openPublicHealthIncident =
-    hasDisease ||
-    patientGroupsToExport.length > 0 ||
-    !!data.detectionPlace ||
-    spreadingZonesList.length > 0 ||
-    disease?.crossborderSpreadRiskIndicator === 0 ||
-    disease?.crossborderSpreadRiskIndicator === 1
+  const openPublicHealthIncident = phaShouldExportPublicHealthIncident(data)
 
   if (openPublicHealthIncident) {
     xmlParts.push('    <smcdo:PublicHealthIncidentDetails>')
-    xmlParts.push('      <smcdo:DiseaseHealthProblemDetails>')
-    if (disease?.diseaseName) xmlParts.push(`        <smsdo:DiseaseHealthProblemName>${escapeXML(disease.diseaseName)}</smsdo:DiseaseHealthProblemName>`)
-    const pathogens = disease?.pathogens ?? []
-    for (const p of pathogens) {
-      xmlParts.push('        <smcdo:PathogenDetails>')
-      if (p.pathogenKindName) xmlParts.push(`          <smsdo:PathogenKindName>${escapeXML(p.pathogenKindName)}</smsdo:PathogenKindName>`)
-      if (p.pathogenName) xmlParts.push(`          <smsdo:PathogenName>${escapeXML(p.pathogenName)}</smsdo:PathogenName>`)
-      xmlParts.push('        </smcdo:PathogenDetails>')
+    const hasDiseaseProblemContent =
+      !!(disease?.diseaseName?.trim()) ||
+      (disease?.pathogens ?? []).some((p) => !!(p.pathogenKindName?.trim() || p.pathogenName?.trim()))
+    if (hasDiseaseProblemContent) {
+      xmlParts.push('      <smcdo:DiseaseHealthProblemDetails>')
+      if (disease?.diseaseName?.trim()) {
+        xmlParts.push(`        <smsdo:DiseaseHealthProblemName>${escapeXML(disease.diseaseName)}</smsdo:DiseaseHealthProblemName>`)
+      }
+      const pathogens = disease?.pathogens ?? []
+      for (const p of pathogens) {
+        if (!p.pathogenKindName?.trim() && !p.pathogenName?.trim()) continue
+        xmlParts.push('        <smcdo:PathogenDetails>')
+        if (p.pathogenKindName?.trim()) xmlParts.push(`          <smsdo:PathogenKindName>${escapeXML(p.pathogenKindName)}</smsdo:PathogenKindName>`)
+        if (p.pathogenName?.trim()) xmlParts.push(`          <smsdo:PathogenName>${escapeXML(p.pathogenName)}</smsdo:PathogenName>`)
+        xmlParts.push('        </smcdo:PathogenDetails>')
+      }
+      xmlParts.push('      </smcdo:DiseaseHealthProblemDetails>')
     }
-    xmlParts.push('      </smcdo:DiseaseHealthProblemDetails>')
-    const eventDateStr = disease?.firstCaseDate?.trim().slice(0, 10) || new Date().toISOString().slice(0, 10)
-    xmlParts.push(`      <csdo:EventDate>${escapeXML(eventDateStr)}</csdo:EventDate>`)
+    const eventDateStr = disease?.firstCaseDate?.trim().slice(0, 10)
+    if (eventDateStr) xmlParts.push(`      <csdo:EventDate>${escapeXML(eventDateStr)}</csdo:EventDate>`)
     if (disease?.lastCaseDate) {
       const d = disease.lastCaseDate.trim().slice(0, 10)
       if (d) xmlParts.push(`      <csdo:EndDate>${escapeXML(d)}</csdo:EndDate>`)
