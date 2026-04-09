@@ -14,6 +14,7 @@ import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
+import java.sql.Savepoint;
 import java.sql.Types;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -129,6 +130,7 @@ public class DpaStatusChangeServlet extends HttpServlet {
         Connection conn = null;
         try {
             conn = DatabaseUtil.getConnectionForRequest(request, guid);
+            conn.setAutoCommit(false);
             int currentStatusId = -1;
             String currentStatusName = null;
             String sourceName = null;
@@ -170,9 +172,11 @@ public class DpaStatusChangeServlet extends HttpServlet {
             }
             sendJsonError(response, HttpServletResponse.SC_BAD_REQUEST, "Смена статуса по действию доступна только для входящих или исходящих сведений");
         } catch (SQLException e) {
+            DatabaseUtil.rollbackQuietly(conn);
             log("DpaStatusChange: " + e.getMessage());
             sendJsonError(response, HttpServletResponse.SC_INTERNAL_SERVER_ERROR, "Ошибка БД: " + e.getMessage());
         } finally {
+            DatabaseUtil.rollbackQuietly(conn);
             DatabaseUtil.closeConnection(conn);
         }
     }
@@ -222,6 +226,7 @@ public class DpaStatusChangeServlet extends HttpServlet {
                 ps.setInt(3, userId);
                 ps.executeUpdate();
             }
+            conn.commit();
             response.getWriter().print("{\"ok\":true,\"newStatus\":\"Завершено\"}");
             return;
         } else {
@@ -287,6 +292,7 @@ public class DpaStatusChangeServlet extends HttpServlet {
             if (currentStatusId == OUTGOING_NEW && "DEP0602".equalsIgnoreCase(depKindCode)) {
                 insertRepublicanDepPermisOnRegionalReadyForNew(conn, dpaid);
             }
+            Savepoint spResolution = conn.setSavepoint("dpa_resolution");
             try (PreparedStatement ps = conn.prepareStatement(SQL_INSERT_RESOLUTION)) {
                 ps.setLong(1, dpaid);
                 ps.setInt(2, OUTGOING_NEW);
@@ -296,11 +302,14 @@ public class DpaStatusChangeServlet extends HttpServlet {
             } catch (SQLException e) {
                 String msg = e.getMessage();
                 if (msg != null && (msg.contains("ORA-00001") || msg.contains("unique") || msg.contains("Unique"))) {
+                    conn.rollback(spResolution);
+                    conn.commit();
                     response.getWriter().print("{\"ok\":true,\"newStatus\":\"Новое\"}");
                     return;
                 }
                 throw e;
             }
+            conn.commit();
             response.getWriter().print("{\"ok\":true,\"newStatus\":\"Новое\"}");
             return;
         }
@@ -324,6 +333,7 @@ public class DpaStatusChangeServlet extends HttpServlet {
                 ps.setInt(3, userId);
                 ps.executeUpdate();
             }
+            conn.commit();
             response.getWriter().print("{\"ok\":true,\"newStatus\":\"Новое\"}");
             return;
         }
@@ -359,6 +369,7 @@ public class DpaStatusChangeServlet extends HttpServlet {
                 ps.setInt(3, userId);
                 ps.executeUpdate();
             }
+            conn.commit();
             response.getWriter().print("{\"ok\":true,\"newStatus\":\"Ожидает отправки\"}");
             return;
         }
@@ -382,6 +393,7 @@ public class DpaStatusChangeServlet extends HttpServlet {
                 ps.setInt(3, userId);
                 ps.executeUpdate();
             }
+            conn.commit();
             response.getWriter().print("{\"ok\":true,\"newStatus\":\"Завершено\"}");
             return;
         }
@@ -606,6 +618,7 @@ public class DpaStatusChangeServlet extends HttpServlet {
         }
         ps.executeUpdate();
         ps.close();
+        conn.commit();
         if (firstOpenResponse) {
             response.getWriter().print("{\"ok\":true,\"changed\":true,\"newStatus\":\"" + escapeJson(newStatusName)
                     + "\",\"newStatusId\":" + newStatusId + "}");

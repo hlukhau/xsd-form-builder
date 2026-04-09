@@ -157,6 +157,22 @@ public class DatabaseUtil {
             }
         }
     }
+
+    /**
+     * Откат незакоммиченной транзакции (при {@code setAutoCommit(false)}).
+     * Безопасно вызывать после успешного {@link Connection#commit()}: откатывается пустая транзакция.
+     */
+    public static void rollbackQuietly(Connection conn) {
+        if (conn == null) {
+            return;
+        }
+        try {
+            if (!conn.isClosed() && !conn.getAutoCommit()) {
+                conn.rollback();
+            }
+        } catch (SQLException ignored) {
+        }
+    }
 }
 
 

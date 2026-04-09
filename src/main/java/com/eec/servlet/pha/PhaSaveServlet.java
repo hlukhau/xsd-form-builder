@@ -111,6 +111,7 @@ public class PhaSaveServlet extends HttpServlet {
         Integer userId = getUserIdFromRightsByGuid(guid);
 
         Connection conn = null;
+        boolean transactionEnded = false;
         try {
             conn = DatabaseUtil.getConnectionForRequest(request, guid);
             conn.setAutoCommit(false);
@@ -189,6 +190,7 @@ public class PhaSaveServlet extends HttpServlet {
                 }
 
                 conn.commit();
+                transactionEnded = true;
                 response.getWriter().print("{\"success\":true,\"phaid\":" + phaid + "}");
             } else {
                 if (phaidParam == null || phaidParam <= 0) {
@@ -259,14 +261,21 @@ public class PhaSaveServlet extends HttpServlet {
                     }
                 }
                 conn.commit();
+                transactionEnded = true;
                 response.getWriter().print("{\"success\":true,\"phaid\":" + phaid + "}");
             }
         } catch (SQLException e) {
-            if (conn != null) try { conn.rollback(); } catch (SQLException ignored) { }
+            DatabaseUtil.rollbackQuietly(conn);
+            transactionEnded = true;
             e.printStackTrace();
             sendJsonError(response, HttpServletResponse.SC_INTERNAL_SERVER_ERROR, "Ошибка БД: " + e.getMessage());
         } finally {
-            DatabaseUtil.closeConnection(conn);
+            if (conn != null) {
+                if (!transactionEnded) {
+                    DatabaseUtil.rollbackQuietly(conn);
+                }
+                DatabaseUtil.closeConnection(conn);
+            }
         }
     }
 

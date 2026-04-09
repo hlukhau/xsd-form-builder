@@ -120,6 +120,7 @@ public class PhaStatusChangeServlet extends HttpServlet {
         Connection conn = null;
         try {
             conn = DatabaseUtil.getConnectionForRequest(request, guid);
+            conn.setAutoCommit(false);
             CurrentPhaRow row = loadCurrentRow(conn, phaIdNum);
             if (row == null) {
                 sendJsonError(response, HttpServletResponse.SC_NOT_FOUND, "Карта с PHAID " + phaid + " не найдена");
@@ -190,10 +191,12 @@ public class PhaStatusChangeServlet extends HttpServlet {
                 sendJsonError(response, HttpServletResponse.SC_BAD_REQUEST, "Неизвестное действие: " + action);
             }
         } catch (SQLException e) {
+            DatabaseUtil.rollbackQuietly(conn);
             System.err.println("[PhaStatusChangeServlet] " + e.getMessage());
             e.printStackTrace();
             sendJsonError(response, HttpServletResponse.SC_INTERNAL_SERVER_ERROR, "Ошибка БД: " + e.getMessage());
         } finally {
+            DatabaseUtil.rollbackQuietly(conn);
             DatabaseUtil.closeConnection(conn);
         }
     }
@@ -272,6 +275,7 @@ public class PhaStatusChangeServlet extends HttpServlet {
             return;
         }
         applyStatusAndHistory(conn, phaId, newId, userId);
+        conn.commit();
         response.getWriter().print(buildOkJson(true, STATUS_PROCESSING, newId));
     }
 
@@ -295,6 +299,7 @@ public class PhaStatusChangeServlet extends HttpServlet {
             return;
         }
         applyStatusAndHistory(conn, phaId, newId, userId);
+        conn.commit();
         response.getWriter().print(buildOkJson(true, STATUS_PROCESSED, newId));
     }
 
@@ -319,6 +324,7 @@ public class PhaStatusChangeServlet extends HttpServlet {
             return;
         }
         applyStatusAndHistory(conn, phaId, newId, userId);
+        conn.commit();
         response.getWriter().print(buildOkJson(true, STATUS_COMPLETED, newId));
     }
 
@@ -364,6 +370,7 @@ public class PhaStatusChangeServlet extends HttpServlet {
                 return;
             }
             applySendStatusAndHistory(conn, phaId, newId, userId);
+            conn.commit();
             response.getWriter().print(buildOkJson(true, STATUS_PENDING, newId));
             return;
         }
@@ -400,6 +407,7 @@ public class PhaStatusChangeServlet extends HttpServlet {
                 return;
             }
             applyStatusAndHistory(conn, phaId, newId, userId);
+            conn.commit();
             response.getWriter().print(buildOkJson(true, STATUS_COMPLETED, newId));
             return;
         }
@@ -422,6 +430,7 @@ public class PhaStatusChangeServlet extends HttpServlet {
                 return;
             }
             applyStatusAndHistory(conn, phaId, newId, userId);
+            conn.commit();
             response.getWriter().print(buildOkJson(true, STATUS_NEW, newId));
             return;
         }

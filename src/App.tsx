@@ -522,31 +522,28 @@ function PhaAppContent() {
             // история недоступна — оставляем статус пустым
           }
         }
+        /* Входящие ЕАЭС (DATASOURCEKINDCODE=1): как у DPA — сначала first_open (Получено→В обработке) и запись в PHASTATUSHIST, затем показ карты. */
+        const dscForFirstOpen = String(enriched.datasourceKindCode ?? '').trim()
+        if (guid?.trim() && isPhaIncomingSource(enriched.source) && dscForFirstOpen === '1') {
+          try {
+            const res = await postPhaStatus(phaid, 'first_open', guid)
+            if (seq !== phaLoadSeqRef.current) return
+            if (res.changed === true && res.newStatus != null) {
+              enriched = {
+                ...enriched,
+                status: res.newStatus,
+                statusId: res.newStatusId ?? enriched.statusId,
+              }
+            }
+          } catch {
+            /* нет права / ошибка БД — отображаем карту в статусе из метаданных */
+          }
+        }
+
         if (seq !== phaLoadSeqRef.current) return
         setCardData(enriched)
         setError(null)
         message.success('Данные карты PHA загружены')
-        const dscForFirstOpen = String(enriched.datasourceKindCode ?? '').trim()
-        if (guid?.trim() && isPhaIncomingSource(enriched.source) && dscForFirstOpen === '1') {
-          postPhaStatus(phaid, 'first_open', guid)
-            .then((res) => {
-              if (seq !== phaLoadSeqRef.current) return
-              if (res.changed && res.newStatus != null) {
-                setCardData((prev) =>
-                  prev
-                    ? {
-                        ...prev,
-                        status: res.newStatus!,
-                        statusId: res.newStatusId ?? prev.statusId,
-                      }
-                    : prev
-                )
-              }
-            })
-            .catch(() => {
-              /* нет права / ошибка БД — карта уже отображена */
-            })
-        }
       } catch (err) {
         if (seq !== phaLoadSeqRef.current) return
         setError(err instanceof Error ? err.message : 'Ошибка загрузки')

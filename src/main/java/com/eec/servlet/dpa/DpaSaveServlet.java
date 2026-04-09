@@ -145,13 +145,21 @@ public class DpaSaveServlet extends HttpServlet {
         String authorityIdStr = extractJsonString(metaBlock, "authorityId");
 
         Connection conn = null;
+        boolean transactionEnded = false;
         try {
             conn = DatabaseUtil.getConnectionForRequest(request, guid);
             conn.setAutoCommit(false);
 
             if (isNew) {
                 if (copyFromDpaid != null && copyFromDpaid > 0 && guid != null && !guid.trim().isEmpty()) {
-                    handleNewVersionCopy(conn, response, request, copyFromDpaid, guid.trim(), xmlBody, body);
+                    Long newDpaidFromCopy = handleNewVersionCopy(conn, response, request, copyFromDpaid, guid.trim(), xmlBody, body);
+                    if (newDpaidFromCopy == null) {
+                        return;
+                    }
+                    conn.commit();
+                    transactionEnded = true;
+                    response.setStatus(HttpServletResponse.SC_OK);
+                    response.getWriter().print("{\"success\":true,\"dpaid\":" + newDpaidFromCopy + "}");
                     return;
                 }
                 // Создание: INSERT, версия 1. Регистрационный номер из metadata (incidentId). Поиск существующей записи не делаем.
@@ -254,6 +262,7 @@ public class DpaSaveServlet extends HttpServlet {
                 }
 
                 conn.commit();
+                transactionEnded = true;
                 response.setStatus(HttpServletResponse.SC_OK);
                 response.getWriter().print("{\"success\":true,\"dpaid\":" + dpaid + "}");
                 System.out.println("[DpaSaveServlet] Created DPA: DPAID=" + dpaid);
@@ -326,14 +335,14 @@ public class DpaSaveServlet extends HttpServlet {
                     }
                 }
                 conn.commit();
+                transactionEnded = true;
                 response.setStatus(HttpServletResponse.SC_OK);
                 response.getWriter().print("{\"success\":true,\"dpaid\":" + dpaid + "}");
                 System.out.println("[DpaSaveServlet] Updated DPA: DPAID=" + dpaid);
             }
         } catch (SQLException e) {
-            if (conn != null) {
-                try { conn.rollback(); } catch (SQLException ignored) { }
-            }
+            DatabaseUtil.rollbackQuietly(conn);
+            transactionEnded = true;
             String errMsg = e.getMessage();
             if (errMsg != null && errMsg.contains("ORA-00001")) {
                 sendJsonError(response, HttpServletResponse.SC_CONFLICT,
@@ -346,6 +355,9 @@ public class DpaSaveServlet extends HttpServlet {
             sendJsonError(response, HttpServletResponse.SC_INTERNAL_SERVER_ERROR, errMsg);
         } finally {
             if (conn != null) {
+                if (!transactionEnded) {
+                    DatabaseUtil.rollbackQuietly(conn);
+                }
                 try {
                     conn.setAutoCommit(true);
                 } catch (SQLException ignored) { }
@@ -578,8 +590,11 @@ public class DpaSaveServlet extends HttpServlet {
         response.getWriter().print("{\"error\":\"" + escaped + "\"}");
     }
 
-    /** Создание новой версии карты (копия из карты в статусе Доставлено). */
-    private void handleNewVersionCopy(Connection conn, HttpServletResponse response, HttpServletRequest request,
+    /**
+     * Создание новой версии карты (копия из карты в статусе Доставлено).
+     * Все INSERT выполняются в транзакции вызывающего {@code doPost} (без commit); при успехе возвращает новый DPAID.
+     */
+    private Long handleNewVersionCopy(Connection conn, HttpServletResponse response, HttpServletRequest request,
                                       long sourceDpaid, String guid, String xmlBody, String body) throws IOException, SQLException {
         String metaBlock = extractJsonObject(body, "metadata");
         if (metaBlock == null) metaBlock = "{}";
@@ -598,7 +613,7 @@ public class DpaSaveServlet extends HttpServlet {
             if (!rs.next()) {
                 sendJsonError(response, HttpServletResponse.SC_BAD_REQUEST,
                     "Исходная карта не найдена или не подходит для создания новой версии (исходящая, статус «Доставлено», дата закрытия не указана).");
-                return;
+                return null;
             }
             String incidentId = rs.getString("INCIDENTID");
             int sourceVersion = rs.getInt("DPAVERSION");
@@ -627,7 +642,7 @@ public class DpaSaveServlet extends HttpServlet {
             if (sourceVersion < maxVersion) {
                 sendJsonError(response, HttpServletResponse.SC_BAD_REQUEST,
                     "Создание новой версии доступно только для карты с максимальной версией по данному регистрационному номеру.");
-                return;
+                return null;
             }
 
             java.util.Set<String> cardDepIds = new java.util.HashSet<>();
@@ -647,11 +662,11 @@ public class DpaSaveServlet extends HttpServlet {
             if (!commandInvoke) {
                 if (cardDepIds.isEmpty()) {
                     sendJsonError(response, HttpServletResponse.SC_FORBIDDEN, "Нет доступа к исходной карте.");
-                    return;
+                    return null;
                 }
                 if (rightsJson == null || rightsJson.isEmpty()) {
                     sendJsonError(response, HttpServletResponse.SC_FORBIDDEN, "Права по GUID не найдены.");
-                    return;
+                    return null;
                 }
                 java.util.Set<String> userEditDepIds = parseEditDepIdsFromRights(rightsJson);
                 boolean hasEdit = false;
@@ -661,7 +676,7 @@ public class DpaSaveServlet extends HttpServlet {
                 if (!hasEdit) {
                     sendJsonError(response, HttpServletResponse.SC_FORBIDDEN,
                         "Нет права на редактирование исходящих сведений в пределах ни одного подразделения, имеющего доступ к данной карте.");
-                    return;
+                    return null;
                 }
             }
 
@@ -669,7 +684,7 @@ public class DpaSaveServlet extends HttpServlet {
             Integer draftStatusId = getDraftStatusId(conn, DATASOURCEKINDCODE_OUTGOING);
             if (draftStatusId == null) {
                 sendJsonError(response, HttpServletResponse.SC_INTERNAL_SERVER_ERROR, "Статус «Черновик» не найден в DPASTATUS.");
-                return;
+                return null;
             }
 
             // metadata из API (command=copy) может быть пустым; пустая строка в Oracle VARCHAR2 даёт NULL — колонка NOT NULL
@@ -719,7 +734,7 @@ public class DpaSaveServlet extends HttpServlet {
             Integer copyUserId = getUserIdFromRights(rightsJson);
             if (copyUserId == null) {
                 sendJsonError(response, HttpServletResponse.SC_BAD_REQUEST, "В карте прав доступа укажите атрибут userId");
-                return;
+                return null;
             }
             try (PreparedStatement ps2 = conn.prepareStatement(SQL_INSERT_DPASTATUSHIST)) {
                 ps2.setLong(1, newDpaid);
@@ -743,9 +758,7 @@ public class DpaSaveServlet extends HttpServlet {
                 System.out.println("[DpaSaveServlet] New version: No department.depid in rights for guid=" + guid + ", DPADEPPERMIS not inserted");
             }
 
-            conn.commit();
-            response.setStatus(HttpServletResponse.SC_OK);
-            response.getWriter().print("{\"success\":true,\"dpaid\":" + newDpaid + "}");
+            return Long.valueOf(newDpaid);
         }
     }
 

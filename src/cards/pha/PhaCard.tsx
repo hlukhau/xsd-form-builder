@@ -126,6 +126,22 @@ function canApplyPublicHealthOutSendForCard(
   return cardDepIds.some((id) => Object.prototype.hasOwnProperty.call(sendMap, String(id)))
 }
 
+/**
+ * Код DATASOURCEKIND из карты: пустая строка из XML не должна маскировать значение из GET /api/pha/metadata
+ * (иначе «БД ЕЭК» в шапке есть, а {@code datasourceKindCode === '3'} на фронте не срабатывает).
+ */
+function resolvePhaDatasourceKindCode(edited: CardData, propsData: CardData): string {
+  const fromEdited = edited.datasourceKindCode != null ? String(edited.datasourceKindCode).trim() : ''
+  const fromProps = propsData.datasourceKindCode != null ? String(propsData.datasourceKindCode).trim() : ''
+  return (fromEdited || fromProps).trim()
+}
+
+/** Источник БД ЕЭК по наименованию (запас к коду 3, если код в состоянии карты потерян). */
+function isPhaEecDbKindName(source: string | undefined): boolean {
+  const n = (source ?? '').toLowerCase()
+  return n.includes('еэк') || n.includes('eec')
+}
+
 const PHA_TABS = [
   { key: 'notification', label: 'Уведомление', view: NotificationTab, edit: NotificationTabEdit },
   { key: 'disease', label: 'Болезнь', view: DiseaseTab, edit: DiseaseTabEdit },
@@ -195,17 +211,20 @@ const PhaCard: React.FC<PhaCardProps> = ({
     if (phaid && phaid !== '-') setSavedPhaid(null)
   }, [phaid])
 
-  const datasourceKindCode = String(editedData.datasourceKindCode ?? data.datasourceKindCode ?? '').trim()
-  /** Входящие ЕАЭС (1) и сведения БД ЕЭК (3): только просмотр, без редактирования сохранённой карты. */
-  const phaDatasourceNoEdit =
-    effectivePhaid !== '-' && (datasourceKindCode === '1' || datasourceKindCode === '3')
+  const datasourceKindCode = resolvePhaDatasourceKindCode(editedData, data)
+  const sourceLabelForEec = (editedData.source ?? data.source ?? '').trim()
+  /** Источник «БД ЕЭК» (код 3 и/или наименование в метаданных): только просмотр, без смены статуса и т.д. */
+  const isPhaEecDbSource = datasourceKindCode === '3' || isPhaEecDbKindName(sourceLabelForEec)
+  /** Входящие ЕАЭС (1) и сведения БД ЕЭК: только просмотр, без редактирования сохранённой карты. */
+  const phaDatasourceNoEdit = effectivePhaid !== '-' && (datasourceKindCode === '1' || isPhaEecDbSource)
   const sourceFromData = data?.source ?? ''
   const isOutgoingPha =
     effectivePhaid === '-' ||
     datasourceKindCode === '2' ||
-    datasourceKindCode === '3' ||
+    isPhaEecDbSource ||
     sourceFromData.toLowerCase().includes('исходящ') ||
     sourceFromData === '2'
+  const showPhaValidationButton = isOutgoingPha && !isPhaEecDbSource
   const isIncomingPha = isPhaIncomingSource(editedData.source)
   const overrideDepid = rightsOverride?.department?.depid != null ? String(rightsOverride.department.depid) : null
   const overrideHasByMap = (map: Record<string, unknown> | undefined | null): boolean =>
@@ -254,8 +273,8 @@ const PhaCard: React.FC<PhaCardProps> = ({
       setHasPhaEditRight(false)
       return
     }
-    const dscRights = String(editedData.datasourceKindCode ?? data.datasourceKindCode ?? '').trim()
-    const eecDbCtx = dscRights === '3'
+    const dscRights = resolvePhaDatasourceKindCode(editedData, data)
+    const eecDbCtx = dscRights === '3' || isPhaEecDbKindName(editedData.source ?? data.source)
     const incomingCtx = isPhaIncomingSource(editedData.source)
     const outgoingCtx = isPhaOutgoingSource(editedData.source) || eecDbCtx
     if (incomingCtx && effectivePhaid !== '-' && !eecDbCtx) {
@@ -339,24 +358,26 @@ const PhaCard: React.FC<PhaCardProps> = ({
   const situationEndFilled = phaSituationEndDateFilled(currentData.notification?.endDate)
 
   const phaStatusResultRaw =
-    effectivePhaid && effectivePhaid !== '-'
-      ? isPhaIncomingSource(currentData.source)
-        ? incomingPhaStatusButton(
-            currentData.statusId,
-            currentData.status,
-            effectivePhaStatusRight,
-            situationEndFilled
-          )
-        : isPhaOutgoingSource(currentData.source) || datasourceKindCode === '3'
-          ? outgoingPhaStatusButton(
+    isPhaEecDbSource
+      ? { config: null as const, comment: '', closeConfig: null as const }
+      : effectivePhaid && effectivePhaid !== '-'
+        ? isPhaIncomingSource(currentData.source)
+          ? incomingPhaStatusButton(
               currentData.statusId,
               currentData.status,
               effectivePhaStatusRight,
-              effectivePhaSendRight,
               situationEndFilled
             )
-          : { config: null as const, comment: '' }
-      : { config: null as const, comment: '' }
+          : isPhaOutgoingSource(currentData.source)
+            ? outgoingPhaStatusButton(
+                currentData.statusId,
+                currentData.status,
+                effectivePhaStatusRight,
+                effectivePhaSendRight,
+                situationEndFilled
+              )
+            : { config: null as const, comment: '' }
+        : { config: null as const, comment: '' }
 
   const phaStatusResult =
     effectivePhaid === '-' && phaStatusResultRaw.config
@@ -384,6 +405,7 @@ const PhaCard: React.FC<PhaCardProps> = ({
 
   const showDeleteButton =
     isOutgoingPha &&
+    !isPhaEecDbSource &&
     isPhaDeletableStatus &&
     effectivePhaEditRight &&
     effectivePhaid !== '-' &&
@@ -891,7 +913,7 @@ const PhaCard: React.FC<PhaCardProps> = ({
       >
         <div className="card-sticky-header-title-row">
           <span className="card-sticky-header-title">
-            {datasourceKindCode === '3'
+            {isPhaEecDbSource
               ? effectivePhaid && effectivePhaid !== '-'
                 ? `Исходящие сведения о болезни ${effectivePhaid}`
                 : 'Исходящие сведения о болезни'
@@ -910,7 +932,7 @@ const PhaCard: React.FC<PhaCardProps> = ({
                     Редактировать
                   </Button>
                 )}
-                {isOutgoingPha && (
+                {showPhaValidationButton && (
                   <Button
                     onClick={() => {
                       setValidationResult(validatePhaOutgoingCardFull(currentData))
@@ -942,7 +964,7 @@ const PhaCard: React.FC<PhaCardProps> = ({
                     Сохранить
                   </Button>
                 )}
-                {isOutgoingPha && (
+                {showPhaValidationButton && (
                   <Button
                     onClick={() => {
                       setValidationResult(validatePhaOutgoingCardFull(editedData))
