@@ -169,6 +169,10 @@ export function validateOutgoingCard(data: CardData): ValidationResult {
     const batch = batches[i]
     const docs = batch?.shippingDocuments ?? []
     if (docs.length === 0) {
+      add(
+        sectionTsd,
+        'В каждом составе сведений о серии или партии продукции должен быть указан хотя бы один товаросопроводительный документ'
+      )
       continue
     }
     for (const d of docs) {
@@ -191,16 +195,8 @@ export function validateOutgoingCard(data: CardData): ValidationResult {
 
   // —— Документы соответствия (по XSD только в tsd.batches[]) ——
   const complianceList = mergeComplianceDocumentsFromBatches(data.tsd)?.documents ?? []
-  // П.1 ТЗ: ТСД по каждой партии — замечание в разделе «Документы соответствия»; плюс документ соответствия по каждой партии
   for (let bi = 0; bi < batches.length; bi++) {
     const batch = batches[bi]
-    const shipping = batch?.shippingDocuments ?? []
-    if (shipping.length === 0) {
-      add(
-        sectionCompliance,
-        'В каждом составе сведений о серии или партии продукции должен быть указан хотя бы один товаросопроводительный документ'
-      )
-    }
     const batchCompliance = batch?.complianceDocuments ?? []
     if (batchCompliance.length === 0) {
       add(
@@ -624,6 +620,48 @@ function checkTechnicalDocs(errors: string[], path: string, docs: TechnicalDocum
   })
 }
 
+/** Одно место / зона (Место обнаружения PHA или smcdo:SpreadingZoneDetails) — форматы полей по XSD. */
+function pushDetectionPlaceFormatErrors(errors: string[], pathLabel: string, place: DetectionPlaceData | undefined): void {
+  if (!place) return
+  pushFormatError(errors, `${pathLabel} → Описание`, 'descriptionPlace', place.description)
+  if (place.organization) {
+    checkParty(errors, `${pathLabel} → Организация`, place.organization as unknown as SupplyChainPartyDetails)
+  }
+  if (place.borderCheckpoint) {
+    const hasCheckpointCode = (place.borderCheckpoint.checkpointCode ?? '').trim() !== ''
+    const hasCheckpointName = (place.borderCheckpoint.checkpointName ?? '').trim() !== ''
+    if (hasCheckpointCode !== hasCheckpointName) {
+      errors.push(
+        `${pathLabel} → Пункт пропуска: укажите оба атрибута (код вида пункта пропуска и наименование пункта пропуска) или оставьте оба пустыми.`
+      )
+    }
+    pushFormatError(errors, `${pathLabel} → Пункт пропуска → Код`, 'checkpointCode', place.borderCheckpoint.checkpointCode)
+    pushFormatError(errors, `${pathLabel} → Пункт пропуска → Наименование`, 'checkpointName', place.borderCheckpoint.checkpointName)
+  }
+  if (place.address) checkAddress(errors, `${pathLabel} → Адрес`, place.address)
+  ;(place.geoCoordinates ?? []).forEach((g, i) => {
+    const hasLon = (g?.longitude ?? '').trim() !== ''
+    const hasLat = (g?.latitude ?? '').trim() !== ''
+    if (!hasLon && !hasLat) {
+      errors.push(
+        `${pathLabel} → Географические координаты → Запись ${i + 1}: заполните обе координаты (широту и долготу). Пустые записи сохранять нельзя.`
+      )
+    } else if (hasLon !== hasLat) {
+      errors.push(
+        `${pathLabel} → Географические координаты → Запись ${i + 1}: укажите обе координаты (широту и долготу).`
+      )
+    }
+    const v = g.longitude ?? g.latitude ?? ''
+    pushFormatError(errors, `${pathLabel} → Координата ${i + 1}`, 'geoCoordinate', v)
+  })
+}
+
+function phaSpreadingZonesList(data: CardData): DetectionPlaceData[] {
+  if (data.spreadingZones && data.spreadingZones.length > 0) return data.spreadingZones
+  if (data.spreadingZone) return [data.spreadingZone]
+  return []
+}
+
 /**
  * Собирает все несоответствия данных формату (длина, шаблоны) по полям с валидацией XSD.
  * Используется перед сохранением: если список не пуст, сохранение блокируется.
@@ -736,40 +774,7 @@ export function collectFormatValidationErrors(data: CardData): FormatValidationE
     })
   }
 
-  const place: DetectionPlaceData | undefined = data.detectionPlace
-  if (place) {
-    pushFormatError(errors, 'Место обнаружения → Описание', 'descriptionPlace', place.description)
-    if (place.organization) {
-      checkParty(errors, 'Место обнаружения → Организация', place.organization as unknown as SupplyChainPartyDetails)
-    }
-    if (place.borderCheckpoint) {
-      const hasCheckpointCode = (place.borderCheckpoint.checkpointCode ?? '').trim() !== ''
-      const hasCheckpointName = (place.borderCheckpoint.checkpointName ?? '').trim() !== ''
-      if (hasCheckpointCode !== hasCheckpointName) {
-        errors.push(
-          'Место обнаружения → Пункт пропуска: укажите оба атрибута (код вида пункта пропуска и наименование пункта пропуска) или оставьте оба пустыми.'
-        )
-      }
-      pushFormatError(errors, 'Место обнаружения → Пункт пропуска → Код', 'checkpointCode', place.borderCheckpoint.checkpointCode)
-      pushFormatError(errors, 'Место обнаружения → Пункт пропуска → Наименование', 'checkpointName', place.borderCheckpoint.checkpointName)
-    }
-    if (place.address) checkAddress(errors, 'Место обнаружения → Адрес', place.address)
-    ;(place.geoCoordinates ?? []).forEach((g, i) => {
-      const hasLon = (g?.longitude ?? '').trim() !== ''
-      const hasLat = (g?.latitude ?? '').trim() !== ''
-      if (!hasLon && !hasLat) {
-        errors.push(
-          `Место обнаружения → Географические координаты → Запись ${i + 1}: заполните обе координаты (широту и долготу). Пустые записи сохранять нельзя.`
-        )
-      } else if (hasLon !== hasLat) {
-        errors.push(
-          `Место обнаружения → Географические координаты → Запись ${i + 1}: укажите обе координаты (широту и долготу).`
-        )
-      }
-      const v = g.longitude ?? g.latitude ?? ''
-      pushFormatError(errors, `Место обнаружения → Координата ${i + 1}`, 'geoCoordinate', v)
-    })
-  }
+  pushDetectionPlaceFormatErrors(errors, 'Место обнаружения', data.detectionPlace)
 
   const measures: MeasuresData | undefined = data.measures
   if (measures?.measures?.length) {
@@ -801,14 +806,23 @@ export function collectFormatValidationErrors(data: CardData): FormatValidationE
   return { errors: dedupeFormatErrorsPreservingOrder(errors) }
 }
 
-/** Карта PHA (R.SM.SS.08.001): дополнительные проверки типов smsdo/csdo по XSD. */
+/** Карта PHA (R.SM.SS.08.001): дополнительные проверки типов smsdo/csdo по XSD (не путать с DPA R.SM.SS.08.002). */
 function isPhaCardData(data: CardData): boolean {
+  const code = (data.electronicDocument?.documentCode ?? '').trim()
+  if (code === 'R.SM.SS.08.002') return false
+  if (code === 'R.SM.SS.08.001') return true
+
+  const kind = (data.notification?.type ?? '').trim()
+  if (kind === '7' || kind === '8' || kind === '9') return false
+  if (kind !== '' && /^[1-6]$/.test(kind)) return true
+
   return (
-    data.electronicDocument?.documentCode === 'R.SM.SS.08.001' ||
     data.phaDisease != null ||
     (data.phaPatientGroups?.length ?? 0) > 0 ||
     (data.phaCauseNotifications?.length ?? 0) > 0 ||
-    data.phaFirstDiseaseInfectiousFlag != null
+    data.phaFirstDiseaseInfectiousFlag != null ||
+    (data.spreadingZones?.length ?? 0) > 0 ||
+    data.spreadingZone != null
   )
 }
 
@@ -816,6 +830,12 @@ function pushPhaXsdFormatErrors(errors: string[], data: CardData): void {
   if (!isPhaCardData(data)) return
 
   const notif = data.notification
+  if (notif?.authorizedBody) {
+    const auth = notif.authorizedBody
+    pushFormatError(errors, 'Уведомление → Уполномоченный орган → Наименование', 'authorityName', auth.name)
+    pushFormatError(errors, 'Уведомление → Уполномоченный орган → Краткое наименование', 'authorityBriefName', auth.shortName)
+    pushFormatError(errors, 'Уведомление → Уполномоченный орган → Идентификатор', 'authorityId', auth.identifier)
+  }
   if (notif?.registrationNumber !== undefined && notif.registrationNumber !== '') {
     pushFormatError(errors, 'Уведомление → Регистрационный номер', 'phaIncidentId', notif.registrationNumber)
   }
@@ -862,5 +882,9 @@ function pushPhaXsdFormatErrors(errors: string[], data: CardData): void {
     if (m.measureName != null && String(m.measureName).trim() !== '' && (m.measureCode == null || m.measureCode === '')) {
       pushFormatError(errors, `Санитарные меры → Мера ${i + 1} → Наименование`, 'phaMeasureName', m.measureName)
     }
+  })
+
+  phaSpreadingZonesList(data).forEach((zone, i) => {
+    pushDetectionPlaceFormatErrors(errors, `Зона распространения ${i + 1}`, zone)
   })
 }

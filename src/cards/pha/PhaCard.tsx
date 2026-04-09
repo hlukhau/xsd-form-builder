@@ -46,6 +46,7 @@ import ValidationResultModal from '@/components/modals/dpa/ValidationResultModal
 import StatusHistoryModal from '@/components/modals/dpa/StatusHistoryModal'
 import ElectronicDocumentModal from '@/components/modals/dpa/ElectronicDocumentModal'
 import { useCountryOptions } from '@/hooks/shared/useCountryOptions'
+import { useParentActivityPing } from '@/hooks/shared/useParentActivityPing'
 import { resolveAlertCountryNameForPostMessage } from '@/utils/alertCountryDisplay'
 import { loadPhaCardFromDb } from '@/cards/pha/loadPhaCardFromDb'
 
@@ -183,6 +184,7 @@ const PhaCard: React.FC<PhaCardProps> = ({
   /** Право publicHealthOut:edit — сохранение и удаление исходящей карты в допустимом статусе. */
   const [hasPhaEditRight, setHasPhaEditRight] = useState(false)
   const { countryOptions } = useCountryOptions()
+  useParentActivityPing()
 
   useEffect(() => {
     setBaselineXml(originalXML ?? null)
@@ -328,6 +330,10 @@ const PhaCard: React.FC<PhaCardProps> = ({
   ])
 
   const editSwitchDisabled = (isOutgoingPha && !canEditByStatus) || phaDatasourceNoEdit
+  /** Исходящие: право publicHealthOut:edit; новая карта (-); входящие — без отдельного права edit в API. */
+  const showEditButton =
+    !editSwitchDisabled &&
+    (isIncomingPha || effectivePhaid === '-' || (isOutgoingPha && effectivePhaEditRight))
 
   const situationEndFilled = phaSituationEndDateFilled(currentData.notification?.endDate)
 
@@ -896,7 +902,7 @@ const PhaCard: React.FC<PhaCardProps> = ({
           <Space size="small" wrap>
             {!isEditMode && (
               <>
-                {!editSwitchDisabled && (
+                {showEditButton && (
                   <Button
                     type="default"
                     onClick={() => setIsEditMode(true)}

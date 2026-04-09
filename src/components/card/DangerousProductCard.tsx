@@ -28,6 +28,7 @@ import { getStatusButtonConfig } from '@/utils/statusButtonConfig'
 import { parseElectronicDocContentBody } from '@/utils/xmlParser'
 import { openLegacyRegisterAllVersions, isLegacyRegisterConfigured } from '@/utils/legacyRegisterUrl'
 import { useCountryOptions } from '@/hooks/shared/useCountryOptions'
+import { useParentActivityPing } from '@/hooks/shared/useParentActivityPing'
 import { resolveAlertCountryNameForPostMessage } from '@/utils/alertCountryDisplay'
 import XMLComparisonModal, { type ComparisonResultShape } from '../modals/dpa/XMLComparisonModal'
 import ValidationResultModal from '../modals/dpa/ValidationResultModal'
@@ -122,6 +123,7 @@ const DangerousProductCard: React.FC<DangerousProductCardProps> = ({
   const [copyCanCreateAllowed, setCopyCanCreateAllowed] = useState<boolean | null>(null)
   const [copyCanCreateReason, setCopyCanCreateReason] = useState<string | null>(null)
   const { countryOptions } = useCountryOptions()
+  useParentActivityPing()
 
   const effectiveDpaid = (dpaid !== '-' && dpaid) ? dpaid : (savedDpaid != null ? String(savedDpaid) : '-')
   const hasPersistedDpaid = !!effectiveDpaid && /^\d+$/.test(effectiveDpaid) && Number(effectiveDpaid) > 0
@@ -274,6 +276,10 @@ const DangerousProductCard: React.FC<DangerousProductCardProps> = ({
   }, [hasPersistedDpaid, effectiveDpaid, isOutgoingSource, data?.source, guid])
 
   const editSwitchDisabled = isIncomingNoEdit || (isOutgoingSource && !canEditByStatus)
+  /** Исходящие: право dangerousProductOut:edit; черновик (-) — форма доступна до проверки прав. */
+  const showEditButton =
+    !editSwitchDisabled &&
+    (!isOutgoingSource || effectiveHasSaveRight || effectiveDpaid === '-')
 
   useEffect(() => {
     if (isIncomingNoEdit) setIsEditMode(false)
@@ -918,7 +924,7 @@ const DangerousProductCard: React.FC<DangerousProductCardProps> = ({
           <Space size="small" wrap>
             {!isEditMode && (
               <>
-                {!editSwitchDisabled && (
+                {showEditButton && (
                   <Button
                     type="default"
                     onClick={() => setIsEditMode(true)}
