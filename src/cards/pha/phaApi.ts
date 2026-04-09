@@ -1,6 +1,6 @@
 /**
  * API для карты PHA (сведений об обнаружении болезней).
- * Базовый URL задаётся при сборке (base: /xsd_form_builder_57/).
+ * Базовый URL задаётся при сборке (base: /pha_card/).
  * Эндпоинты: /api/pha/xml/{PHAID}, /api/pha/metadata/{PHAID} и т.д.
  */
 

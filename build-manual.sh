@@ -1,8 +1,8 @@
 #!/bin/bash
 # Manual WAR build without Maven (using javac) — Linux
 # Использование:
-#   ./build-manual.sh              — DPA: frontend из dist/, WAR xsd_form_builder.war
-#   ./build-manual.sh xsd_form_builder_57   — PHA: frontend из dist/ (сборка build:pha), WAR xsd_form_builder_57.war
+#   ./build-manual.sh              — DPA: frontend из dist/, WAR dpa_card.war
+#   ./build-manual.sh pha_card   — PHA: frontend из dist/ (сборка build:pha), WAR pha_card.war
 # Переменная DEPLOY=0 — только собрать WAR, не останавливать/разворачивать Tomcat.
 
 set -e
@@ -10,7 +10,7 @@ set -e
 PROJECT_DIR="$(cd "$(dirname "$0")" && pwd)"
 cd "$PROJECT_DIR"
 
-APP_NAME="${1:-xsd_form_builder}"
+APP_NAME="${1:-dpa_card}"
 TOMCAT_HOME="${TOMCAT_HOME:-/opt/tomcat8}"
 if [ -z "$JAVA_HOME" ]; then
     if [ -x "$TOMCAT_HOME/java/bin/java" ]; then
@@ -232,6 +232,14 @@ echo ""
 echo "Removing old deployment..."
 rm -rf "$APP_PATH"
 rm -f "$WEBAPPS_PATH/$APP_NAME.war"
+# До переименования контекстов: убрать старые WAR и развёрнутые папки из webapps
+if [ "$APP_NAME" = "dpa_card" ]; then
+  rm -rf "$WEBAPPS_PATH/xsd_form_builder" "$WEBAPPS_PATH/xsd-form-builder"
+  rm -f "$WEBAPPS_PATH/xsd_form_builder.war" "$WEBAPPS_PATH/xsd-form-builder.war"
+elif [ "$APP_NAME" = "pha_card" ]; then
+  rm -rf "$WEBAPPS_PATH/xsd_form_builder_57"
+  rm -f "$WEBAPPS_PATH/xsd_form_builder_57.war"
+fi
 echo "[OK] Old deployment removed"
 echo ""
 

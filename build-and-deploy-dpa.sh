@@ -1,6 +1,6 @@
 #!/bin/bash
 # Сборка и развёртывание приложения DPA (карта опасной продукции).
-# URL: http://localhost:PORT/xsd_form_builder/
+# URL: http://localhost:PORT/dpa_card/
 # Использование: ./build-and-deploy-dpa.sh
 #
 # Переменные: TOMCAT_HOME, JAVA_HOME (по умолчанию /opt/tomcat8, $TOMCAT_HOME/java)
@@ -22,7 +22,7 @@ if [ -z "$JAVA_HOME" ]; then
         JAVA_HOME="$TOMCAT_HOME/java"
     fi
 fi
-APP_NAME="xsd_form_builder"
+APP_NAME="dpa_card"
 WAR_FILE="$PROJECT_DIR/target/$APP_NAME.war"
 
 echo "========================================"
@@ -55,7 +55,7 @@ echo ""
 
 echo "[3/4] Building WAR and deploying..."
 export TOMCAT_HOME JAVA_HOME
-./build-manual.sh xsd_form_builder
+./build-manual.sh dpa_card
 echo "[OK] WAR built and deployed"
 echo ""
 
@@ -73,7 +73,7 @@ echo "========================================"
 echo " DPA DEPLOYMENT COMPLETE"
 echo "========================================"
 echo ""
-echo "  http://localhost:$TOMCAT_PORT/xsd_form_builder/"
+echo "  http://localhost:$TOMCAT_PORT/dpa_card/"
 echo ""
 echo "Wait 15-25 seconds for Tomcat. Logs: $TOMCAT_HOME/logs/catalina.out"
 echo ""

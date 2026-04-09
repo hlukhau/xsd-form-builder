@@ -11,9 +11,9 @@ export default defineConfig({
     },
   },
   // Base path для развертывания на Tomcat.
-  // DPA: /xsd_form_builder/  |  PHA: /xsd_form_builder_57/
-  // Задать при сборке: VITE_APP_BASE=/xsd_form_builder_57/ npm run build:pha
-  base: process.env.VITE_APP_BASE || '/xsd_form_builder/',
+  // DPA: /dpa_card/  |  PHA: /pha_card/
+  // Задать при сборке: VITE_APP_BASE=/pha_card/ npm run build:pha
+  base: process.env.VITE_APP_BASE || '/dpa_card/',
   // Директория для сборки (будет скопирована в WAR)
   build: {
     outDir: 'dist',

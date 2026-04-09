@@ -1,6 +1,6 @@
 #!/bin/bash
 # Сборка и развёртывание приложения PHA (карта обнаружения болезней).
-# URL: http://localhost:PORT/xsd_form_builder_57/
+# URL: http://localhost:PORT/pha_card/
 # Использование: ./build-and-deploy-pha.sh
 #
 # Переменные: TOMCAT_HOME, JAVA_HOME (по умолчанию /opt/tomcat8, $TOMCAT_HOME/java)
@@ -22,7 +22,7 @@ if [ -z "$JAVA_HOME" ]; then
         JAVA_HOME="$TOMCAT_HOME/java"
     fi
 fi
-APP_NAME="xsd_form_builder_57"
+APP_NAME="pha_card"
 WAR_FILE="$PROJECT_DIR/target/$APP_NAME.war"
 
 echo "========================================"
@@ -36,7 +36,7 @@ export NVM_DIR="${NVM_DIR:-$HOME/.nvm}"
 [ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"
 [ -f .nvmrc ] && nvm use 2>/dev/null || true
 
-echo "[1/4] Building PHA frontend (base: /xsd_form_builder_57/)..."
+echo "[1/4] Building PHA frontend (base: /pha_card/)..."
 if ! command -v node &>/dev/null; then
     echo "[ERROR] Node.js not found in PATH."
     exit 1
@@ -59,7 +59,7 @@ echo ""
 
 echo "[3/4] Building WAR and deploying..."
 export TOMCAT_HOME JAVA_HOME
-./build-manual.sh xsd_form_builder_57
+./build-manual.sh pha_card
 echo "[OK] WAR built and deployed"
 echo ""
 
@@ -77,7 +77,7 @@ echo "========================================"
 echo " PHA DEPLOYMENT COMPLETE"
 echo "========================================"
 echo ""
-echo "  http://localhost:$TOMCAT_PORT/xsd_form_builder_57/"
+echo "  http://localhost:$TOMCAT_PORT/pha_card/"
 echo ""
 echo "Wait 15-25 seconds for Tomcat. Logs: $TOMCAT_HOME/logs/catalina.out"
 echo ""

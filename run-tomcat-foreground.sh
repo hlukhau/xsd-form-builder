@@ -23,7 +23,7 @@ export JAVA_HOME
 TOMCAT_PORT=$("$PROJECT_DIR/get-tomcat-port.sh" 2>/dev/null || echo "8083")
 
 echo "TOMCAT_HOME=$TOMCAT_HOME"
-echo "Порт: $TOMCAT_PORT. После старта: http://localhost:$TOMCAT_PORT/xsd_form_builder/"
+echo "Порт: $TOMCAT_PORT. После старта: http://localhost:$TOMCAT_PORT/dpa_card/"
 echo "Когда процесс упадёт — в этом окне будет видна ошибка (OOM, Exception и т.д.)."
 echo "Остановка вручную: Ctrl+C"
 echo ""

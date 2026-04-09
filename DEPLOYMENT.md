@@ -10,7 +10,7 @@
 ## Структура проекта после миграции
 
 ```
-xsd-form-builder/
+dpa_card/
 ├── src/
 │   ├── main/
 │   │   ├── java/
@@ -43,7 +43,7 @@ Maven автоматически:
 # Очистка и сборка
 mvn clean package
 
-# Результат: target/xsd-form-builder.war
+# Результат: target/dpa_card.war
 ```
 
 ### Вариант 2: Ручная сборка (для отладки)
@@ -65,20 +65,20 @@ mvn clean package -Dskip.npm
 
 1. Откройте Tomcat Manager: `http://localhost:8080/manager/html`
 2. Войдите с правами администратора
-3. В разделе "Deploy" выберите файл `target/xsd-form-builder.war`
+3. В разделе "Deploy" выберите файл `target/dpa_card.war`
 4. Нажмите "Deploy"
 
 ### Способ 2: Ручное копирование
 
-1. Скопируйте `target/xsd-form-builder.war` в папку `$CATALINA_HOME/webapps/`
+1. Скопируйте `target/dpa_card.war` в папку `$CATALINA_HOME/webapps/`
 2. Перезапустите Tomcat (или дождитесь автоматического развертывания)
-3. Приложение будет доступно по адресу: `http://localhost:8080/xsd-form-builder/`
+3. Приложение будет доступно по адресу: `http://localhost:8080/dpa_card/`
 
 ### Способ 3: Развертывание в корневой контекст
 
 Если нужно развернуть приложение в корневой контекст (`http://localhost:8080/`):
 
-1. Переименуйте `xsd-form-builder.war` в `ROOT.war`
+1. Переименуйте `dpa_card.war` в `ROOT.war`
 2. Удалите существующую папку `ROOT` из `webapps/` (если есть)
 3. Скопируйте `ROOT.war` в `webapps/`
 4. Перезапустите Tomcat
@@ -88,7 +88,7 @@ mvn clean package -Dskip.npm
 ## Проверка развертывания
 
 После развертывания откройте в браузере:
-- `http://localhost:8080/xsd-form-builder/` (или `http://localhost:8080/` если в корне)
+- `http://localhost:8080/dpa_card/` (или `http://localhost:8080/` если в корне)
 - Приложение должно загрузиться и отобразить интерфейс выбора XML файла
 
 ## Настройка контекстного пути
@@ -96,8 +96,8 @@ mvn clean package -Dskip.npm
 Если приложение развернуто не в корне, обновите `base` в `vite.config.ts`:
 
 ```typescript
-// Для /xsd-form-builder/
-base: '/xsd-form-builder/',
+// Для /dpa_card/
+base: '/dpa_card/',
 
 // Для корня
 base: '/',
@@ -169,7 +169,7 @@ mvn clean package
 После сборки WAR-файл содержит:
 
 ```
-xsd-form-builder.war
+dpa_card.war
 ├── WEB-INF/
 │   ├── web.xml
 │   ├── classes/

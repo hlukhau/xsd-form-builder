@@ -30,7 +30,7 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 TOMCAT_PORT=$("$SCRIPT_DIR/get-tomcat-port.sh")
 
 echo "Запуск Tomcat в режиме переднего плана: $TOMCAT_HOME"
-echo "Порт: $TOMCAT_PORT. После старта откройте: http://localhost:$TOMCAT_PORT/xsd_form_builder/"
+echo "Порт: $TOMCAT_PORT. После старта откройте: http://localhost:$TOMCAT_PORT/dpa_card/"
 echo "Остановка: Ctrl+C"
 echo ""
 

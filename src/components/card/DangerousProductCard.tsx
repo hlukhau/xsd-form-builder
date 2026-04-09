@@ -30,6 +30,7 @@ import { openLegacyRegisterAllVersions, isLegacyRegisterConfigured } from '@/uti
 import { useCountryOptions } from '@/hooks/shared/useCountryOptions'
 import { useParentActivityPing } from '@/hooks/shared/useParentActivityPing'
 import { resolveAlertCountryNameForPostMessage } from '@/utils/alertCountryDisplay'
+import { postMessageFromCardToParent } from '@/utils/parentPostMessage'
 import XMLComparisonModal, { type ComparisonResultShape } from '../modals/dpa/XMLComparisonModal'
 import ValidationResultModal from '../modals/dpa/ValidationResultModal'
 import { validateOutgoingCard, collectFormatValidationErrors, type ValidationResult } from '@/utils/cardValidation'
@@ -412,8 +413,7 @@ const DangerousProductCard: React.FC<DangerousProductCardProps> = ({
         try {
           await deleteDpaCard(Number(effectiveDpaid), guid!)
           message.success('Карта удалена')
-          console.log('[DangerousProductCard] Sending exit message to parent after delete')
-          window.parent.postMessage({ code: 'exit' }, '*')
+          postMessageFromCardToParent({ code: 'exit' }, 'DPA: выход после удаления карты')
           onCardDeleted?.()
         } catch (e) {
           message.error(e instanceof Error ? e.message : 'Ошибка удаления')
@@ -675,8 +675,8 @@ const DangerousProductCard: React.FC<DangerousProductCardProps> = ({
       if (isNewCard) {
         setSavedDpaid(res.dpaid)
         try {
-          sessionStorage.setItem('xsd_form_builder_last_saved_dpaid', String(res.dpaid))
-          sessionStorage.setItem('xsd_form_builder_save_happened', '1')
+          sessionStorage.setItem('dpa_card_last_saved_dpaid', String(res.dpaid))
+          sessionStorage.setItem('dpa_card_save_happened', '1')
         } catch (_) {}
         message.success(`Карта сохранена в БД с DPAID ${res.dpaid}`)
         onSaveNewCard?.(res.dpaid)
@@ -944,9 +944,10 @@ const DangerousProductCard: React.FC<DangerousProductCardProps> = ({
                 )}
                 <Button
                   onClick={() => {
-                    if (typeof window !== 'undefined') {
-                      window.parent.postMessage({ code: 'exit' }, '*')
-                    }
+                    postMessageFromCardToParent(
+                      { code: 'exit' },
+                      effectiveDpaid === '-' ? 'DPA: отменить создание' : 'DPA: закрыть форму'
+                    )
                   }}
                 >
                   {effectiveDpaid === '-' ? 'Отменить создание' : 'Закрыть'}
@@ -978,9 +979,7 @@ const DangerousProductCard: React.FC<DangerousProductCardProps> = ({
                 {effectiveDpaid === '-' && (
                   <Button
                     onClick={() => {
-                      if (typeof window !== 'undefined') {
-                        window.parent.postMessage({ code: 'exit' }, '*')
-                      }
+                      postMessageFromCardToParent({ code: 'exit' }, 'DPA: отменить создание (режим редактирования)')
                     }}
                   >
                     Отменить создание
@@ -1068,10 +1067,7 @@ const DangerousProductCard: React.FC<DangerousProductCardProps> = ({
               INCIDENTID: currentData.registrationNumber ?? '',
               COUNTRY: countryForMessage,
             }
-            if (typeof window !== 'undefined') {
-              window.parent.postMessage(payload, '*')
-              console.log('[Открыть все версии] Сообщение отправлено родительскому окну:', payload)
-            }
+            postMessageFromCardToParent(payload, 'DPA: открыть все версии')
             if (isLegacyRegisterConfigured()) {
               openLegacyRegisterAllVersions(currentData.country ?? '', currentData.registrationNumber ?? '')
             }

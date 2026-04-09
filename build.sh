@@ -39,10 +39,10 @@ mvn package
 if [ $? -eq 0 ]; then
     echo ""
     echo "=== Сборка успешно завершена! ==="
-    echo "WAR-файл: target/xsd-form-builder.war"
+    echo "WAR-файл: target/dpa_card.war"
     echo ""
     echo "Для развертывания скопируйте WAR-файл в папку webapps Tomcat:"
-    echo "  cp target/xsd-form-builder.war \$CATALINA_HOME/webapps/"
+    echo "  cp target/dpa_card.war \$CATALINA_HOME/webapps/"
     echo ""
     echo "Или используйте Tomcat Manager для развертывания."
 else

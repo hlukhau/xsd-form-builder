@@ -47,7 +47,7 @@ public class CountryExistsServlet extends HttpServlet {
         response.setHeader("Cache-Control", "no-cache");
         
         // Извлекаем код страны из URL
-        // URL: /xsd_form_builder/api/countries/RU/exists
+        // URL: /dpa_card/api/countries/RU/exists (контекст деплоя)
         String requestURI = request.getRequestURI();
         String contextPath = request.getContextPath();
         

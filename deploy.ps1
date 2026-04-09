@@ -4,9 +4,9 @@
 $env:CATALINA_HOME = "C:\tomcat\win\Tomcat8"
 $env:JAVA_HOME = "C:\tomcat\win\Tomcat8\java"
 $projectPath = "C:\projects\IdeaProjects\xsd-form-builder"
-$warFile = "$projectPath\target\xsd-form-builder.war"
+$warFile = "$projectPath\target\dpa_card.war"
 
-Write-Host "=== Развертывание xsd-form-builder на Tomcat ===" -ForegroundColor Cyan
+Write-Host "=== Развертывание dpa_card на Tomcat ===" -ForegroundColor Cyan
 Write-Host ""
 
 # Проверка существования WAR-файла
@@ -90,7 +90,7 @@ Write-Host ""
 Write-Host "=== Развертывание завершено! ===" -ForegroundColor Cyan
 Write-Host ""
 Write-Host "Приложение доступно по адресу:" -ForegroundColor Green
-Write-Host "  http://localhost:8080/xsd-form-builder/" -ForegroundColor White
+Write-Host "  http://localhost:8080/dpa_card/" -ForegroundColor White
 Write-Host ""
 Write-Host "Проверьте логи в случае проблем:" -ForegroundColor Yellow
 Write-Host "  $env:CATALINA_HOME\logs\catalina.out" -ForegroundColor Gray

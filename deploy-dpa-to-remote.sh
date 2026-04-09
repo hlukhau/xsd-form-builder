@@ -1,7 +1,7 @@
 #!/bin/bash
 # Копирование WAR DPA на удалённый сервер (Tomcat webapps).
 # Использование:
-#   ./deploy-dpa-to-remote.sh              — копирует target/xsd_form_builder.war
+#   ./deploy-dpa-to-remote.sh              — копирует target/dpa_card.war
 #   ./deploy-dpa-to-remote.sh --build       — сначала собирает DPA, затем копирует
 #
 # Переменные: REMOTE_HOST (192.168.203.130), REMOTE_USER (root), REMOTE_WEBAPPS (/opt/tomcat8/webapps), REMOTE_PASSWORD
@@ -10,7 +10,7 @@ set -e
 
 PROJECT_DIR="$(cd "$(dirname "$0")" && pwd)"
 cd "$PROJECT_DIR"
-WAR_FILE="$PROJECT_DIR/target/xsd_form_builder.war"
+WAR_FILE="$PROJECT_DIR/target/dpa_card.war"
 
 REMOTE_HOST="${REMOTE_HOST:-192.168.203.130}"
 REMOTE_USER="${REMOTE_USER:-root}"
@@ -36,6 +36,20 @@ echo "Target: $REMOTE_USER@$REMOTE_HOST:$REMOTE_WEBAPPS/"
 echo "WAR:    $WAR_FILE"
 echo ""
 
+echo "[cleanup] Удаление старых контекстов DPA в $REMOTE_WEBAPPS ..."
+remote_rm() {
+    if command -v sshpass &>/dev/null && [ -n "${REMOTE_PASSWORD:-}" ]; then
+        export SSHPASS="$REMOTE_PASSWORD"
+        sshpass -e ssh -o StrictHostKeyChecking=accept-new "$REMOTE_USER@$REMOTE_HOST" "$1"
+        unset SSHPASS
+    else
+        ssh -o StrictHostKeyChecking=accept-new "$REMOTE_USER@$REMOTE_HOST" "$1"
+    fi
+}
+remote_rm "cd \"$REMOTE_WEBAPPS\" && rm -rf xsd_form_builder xsd-form-builder && rm -f xsd_form_builder.war xsd-form-builder.war" || true
+echo "[OK] Старые WAR/папки (xsd_form_builder*) убраны с сервера"
+echo ""
+
 if command -v sshpass &>/dev/null; then
     export SSHPASS="$REMOTE_PASSWORD"
     sshpass -e scp -o StrictHostKeyChecking=accept-new "$WAR_FILE" "$REMOTE_USER@$REMOTE_HOST:$REMOTE_WEBAPPS/"
@@ -47,5 +61,5 @@ fi
 
 echo ""
 echo "[OK] DPA WAR copied. Tomcat will redeploy."
-echo "     http://$REMOTE_HOST:8080/xsd_form_builder/"
+echo "     http://$REMOTE_HOST:8080/dpa_card/"
 echo ""

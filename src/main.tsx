@@ -6,7 +6,7 @@ import ruRU from 'antd/locale/ru_RU'
 import App from './App'
 import './index.css'
 
-const base = (typeof import.meta !== 'undefined' && import.meta.env?.BASE_URL) ? import.meta.env.BASE_URL : '/xsd_form_builder/'
+const base = (typeof import.meta !== 'undefined' && import.meta.env?.BASE_URL) ? import.meta.env.BASE_URL : '/dpa_card/'
 
 const { defaultAlgorithm, darkAlgorithm } = theme
 

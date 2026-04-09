@@ -48,6 +48,7 @@ import ElectronicDocumentModal from '@/components/modals/dpa/ElectronicDocumentM
 import { useCountryOptions } from '@/hooks/shared/useCountryOptions'
 import { useParentActivityPing } from '@/hooks/shared/useParentActivityPing'
 import { resolveAlertCountryNameForPostMessage } from '@/utils/alertCountryDisplay'
+import { postMessageFromCardToParent } from '@/utils/parentPostMessage'
 import { loadPhaCardFromDb } from '@/cards/pha/loadPhaCardFromDb'
 
 interface PhaCardProps {
@@ -551,8 +552,7 @@ const PhaCard: React.FC<PhaCardProps> = ({
           }
           await deletePhaCard(Number(effectivePhaid), guid!)
           message.success('Карта удалена')
-          console.log('[PhaCard] Sending exit message to parent after delete')
-          window.parent.postMessage({ code: 'exit' }, '*')
+          postMessageFromCardToParent({ code: 'exit' }, 'PHA: выход после удаления карты')
           onCardDeleted?.()
         } catch (e) {
           message.error(e instanceof Error ? e.message : 'Ошибка удаления')
@@ -676,8 +676,8 @@ const PhaCard: React.FC<PhaCardProps> = ({
       if (isNewCard) {
         setSavedPhaid(res.phaid)
         try {
-          sessionStorage.setItem('xsd_form_builder_last_saved_phaid', String(res.phaid))
-          sessionStorage.setItem('xsd_form_builder_save_happened', '1')
+          sessionStorage.setItem('pha_card_last_saved_phaid', String(res.phaid))
+          sessionStorage.setItem('pha_card_save_happened', '1')
         } catch (_) {}
         message.success(`Карта сохранена в БД с PHAID ${res.phaid}`)
         onSaveNewCard?.(res.phaid)
@@ -925,9 +925,10 @@ const PhaCard: React.FC<PhaCardProps> = ({
                 )}
                 <Button
                   onClick={() => {
-                    if (typeof window !== 'undefined') {
-                      window.parent.postMessage({ code: 'exit' }, '*')
-                    }
+                    postMessageFromCardToParent(
+                      { code: 'exit' },
+                      effectivePhaid === '-' ? 'PHA: отменить создание' : 'PHA: закрыть форму'
+                    )
                   }}
                 >
                   {effectivePhaid === '-' ? 'Отменить создание' : 'Закрыть'}
@@ -959,9 +960,7 @@ const PhaCard: React.FC<PhaCardProps> = ({
                 {effectivePhaid === '-' && (
                   <Button
                     onClick={() => {
-                      if (typeof window !== 'undefined') {
-                        window.parent.postMessage({ code: 'exit' }, '*')
-                      }
+                      postMessageFromCardToParent({ code: 'exit' }, 'PHA: отменить создание (режим редактирования)')
                     }}
                   >
                     Отменить создание
@@ -1045,10 +1044,7 @@ const PhaCard: React.FC<PhaCardProps> = ({
               INCIDENTID: currentData.registrationNumber ?? '',
               COUNTRY: countryForMessage,
             }
-            if (typeof window !== 'undefined') {
-              window.parent.postMessage(payload, '*')
-              console.log('[Открыть все версии] Сообщение отправлено родительскому окну:', payload)
-            }
+            postMessageFromCardToParent(payload, 'PHA: открыть все версии')
           }}
           statusButton={
             phaStatusResult.config && !phaStatusResult.config.disabled ? phaStatusResult.config : null

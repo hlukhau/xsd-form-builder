@@ -16,9 +16,9 @@ import java.io.OutputStream;
 import java.nio.charset.StandardCharsets;
 /**
  * Сервлет для работы с XSD Form Builder.
- * POST /xsd_form_builder - принимает JSON с GUID и сохраняет в мапу
- * GET /xsd_form_builder/{DPAID} - возвращает HTML форму (SPA) для отображения карты по DPAID
- * GET /xsd_form_builder/{DPAID}/{GUID} - возвращает HTML форму (SPA) с проверкой GUID в мапе
+ * POST /dpa_card или /pha_card — принимает JSON с GUID и сохраняет в мапу (контекст приложения).
+ * GET .../{DPAID} — возвращает HTML форму (SPA) для отображения карты по DPAID
+ * GET .../{DPAID}/{GUID} — возвращает HTML форму (SPA) с проверкой GUID в мапе
  * Форма загружает XML из базы через API /api/dpa/xml/{DPAID}
  */
 public class XsdFormBuilderServlet extends HttpServlet {
@@ -220,7 +220,7 @@ public class XsdFormBuilderServlet extends HttpServlet {
 
         System.out.println("[XsdFormBuilderServlet] Path parts count: " + parts.length + ", parts: " + java.util.Arrays.toString(parts));
 
-        // Если путь содержит 2 сегмента: /xsd_form_builder/{DPAID}/{GUID}
+        // Если путь содержит 2 сегмента: /{context}/{DPAID|PHAID}/{GUID}
         // Опционально: ?command=copy или ?command=delete — вызов API без нажатия кнопки (без проверки прав)
         if (parts.length == 2) {
             String dpaidStr = parts[0];
@@ -245,7 +245,7 @@ public class XsdFormBuilderServlet extends HttpServlet {
                         response.getWriter().print("{\"success\":false,\"message\":\"Неверный DPAID\"}");
                         return;
                     }
-                    boolean phaContext = request.getRequestURI() != null && request.getRequestURI().contains("/xsd_form_builder_57/");
+                    boolean phaContext = request.getRequestURI() != null && request.getRequestURI().contains("/pha_card/");
                     String body = phaContext
                             ? "{\"phaid\":" + dpaid + ",\"guid\":\"" + escapeJsonString(guid) + "\"}"
                             : "{\"dpaid\":" + dpaid + ",\"guid\":\"" + escapeJsonString(guid) + "\"}";
@@ -290,7 +290,7 @@ public class XsdFormBuilderServlet extends HttpServlet {
             return;
         }
 
-        // Если путь содержит 1 сегмент: /xsd_form_builder/{DPAID}
+        // Если путь содержит 1 сегмент: /{context}/{DPAID|PHAID}
         // Или любое другое количество сегментов - просто возвращаем SPA
         System.out.println("[XsdFormBuilderServlet] Path does not contain GUID, returning SPA");
         forwardToSpa(request, response);

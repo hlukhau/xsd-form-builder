@@ -9,10 +9,10 @@ const BASE_URL = import.meta.env.BASE_URL || '/'
 
 /**
  * Базовый URL для запросов общих справочников (countries, border-checkpoints, identification-methods и т.д.).
- * При сборке PHA (base содержит xsd_form_builder_57) используем эндпоинты DPA, чтобы не дублировать код и данные.
+ * При сборке PHA (base содержит pha_card) используем эндпоинты DPA, чтобы не дублировать код и данные.
  */
 function getReferenceDataBaseUrl(): string {
-  if (BASE_URL.includes('xsd_form_builder_57')) return '/xsd_form_builder/'
+  if (BASE_URL.includes('pha_card')) return '/dpa_card/'
   return BASE_URL
 }
 

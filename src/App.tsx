@@ -139,7 +139,7 @@ function AppContent() {
     setReferenceGuidContext(guid)
   }, [guid])
 
-  // Режим новой карты: /xsd_form_builder/-/1 — запросить регистрационный номер или открыть форму новой версии (Сделать копию)
+  // Режим новой карты: /dpa_card/-/1 — запросить регистрационный номер или открыть форму новой версии (Сделать копию)
   useEffect(() => {
     if (dpaid !== '-') {
       setCopyFromDpaid(null)
@@ -178,7 +178,7 @@ function AppContent() {
     return () => { cancelled = true }
   }, [dpaid, searchParams, location.state, guid])
 
-  // Загрузка XML по DPAID из БД при открытии /xsd_form_builder/{DPAID}
+  // Загрузка XML по DPAID из БД при открытии /dpa_card/{DPAID}
   useEffect(() => {
     if (!dpaid || dpaid === '-') {
       if (dpaid !== '?') setLoadByDpaidState({ loading: false, error: null })
@@ -356,8 +356,8 @@ function AppContent() {
           copyFromDpaid={copyFromForCard ?? undefined}
           onSaveNewCard={(newDpaid) => {
             try {
-              sessionStorage.setItem('xsd_form_builder_last_saved_dpaid', String(newDpaid))
-              sessionStorage.setItem('xsd_form_builder_save_happened', '1')
+              sessionStorage.setItem('dpa_card_last_saved_dpaid', String(newDpaid))
+              sessionStorage.setItem('dpa_card_save_happened', '1')
             } catch (_) {}
             navigate(`/${newDpaid}/${guid ?? ''}`, { replace: true })
           }}
@@ -391,7 +391,7 @@ function AppContent() {
   )
 }
 
-/** Контент приложения для карты PHA (путь /xsd_form_builder_57/{PHAID}/{GUID}) */
+/** Контент приложения для карты PHA (путь /pha_card/{PHAID}/{GUID}) */
 function PhaAppContent() {
   const [cardData, setCardData] = useState<CardData | null>(null)
   const [originalXML, setOriginalXML] = useState<string | null>(null)
@@ -592,8 +592,8 @@ function PhaAppContent() {
       onUpdate={setCardData}
       onSaveNewCard={(newPhaid) => {
         try {
-          sessionStorage.setItem('xsd_form_builder_last_saved_phaid', String(newPhaid))
-          sessionStorage.setItem('xsd_form_builder_save_happened', '1')
+          sessionStorage.setItem('pha_card_last_saved_phaid', String(newPhaid))
+          sessionStorage.setItem('pha_card_save_happened', '1')
         } catch (_) {}
         navigate(`/${newPhaid}/${guid ?? ''}`, { replace: true })
       }}

@@ -12,16 +12,16 @@ echo ""
 if command -v ss >/dev/null 2>&1; then
     if ss -tlnp 2>/dev/null | grep -q ":$TOMCAT_PORT "; then
         echo "Порт $TOMCAT_PORT слушается. Откройте в браузере:"
-        echo "  http://localhost:$TOMCAT_PORT/xsd_form_builder/"
+        echo "  http://localhost:$TOMCAT_PORT/dpa_card/"
         echo ""
         echo "Форма по GUID (пример):"
-        echo "  http://localhost:$TOMCAT_PORT/xsd_form_builder/1/ваш-guid"
+        echo "  http://localhost:$TOMCAT_PORT/dpa_card/1/ваш-guid"
         exit 0
     fi
 else
     if command -v netstat >/dev/null 2>&1; then
         if netstat -tlnp 2>/dev/null | grep -q ":$TOMCAT_PORT "; then
-            echo "Порт $TOMCAT_PORT слушается. Откройте: http://localhost:$TOMCAT_PORT/xsd_form_builder/"
+            echo "Порт $TOMCAT_PORT слушается. Откройте: http://localhost:$TOMCAT_PORT/dpa_card/"
             exit 0
         fi
     fi

@@ -5,7 +5,7 @@
 ### Что проверить
 
 1. **Правильный адрес (обязательно с путём приложения):**
-   - ✅ `http://localhost:8080/xsd_form_builder/`
+   - ✅ `http://localhost:8080/dpa_card/`
    - ❌ Не открывать только `http://localhost:8080` — там приложения нет.
 
 2. **Быстрый запуск:** дважды откройте файл `open-app.html` в корне проекта — он откроет приложение в браузере.
@@ -53,7 +53,7 @@ Spring Boot не запускается на Tomcat или зависимост�
    Убедитесь, что в `WEB-INF/lib/` есть все зависимости Spring Boot:
    ```powershell
    # Распакуйте WAR и проверьте
-   Expand-Archive -Path C:\tomcat\win\Tomcat8\webapps\xsd_form_builder.war -DestinationPath C:\temp\war-check -Force
+   Expand-Archive -Path C:\tomcat\win\Tomcat8\webapps\dpa_card.war -DestinationPath C:\temp\war-check -Force
    Get-ChildItem C:\temp\war-check\WEB-INF\lib | Select-Object Name
    ```
 
@@ -111,7 +111,7 @@ Select-String -Path C:\tomcat\win\Tomcat8\logs\catalina.out -Pattern "Spring|App
 
 2. **Проверьте API напрямую:**
    ```
-   http://localhost:8080/xsd_form_builder/api/countries/options
+   http://localhost:8080/dpa_card/api/countries/options
    ```
 
 3. **Проверьте подключение к БД:**
@@ -130,7 +130,7 @@ Select-String -Path C:\tomcat\win\Tomcat8\logs\catalina.out -Pattern "Spring|App
 
 1. **Откройте в браузере:**
    ```
-   http://localhost:8080/xsd_form_builder/api/countries/options
+   http://localhost:8080/dpa_card/api/countries/options
    ```
    Должен вернуться JSON со списком стран.
 
@@ -141,7 +141,7 @@ Select-String -Path C:\tomcat\win\Tomcat8\logs\catalina.out -Pattern "Spring|App
 
 3. **Проверьте структуру развернутого приложения:**
    ```powershell
-   Get-ChildItem C:\tomcat\win\Tomcat8\webapps\xsd_form_builder\WEB-INF\lib | Select-Object Name -First 20
+   Get-ChildItem C:\tomcat\win\Tomcat8\webapps\dpa_card\WEB-INF\lib | Select-Object Name -First 20
    ```
 
 ## Частые ошибки

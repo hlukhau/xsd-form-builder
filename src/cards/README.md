@@ -12,7 +12,7 @@
 
 ## DPA (карта опасной продукции)
 
-- **Путь приложения:** `http://localhost:8083/xsd_form_builder/{DPAID}/{GUID}`
+- **Путь приложения:** `http://localhost:8083/dpa_card/{DPAID}/{GUID}`
 - **Компонент:** `cards/dpa` → `DangerousProductCard` (реализация в `components/card/DangerousProductCard.tsx`).
 - **Вкладки:** `components/tabs/dpa/*` (Уведомление, Продукция, ТСД, Документы соответствия, Нарушения, Место обнаружения, Меры).
 - **API:** `/api/dpa/xml`, `/api/dpa/metadata`, `/api/dpa/save`, `/api/dpa/delete` и др.
@@ -20,7 +20,7 @@
 
 ## PHA (карта обнаружения болезней)
 
-- **Путь приложения:** `http://localhost:8083/xsd_form_builder_57/{PHAID}/{GUID}`
+- **Путь приложения:** `http://localhost:8083/pha_card/{PHAID}/{GUID}`
 - **Компонент:** `cards/pha` → `PhaCard`.
 - **API:** `/api/pha/xml`, `/api/pha/metadata` (собственные сервлеты).
 - **Бэкенд:** сервлеты `Pha*` в `com.eec.servlet.pha`, таблицы PHA, PHAXML.
@@ -34,10 +34,10 @@
 Запуск с базой PHA (приложение откроется как «карта PHA»):
 
 ```bash
-npm run dev -- --base=/xsd_form_builder_57/
+npm run dev -- --base=/pha_card/
 ```
 
-Откройте в браузере: `http://localhost:3000/xsd_form_builder_57/` (или `.../xsd_form_builder_57/123/guid` для карты по PHAID). Контент — PhaCard, запросы уходят на `/xsd_form_builder_57/api/pha/...` (при прокси или развёрнутом бэкенде под тем же путём).
+Откройте в браузере: `http://localhost:3000/pha_card/` (или `.../pha_card/123/guid` для карты по PHAID). Контент — PhaCard, запросы уходят на `/pha_card/api/pha/...` (при прокси или развёрнутом бэкенде под тем же путём).
 
 ### Сборка под PHA
 
@@ -50,22 +50,22 @@ npm run build:pha
 Или вручную:
 
 ```bash
-VITE_APP_BASE=/xsd_form_builder_57/ npm run build
+VITE_APP_BASE=/pha_card/ npm run build
 ```
 
-В `dist/` будет сборка, рассчитанная на развёртывание по пути `/xsd_form_builder_57/`.
+В `dist/` будет сборка, рассчитанная на развёртывание по пути `/pha_card/`.
 
 ### Развёртывание обеих карт одновременно на одном Tomcat
 
 Оба приложения на одном сервере:
-- **DPA:** `http://localhost:8083/xsd_form_builder/`
-- **PHA:** `http://localhost:8083/xsd_form_builder_57/`
+- **DPA:** `http://localhost:8083/dpa_card/`
+- **PHA:** `http://localhost:8083/pha_card/`
 
 Соберите и разверните каждое приложение отдельно (в любом порядке):
 
 ```bash
-./build-and-deploy-dpa.sh    # DPA → http://localhost:PORT/xsd_form_builder/
-./build-and-deploy-pha.sh    # PHA → http://localhost:PORT/xsd_form_builder_57/
+./build-and-deploy-dpa.sh    # DPA → http://localhost:PORT/dpa_card/
+./build-and-deploy-pha.sh    # PHA → http://localhost:PORT/pha_card/
 ```
 
 Оба WAR попадают в webapps; Tomcat поднимает оба контекста. Для удалённого сервера: `./deploy-dpa-to-remote.sh` и `./deploy-pha-to-remote.sh` (с опцией `--build` при необходимости).

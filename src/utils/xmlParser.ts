@@ -3494,7 +3494,7 @@ export async function loadXMLFile(filePath: string): Promise<string> {
 
 const BASE_URL = typeof import.meta !== 'undefined' && import.meta.env?.BASE_URL != null
   ? (import.meta.env.BASE_URL as string)
-  : '/xsd_form_builder/'
+  : '/dpa_card/'
 
 /**
  * Загружает XML по DPAID через API (таблица DPAXML)

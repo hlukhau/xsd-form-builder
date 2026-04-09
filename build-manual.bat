@@ -6,7 +6,7 @@ setlocal enabledelayedexpansion
 set "PROJECT_DIR=%~dp0"
 set "TOMCAT_HOME=C:\tomcat\win\Tomcat8"
 set "JAVA_HOME=C:\tomcat\win\Tomcat8\java"
-set "APP_NAME=xsd_form_builder"
+set "APP_NAME=dpa_card"
 set "WAR_FILE=%PROJECT_DIR%target\%APP_NAME%.war"
 set "WEBAPPS_PATH=%TOMCAT_HOME%\webapps"
 set "APP_PATH=%WEBAPPS_PATH%\%APP_NAME%"

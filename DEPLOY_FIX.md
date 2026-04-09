@@ -8,7 +8,7 @@ java.io.FileNotFoundException
 ```
 
 ## Причина
-Папка развертывания `xsd-form-builder` уже существует и заблокирована процессом Tomcat.
+Папка развертывания `dpa_card` уже существует и заблокирована процессом Tomcat.
 
 ## Решение
 
@@ -25,13 +25,13 @@ java.io.FileNotFoundException
 
 4. Удалите старую папку развертывания:
    ```powershell
-   Remove-Item -Path "C:\tomcat\win\Tomcat8\webapps\xsd-form-builder" -Recurse -Force
-   Remove-Item -Path "C:\tomcat\win\Tomcat8\webapps\xsd-form-builder.war" -Force
+   Remove-Item -Path "C:\tomcat\win\Tomcat8\webapps\dpa_card" -Recurse -Force
+   Remove-Item -Path "C:\tomcat\win\Tomcat8\webapps\dpa_card.war" -Force
    ```
 
 5. Скопируйте новый WAR-файл:
    ```powershell
-   Copy-Item -Path "target\xsd-form-builder.war" -Destination "C:\tomcat\win\Tomcat8\webapps\xsd-form-builder.war"
+   Copy-Item -Path "target\dpa_card.war" -Destination "C:\tomcat\win\Tomcat8\webapps\dpa_card.war"
    ```
 
 6. Запустите службу Tomcat снова
@@ -51,13 +51,13 @@ java.io.FileNotFoundException
 
 4. Удалите старую папку и WAR:
    ```powershell
-   Remove-Item -Path "C:\tomcat\win\Tomcat8\webapps\xsd-form-builder" -Recurse -Force -ErrorAction SilentlyContinue
-   Remove-Item -Path "C:\tomcat\win\Tomcat8\webapps\xsd-form-builder.war" -Force -ErrorAction SilentlyContinue
+   Remove-Item -Path "C:\tomcat\win\Tomcat8\webapps\dpa_card" -Recurse -Force -ErrorAction SilentlyContinue
+   Remove-Item -Path "C:\tomcat\win\Tomcat8\webapps\dpa_card.war" -Force -ErrorAction SilentlyContinue
    ```
 
 5. Скопируйте новый WAR:
    ```powershell
-   Copy-Item -Path "C:\projects\IdeaProjects\xsd-form-builder\target\xsd-form-builder.war" -Destination "C:\tomcat\win\Tomcat8\webapps\xsd-form-builder.war"
+   Copy-Item -Path "C:\projects\IdeaProjects\xsd-form-builder\target\dpa_card.war" -Destination "C:\tomcat\win\Tomcat8\webapps\dpa_card.war"
    ```
 
 6. Запустите Tomcat:
@@ -74,7 +74,7 @@ java.io.FileNotFoundException
 
 1. Откройте `http://localhost:8080/manager/html`
 
-2. Найдите приложение **xsd-form-builder** в списке
+2. Найдите приложение **dpa_card** в списке
 
 3. Нажмите **Undeploy** для удаления
 
@@ -88,12 +88,12 @@ java.io.FileNotFoundException
 
 1. Папка создана:
    ```powershell
-   Test-Path "C:\tomcat\win\Tomcat8\webapps\xsd-form-builder"
+   Test-Path "C:\tomcat\win\Tomcat8\webapps\dpa_card"
    ```
 
 2. Приложение доступно:
    - Откройте браузер
-   - Перейдите на `http://localhost:8080/xsd-form-builder/`
+   - Перейдите на `http://localhost:8080/dpa_card/`
 
 3. Проверьте логи:
    - `C:\tomcat\win\Tomcat8\logs\catalina.out`
@@ -105,7 +105,7 @@ java.io.FileNotFoundException
 
 1. Переименуйте WAR:
    ```powershell
-   Copy-Item -Path "target\xsd-form-builder.war" -Destination "C:\tomcat\win\Tomcat8\webapps\app.war"
+   Copy-Item -Path "target\dpa_card.war" -Destination "C:\tomcat\win\Tomcat8\webapps\app.war"
    ```
 
 2. Приложение будет доступно по адресу: `http://localhost:8080/app/`
@@ -126,16 +126,16 @@ java.io.FileNotFoundException
    Start-Sleep -Seconds 5
    
    Write-Host "Удаляю старое развертывание..."
-   Remove-Item -Path "$env:CATALINA_HOME\webapps\xsd-form-builder" -Recurse -Force -ErrorAction SilentlyContinue
-   Remove-Item -Path "$env:CATALINA_HOME\webapps\xsd-form-builder.war" -Force -ErrorAction SilentlyContinue
+   Remove-Item -Path "$env:CATALINA_HOME\webapps\dpa_card" -Recurse -Force -ErrorAction SilentlyContinue
+   Remove-Item -Path "$env:CATALINA_HOME\webapps\dpa_card.war" -Force -ErrorAction SilentlyContinue
    
    Write-Host "Копирую новый WAR..."
-   Copy-Item -Path "target\xsd-form-builder.war" -Destination "$env:CATALINA_HOME\webapps\xsd-form-builder.war"
+   Copy-Item -Path "target\dpa_card.war" -Destination "$env:CATALINA_HOME\webapps\dpa_card.war"
    
    Write-Host "Запускаю Tomcat..."
    .\startup.bat
    
-   Write-Host "Готово! Приложение доступно на http://localhost:8080/xsd-form-builder/"
+   Write-Host "Готово! Приложение доступно на http://localhost:8080/dpa_card/"
    ```
 
 

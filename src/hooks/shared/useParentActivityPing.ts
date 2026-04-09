@@ -1,4 +1,5 @@
 import { useEffect, useRef } from 'react'
+import { postMessageFromCardToParent } from '@/utils/parentPostMessage'
 
 const MINUTE_MS = 60_000
 
@@ -26,11 +27,10 @@ export function useParentActivityPing(intervalMs: number = MINUTE_MS): void {
     const tick = (): void => {
       const idleMs = Date.now() - lastActivityRef.current
       if (lastActivityRef.current === 0 || idleMs > intervalMs) return
-      try {
-        window.parent.postMessage({ code: 'activity' }, '*')
-      } catch {
-        /* same-origin / недоступный parent */
-      }
+      postMessageFromCardToParent(
+        { code: 'activity' },
+        'продление сессии (есть активность мыши/клавиатуры за последний интервал)'
+      )
     }
 
     const id = window.setInterval(tick, intervalMs)

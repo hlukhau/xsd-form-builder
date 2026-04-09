@@ -59,7 +59,7 @@ Get-Content C:\tomcat\win\Tomcat8\logs\catalina.2025-12-26.log | Select-String -
 
 После перезапуска Tomcat проверьте:
 ```
-http://localhost:8080/xsd_form_builder/api/countries/options
+http://localhost:8080/dpa_card/api/countries/options
 ```
 
 Должен вернуться JSON со списком стран.

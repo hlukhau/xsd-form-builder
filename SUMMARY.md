@@ -52,7 +52,7 @@ npm run build
 ```
 
 **Проверить структуру WAR:**
-После сборки в `target/xsd-form-builder.war` должны быть:
+После сборки в `target/dpa_card.war` должны быть:
 - `WEB-INF/lib/` - все JAR зависимости
 - `WEB-INF/classes/` - скомпилированные Java классы
 - `WEB-INF/web.xml` - конфигурация
@@ -74,7 +74,7 @@ Get-Content C:\tomcat\win\Tomcat8\logs\catalina.2025-12-26.log -Tail 200 | Selec
 
 После перезапуска Tomcat проверьте:
 ```
-http://localhost:8080/xsd_form_builder/api/countries/options
+http://localhost:8080/dpa_card/api/countries/options
 ```
 
 Должен вернуться JSON со списком стран.

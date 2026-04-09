@@ -29,10 +29,10 @@ call mvn package
 if %ERRORLEVEL% EQU 0 (
     echo.
     echo === Сборка успешно завершена! ===
-    echo WAR-файл: target\xsd-form-builder.war
+    echo WAR-файл: target\dpa_card.war
     echo.
     echo Для развертывания скопируйте WAR-файл в папку webapps Tomcat:
-    echo   copy target\xsd-form-builder.war %%CATALINA_HOME%%\webapps\
+    echo   copy target\dpa_card.war %%CATALINA_HOME%%\webapps\
     echo.
     echo Или используйте Tomcat Manager для развертывания.
 ) else (

@@ -100,7 +100,7 @@ if command -v curl >/dev/null 2>&1 && ss -tlnp 2>/dev/null | grep -q ":$TOMCAT_P
     if curl -sS -o /dev/null -w "%{http_code}" --connect-timeout 2 "http://127.0.0.1:$TOMCAT_PORT/" 2>/dev/null | grep -q '[0-9]'; then
         CODE=$(curl -sS -o /dev/null -w "%{http_code}" --connect-timeout 2 "http://127.0.0.1:$TOMCAT_PORT/" 2>/dev/null)
         echo "[OK] Ответ сервера: HTTP $CODE — откройте в браузере: http://127.0.0.1:$TOMCAT_PORT/"
-        echo "     Приложение: http://127.0.0.1:$TOMCAT_PORT/xsd_form_builder/"
+        echo "     Приложение: http://127.0.0.1:$TOMCAT_PORT/dpa_card/"
     else
         echo "[!] curl к http://127.0.0.1:$TOMCAT_PORT/ не удался (таймаут или отказ)."
         echo "    Проверьте: ./fix-tomcat-connector.sh (чтобы слушать 0.0.0.0), firewall (ufw allow $TOMCAT_PORT)."

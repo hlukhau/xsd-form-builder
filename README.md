@@ -69,13 +69,13 @@ mvn clean package
 build.bat
 ```
 
-Результат: `target/xsd-form-builder.war`
+Результат: `target/dpa_card.war`
 
 **Развертывание:**
 
-1. Скопируйте `target/xsd-form-builder.war` в `$CATALINA_HOME/webapps/`
+1. Скопируйте `target/dpa_card.war` в `$CATALINA_HOME/webapps/`
 2. Перезапустите Tomcat
-3. Приложение будет доступно по адресу: `http://localhost:8080/xsd-form-builder/`
+3. Приложение будет доступно по адресу: `http://localhost:8080/dpa_card/`
 
 **Подробные инструкции:** см. [DEPLOYMENT.md](./DEPLOYMENT.md)
 

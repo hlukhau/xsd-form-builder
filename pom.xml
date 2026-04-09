@@ -44,7 +44,7 @@
     </dependencies>
 
     <build>
-        <finalName>${project.artifactId}</finalName>
+        <finalName>dpa_card</finalName>
         <plugins>
             <!-- Maven Compiler Plugin для Java 8 - старая версия, которая может быть в локальном репозитории -->
             <plugin>

@@ -38,20 +38,20 @@
    ```
 
 5. API заработает:
-   - `http://localhost:8080/xsd_form_builder/api/countries/options`
-   - `http://localhost:8080/xsd_form_builder/api/countries/RU/exists`
+   - `http://localhost:8080/dpa_card/api/countries/options`
+   - `http://localhost:8080/dpa_card/api/countries/RU/exists`
 
 ## Проверка после пересборки
 
 ```powershell
 # Проверка размера WAR
-Get-Item target\xsd-form-builder.war | Select-Object Length, LastWriteTime
+Get-Item target\dpa_card.war | Select-Object Length, LastWriteTime
 
 # Проверка классов в развернутом приложении
-Get-ChildItem C:\tomcat\win\Tomcat8\webapps\xsd_form_builder\WEB-INF\classes\com\eec\servlet\*.class
+Get-ChildItem C:\tomcat\win\Tomcat8\webapps\dpa_card\WEB-INF\classes\com\eec\servlet\*.class
 
 # Проверка зависимостей
-Get-ChildItem C:\tomcat\win\Tomcat8\webapps\xsd_form_builder\WEB-INF\lib\*.jar | Select-Object Name
+Get-ChildItem C:\tomcat\win\Tomcat8\webapps\dpa_card\WEB-INF\lib\*.jar | Select-Object Name
 ```
 
 ## Текущее состояние
