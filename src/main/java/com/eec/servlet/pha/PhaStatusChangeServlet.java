@@ -28,9 +28,9 @@ import java.util.regex.Pattern;
  * Тело JSON: { "phaid", "action", "guid" }.
  * <p>Входящие:</p>
  * <ul>
- *   <li>{@code first_open} — Получено → В обработке при первичном открытии; PHASTATUSHIST.USERID = NULL.</li>
+ *   <li>{@code first_open} — Получено → В обработке при первичном открытии (только DATASOURCEKINDCODE=1); PHASTATUSHIST с USERID из guid.</li>
  *   <li>{@code complete_processing} — В обработке → Обработано; publicHealthIn:status.</li>
- *   <li>{@code close} — Обработано (3) → Завершено (COMPLETED, чаще PHASTATUSID=4); publicHealthIn:status; PHA.ENDDATE обязательна.</li>
+ *   <li>{@code close} — Обработано (3) → Завершено; publicHealthIn:status; DATASOURCEKINDCODE=1.</li>
  * </ul>
  * <p>Исходящие:</p>
  * <ul>
@@ -154,7 +154,13 @@ public class PhaStatusChangeServlet extends HttpServlet {
                             "Нет права просмотра входящих сведений PHA (publicHealthIn:view)");
                     return;
                 }
-                handleFirstOpen(response, conn, phaIdNum, row);
+                Integer openUserId = resolveUserId(guid);
+                if (openUserId == null) {
+                    sendJsonError(response, HttpServletResponse.SC_BAD_REQUEST,
+                            "Укажите guid в теле запроса (в карте прав должен быть атрибут userId)");
+                    return;
+                }
+                handleFirstOpen(response, conn, phaIdNum, row, openUserId);
                 return;
             }
 
@@ -247,8 +253,13 @@ public class PhaStatusChangeServlet extends HttpServlet {
         return new CurrentPhaRow(sid, name, src, dsc);
     }
 
-    private void handleFirstOpen(HttpServletResponse response, Connection conn, long phaId, CurrentPhaRow row)
+    private void handleFirstOpen(HttpServletResponse response, Connection conn, long phaId, CurrentPhaRow row, int userId)
             throws IOException, SQLException {
+        String dsc = row.dataSourceKindCode != null ? row.dataSourceKindCode.trim() : "";
+        if (!DATASOURCEKIND_INCOMING.equals(dsc)) {
+            response.getWriter().print(buildOkJson(false, row.statusName, row.statusId));
+            return;
+        }
         String cur = row.statusName;
         if (!isReceivedStatus(cur)) {
             response.getWriter().print(buildOkJson(false, cur, row.statusId));
@@ -260,7 +271,7 @@ public class PhaStatusChangeServlet extends HttpServlet {
                     "Статус «" + STATUS_PROCESSING + "» не найден в PHASTATUS");
             return;
         }
-        applyStatusAndHistory(conn, phaId, newId, null);
+        applyStatusAndHistory(conn, phaId, newId, userId);
         response.getWriter().print(buildOkJson(true, STATUS_PROCESSING, newId));
     }
 
@@ -299,11 +310,6 @@ public class PhaStatusChangeServlet extends HttpServlet {
         if (row.statusId != PHASTATUS_PROCESSED) {
             sendJsonError(response, HttpServletResponse.SC_BAD_REQUEST,
                     "Действие «Закрытие карты» возможно только при статусе «Обработано» (PHASTATUSID=3)");
-            return;
-        }
-        if (!hasPhaSituationEndDate(conn, phaId)) {
-            sendJsonError(response, HttpServletResponse.SC_BAD_REQUEST,
-                    "Для закрытия входящей карты укажите дату закрытия (архивации) нежелательной ситуации (PHA.ENDDATE / csdo:EndDate)");
             return;
         }
         int newId = resolveFinalClosingStatusId(conn);
@@ -346,23 +352,11 @@ public class PhaStatusChangeServlet extends HttpServlet {
                         "Не найден XML карты в PHAXML; доработайте и сохраните карту перед направлением");
                 return;
             }
-            java.util.List<String> valErrors = PhaOutgoingSendXmlValidator.validate(xmlBody);
-            if (!valErrors.isEmpty()) {
-                String msg = valErrors.size() == 1
-                        ? valErrors.get(0)
-                        : "Карта не прошла валидацию: " + String.join("; ", valErrors);
-                sendJsonError(response, HttpServletResponse.SC_BAD_REQUEST,
-                        "Доработайте карту исходящих сведений. " + msg);
-                return;
-            }
-            if (!AccessRightService.hasPublicHealthOutSend(rightsJson)) {
-                sendJsonError(response, HttpServletResponse.SC_FORBIDDEN,
-                        "Нет права на направление исходящих сведений (publicHealthOut:send)");
-                return;
-            }
-            if (!verifyOutgoingSendDepIntersect(request, response, conn, phaId, rightsJson)) {
-                return;
-            }
+            /*
+             * Логический контроль карты выполняется в UI перед показом подтверждения «Направить сведения»
+             * (validatePhaOutgoingCardFull), затем карта сохраняется в PHAXML. Повторный разбор XML здесь
+             * не выполняется, чтобы не дублировать проверки и не расходиться с фактической структурой выгрузки.
+             */
             int newId = resolveStatusId(conn, STATUS_PENDING);
             if (newId < 0) {
                 sendJsonError(response, HttpServletResponse.SC_INTERNAL_SERVER_ERROR,

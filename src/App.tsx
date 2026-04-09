@@ -526,7 +526,8 @@ function PhaAppContent() {
         setCardData(enriched)
         setError(null)
         message.success('Данные карты PHA загружены')
-        if (guid?.trim() && isPhaIncomingSource(enriched.source)) {
+        const dscForFirstOpen = String(enriched.datasourceKindCode ?? '').trim()
+        if (guid?.trim() && isPhaIncomingSource(enriched.source) && dscForFirstOpen === '1') {
           postPhaStatus(phaid, 'first_open', guid)
             .then((res) => {
               if (seq !== phaLoadSeqRef.current) return

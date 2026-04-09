@@ -30,13 +30,14 @@ const CardHeader: React.FC<CardHeaderProps> = ({ data, onStatusClick }) => {
       <Descriptions.Item label="Регистрационный номер">{data.registrationNumber || '—'}</Descriptions.Item>
       <Descriptions.Item label="Страна">{getCountryDisplayLabel(data.country)}</Descriptions.Item>
       <Descriptions.Item label="Версия">{data.version ?? '—'}</Descriptions.Item>
-      {data.source != null && !String(data.source).toLowerCase().includes('еэк') ? (
-        <Descriptions.Item label="Статус">
-          <a onClick={onStatusClick} style={{ cursor: 'pointer' }}>{data.status || '—'}</a>
-        </Descriptions.Item>
-      ) : (
-        <Descriptions.Item label="Статус">—</Descriptions.Item>
-      )}
+      {String(data.datasourceKindCode ?? '').trim() !== '3' &&
+        (data.source != null && !String(data.source).toLowerCase().includes('еэк') ? (
+          <Descriptions.Item label="Статус">
+            <a onClick={onStatusClick} style={{ cursor: 'pointer' }}>{data.status || '—'}</a>
+          </Descriptions.Item>
+        ) : (
+          <Descriptions.Item label="Статус">—</Descriptions.Item>
+        ))}
       <Descriptions.Item label="Источник">{data.source || '—'}</Descriptions.Item>
       <Descriptions.Item label="Дата создания">{formatDateTime(data.createdAt)}</Descriptions.Item>
       <Descriptions.Item label="Дата изменения">{formatDateTime(data.modifiedAt)}</Descriptions.Item>

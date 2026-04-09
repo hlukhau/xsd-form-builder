@@ -40,9 +40,6 @@ import {
   isPhaIncomingSource,
   isPhaOutgoingSource,
   phaSituationEndDateFilled,
-  phaIncomingCloseAllowed,
-  phaOutgoingCloseAllowed,
-  phaOutgoingSendOp57Allowed,
 } from '@/utils/phaStatusButtonConfig'
 import XMLComparisonModal, { type ComparisonResultShape } from '@/components/modals/dpa/XMLComparisonModal'
 import ValidationResultModal from '@/components/modals/dpa/ValidationResultModal'
@@ -195,11 +192,15 @@ const PhaCard: React.FC<PhaCardProps> = ({
     if (phaid && phaid !== '-') setSavedPhaid(null)
   }, [phaid])
 
-  const datasourceKindCode = data?.datasourceKindCode != null ? String(data.datasourceKindCode) : ''
+  const datasourceKindCode = String(editedData.datasourceKindCode ?? data.datasourceKindCode ?? '').trim()
+  /** Входящие ЕАЭС (1) и сведения БД ЕЭК (3): только просмотр, без редактирования сохранённой карты. */
+  const phaDatasourceNoEdit =
+    effectivePhaid !== '-' && (datasourceKindCode === '1' || datasourceKindCode === '3')
   const sourceFromData = data?.source ?? ''
   const isOutgoingPha =
     effectivePhaid === '-' ||
     datasourceKindCode === '2' ||
+    datasourceKindCode === '3' ||
     sourceFromData.toLowerCase().includes('исходящ') ||
     sourceFromData === '2'
   const isIncomingPha = isPhaIncomingSource(editedData.source)
@@ -250,9 +251,11 @@ const PhaCard: React.FC<PhaCardProps> = ({
       setHasPhaEditRight(false)
       return
     }
+    const dscRights = String(editedData.datasourceKindCode ?? data.datasourceKindCode ?? '').trim()
+    const eecDbCtx = dscRights === '3'
     const incomingCtx = isPhaIncomingSource(editedData.source)
-    const outgoingCtx = isPhaOutgoingSource(editedData.source)
-    if (incomingCtx && effectivePhaid !== '-') {
+    const outgoingCtx = isPhaOutgoingSource(editedData.source) || eecDbCtx
+    if (incomingCtx && effectivePhaid !== '-' && !eecDbCtx) {
       let cancelled = false
       setHasPhaSendRight(false)
       setHasPhaEditRight(false)
@@ -273,7 +276,7 @@ const PhaCard: React.FC<PhaCardProps> = ({
         cancelled = true
       }
     }
-    if (!(incomingCtx && effectivePhaid !== '-') && (outgoingCtx || effectivePhaid === '-')) {
+    if (!(incomingCtx && effectivePhaid !== '-' && !eecDbCtx) && (outgoingCtx || effectivePhaid === '-' || eecDbCtx)) {
       let cancelled = false
       ;(async () => {
         try {
@@ -313,9 +316,18 @@ const PhaCard: React.FC<PhaCardProps> = ({
       setHasPhaSendRight(false)
       setHasPhaEditRight(false)
     }
-  }, [guid, editedData.source, effectivePhaid, editedData.phaAccessibleDepIds, data.phaAccessibleDepIds, data.source])
+  }, [
+    guid,
+    editedData.source,
+    editedData.datasourceKindCode,
+    data.datasourceKindCode,
+    effectivePhaid,
+    editedData.phaAccessibleDepIds,
+    data.phaAccessibleDepIds,
+    data.source,
+  ])
 
-  const editSwitchDisabled = isOutgoingPha && !canEditByStatus
+  const editSwitchDisabled = (isOutgoingPha && !canEditByStatus) || phaDatasourceNoEdit
 
   const situationEndFilled = phaSituationEndDateFilled(currentData.notification?.endDate)
 
@@ -328,7 +340,7 @@ const PhaCard: React.FC<PhaCardProps> = ({
             effectivePhaStatusRight,
             situationEndFilled
           )
-        : isPhaOutgoingSource(currentData.source)
+        : isPhaOutgoingSource(currentData.source) || datasourceKindCode === '3'
           ? outgoingPhaStatusButton(
               currentData.statusId,
               currentData.status,
@@ -355,6 +367,7 @@ const PhaCard: React.FC<PhaCardProps> = ({
 
   const showSaveButton =
     isEditMode &&
+    !phaDatasourceNoEdit &&
     (effectivePhaid === '-' ||
       (isIncomingPha && canEditByStatus) ||
       (isOutgoingPha && effectivePhaEditRight && canEditByStatus))
@@ -377,19 +390,6 @@ const PhaCard: React.FC<PhaCardProps> = ({
     !!guid &&
     !!onMakeCopy &&
     (editedData.statusId ?? data.statusId) === 10
-
-  const normIncomingStatus = (currentData.status ?? '').trim().toLowerCase()
-  const isIncomingProcessingStatus =
-    currentData.statusId === 2 ||
-    (normIncomingStatus.includes('обработке') && !normIncomingStatus.includes('обработано'))
-  const incomingDsCode = String(currentData.datasourceKindCode ?? '').trim()
-  /** Кейс: входящая PHA, DATASOURCEKINDCODE=1, статус «В обработке» (2), право status ∩ PHADEPPERMIS */
-  const showCompleteIncomingProcessingButton =
-    isIncomingPha &&
-    effectivePhaid !== '-' &&
-    (incomingDsCode === '1' || incomingDsCode === '') &&
-    isIncomingProcessingStatus &&
-    effectivePhaStatusRight
 
   const confirmCompleteIncomingProcessing = () => {
     if (!effectivePhaid || effectivePhaid === '-') return
@@ -420,31 +420,6 @@ const PhaCard: React.FC<PhaCardProps> = ({
       },
     })
   }
-
-  const outgoingDsCodeForClose = String(currentData.datasourceKindCode ?? '').trim()
-  const incCloseHdr = phaIncomingCloseAllowed(
-    currentData.statusId,
-    currentData.status,
-    effectivePhaStatusRight,
-    situationEndFilled
-  )
-  const outCloseHdr = phaOutgoingCloseAllowed(
-    currentData.statusId,
-    currentData.status,
-    effectivePhaStatusRight,
-    situationEndFilled
-  )
-  const showClosePhaCardHeaderButton =
-    effectivePhaid !== '-' &&
-    ((isIncomingPha && incomingDsCode === '1' && incCloseHdr.allowed) ||
-      (isOutgoingPha && outgoingDsCodeForClose === '2' && outCloseHdr.allowed))
-
-  const showSendPhaOp57HeaderButton =
-    isOutgoingPha &&
-    effectivePhaid !== '-' &&
-    outgoingDsCodeForClose === '2' &&
-    effectivePhaSendRight &&
-    phaOutgoingSendOp57Allowed(currentData.statusId, currentData.status ?? '')
 
   /**
    * Направление сведений ОП 57 — как DPA (send):
@@ -716,6 +691,7 @@ const PhaCard: React.FC<PhaCardProps> = ({
     const isNewCard = effectivePhaid === '-'
     const canSaveToDb =
       effectivePhaid !== '-' &&
+      !phaDatasourceNoEdit &&
       ((isOutgoingPha && effectivePhaEditRight) || isIncomingPha)
 
     const formatErrors = collectPhaFormatValidationErrors(editedData)
@@ -909,9 +885,13 @@ const PhaCard: React.FC<PhaCardProps> = ({
       >
         <div className="card-sticky-header-title-row">
           <span className="card-sticky-header-title">
-            {effectivePhaid && effectivePhaid !== '-'
-              ? `Карта сведений об обнаружении болезни ${effectivePhaid}`
-              : 'Карта сведений об обнаружении болезни'}
+            {datasourceKindCode === '3'
+              ? effectivePhaid && effectivePhaid !== '-'
+                ? `Исходящие сведения о болезни ${effectivePhaid}`
+                : 'Исходящие сведения о болезни'
+              : effectivePhaid && effectivePhaid !== '-'
+                ? `Карта сведений об обнаружении болезни ${effectivePhaid}`
+                : 'Карта сведений об обнаружении болезни'}
           </span>
           <Space size="small" wrap>
             {!isEditMode && (
@@ -1064,9 +1044,15 @@ const PhaCard: React.FC<PhaCardProps> = ({
               console.log('[Открыть все версии] Сообщение отправлено родительскому окну:', payload)
             }
           }}
-          statusButton={phaStatusResult.config}
+          statusButton={
+            phaStatusResult.config && !phaStatusResult.config.disabled ? phaStatusResult.config : null
+          }
           statusButtonComment={phaStatusResult.comment || undefined}
-          closeButton={phaStatusResult.closeConfig && !phaStatusResult.closeConfig.disabled ? phaStatusResult.closeConfig : null}
+          closeButton={
+            phaStatusResult.closeConfig && !phaStatusResult.closeConfig.disabled
+              ? phaStatusResult.closeConfig
+              : null
+          }
           onStatusAction={handlePhaStatusAction}
           onElectronicDocumentClick={() => setElectronicDocumentVisible(true)}
           showDeleteButton={showDeleteButton}

@@ -5,6 +5,7 @@
  */
 import type {
   CardData,
+  BusinessEntityDetails,
   ContactDetails,
   DetectionPlaceData,
   AddressDetails,
@@ -52,6 +53,53 @@ function objectAddressHasMinimum(a: AddressDetails | undefined): boolean {
   return !empty(a.country) || addressHasCityOrSettlement(a) || !empty(a.fullAddress)
 }
 
+/** Хотя бы одно поле строки адреса субъекта (ccdo:SubjectAddressDetails). */
+function subjectAddressRowHasContent(a: AddressDetails): boolean {
+  const s = (v: string | undefined) => (v ?? '').trim()
+  return !!(
+    s(a.country) ||
+    s(a.territoryCode) ||
+    s(a.regionName) ||
+    s(a.districtName) ||
+    s(a.cityName) ||
+    s(a.settlementName) ||
+    s(a.streetName) ||
+    s(a.buildingNumberId) ||
+    s(a.roomNumberId) ||
+    s(a.postOfficeBoxId) ||
+    s(a.postCode) ||
+    s(a.fullAddress)
+  )
+}
+
+/**
+ * Пользователь начал заполнять блок организации (в т.ч. только ОПФ / код вида / краткое наименование / контакты).
+ */
+function organizationAnyFieldTouched(o: BusinessEntityDetails | undefined): boolean {
+  if (!o) return false
+  return !!(
+    o.country?.trim() ||
+    o.businessEntityName?.trim() ||
+    o.businessEntityBriefName?.trim() ||
+    o.businessEntityTypeCode?.trim() ||
+    o.businessEntityTypeCodeListId?.trim() ||
+    o.businessEntityTypeName?.trim() ||
+    (o.addresses && o.addresses.length > 0) ||
+    (o.contacts && o.contacts.length > 0) ||
+    o.businessEntityId?.trim() ||
+    o.identificationMethod?.trim() ||
+    o.customsNumber?.trim() ||
+    o.taxRegistrationReasonCode?.trim() ||
+    o.taxpayerId?.trim()
+  )
+}
+
+/** Страна, наименование субъекта и хотя бы один заполненный адрес субъекта. */
+function organizationTrioComplete(o: BusinessEntityDetails): boolean {
+  if (empty(o.country) || empty(o.businessEntityName)) return false
+  return (o.addresses ?? []).some(subjectAddressRowHasContent)
+}
+
 function contactNeedsCommunicationValue(c: ContactDetails): boolean {
   return (
     !empty(c.communicationChannelCode) ||
@@ -75,20 +123,7 @@ function collectOrgContactRemarks(contacts: ContactDetails[] | undefined): strin
 function hasPlaceAnyBlock(place: DetectionPlaceData | undefined): boolean {
   if (!place) return false
   const o = place.organization
-  if (
-    o &&
-    (o.country?.trim() ||
-      o.businessEntityName?.trim() ||
-      o.businessEntityBriefName?.trim() ||
-      (o.addresses && o.addresses.length > 0) ||
-      (o.contacts && o.contacts.length > 0) ||
-      o.businessEntityId?.trim() ||
-      o.identificationMethod?.trim() ||
-      o.customsNumber?.trim() ||
-      o.taxRegistrationReasonCode?.trim() ||
-      o.taxpayerId?.trim())
-  )
-    return true
+  if (o && organizationAnyFieldTouched(o)) return true
   const bc = place.borderCheckpoint
   if (bc && (bc.checkpointCode?.trim() || bc.checkpointName?.trim())) return true
   if (place.address && objectAddressHasMinimum(place.address)) return true
@@ -111,27 +146,10 @@ function collectPlaceRemarks(place: DetectionPlaceData | undefined): string[] {
   }
 
   const o = place?.organization
-  if (o) {
-    const orgTouched =
-      !empty(o.country) ||
-      !empty(o.businessEntityName) ||
-      !empty(o.businessEntityBriefName) ||
-      (o.addresses && o.addresses.length > 0) ||
-      !empty(o.businessEntityId) ||
-      !empty(o.identificationMethod) ||
-      !empty(o.customsNumber) ||
-      !empty(o.taxRegistrationReasonCode) ||
-      !empty(o.taxpayerId)
-    if (orgTouched) {
-      if (empty(o.country)) {
-        add('Организация: не указана страна')
-      }
-      if (empty(o.businessEntityName)) {
-        add('Организация: не указано наименование субъекта')
-      }
-      if (!(o.addresses && o.addresses.length > 0)) {
-        add('Организация: не указан адрес субъекта — добавьте хотя бы один адрес в блоке организации')
-      }
+  if (o && organizationAnyFieldTouched(o)) {
+    if (!organizationTrioComplete(o)) {
+      add('Должны быть заполнены Страна, Наименование субъекта, Адрес')
+    } else {
       if (!empty(o.businessEntityId) && empty(o.identificationMethod)) {
         add('Если указан идентификатор хозяйствующего субъекта, то метод идентификации должен быть указан обязательно')
       }
@@ -163,8 +181,8 @@ function collectPlaceRemarks(place: DetectionPlaceData | undefined): string[] {
 
 function spreadingZoneTouched(place: DetectionPlaceData | undefined): boolean {
   if (!place) return false
+  if (place.organization && organizationAnyFieldTouched(place.organization)) return true
   return !!(
-    place.organization ||
     place.borderCheckpoint ||
     place.address ||
     (place.geoCoordinates && place.geoCoordinates.length > 0) ||

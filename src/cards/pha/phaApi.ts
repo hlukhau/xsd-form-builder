@@ -240,7 +240,7 @@ export interface PhaStatusChangeResponse {
 
 /**
  * Смена статуса PHA (входящие).
- * first_open — Получено→В обработке (при открытии; publicHealthIn:view);
+ * first_open — Получено→В обработке при открытии (только DATASOURCEKINDCODE=1; publicHealthIn:view; guid с userId для PHASTATUSHIST);
  * complete_processing, close — publicHealthIn:status (входящие);
  * send, close, to_new — publicHealthOut:send / publicHealthOut:status (исходящие).
  */
