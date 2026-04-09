@@ -208,6 +208,21 @@ const ComplianceDocumentsTabEdit: React.FC<ComplianceDocumentsTabEditProps> = ({
     { title: 'Номер', key: 'docId', width: 150, render: (_: any, record: ComplianceDocument, docIndex: number) => (<Input value={record.docId} onChange={(e) => handleDocumentChange(batchIndex, docIndex, 'docId', e.target.value)} maxLength={getMaxLength('docId')} showCount />) },
     { title: labelWithHelp('Дата', FIELD_HELP.complianceDocCreationDate), key: 'docCreationDate', width: 150, render: (_: any, record: ComplianceDocument, docIndex: number) => (<DatePicker format={DATE_DISPLAY_FORMAT} value={record.docCreationDate ? dayjs(record.docCreationDate) : null} onChange={(date) => handleDocumentChange(batchIndex, docIndex, 'docCreationDate', date ? date.format('YYYY-MM-DD') : '')} style={{ width: '100%' }} />) },
     {
+      title: labelWithHelp('Дата начала срока действия', FIELD_HELP.complianceDocStartDate),
+      key: 'docStartDate',
+      width: 200,
+      render: (_: any, record: ComplianceDocument, docIndex: number) => (
+        <DatePicker
+          format={DATE_DISPLAY_FORMAT}
+          value={record.docStartDate ? dayjs(record.docStartDate) : null}
+          onChange={(date) =>
+            handleDocumentChange(batchIndex, docIndex, 'docStartDate', date ? date.format('YYYY-MM-DD') : '')
+          }
+          style={{ width: '100%' }}
+        />
+      ),
+    },
+    {
       title: 'Действия',
       key: 'actions',
       width: 200,
