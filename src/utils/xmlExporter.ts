@@ -823,8 +823,7 @@ function exportShippingDocument(xmlParts: string[], doc: ShippingDocument, inden
 }
 
 function exportViolations(xmlParts: string[], violations: ViolationsData, indent: string) {
-  // По XSD: один RequirementViolationDetails содержит:
-  // DescriptionText? → RequirementsDocDetails+ → DiscrepancyOfQualityIndexDetails*
+  // По XSD (RequirementViolationDetailsType): RequirementsDocDetails+ → DiscrepancyOfQualityIndexDetails* → DescriptionText?
   const reqsWithContent = (violations.violatedRequirements ?? []).filter(hasRequirementContent)
   const indsWithContent = (violations.violatedIndicators ?? []).filter(hasIndicatorContent)
   const hasGeneralDesc = !!(violations.generalDescription && violations.generalDescription.trim())
@@ -832,12 +831,7 @@ function exportViolations(xmlParts: string[], violations: ViolationsData, indent
   xmlParts.push(`${indent}<smcdo:RequirementViolationDetails>`)
   const inner = indent + '  '
 
-  // 1) Описание нарушения на уровне RequirementViolationDetails
-  if (hasGeneralDesc) {
-    xmlParts.push(`${inner}<csdo:DescriptionText>${escapeXML(violations.generalDescription!)}</csdo:DescriptionText>`)
-  }
-
-  // 2) Список RequirementsDocDetails (обязателен минимум один по XSD)
+  // 1) Список RequirementsDocDetails (обязателен минимум один по XSD)
   if (reqsWithContent.length > 0) {
     reqsWithContent.forEach((req) => {
       xmlParts.push(`${inner}<smcdo:RequirementsDocDetails>`)
@@ -870,7 +864,7 @@ function exportViolations(xmlParts: string[], violations: ViolationsData, indent
     xmlParts.push(`${inner}<smcdo:RequirementsDocDetails></smcdo:RequirementsDocDetails>`)
   }
 
-  // 3) Список DiscrepancyOfQualityIndexDetails. Признак нормативного показателя — true/false. Единица измерения — в csdo:UnifiedMeasurementUnitCode с codeListId=2064.
+  // 2) DiscrepancyOfQualityIndexDetails. Признак нормативного показателя — true/false. Единица измерения — в csdo:UnifiedMeasurementUnitCode с codeListId=2064.
   indsWithContent.forEach(indicator => {
     const normativeAttr = indicator.isNormative === true ? ' normativeDiscrepancyOfQualityIndexIndicator="true"' : (indicator.isNormative === false ? ' normativeDiscrepancyOfQualityIndexIndicator="false"' : '')
     xmlParts.push(`${inner}<smcdo:DiscrepancyOfQualityIndexDetails${normativeAttr}>`)
@@ -887,6 +881,11 @@ function exportViolations(xmlParts: string[], violations: ViolationsData, indent
     }
     xmlParts.push(`${inner}</smcdo:DiscrepancyOfQualityIndexDetails>`)
   })
+
+  // 3) Описание нарушения на уровне RequirementViolationDetails — только после требований и показателей (XSD sequence)
+  if (hasGeneralDesc) {
+    xmlParts.push(`${inner}<csdo:DescriptionText>${escapeXML(violations.generalDescription!)}</csdo:DescriptionText>`)
+  }
 
   xmlParts.push(`${indent}</smcdo:RequirementViolationDetails>`)
 }

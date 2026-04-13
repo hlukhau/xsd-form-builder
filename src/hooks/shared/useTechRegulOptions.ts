@@ -41,14 +41,14 @@ export function useTechRegulOptions() {
   }
 
   /**
-   * Преобразует список технических регламентов в опции для Select
-   * value - код, label - "код - название"
+   * Опции Select: value — TECHREGULCODE, label — только TECHREGULREGNUM (при отсутствии — код записи).
    */
   const getSelectOptions = () => {
-    return options.map((opt) => ({
-      value: opt.code,
-      label: `${opt.code} - ${opt.name}`,
-    }))
+    return options.map((opt) => {
+      const reg = (opt.regNum ?? '').trim()
+      const label = reg || opt.code
+      return { value: opt.code, label }
+    })
   }
 
   return {

@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Form, Input, Button, Table, Descriptions, Select, Collapse } from 'antd'
 import { PlusOutlined, DeleteOutlined } from '@ant-design/icons'
 import { format } from 'date-fns'
@@ -9,6 +9,7 @@ import { getMaxLength, validateFieldValue } from '@/constants/xsdFieldConstraint
 import type { ViolationsData, ViolatedRequirement, ViolatedIndicator, DocStructuralElement, TSDData, ProductBatchDetails } from '@/types/card'
 import { useTechRegulOptions } from '@/hooks/shared/useTechRegulOptions'
 import { useMeasurementUnitOptions } from '@/hooks/shared/useMeasurementUnitOptions'
+import { patchTsdTechRegulFromDictionary } from '@/utils/techRegulViolationUtils'
 
 interface ViolationsTabEditProps {
   /** По XSD нарушения только в tsd.batches[].violations */
@@ -22,6 +23,14 @@ const ViolationsTabEdit: React.FC<ViolationsTabEditProps> = ({ tsd, onTsdChange 
   const [structuralElementErrors, setStructuralElementErrors] = useState<Record<string, string>>({})
   const { options: techRegulOptions, loading: loadingTechReguls, getSelectOptions: getTechRegulSelectOptions } = useTechRegulOptions()
   const { options: measurementUnitOptions, loading: loadingMeasurementUnits, getSelectOptions: getMeasurementUnitSelectOptions, getUnitByCode } = useMeasurementUnitOptions()
+  const [techRegulManualNumErrors, setTechRegulManualNumErrors] = useState<Record<string, string>>({})
+
+  /** После загрузки справочника: TECHREGULCODE из XML → привязка к строке справочника, в номере — REGNUM. */
+  useEffect(() => {
+    if (loadingTechReguls || techRegulOptions.length === 0 || !onTsdChange) return
+    const { next, changed } = patchTsdTechRegulFromDictionary(tsd, techRegulOptions)
+    if (changed) onTsdChange(next)
+  }, [tsd, loadingTechReguls, techRegulOptions, onTsdChange])
 
   const indicatorValueErrorKey = (batchIdx: number, violationIdx: number, indicatorIdx: number) =>
     `ind-${batchIdx}-${violationIdx}-${indicatorIdx}`
@@ -89,6 +98,7 @@ const ViolationsTabEdit: React.FC<ViolationsTabEditProps> = ({ tsd, onTsdChange 
         technicalRegulationName: '',
         registrationNumber: '',
         description: '',
+        techRegulDictionaryCode: undefined,
       }
       onVChange({ ...vData, violatedRequirements: [...(vData.violatedRequirements || []), newReq] })
     }
@@ -102,18 +112,64 @@ const ViolationsTabEdit: React.FC<ViolationsTabEditProps> = ({ tsd, onTsdChange 
       updated[index] = { ...updated[index], [field]: value }
       onVChange({ ...vData, violatedRequirements: updated })
     }
-    const handleTechRegulSelect = (index: number, code: string) => {
-      const techRegulOption = techRegulOptions.find(opt => opt.code === code)
-      if (techRegulOption) {
-        const updated = [...(vData.violatedRequirements || [])]
-        updated[index] = {
-          ...updated[index],
-          technicalRegulationId: techRegulOption.code,
-          technicalRegulationName: techRegulOption.name,
-          registrationNumber: techRegulOption.regNum || '',
+
+    const manualRegErrKey = (reqIndex: number) => `b${batchIndex}-v${violationIndex}-r${reqIndex}`
+
+    const applyTechRegulByCode = (index: number, code: string | undefined) => {
+      const list = [...(vData.violatedRequirements || [])]
+      if (!code) {
+        list[index] = {
+          ...list[index],
+          technicalRegulationId: '',
+          technicalRegulationName: '',
+          techRegulDictionaryCode: undefined,
         }
-        onVChange({ ...vData, violatedRequirements: updated })
+        onVChange({ ...vData, violatedRequirements: list })
+        setTechRegulManualNumErrors((prev) => ({ ...prev, [manualRegErrKey(index)]: '' }))
+        return
       }
+      const opt = techRegulOptions.find((o) => o.code === code)
+      if (!opt) return
+      const regNum = (opt.regNum ?? '').trim() || opt.code
+      list[index] = {
+        ...list[index],
+        techRegulDictionaryCode: opt.code,
+        technicalRegulationId: regNum,
+        technicalRegulationName: opt.name,
+      }
+      onVChange({ ...vData, violatedRequirements: list })
+      setTechRegulManualNumErrors((prev) => ({ ...prev, [manualRegErrKey(index)]: '' }))
+    }
+
+    const setManualRequirementNumber = (index: number, value: string) => {
+      const list = [...(vData.violatedRequirements || [])]
+      list[index] = {
+        ...list[index],
+        technicalRegulationId: value,
+        techRegulDictionaryCode: undefined,
+      }
+      onVChange({ ...vData, violatedRequirements: list })
+    }
+
+    const setManualRequirementName = (index: number, value: string) => {
+      const list = [...(vData.violatedRequirements || [])]
+      list[index] = {
+        ...list[index],
+        technicalRegulationName: value,
+        techRegulDictionaryCode: undefined,
+      }
+      onVChange({ ...vData, violatedRequirements: list })
+    }
+
+    const validateManualRegNum = (index: number, value: string) => {
+      const k = manualRegErrKey(index)
+      const v = value.trim()
+      if (!v) {
+        setTechRegulManualNumErrors((prev) => ({ ...prev, [k]: '' }))
+        return
+      }
+      const msg = validateFieldValue('technicalRegulationManualRegNum', v)
+      setTechRegulManualNumErrors((prev) => ({ ...prev, [k]: msg || '' }))
     }
     const handleAddIndicator = () => {
       const newInd: ViolatedIndicator = {
@@ -188,10 +244,96 @@ const ViolationsTabEdit: React.FC<ViolationsTabEditProps> = ({ tsd, onTsdChange 
       commitStructuralElements(reqIndex, rows)
     }
 
+    const techRegulSelectProps = {
+      showSearch: true,
+      loading: loadingTechReguls,
+      filterOption: (input: string, option: { label?: string } | undefined) =>
+        (option?.label ?? '').toLowerCase().includes(input.toLowerCase()),
+      options: getTechRegulSelectOptions(),
+      allowClear: true,
+      style: { width: '100%' } as const,
+      placeholder: 'Выберите из справочника' as const,
+    }
+
     const requirementsColumns = [
-      { title: labelWithHelp('Номер техрегламента', FIELD_HELP.technicalRegulationId), key: 'technicalRegulationId', width: 120, render: (_: any, record: ViolatedRequirement, index: number) => (<Input value={record.technicalRegulationId} onChange={(e) => handleRequirementChange(index, 'technicalRegulationId', e.target.value)} maxLength={getMaxLength('technicalRegulationId')} showCount style={{ wordWrap: 'break-word', whiteSpace: 'normal' }} />) },
-      { title: labelWithHelp('Наименование техрегламента', FIELD_HELP.technicalRegulationName), key: 'technicalRegulationName', width: 300, render: (_: any, record: ViolatedRequirement, index: number) => (<Select showSearch placeholder="Выберите техрегламент" loading={loadingTechReguls} value={record.technicalRegulationId || undefined} onChange={(code) => code ? handleTechRegulSelect(index, code) : onVChange({ ...vData, violatedRequirements: (vData.violatedRequirements || []).map((r, i) => i === index ? { ...r, technicalRegulationId: '', technicalRegulationName: '' } : r) })} filterOption={(input, option) => (option?.label ?? '').toLowerCase().includes(input.toLowerCase())} options={getTechRegulSelectOptions()} allowClear style={{ width: '100%' }} />) },
-      { title: labelWithHelp('Регистрационный номер', FIELD_HELP.registrationNumber), key: 'registrationNumber', width: 120, render: (_: any, record: ViolatedRequirement, index: number) => (<Input value={record.registrationNumber} onChange={(e) => handleRequirementChange(index, 'registrationNumber', e.target.value)} maxLength={getMaxLength('registrationNumber')} showCount />) },
+      {
+        title: labelWithHelp('Номер техрегламента', FIELD_HELP.technicalRegulationId),
+        key: 'technicalRegulationId',
+        width: 200,
+        render: (_: unknown, record: ViolatedRequirement, index: number) => {
+          const fromDict = (record.techRegulDictionaryCode ?? '').trim() !== ''
+          const errK = manualRegErrKey(index)
+          const err = techRegulManualNumErrors[errK]
+          return (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+              <Select
+                {...techRegulSelectProps}
+                value={record.techRegulDictionaryCode || undefined}
+                onChange={(code) => applyTechRegulByCode(index, code)}
+              />
+              {!fromDict ? (
+                <div>
+                  <Input
+                    value={record.technicalRegulationId ?? ''}
+                    onChange={(e) => {
+                      setManualRequirementNumber(index, e.target.value)
+                      validateManualRegNum(index, e.target.value)
+                    }}
+                    onBlur={(e) => validateManualRegNum(index, e.target.value)}
+                    maxLength={getMaxLength('technicalRegulationId')}
+                    showCount
+                    placeholder="Или номер вручную: ТР ТС 003/2012"
+                    status={err ? 'error' : undefined}
+                    style={{ wordWrap: 'break-word', whiteSpace: 'normal' }}
+                  />
+                  {err ? <div style={{ fontSize: 12, color: '#ff4d4f', marginTop: 2 }}>{err}</div> : null}
+                </div>
+              ) : null}
+            </div>
+          )
+        },
+      },
+      {
+        title: labelWithHelp('Наименование техрегламента', FIELD_HELP.technicalRegulationName),
+        key: 'technicalRegulationName',
+        width: 320,
+        render: (_: unknown, record: ViolatedRequirement, index: number) => {
+          const fromDict = (record.techRegulDictionaryCode ?? '').trim() !== ''
+          if (fromDict) {
+            const id = (record.technicalRegulationId ?? '').trim()
+            const name = (record.technicalRegulationName ?? '').trim()
+            const line = [id, name].filter(Boolean).join(' — ')
+            return (
+              <div style={{ fontSize: 13, color: 'rgba(0,0,0,0.65)', lineHeight: 1.5, wordBreak: 'break-word' }}>
+                {line || '—'}
+                <div style={{ fontSize: 11, color: 'rgba(0,0,0,0.45)', marginTop: 4 }}>Из справочника (редактирование — в колонке «Номер»)</div>
+              </div>
+            )
+          }
+          return (
+            <Input
+              value={record.technicalRegulationName ?? ''}
+              onChange={(e) => setManualRequirementName(index, e.target.value)}
+              maxLength={getMaxLength('violationTechnicalRegulationName')}
+              showCount
+              placeholder="Наименование техрегламента"
+            />
+          )
+        },
+      },
+      {
+        title: labelWithHelp('Регистрационный номер', FIELD_HELP.registrationNumber),
+        key: 'registrationNumber',
+        width: 140,
+        render: (_: unknown, record: ViolatedRequirement, index: number) => (
+          <Input
+            value={record.registrationNumber ?? ''}
+            onChange={(e) => handleRequirementChange(index, 'registrationNumber', e.target.value)}
+            maxLength={getMaxLength('registrationNumber')}
+            showCount
+          />
+        ),
+      },
       {
         title: labelWithHelp('Структурные элементы документа', FIELD_HELP.structuralElement),
         key: 'structuralElements',
@@ -374,6 +516,9 @@ const ViolationsTabEdit: React.FC<ViolationsTabEditProps> = ({ tsd, onTsdChange 
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
             <h3>Перечень нарушенных требований</h3>
             <Button type="dashed" icon={<PlusOutlined />} onClick={handleAddRequirement}>Добавить требование</Button>
+          </div>
+          <div style={{ fontSize: 12, color: 'rgba(0,0,0,0.45)', marginBottom: 8, maxWidth: 960 }}>
+            Техрегламент из справочника: в колонке «Номер техрегламента» выберите строку в списке — подставятся номер (REGNUM) и наименование. Регистрационный номер при этом вводится отдельно. Вручную: очистите список (×) и заполните номер по шаблону и наименование ниже.
           </div>
           <Table dataSource={vData.violatedRequirements || []} columns={requirementsColumns} rowKey={(record, index) => `requirement-${index}`} pagination={false} scroll={{ x: 'max-content' }} />
         </div>

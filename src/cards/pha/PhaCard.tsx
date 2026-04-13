@@ -26,7 +26,7 @@ import {
 import { exportPhaCardDataToXML } from '@/cards/pha/phaXmlExporter'
 import { alignPhaParsedCardForCompare, parsePhaXmlToCardData } from '@/cards/pha/phaXmlParser'
 import {
-  validatePhaOutgoingCardFull,
+  validatePhaOutgoingCardFullWithSchema,
   collectPhaFormatValidationErrors,
   type ValidationResult,
 } from '@/cards/pha/phaValidation'
@@ -459,13 +459,14 @@ const PhaCard: React.FC<PhaCardProps> = ({
   const confirmSendPhaOp57 = () => {
     if (!effectivePhaid || effectivePhaid === '-') return
     const dataToValidate = editedData
-    const full = validatePhaOutgoingCardFull(dataToValidate)
-    if (!full.success) {
-      setValidationResult(full)
-      setValidationModalVisible(true)
-      message.error('Необходимо доработать карту исходящих сведений перед направлением.')
-      return
-    }
+    void (async () => {
+      const full = await validatePhaOutgoingCardFullWithSchema(dataToValidate)
+      if (!full.success) {
+        setValidationResult(full)
+        setValidationModalVisible(true)
+        message.error('Необходимо доработать карту исходящих сведений перед направлением.')
+        return
+      }
 
     const regNumber =
       currentData.registrationNumber ?? currentData.notification?.registrationNumber ?? effectivePhaid
@@ -519,6 +520,7 @@ const PhaCard: React.FC<PhaCardProps> = ({
         }
       },
     })
+    })()
   }
 
   const confirmClosePhaCard = () => {
@@ -934,8 +936,9 @@ const PhaCard: React.FC<PhaCardProps> = ({
                 )}
                 {showPhaValidationButton && (
                   <Button
-                    onClick={() => {
-                      setValidationResult(validatePhaOutgoingCardFull(currentData))
+                    onClick={async () => {
+                      const r = await validatePhaOutgoingCardFullWithSchema(currentData)
+                      setValidationResult(r)
                       setValidationModalVisible(true)
                     }}
                   >
@@ -966,8 +969,9 @@ const PhaCard: React.FC<PhaCardProps> = ({
                 )}
                 {showPhaValidationButton && (
                   <Button
-                    onClick={() => {
-                      setValidationResult(validatePhaOutgoingCardFull(editedData))
+                    onClick={async () => {
+                      const r = await validatePhaOutgoingCardFullWithSchema(editedData)
+                      setValidationResult(r)
                       setValidationModalVisible(true)
                     }}
                   >

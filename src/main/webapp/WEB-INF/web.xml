@@ -286,6 +286,16 @@
         <url-pattern>/api/access/check</url-pattern>
     </servlet-mapping>
 
+    <!-- Валидация XML по XSD ЕЭК (POST тело XML, заголовок X-Document-Type: dpa|pha) -->
+    <servlet>
+        <servlet-name>XmlSchemaValidateServlet</servlet-name>
+        <servlet-class>com.eec.servlet.XmlSchemaValidateServlet</servlet-class>
+    </servlet>
+    <servlet-mapping>
+        <servlet-name>XmlSchemaValidateServlet</servlet-name>
+        <url-pattern>/api/xml/validate-schema</url-pattern>
+    </servlet-mapping>
+
     <!-- XML по DPAID из таблицы DPAXML -->
     <servlet>
         <servlet-name>DpaXmlServlet</servlet-name>

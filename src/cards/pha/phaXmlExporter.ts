@@ -95,18 +95,6 @@ export function exportPhaCardDataToXML(data: CardData): string {
       xmlParts.push('    </ccdo:UnifiedAuthorityDetails>')
     }
   }
-  const causeList = data.phaCauseNotifications ?? []
-  for (const c of causeList) {
-    xmlParts.push('    <smcdo:IncidentAlertIdDetails>')
-    if (c.country) xmlParts.push(`      <csdo:UnifiedCountryCode codeListId="2021">${escapeXML(c.country)}</csdo:UnifiedCountryCode>`)
-    if (c.registrationNumber) xmlParts.push(`      <smsdo:IncidentId>${escapeXML(c.registrationNumber)}</smsdo:IncidentId>`)
-    if (c.type) xmlParts.push(`      <smsdo:IncidentKindCode>${escapeXML(c.type)}</smsdo:IncidentKindCode>`)
-    if (c.formationDate) {
-      const formationDateOnly = c.formationDate.trim().slice(0, 10)
-      if (formationDateOnly) xmlParts.push(`      <csdo:DocCreationDate>${escapeXML(formationDateOnly)}</csdo:DocCreationDate>`)
-    }
-    xmlParts.push('    </smcdo:IncidentAlertIdDetails>')
-  }
 
   const disease = data.phaDisease
   const patientGroups = data.phaPatientGroups ?? []
@@ -183,6 +171,20 @@ export function exportPhaCardDataToXML(data: CardData): string {
   }
   for (const name of measureNames) {
     xmlParts.push(`    <smsdo:MeasureName>${escapeXML(name)}</smsdo:MeasureName>`)
+  }
+
+  // По XSD PublicHealthAlertDetailsType: IncidentAlertIdDetails* после PublicHealthIncidentDetails и MeasureCode/MeasureName
+  const causeList = data.phaCauseNotifications ?? []
+  for (const c of causeList) {
+    xmlParts.push('    <smcdo:IncidentAlertIdDetails>')
+    if (c.country) xmlParts.push(`      <csdo:UnifiedCountryCode codeListId="2021">${escapeXML(c.country)}</csdo:UnifiedCountryCode>`)
+    if (c.registrationNumber) xmlParts.push(`      <smsdo:IncidentId>${escapeXML(c.registrationNumber)}</smsdo:IncidentId>`)
+    if (c.type) xmlParts.push(`      <smsdo:IncidentKindCode>${escapeXML(c.type)}</smsdo:IncidentKindCode>`)
+    if (c.formationDate) {
+      const formationDateOnly = c.formationDate.trim().slice(0, 10)
+      if (formationDateOnly) xmlParts.push(`      <csdo:DocCreationDate>${escapeXML(formationDateOnly)}</csdo:DocCreationDate>`)
+    }
+    xmlParts.push('    </smcdo:IncidentAlertIdDetails>')
   }
 
   xmlParts.push('  </smcdo:PublicHealthAlertDetails>')

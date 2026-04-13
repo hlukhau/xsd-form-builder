@@ -159,6 +159,26 @@ fi
 echo "[OK] Java classes compiled ($CLASS_COUNT classes)"
 echo ""
 
+# [4b/6] XSD ЕЭК в classpath (XmlSchemaValidateServlet: getResource("eec-xsd/…"))
+echo "[4b/6] Copying EEC XSD into WEB-INF/classes/eec-xsd/..."
+XSD_SRC="$PROJECT_DIR/xsd"
+XSD_DST="target/$APP_NAME/WEB-INF/classes/eec-xsd"
+if [ -d "$XSD_SRC" ]; then
+    mkdir -p "$XSD_DST"
+    shopt -s nullglob
+    XSD_FILES=("$XSD_SRC"/*.xsd)
+    shopt -u nullglob
+    if [ ${#XSD_FILES[@]} -eq 0 ]; then
+        echo "[WARN] No *.xsd in $XSD_SRC — проверка по XSD на сервере не заработает"
+    else
+        cp -f "${XSD_FILES[@]}" "$XSD_DST/"
+        echo "[OK] Copied ${#XSD_FILES[@]} schema file(s) to eec-xsd/"
+    fi
+else
+    echo "[WARN] Directory xsd/ not found — XSD validation servlet will fail at init"
+fi
+echo ""
+
 # [5/6] Create WAR
 echo "[5/6] Creating WAR file..."
 rm -f "$WAR_FILE"

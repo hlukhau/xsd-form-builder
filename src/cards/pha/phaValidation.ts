@@ -14,6 +14,8 @@ import type {
 } from '@/types/card'
 import { validateFieldValue } from '@/constants/xsdFieldConstraints'
 import { collectFormatValidationErrors, type ValidationResult } from '@/utils/cardValidation'
+import { exportPhaCardDataToXML } from '@/cards/pha/phaXmlExporter'
+import { fetchSchemaValidationErrors } from '@/utils/schemaValidationApi'
 import { phaShouldExportPublicHealthIncident } from '@/cards/pha/phaXmlExporter'
 
 export type { ValidationResult }
@@ -386,6 +388,26 @@ export function validatePhaOutgoingCardFull(data: CardData): ValidationResult {
     sections.push({ sectionName: 'Формат данных (XSD)', remarks: fmt })
   }
   return { success: vr.success && fmt.length === 0, sections }
+}
+
+/** Как validatePhaOutgoingCardFull, плюс серверная валидация XML по XSD. */
+export async function validatePhaOutgoingCardFullWithSchema(data: CardData): Promise<ValidationResult> {
+  const vr = validatePhaOutgoingCardFull(data)
+  let xsdRemarks: string[] = []
+  try {
+    xsdRemarks = await fetchSchemaValidationErrors(exportPhaCardDataToXML(data), 'pha')
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e)
+    xsdRemarks = [`Не удалось выполнить проверку по XSD: ${msg}`]
+  }
+  const sections = [...vr.sections]
+  if (xsdRemarks.length > 0) {
+    sections.push({ sectionName: 'Проверка по схеме XSD', remarks: xsdRemarks })
+  }
+  return {
+    success: vr.success && xsdRemarks.length === 0,
+    sections,
+  }
 }
 
 export function collectPhaFormatValidationErrors(data: CardData): string[] {

@@ -1887,41 +1887,19 @@ function parseComplianceDocument(docElement: Element): ComplianceDocument | null
  * Парсит один элемент RequirementViolationDetails в одно ViolationsData.
  */
 function parseOneRequirementViolationDetails(el: Element): ViolationsData {
+  // По XSD: csdo:DescriptionText на уровне RequirementViolationDetails — прямой потомок, после требований и показателей
   const descs: string[] = []
-  const allDescElements = el.getElementsByTagName('*')
-  for (let j = 0; j < allDescElements.length; j++) {
-    const descEl = allDescElements[j]
-    const localName = descEl.localName || descEl.tagName.split(':').pop()?.toLowerCase()
+  for (let i = 0; i < el.children.length; i++) {
+    const child = el.children[i] as Element
+    const localName = (child.localName || child.tagName.split(':').pop() || '').toLowerCase()
     if (localName === 'descriptiontext') {
-      const parentLocalName = (descEl.parentElement?.localName || descEl.parentElement?.tagName.split(':').pop() || '').toLowerCase()
-      if (parentLocalName === 'requirementviolationdetails') {
-        const text = descEl.textContent?.trim()
-        if (text) descs.push(text)
-      }
+      const text = child.textContent?.trim()
+      if (text) descs.push(text)
     }
   }
-  const directDesc = (getTextFromDirectChildByLocalName(el, 'DescriptionText') || getTextContent(el, 'DescriptionText') || '').trim()
-  if (directDesc && !descs.includes(directDesc)) descs.push(directDesc)
   const generalDescription = descs.length > 0 ? descs.join(' ') : undefined
 
   const requirementsDocs = parseRequirementsDocDetails(el)
-  const allChildren = Array.from(el.children)
-  let foundRequirementsDocDetails = false
-  let requirementLevelDesc: string | undefined
-  for (const child of allChildren) {
-    const localName = (child.localName || child.tagName.split(':').pop() || '').toLowerCase()
-    if (localName === 'requirementsdocdetails') {
-      foundRequirementsDocDetails = true
-      continue
-    }
-    if (foundRequirementsDocDetails && localName === 'descriptiontext') {
-      requirementLevelDesc = (child as Element).textContent?.trim() || undefined
-      break
-    }
-  }
-  if (requirementLevelDesc && requirementsDocs.length > 0) {
-    requirementsDocs[requirementsDocs.length - 1].requirementLevelDescription = requirementLevelDesc
-  }
 
   const violatedIndicators = parseViolatedIndicators(el)
   return {

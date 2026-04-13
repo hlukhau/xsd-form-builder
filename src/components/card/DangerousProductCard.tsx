@@ -33,7 +33,11 @@ import { resolveAlertCountryNameForPostMessage } from '@/utils/alertCountryDispl
 import { postMessageFromCardToParent } from '@/utils/parentPostMessage'
 import XMLComparisonModal, { type ComparisonResultShape } from '../modals/dpa/XMLComparisonModal'
 import ValidationResultModal from '../modals/dpa/ValidationResultModal'
-import { validateOutgoingCard, collectFormatValidationErrors, type ValidationResult } from '@/utils/cardValidation'
+import {
+  validateOutgoingCardWithSchema,
+  collectFormatValidationErrors,
+  type ValidationResult,
+} from '@/utils/cardValidation'
 import type { CardData, StatusHistoryItem, ElectronicDocument } from '@/types/card'
 import { format } from 'date-fns'
 
@@ -934,8 +938,9 @@ const DangerousProductCard: React.FC<DangerousProductCardProps> = ({
                 )}
                 {isOutgoingSource && (
                   <Button
-                    onClick={() => {
-                      setValidationResult(validateOutgoingCard(currentData))
+                    onClick={async () => {
+                      const r = await validateOutgoingCardWithSchema(currentData)
+                      setValidationResult(r)
                       setValidationModalVisible(true)
                     }}
                   >
@@ -963,8 +968,9 @@ const DangerousProductCard: React.FC<DangerousProductCardProps> = ({
                 )}
                 {isOutgoingSource && (
                   <Button
-                    onClick={() => {
-                      setValidationResult(validateOutgoingCard(editedData))
+                    onClick={async () => {
+                      const r = await validateOutgoingCardWithSchema(editedData)
+                      setValidationResult(r)
                       setValidationModalVisible(true)
                     }}
                   >
@@ -1087,13 +1093,14 @@ const DangerousProductCard: React.FC<DangerousProductCardProps> = ({
 
             if (action === 'send') {
               const dataToValidate = isEditMode ? editedData : currentData
-              const validation = validateOutgoingCard(dataToValidate)
-              if (!validation.success) {
-                setValidationResult(validation)
-                setValidationModalVisible(true)
-                message.error('Необходимо доработать карту исходящих сведений перед направлением.')
-                return
-              }
+              void (async () => {
+                const validation = await validateOutgoingCardWithSchema(dataToValidate)
+                if (!validation.success) {
+                  setValidationResult(validation)
+                  setValidationModalVisible(true)
+                  message.error('Необходимо доработать карту исходящих сведений перед направлением.')
+                  return
+                }
               Modal.confirm({
                 title: 'Направление сведений участникам ОП 57',
                 content: 'Подтвердите выполнение операции отправки сведений данной карты участникам ОП 57.',
@@ -1116,6 +1123,7 @@ const DangerousProductCard: React.FC<DangerousProductCardProps> = ({
                     .catch((e) => message.error(e instanceof Error ? e.message : 'Ошибка смены статуса'))
                 },
               })
+              })()
               return
             }
 

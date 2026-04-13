@@ -45,6 +45,13 @@
 
     <build>
         <finalName>dpa_card</finalName>
+        <!-- Ресурсы в classpath: при сборке через Maven (mvn package) XSD попадают в WEB-INF/classes/eec-xsd/ -->
+        <resources>
+            <resource>
+                <directory>${project.basedir}/xsd</directory>
+                <targetPath>eec-xsd</targetPath>
+            </resource>
+        </resources>
         <plugins>
             <!-- Maven Compiler Plugin для Java 8 - старая версия, которая может быть в локальном репозитории -->
             <plugin>

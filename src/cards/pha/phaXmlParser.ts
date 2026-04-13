@@ -4,7 +4,7 @@
  *
  * Структура по XSD:
  * - Корень doc:PublicHealthAlertDetails (PublicHealthAlertDetailsType): sequence EDocHeader, 1..n smcdo:PublicHealthAlertDetails.
- * - smcdo:PublicHealthAlertDetails (PublicHealthAlertDetailsType) расширяет IncidentAlertDetailsType: UnifiedCountryCode, IncidentId, IncidentKindCode, DocCreationDate, EndDate, UnifiedAuthorityDetails; плюс 0..n smcdo:IncidentAlertIdDetails (причинные уведомления).
+ * - smcdo:PublicHealthAlertDetails (PublicHealthAlertDetailsType): база IncidentAlertDetailsType; затем PublicHealthIncidentDetails?, MeasureCode*, MeasureName*, IncidentAlertIdDetails* (причинные), ResourceItemStatusDetails?.
  * - smcdo:IncidentAlertIdDetails (IncidentAlertIdDetailsType): UnifiedCountryCode, IncidentId, IncidentKindCode, DocCreationDate.
  */
 
@@ -154,7 +154,7 @@ export function parsePhaXmlToCardData(xmlText: string): CardData {
   ]
   const measures = phaMeasures.length > 0 ? { measures: phaMeasures } : undefined
 
-  // smcdo:IncidentAlertIdDetails — только внутри первого блока случая (причинные уведомления данного случая).
+  // smcdo:IncidentAlertIdDetails — причинные уведомления (по XSD после мер; ищем среди потомков блока случая).
   const causeNodes = findAllElementsByLocalName(firstCaseBlock, 'IncidentAlertIdDetails')
   const phaCauseNotifications = causeNodes.map((el) => ({
     country: getTextByLocalName(el, 'UnifiedCountryCode')?.trim() || '',

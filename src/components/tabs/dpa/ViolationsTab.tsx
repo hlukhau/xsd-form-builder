@@ -39,12 +39,15 @@ const ViolationsTab: React.FC<ViolationsTabProps> = ({ tsd }) => {
       title: 'Наименование техрегламента',
       dataIndex: 'technicalRegulationName',
       key: 'technicalRegulationName',
-      width: 180,
-      render: (text: string) => (
-        <div style={{ wordWrap: 'break-word', whiteSpace: 'normal' }}>
-          {text || '-'}
-        </div>
-      ),
+      width: 220,
+      render: (_: string, record: ViolatedRequirement) => {
+        const fromDict = (record.techRegulDictionaryCode ?? '').trim() !== ''
+        const num = (record.technicalRegulationId ?? '').trim()
+        const name = (record.technicalRegulationName ?? '').trim()
+        const display =
+          fromDict && num && name ? `${num} — ${name}` : name || (fromDict ? num || '—' : '—')
+        return <div style={{ wordWrap: 'break-word', whiteSpace: 'normal' }}>{display}</div>
+      },
     },
     {
       title: 'Регистрационный номер',

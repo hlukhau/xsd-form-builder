@@ -344,8 +344,10 @@ export interface ViolationsData {
 }
 
 export interface ViolatedRequirement {
-  technicalRegulationId?: string // TechnicalRegulationId
-  technicalRegulationName?: string // DocName
+  technicalRegulationId?: string // TechnicalRegulationId (smsdo) — TECHREGULREGNUM или ввод вручную
+  technicalRegulationName?: string // DocName (csdo) — TECHREGULNAME или ввод вручную
+  /** Если задано — номер и наименование взяты из справочника TECHREGUL (value = TECHREGULCODE). Не сериализуется в XML. */
+  techRegulDictionaryCode?: string
   registrationNumber?: string // DocId
   structuralElements?: DocStructuralElement[] // DocStructuralElementDetails
   approvingDocument?: {

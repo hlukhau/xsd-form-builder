@@ -1,5 +1,6 @@
 import { Modal, List, Typography } from 'antd'
 import type { ValidationResult } from '@/utils/cardValidation'
+import { sanitizeValidationMessageForDisplay } from '@/utils/schemaValidationApi'
 
 export interface ValidationResultModalProps {
   visible: boolean
@@ -41,7 +42,7 @@ const ValidationResultModal: React.FC<ValidationResultModalProps> = ({
                   renderItem={(remark, idx) => (
                     <List.Item key={idx} style={{ border: 'none', padding: '2px 0' }}>
                       <Typography.Text type="secondary">• </Typography.Text>
-                      {remark}
+                      {sanitizeValidationMessageForDisplay(remark)}
                     </List.Item>
                   )}
                 />

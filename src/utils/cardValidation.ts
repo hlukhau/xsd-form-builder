@@ -23,6 +23,8 @@ import type {
 } from '@/types/card'
 import { mergeComplianceDocumentsFromBatches } from '@/utils/xmlParser'
 import { validateFieldValue } from '@/constants/xsdFieldConstraints'
+import { exportCardDataToXML } from '@/utils/xmlExporter'
+import { fetchSchemaValidationErrors } from '@/utils/schemaValidationApi'
 
 export interface ValidationResult {
   success: boolean
@@ -255,6 +257,9 @@ export function validateOutgoingCard(data: CardData): ValidationResult {
     for (const r of reqs) {
       if (empty(r?.technicalRegulationId)) {
         add(sectionViolations, 'В каждом составе сведении о нарушенных требованиях должен быть указан номер техрегламента')
+      }
+      if (!empty(r?.technicalRegulationId) && empty(r?.technicalRegulationName)) {
+        add(sectionViolations, 'В каждом составе сведении о нарушенных требованиях должно быть указано наименование техрегламента')
       }
     }
     const inds = allViolations.flatMap((v) => v?.violatedIndicators ?? [])
@@ -745,7 +750,22 @@ export function collectFormatValidationErrors(data: CardData): FormatValidationE
         const vPath = `${batchPath} → Нарушение ${vi + 1}`
         pushFormatError(errors, `${vPath} → Описание`, 'violationDescription', v.generalDescription)
         ;(v.violatedRequirements ?? []).forEach((r, ri) => {
+          const idTrim = (r.technicalRegulationId ?? '').trim()
+          const fromDict = (r.techRegulDictionaryCode ?? '').trim() !== ''
+          if (idTrim && !fromDict) {
+            const manualMsg = validateFieldValue('technicalRegulationManualRegNum', idTrim)
+            if (manualMsg) {
+              errors.push(`${vPath} → Требование ${ri + 1} → Номер техрегламента: ${manualMsg}`)
+            }
+          }
           pushFormatError(errors, `${vPath} → Требование ${ri + 1} → Номер техрегламента`, 'technicalRegulationId', r.technicalRegulationId)
+          pushFormatError(
+            errors,
+            `${vPath} → Требование ${ri + 1} → Наименование техрегламента`,
+            'violationTechnicalRegulationName',
+            r.technicalRegulationName
+          )
+          pushFormatError(errors, `${vPath} → Требование ${ri + 1} → Регистрационный номер`, 'registrationNumber', r.registrationNumber)
           pushFormatError(errors, `${vPath} → Требование ${ri + 1} → Описание`, 'description', r.description)
           ;(r.structuralElements ?? []).forEach((se, si) => {
             pushFormatError(
@@ -887,4 +907,26 @@ function pushPhaXsdFormatErrors(errors: string[], data: CardData): void {
   phaSpreadingZonesList(data).forEach((zone, i) => {
     pushDetectionPlaceFormatErrors(errors, `Зона распространения ${i + 1}`, zone)
   })
+}
+
+/**
+ * Логические контроли и формат полей + проверка XML по XSD на сервере (кнопка «Валидация карты», направление сведений).
+ */
+export async function validateOutgoingCardWithSchema(data: CardData): Promise<ValidationResult> {
+  const base = validateOutgoingCard(data)
+  let xsdRemarks: string[] = []
+  try {
+    xsdRemarks = await fetchSchemaValidationErrors(exportCardDataToXML(data), 'dpa')
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e)
+    xsdRemarks = [`Не удалось выполнить проверку по XSD: ${msg}`]
+  }
+  const sections = [...base.sections]
+  if (xsdRemarks.length > 0) {
+    sections.push({ sectionName: 'Проверка по схеме XSD', remarks: xsdRemarks })
+  }
+  return {
+    success: base.success && xsdRemarks.length === 0,
+    sections,
+  }
 }
