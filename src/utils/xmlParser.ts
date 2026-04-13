@@ -220,8 +220,9 @@ export function parseXMLToCardData(xmlText: string): CardData {
   if (endDateTime) electronicDocument.validityPeriod.end = endDateTime
   if (updateDateTime) electronicDocument.updateDateTime = updateDateTime
 
-  // EndDate
-  const endDate = getTextContent(alertDetails, 'EndDate')
+  // EndDate уведомления: только прямой дочерний csdo:EndDate у smcdo:DangerousProductAlertDetails.
+  // getTextContent обходит всех потомков и мог бы взять csdo:EndDate из smcdo:SanitaryMeasureBaseDetails.
+  const endDate = getTextFromDirectChildByLocalName(alertDetails, 'EndDate')
 
   // Парсинг данных о продукции
   // Передаем и alertDetails, и корневой элемент для поиска
@@ -1074,6 +1075,41 @@ function parseAddressDetails(addressEl: Element): AddressDetails {
 }
 
 /**
+ * Один блок ccdo:CommunicationDetails: по XSD — несколько прямых дочерних csdo:CommunicationChannelId;
+ * старый XML мог содержать ContactValue / Communication (в форме — contactValue).
+ */
+function parseOneCommunicationDetails(el: Element): ContactDetails | null {
+  const channelCode = getTextContent(el, 'CommunicationChannelCode') || undefined
+  const channelName = getTextContent(el, 'CommunicationChannelName') || undefined
+  const channelIds = getAllTextContents(el, 'CommunicationChannelId')
+  const contactKind = getTextContent(el, 'ContactKind') || undefined
+  const contactValueLegacy =
+    (getTextContent(el, 'ContactValue') || getTextContent(el, 'Communication') || '').trim() || undefined
+
+  let communicationChannelId: string | undefined
+  let contactValue: string | undefined
+  if (channelIds.length >= 2) {
+    communicationChannelId = channelIds[0]
+    contactValue = channelIds[1]
+  } else if (channelIds.length === 1) {
+    communicationChannelId = channelIds[0]
+    contactValue = contactValueLegacy
+  } else {
+    communicationChannelId = undefined
+    contactValue = contactValueLegacy
+  }
+
+  if (!channelCode && !channelName && !communicationChannelId && !contactKind && !contactValue) return null
+  return {
+    contactKind,
+    contactValue,
+    communicationChannelCode: channelCode,
+    communicationChannelName: channelName,
+    communicationChannelId,
+  }
+}
+
+/**
  * Парсит контактные данные
  */
 function parseContacts(parent: Element): ContactDetails[] {
@@ -1084,24 +1120,8 @@ function parseContacts(parent: Element): ContactDetails[] {
     const commElements = parent.getElementsByTagName('ccdo:CommunicationDetails')
     console.log('[parseContacts] Найдено CommunicationDetails через getElementsByTagName:', commElements.length)
     for (let i = 0; i < commElements.length; i++) {
-      const el = commElements[i]
-      const channelCode = getTextContent(el, 'CommunicationChannelCode') || undefined
-      const channelName = getTextContent(el, 'CommunicationChannelName') || undefined
-      const channelId = getTextContent(el, 'CommunicationChannelId') || undefined
-      
-      const contactKind = getTextContent(el, 'ContactKind') || undefined
-      const communication = getTextContent(el, 'Communication') || undefined
-      const contactValue = getTextContent(el, 'ContactValue') || communication || undefined
-      
-      if (channelCode || channelName || channelId || contactKind || contactValue) {
-        contacts.push({
-          contactKind,
-          contactValue,
-          communicationChannelCode: channelCode,
-          communicationChannelName: channelName,
-          communicationChannelId: channelId,
-        })
-      }
+      const parsed = parseOneCommunicationDetails(commElements[i])
+      if (parsed) contacts.push(parsed)
     }
   } catch (e) {
     console.log('Ошибка при поиске контактов через getElementsByTagName:', e)
@@ -1113,27 +1133,11 @@ function parseContacts(parent: Element): ContactDetails[] {
     
     for (let i = 0; i < allElements.length; i++) {
       const el = allElements[i]
-      const localName = el.localName || el.tagName.split(':').pop()?.toLowerCase()
+      const localName = (el.localName || el.tagName.split(':').pop() || '').toLowerCase()
       
-      if (localName === 'communicationdetails' || 
-          localName?.includes('contact') || 
-          localName === 'contactdetails') {
-        const channelCode = getTextContent(el, 'CommunicationChannelCode') || undefined
-        const channelName = getTextContent(el, 'CommunicationChannelName') || undefined
-        const channelId = getTextContent(el, 'CommunicationChannelId') || undefined
-        const contactKind = getTextContent(el, 'ContactKind') || undefined
-        const communication = getTextContent(el, 'Communication') || undefined
-        const contactValue = getTextContent(el, 'ContactValue') || communication || undefined
-        
-        if (channelCode || channelName || channelId || contactKind || contactValue) {
-          contacts.push({
-            contactKind,
-            contactValue,
-            communicationChannelCode: channelCode,
-            communicationChannelName: channelName,
-            communicationChannelId: channelId,
-          })
-        }
+      if (localName === 'communicationdetails') {
+        const parsed = parseOneCommunicationDetails(el)
+        if (parsed) contacts.push(parsed)
       }
     }
   }
@@ -3395,21 +3399,33 @@ function findChildElementsByLocalName(parent: Element, localLower: string): Elem
 }
 
 function parseMeasurePlaceDetails(parent: Element): MeasurePlaceDetails | undefined {
-  const placeEl = findFirstChildElementByLocalName(parent, 'measureplacedetails')
-  const scope = placeEl ?? parent
-  const regionName = getTextContent(scope, 'RegionName') || undefined
-  const borderCheckpointCode = getTextContent(scope, 'BorderCheckpointCode') || undefined
-  const borderCheckpointName = getTextContent(scope, 'BorderCheckpointName') || undefined
-
-  if (!regionName && !borderCheckpointCode && !borderCheckpointName) {
-    return undefined
+  const legacy = findFirstChildElementByLocalName(parent, 'measureplacedetails')
+  if (legacy) {
+    const regionName = getTextContent(legacy, 'RegionName') || undefined
+    const borderCheckpointCode = getTextContent(legacy, 'BorderCheckpointCode') || undefined
+    const borderCheckpointName = getTextContent(legacy, 'BorderCheckpointName') || undefined
+    if (!regionName && !borderCheckpointCode && !borderCheckpointName) return undefined
+    return { regionName, borderCheckpointCode, borderCheckpointName }
   }
-
-  return {
-    regionName,
-    borderCheckpointCode,
-    borderCheckpointName,
+  // По XSD: csdo:RegionName и smcdo:BorderCheckpointDetails — прямые дочерние MeasureImplementationDetails
+  let regionName: string | undefined
+  let borderCheckpointCode: string | undefined
+  let borderCheckpointName: string | undefined
+  for (let i = 0; i < parent.children.length; i++) {
+    const el = parent.children[i] as Element
+    const ln = (el.localName || el.tagName.split(':').pop() || '').toLowerCase()
+    if (ln === 'regionname') {
+      const t = el.textContent?.trim()
+      if (t) regionName = t
+    } else if (ln === 'bordercheckpointdetails') {
+      const c = getTextContent(el, 'BorderCheckpointCode')
+      const n = getTextContent(el, 'BorderCheckpointName')
+      if (c) borderCheckpointCode = c
+      if (n) borderCheckpointName = n
+    }
   }
+  if (!regionName && !borderCheckpointCode && !borderCheckpointName) return undefined
+  return { regionName, borderCheckpointCode, borderCheckpointName }
 }
 
 /**

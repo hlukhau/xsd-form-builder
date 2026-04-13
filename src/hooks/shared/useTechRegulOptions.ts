@@ -41,13 +41,15 @@ export function useTechRegulOptions() {
   }
 
   /**
-   * Опции Select: value — TECHREGULCODE, label — только TECHREGULREGNUM (при отсутствии — код записи).
+   * Опции Select: value — TECHREGULCODE; label — только REGNUM (так отображается выбранное значение);
+   * searchText — «REGNUM - наименование» для поиска и для отрисовки строки в выпадающем списке (optionRender).
    */
   const getSelectOptions = () => {
     return options.map((opt) => {
-      const reg = (opt.regNum ?? '').trim()
-      const label = reg || opt.code
-      return { value: opt.code, label }
+      const reg = (opt.regNum ?? '').trim() || opt.code
+      const name = (opt.name ?? '').trim()
+      const searchText = name ? `${reg} - ${name}` : reg
+      return { value: opt.code, label: reg, searchText }
     })
   }
 

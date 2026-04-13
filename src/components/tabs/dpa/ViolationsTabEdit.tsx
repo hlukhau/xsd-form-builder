@@ -247,12 +247,23 @@ const ViolationsTabEdit: React.FC<ViolationsTabEditProps> = ({ tsd, onTsdChange 
     const techRegulSelectProps = {
       showSearch: true,
       loading: loadingTechReguls,
-      filterOption: (input: string, option: { label?: string } | undefined) =>
-        (option?.label ?? '').toLowerCase().includes(input.toLowerCase()),
+      filterOption: (input: string, option: { label?: unknown; searchText?: string } | undefined) => {
+        const q = input.trim().toLowerCase()
+        if (!q) return true
+        const hay = String(option?.searchText ?? option?.label ?? '').toLowerCase()
+        return hay.includes(q)
+      },
+      optionRender: (oriOption: { data?: { searchText?: string; label?: unknown } }) => {
+        const d = oriOption.data
+        const text = (d?.searchText ?? d?.label ?? '') as string
+        return (
+          <span style={{ whiteSpace: 'normal', wordBreak: 'break-word' }}>{text}</span>
+        )
+      },
       options: getTechRegulSelectOptions(),
       allowClear: true,
       style: { width: '100%' } as const,
-      placeholder: 'Выберите из справочника' as const,
+      placeholder: 'Поиск по номеру или наименованию' as const,
     }
 
     const requirementsColumns = [
@@ -316,7 +327,7 @@ const ViolationsTabEdit: React.FC<ViolationsTabEditProps> = ({ tsd, onTsdChange 
               onChange={(e) => setManualRequirementName(index, e.target.value)}
               maxLength={getMaxLength('violationTechnicalRegulationName')}
               showCount
-              placeholder="Наименование техрегламента"
+              placeholder="Необязательно при вводе номера вручную"
             />
           )
         },
@@ -518,7 +529,7 @@ const ViolationsTabEdit: React.FC<ViolationsTabEditProps> = ({ tsd, onTsdChange 
             <Button type="dashed" icon={<PlusOutlined />} onClick={handleAddRequirement}>Добавить требование</Button>
           </div>
           <div style={{ fontSize: 12, color: 'rgba(0,0,0,0.45)', marginBottom: 8, maxWidth: 960 }}>
-            Техрегламент из справочника: в колонке «Номер техрегламента» выберите строку в списке — подставятся номер (REGNUM) и наименование. Регистрационный номер при этом вводится отдельно. Вручную: очистите список (×) и заполните номер по шаблону и наименование ниже.
+            Техрегламент из справочника: в колонке «Номер техрегламента» в списке показаны строки вида «номер — наименование», доступен поиск по номеру и по наименованию; в карту и XML в поле номера техрегламента попадает только номер (REGNUM), наименование — в отдельное поле. Регистрационный номер вводится отдельно. Вручную: очистите список (×) и укажите номер по шаблону; наименование — по желанию.
           </div>
           <Table dataSource={vData.violatedRequirements || []} columns={requirementsColumns} rowKey={(record, index) => `requirement-${index}`} pagination={false} scroll={{ x: 'max-content' }} />
         </div>

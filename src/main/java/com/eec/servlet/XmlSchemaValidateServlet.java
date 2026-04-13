@@ -145,7 +145,8 @@ public class XmlSchemaValidateServlet extends HttpServlet {
         }
 
         int[][] skipRanges = computeExcludedLineRanges(xml);
-        final List<String> rawErrors = new ArrayList<>();
+        final List<Integer> errorLines = new ArrayList<Integer>();
+        final List<String> errorMsgs = new ArrayList<String>();
         Validator validator = schema.newValidator();
         validator.setErrorHandler(new ErrorHandler() {
             @Override
@@ -172,21 +173,24 @@ public class XmlSchemaValidateServlet extends HttpServlet {
                 if (shouldSkipValidationMessage(msg, line, skipRanges)) {
                     return;
                 }
-                String prefix = line > 0 ? "Строка " + line + ": " : "";
-                rawErrors.add(prefix + msg);
+                errorLines.add(line > 0 ? line : 0);
+                errorMsgs.add(msg);
             }
         });
         try {
             validator.validate(new StreamSource(new java.io.StringReader(xml)));
         } catch (SAXException e) {
-            if (rawErrors.isEmpty()) {
-                rawErrors.add(XsdMessageHumanizer.humanizeFull(e.getMessage()));
+            if (errorMsgs.isEmpty()) {
+                errorLines.add(0);
+                String em = e.getMessage();
+                errorMsgs.add(em != null ? em : "Ошибка валидации XML");
             }
         }
 
         List<String> out = new ArrayList<>();
-        for (String s : rawErrors) {
-            String h = XsdMessageHumanizer.humanizeFull(s);
+        for (int i = 0; i < errorMsgs.size(); i++) {
+            int ln = errorLines.get(i);
+            String h = XsdMessageHumanizer.humanizeFull(errorMsgs.get(i), ln, xml, docType);
             if (!shouldSkipValidationMessage(h, -1, skipRanges) && !out.contains(h)) {
                 out.add(h);
             }

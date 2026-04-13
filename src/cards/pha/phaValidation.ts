@@ -394,18 +394,20 @@ export function validatePhaOutgoingCardFull(data: CardData): ValidationResult {
 export async function validatePhaOutgoingCardFullWithSchema(data: CardData): Promise<ValidationResult> {
   const vr = validatePhaOutgoingCardFull(data)
   let xsdRemarks: string[] = []
+  let xsdPassed = false
   try {
     xsdRemarks = await fetchSchemaValidationErrors(exportPhaCardDataToXML(data), 'pha')
+    xsdPassed = xsdRemarks.length === 0
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e)
     xsdRemarks = [`Не удалось выполнить проверку по XSD: ${msg}`]
+    xsdPassed = false
   }
   const sections = [...vr.sections]
-  if (xsdRemarks.length > 0) {
-    sections.push({ sectionName: 'Проверка по схеме XSD', remarks: xsdRemarks })
-  }
+  const xsdDisplayRemarks = xsdPassed ? ['Ошибок по схеме XSD не выявлено.'] : xsdRemarks
+  sections.push({ sectionName: 'Проверка по схеме XSD', remarks: xsdDisplayRemarks })
   return {
-    success: vr.success && xsdRemarks.length === 0,
+    success: vr.success && xsdPassed,
     sections,
   }
 }

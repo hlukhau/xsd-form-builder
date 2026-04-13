@@ -285,7 +285,9 @@ function exportProductDetails(xmlParts: string[], details: ProductDetails, inden
   console.log('[exportProductDetails] technicalDocs:', details.technicalDocs)
   
   if (details.productId) xmlParts.push(`${indent}<csdo:ProductId>${escapeXML(details.productId)}</csdo:ProductId>`)
-  if (details.productName) xmlParts.push(`${indent}<csdo:ProductName>${escapeXML(details.productName)}</csdo:ProductName>`)
+  if (details.productName?.trim()) {
+    xmlParts.push(`${indent}<csdo:ProductName>${escapeXML(details.productName.trim())}</csdo:ProductName>`)
+  }
   const tradeNames = details.tradeNames?.length ? details.tradeNames : (details.tradeName ? [details.tradeName] : [])
   tradeNames.filter(Boolean).forEach((name) => {
     xmlParts.push(`${indent}<smsdo:ProductTradeName>${escapeXML(name)}</smsdo:ProductTradeName>`)
@@ -359,9 +361,7 @@ function appendBusinessEntityLegalFormToXml(
 
 function exportSupplyChainParty(xmlParts: string[], party: SupplyChainPartyDetails, kindCode: string | undefined, indent: string) {
   xmlParts.push(`${indent}<ccdo:SupplyChainPartyDetails>`)
-  if ((kindCode ?? '').trim()) {
-    xmlParts.push(`${indent}  <csdo:SupplyChainPartyKindCode>${escapeXML(kindCode!)}</csdo:SupplyChainPartyKindCode>`)
-  }
+  // Порядок по XSD: сначала все элементы BusinessEntityDetailsType, затем SupplyChainPartyKindCode (расширение типа).
   if (party.country) xmlParts.push(`${indent}  <csdo:UnifiedCountryCode codeListId="2021">${escapeXML(party.country)}</csdo:UnifiedCountryCode>`)
   if (party.businessEntityName) xmlParts.push(`${indent}  <csdo:BusinessEntityName>${escapeXML(party.businessEntityName)}</csdo:BusinessEntityName>`)
   if (party.shortName) xmlParts.push(`${indent}  <csdo:BusinessEntityBriefName>${escapeXML(party.shortName)}</csdo:BusinessEntityBriefName>`)
@@ -370,13 +370,11 @@ function exportSupplyChainParty(xmlParts: string[], party: SupplyChainPartyDetai
     businessEntityTypeCodeListId: party.businessEntityTypeCodeListId,
     organizationalForm: party.organizationalForm,
   })
-  if (party.subjectIdentifier) {
-    // Добавляем kindId как атрибут, если есть identificationMethod
-    if (party.identificationMethod) {
-      xmlParts.push(`${indent}  <csdo:BusinessEntityId kindId="${escapeXML(party.identificationMethod)}">${escapeXML(party.subjectIdentifier)}</csdo:BusinessEntityId>`)
-    } else {
-      xmlParts.push(`${indent}  <csdo:BusinessEntityId>${escapeXML(party.subjectIdentifier)}</csdo:BusinessEntityId>`)
-    }
+  // BusinessEntityId в XSD с обязательным атрибутом kindId — без метода идентификации элемент не формируем
+  if (party.subjectIdentifier?.trim() && party.identificationMethod?.trim()) {
+    xmlParts.push(
+      `${indent}  <csdo:BusinessEntityId kindId="${escapeXML(party.identificationMethod.trim())}">${escapeXML(party.subjectIdentifier.trim())}</csdo:BusinessEntityId>`
+    )
   }
   if (party.customsNumber) xmlParts.push(`${indent}  <csdo:UniqueCustomsNumberId>${escapeXML(party.customsNumber)}</csdo:UniqueCustomsNumberId>`)
   if (party.taxpayerId) xmlParts.push(`${indent}  <csdo:TaxpayerId>${escapeXML(party.taxpayerId)}</csdo:TaxpayerId>`)
@@ -393,15 +391,11 @@ function exportSupplyChainParty(xmlParts: string[], party: SupplyChainPartyDetai
 
   const contactsWithContent = (party.contacts ?? []).filter(hasContactContent)
   if (contactsWithContent.length > 0) {
-    contactsWithContent.forEach(contact => {
-      xmlParts.push(`${indent}  <ccdo:CommunicationDetails>`)
-      if (contact.communicationChannelCode) xmlParts.push(`${indent}    <csdo:CommunicationChannelCode>${escapeXML(contact.communicationChannelCode)}</csdo:CommunicationChannelCode>`)
-      if (contact.communicationChannelName) xmlParts.push(`${indent}    <csdo:CommunicationChannelName>${escapeXML(contact.communicationChannelName)}</csdo:CommunicationChannelName>`)
-      if (contact.communicationChannelId) xmlParts.push(`${indent}    <csdo:CommunicationChannelId>${escapeXML(contact.communicationChannelId)}</csdo:CommunicationChannelId>`)
-      if (contact.contactKind) xmlParts.push(`${indent}    <csdo:ContactKind>${escapeXML(contact.contactKind)}</csdo:ContactKind>`)
-      if (contact.contactValue) xmlParts.push(`${indent}    <csdo:ContactValue>${escapeXML(contact.contactValue)}</csdo:ContactValue>`)
-      xmlParts.push(`${indent}  </ccdo:CommunicationDetails>`)
-    })
+    contactsWithContent.forEach((contact) => exportCommunicationDetailsBlock(xmlParts, contact, `${indent}  `))
+  }
+
+  if ((kindCode ?? '').trim()) {
+    xmlParts.push(`${indent}  <csdo:SupplyChainPartyKindCode>${escapeXML(kindCode!)}</csdo:SupplyChainPartyKindCode>`)
   }
 
   xmlParts.push(`${indent}</ccdo:SupplyChainPartyDetails>`)
@@ -434,13 +428,46 @@ function exportAddress(
   if (address.streetName) xmlParts.push(`${indent}    <csdo:StreetName>${escapeXML(address.streetName)}</csdo:StreetName>`)
   if (address.buildingNumberId) xmlParts.push(`${indent}    <csdo:BuildingNumberId>${escapeXML(address.buildingNumberId)}</csdo:BuildingNumberId>`)
   if (address.roomNumberId) xmlParts.push(`${indent}    <csdo:RoomNumberId>${escapeXML(address.roomNumberId)}</csdo:RoomNumberId>`)
-  if (address.postOfficeBoxId) xmlParts.push(`${indent}    <csdo:PostOfficeBoxId>${escapeXML(address.postOfficeBoxId)}</csdo:PostOfficeBoxId>`)
-  // В ObjectAddressDetails нет атрибутов PostCode и FullAddress — экспортируем только для SubjectAddressDetails
-  if (wrapper !== 'ObjectAddressDetails') {
-    if (address.postCode) xmlParts.push(`${indent}    <csdo:PostCode>${escapeXML(address.postCode)}</csdo:PostCode>`)
-    if (address.fullAddress) xmlParts.push(`${indent}    <csdo:FullAddress>${escapeXML(address.fullAddress)}</csdo:FullAddress>`)
+  // SubjectAddressDetailsType: … RoomNumberId → PostCode → PostOfficeBoxId (только для SubjectAddressDetails)
+  if (wrapper === 'SubjectAddressDetails') {
+    if (address.postCode?.trim()) {
+      xmlParts.push(`${indent}    <csdo:PostCode>${escapeXML(address.postCode.trim())}</csdo:PostCode>`)
+    }
+    if (address.postOfficeBoxId?.trim()) {
+      xmlParts.push(`${indent}    <csdo:PostOfficeBoxId>${escapeXML(address.postOfficeBoxId.trim())}</csdo:PostOfficeBoxId>`)
+    }
+    if (address.fullAddress?.trim()) {
+      xmlParts.push(`${indent}    <csdo:FullAddress>${escapeXML(address.fullAddress.trim())}</csdo:FullAddress>`)
+    }
   }
   xmlParts.push(`${indent}</ccdo:${wrapper}>`)
+}
+
+/**
+ * ccdo:CommunicationDetails по XSD (CommunicationDetailsType): CommunicationChannelCode?, CommunicationChannelName?,
+ * затем один или несколько CommunicationChannelId. ContactKind / ContactValue / Communication в этот блок не входят.
+ * Текст из поля «Значение контакта» выводится как CommunicationChannelId, если отдельный идентификатор канала пуст.
+ */
+function exportCommunicationDetailsBlock(xmlParts: string[], contact: ContactDetails, indent: string): void {
+  const code = (contact.communicationChannelCode ?? '').trim()
+  const name = (contact.communicationChannelName ?? '').trim()
+  const idChannel = (contact.communicationChannelId ?? '').trim()
+  const idFromValue = (contact.contactValue ?? '').trim()
+  if (!code && !name && !idChannel && !idFromValue) return
+  if (!idChannel && !idFromValue) return
+
+  const child = `${indent}  `
+  xmlParts.push(`${indent}<ccdo:CommunicationDetails>`)
+  if (code) xmlParts.push(`${child}<csdo:CommunicationChannelCode>${escapeXML(code)}</csdo:CommunicationChannelCode>`)
+  if (name) xmlParts.push(`${child}<csdo:CommunicationChannelName>${escapeXML(name)}</csdo:CommunicationChannelName>`)
+  if (idChannel && idFromValue && idChannel !== idFromValue) {
+    xmlParts.push(`${child}<csdo:CommunicationChannelId>${escapeXML(idChannel)}</csdo:CommunicationChannelId>`)
+    xmlParts.push(`${child}<csdo:CommunicationChannelId>${escapeXML(idFromValue)}</csdo:CommunicationChannelId>`)
+  } else {
+    const single = idChannel || idFromValue
+    xmlParts.push(`${child}<csdo:CommunicationChannelId>${escapeXML(single)}</csdo:CommunicationChannelId>`)
+  }
+  xmlParts.push(`${indent}</ccdo:CommunicationDetails>`)
 }
 
 /** Есть ли хотя бы один заполненный атрибут smcdo:BatchDetails (не выводить пустой тег). */
@@ -643,7 +670,9 @@ function hasSubjectDetailsContent(sd: SubjectDetails | undefined): boolean {
 function hasImplementationContent(impl: MeasureImplementationItem | undefined): boolean {
   if (!impl) return false
   const s = (v: string | undefined) => (v ?? '').trim()
-  if (s(impl.country) || s(impl.startDate) || s(impl.endDate) || s(impl.description)) return true
+  // По XSD MeasureImplementationDetailsType обязательны UnifiedCountryCode и StartDate
+  if (!s(impl.country) || !s(impl.startDate)) return false
+  if (s(impl.endDate) || s(impl.description)) return true
   if (impl.measureAffectedObjectKindCode?.trim()) return true
   if ((impl.authorities ?? []).some(hasUnifiedAuthorityMeasureContent)) return true
   if ((impl.subjectDetailsList ?? []).some(hasSubjectDetailsContent)) return true
@@ -651,7 +680,7 @@ function hasImplementationContent(impl: MeasureImplementationItem | undefined): 
   if (hasSubjectDetailsContent(impl.subjectDetails)) return true
   if (impl.documentDetails && hasDocumentReferenceContent(impl.documentDetails)) return true
   if (impl.placeDetails && (s(impl.placeDetails.regionName) || s(impl.placeDetails.borderCheckpointCode) || s(impl.placeDetails.borderCheckpointName))) return true
-  return false
+  return true
 }
 
 function hasDocumentReferenceContent(doc: DocumentReferenceDetails | undefined): boolean {
@@ -713,18 +742,22 @@ function exportMeasureSubjectDetails(xmlParts: string[], subject: SubjectDetails
   if (subject.businessEntity) {
     const entity = subject.businessEntity
     if (entity.country) xmlParts.push(`${subIndent}<csdo:UnifiedCountryCode codeListId="2021">${escapeXML(entity.country)}</csdo:UnifiedCountryCode>`)
-    if (entity.businessEntityName) xmlParts.push(`${subIndent}<csdo:BusinessEntityName>${escapeXML(entity.businessEntityName)}</csdo:BusinessEntityName>`)
-    if (entity.businessEntityBriefName) {
-      xmlParts.push(`${subIndent}<csdo:BusinessEntityBriefName>${escapeXML(entity.businessEntityBriefName)}</csdo:BusinessEntityBriefName>`)
+    // SubjectDetails по XSD (ccdo:SubjectDetailsType): SubjectName / SubjectBriefName, не BusinessEntityName
+    if (entity.businessEntityName?.trim()) {
+      xmlParts.push(`${subIndent}<csdo:SubjectName>${escapeXML(entity.businessEntityName.trim())}</csdo:SubjectName>`)
+    }
+    if (entity.businessEntityBriefName?.trim()) {
+      xmlParts.push(`${subIndent}<csdo:SubjectBriefName>${escapeXML(entity.businessEntityBriefName.trim())}</csdo:SubjectBriefName>`)
     }
     appendBusinessEntityLegalFormToXml(xmlParts, subIndent, {
       businessEntityTypeCode: entity.businessEntityTypeCode,
       businessEntityTypeCodeListId: entity.businessEntityTypeCodeListId,
       businessEntityTypeName: entity.businessEntityTypeName,
     })
-    if (entity.businessEntityId) {
-      const kindIdAttr = entity.identificationMethod ? ` kindId="${escapeXML(entity.identificationMethod)}"` : ''
-      xmlParts.push(`${subIndent}<csdo:BusinessEntityId${kindIdAttr}>${escapeXML(entity.businessEntityId)}</csdo:BusinessEntityId>`)
+    const regId = (entity.businessEntityId ?? '').trim()
+    const idMethod = (entity.identificationMethod ?? '').trim()
+    if (regId && idMethod) {
+      xmlParts.push(`${subIndent}<csdo:BusinessEntityId kindId="${escapeXML(idMethod)}">${escapeXML(regId)}</csdo:BusinessEntityId>`)
     }
     if (entity.customsNumber) xmlParts.push(`${subIndent}<csdo:UniqueCustomsNumberId>${escapeXML(entity.customsNumber)}</csdo:UniqueCustomsNumberId>`)
     if (entity.taxpayerId) xmlParts.push(`${subIndent}<csdo:TaxpayerId>${escapeXML(entity.taxpayerId)}</csdo:TaxpayerId>`)
@@ -734,21 +767,7 @@ function exportMeasureSubjectDetails(xmlParts: string[], subject: SubjectDetails
       })
     }
     if (entity.contacts && entity.contacts.length > 0) {
-      entity.contacts.forEach(contact => {
-        xmlParts.push(`${subIndent}<ccdo:CommunicationDetails>`)
-        if (contact.communicationChannelCode) {
-          xmlParts.push(`${subIndent}  <csdo:CommunicationChannelCode>${escapeXML(contact.communicationChannelCode)}</csdo:CommunicationChannelCode>`)
-        }
-        if (contact.communicationChannelName) {
-          xmlParts.push(`${subIndent}  <csdo:CommunicationChannelName>${escapeXML(contact.communicationChannelName)}</csdo:CommunicationChannelName>`)
-        }
-        if (contact.communicationChannelId) {
-          xmlParts.push(`${subIndent}  <csdo:CommunicationChannelId>${escapeXML(contact.communicationChannelId)}</csdo:CommunicationChannelId>`)
-        }
-        if (contact.contactKind) xmlParts.push(`${subIndent}  <csdo:ContactKind>${escapeXML(contact.contactKind)}</csdo:ContactKind>`)
-        if (contact.contactValue) xmlParts.push(`${subIndent}  <csdo:ContactValue>${escapeXML(contact.contactValue)}</csdo:ContactValue>`)
-        xmlParts.push(`${subIndent}</ccdo:CommunicationDetails>`)
-      })
+      entity.contacts.forEach((contact) => exportCommunicationDetailsBlock(xmlParts, contact, subIndent))
     }
     if (subject.identityDoc) exportIdentityDocV3Details(xmlParts, subject.identityDoc, subIndent)
   } else {
@@ -759,21 +778,7 @@ function exportMeasureSubjectDetails(xmlParts: string[], subject: SubjectDetails
     if (subject.actualAddress) exportAddress(xmlParts, subject.actualAddress, '2', subIndent)
     if (subject.mailingAddress) exportAddress(xmlParts, subject.mailingAddress, '3', subIndent)
     if (subject.contacts && subject.contacts.length > 0) {
-      subject.contacts.forEach(contact => {
-        xmlParts.push(`${subIndent}<ccdo:CommunicationDetails>`)
-        if (contact.communicationChannelCode) {
-          xmlParts.push(`${subIndent}  <csdo:CommunicationChannelCode>${escapeXML(contact.communicationChannelCode)}</csdo:CommunicationChannelCode>`)
-        }
-        if (contact.communicationChannelName) {
-          xmlParts.push(`${subIndent}  <csdo:CommunicationChannelName>${escapeXML(contact.communicationChannelName)}</csdo:CommunicationChannelName>`)
-        }
-        if (contact.communicationChannelId) {
-          xmlParts.push(`${subIndent}  <csdo:CommunicationChannelId>${escapeXML(contact.communicationChannelId)}</csdo:CommunicationChannelId>`)
-        }
-        if (contact.contactKind) xmlParts.push(`${subIndent}  <csdo:ContactKind>${escapeXML(contact.contactKind)}</csdo:ContactKind>`)
-        if (contact.contactValue) xmlParts.push(`${subIndent}  <csdo:ContactValue>${escapeXML(contact.contactValue)}</csdo:ContactValue>`)
-        xmlParts.push(`${subIndent}</ccdo:CommunicationDetails>`)
-      })
+      subject.contacts.forEach((contact) => exportCommunicationDetailsBlock(xmlParts, contact, subIndent))
     }
   }
   xmlParts.push(`${indent}</smcdo:SubjectDetails>`)
@@ -783,14 +788,27 @@ function exportMeasureSubjectDetails(xmlParts: string[], subject: SubjectDetails
 function hasMeasureContent(measure: SanitaryMeasure | undefined): boolean {
   if (!measure) return false
   const s = (v: string | undefined) => (v ?? '').trim()
-  if (s(measure.languageCode) || s(measure.measureCode) || s(measure.measureName) || s(measure.measureAffectedObjectKindCode) || s(measure.startDate) || s(measure.endDate) || s(measure.measureJustificationText)) return true
+  // StartDate обязателен в XSD для SanitaryMeasureBaseDetails — без него блок в XML не формируем
+  if (!s(measure.startDate)) return false
+  if (
+    s(measure.languageCode) ||
+    s(measure.measureCode) ||
+    s(measure.measureName) ||
+    s(measure.measureAffectedObjectKindCode) ||
+    s(measure.endDate) ||
+    s(measure.measureJustificationText) ||
+    s(measure.description)
+  ) {
+    return true
+  }
   if (hasMeasureDocDetailsContent(measure.measureDocDetails)) return true
   if (hasMeasureDocDetailsContent(measure.initialMeasureDocDetails)) return true
   const basisWithContent = (measure.measureInitiationBasisDetails ?? []).filter(hasBasisContent)
   if (basisWithContent.length > 0) return true
   const implWithContent = (measure.measureImplementationDetails ?? []).filter(hasImplementationContent)
   if (implWithContent.length > 0) return true
-  return false
+  // Есть только дата начала — всё равно выводим блок (MeasureDocDetails пустой, остальное по умолчанию)
+  return true
 }
 
 function exportShippingDocument(xmlParts: string[], doc: ShippingDocument, indent: string) {
@@ -936,12 +954,11 @@ export function exportDetectionPlace(
     const orgParty = place.organization as unknown as SupplyChainPartyDetails
     const businessEntityIdValue =
       (place.organization.businessEntityId ?? orgParty.subjectIdentifier)?.trim() || ''
-    if (businessEntityIdValue) {
-      if (place.organization.identificationMethod) {
-        xmlParts.push(`${indent}        <csdo:BusinessEntityId kindId="${escapeXML(place.organization.identificationMethod)}">${escapeXML(businessEntityIdValue)}</csdo:BusinessEntityId>`)
-      } else {
-        xmlParts.push(`${indent}        <csdo:BusinessEntityId>${escapeXML(businessEntityIdValue)}</csdo:BusinessEntityId>`)
-      }
+    const idMethod = (place.organization.identificationMethod ?? '').trim()
+    if (businessEntityIdValue && idMethod) {
+      xmlParts.push(
+        `${indent}        <csdo:BusinessEntityId kindId="${escapeXML(idMethod)}">${escapeXML(businessEntityIdValue)}</csdo:BusinessEntityId>`
+      )
     }
     if (place.organization.customsNumber) {
       xmlParts.push(`${indent}        <csdo:UniqueCustomsNumberId>${escapeXML(place.organization.customsNumber)}</csdo:UniqueCustomsNumberId>`)
@@ -958,21 +975,16 @@ export function exportDetectionPlace(
     }
     const contactsWithContent = (place.organization.contacts ?? []).filter(hasContactContent)
     if (contactsWithContent.length > 0) {
-      contactsWithContent.forEach(contact => {
-        xmlParts.push(`${indent}        <ccdo:CommunicationDetails>`)
-        if (contact.communicationChannelCode) xmlParts.push(`${indent}          <csdo:CommunicationChannelCode>${escapeXML(contact.communicationChannelCode)}</csdo:CommunicationChannelCode>`)
-        if (contact.communicationChannelName) xmlParts.push(`${indent}          <csdo:CommunicationChannelName>${escapeXML(contact.communicationChannelName)}</csdo:CommunicationChannelName>`)
-        if (contact.communicationChannelId) xmlParts.push(`${indent}          <csdo:CommunicationChannelId>${escapeXML(contact.communicationChannelId)}</csdo:CommunicationChannelId>`)
-        if (contact.contactKind) xmlParts.push(`${indent}          <csdo:ContactKind>${escapeXML(contact.contactKind)}</csdo:ContactKind>`)
-        if (contact.contactValue) xmlParts.push(`${indent}          <csdo:Communication>${escapeXML(contact.contactValue)}</csdo:Communication>`)
-        xmlParts.push(`${indent}        </ccdo:CommunicationDetails>`)
-      })
+      contactsWithContent.forEach((contact) =>
+        exportCommunicationDetailsBlock(xmlParts, contact, `${indent}        `)
+      )
     }
     xmlParts.push(`${indent}    </smcdo:OrganizationDetails>`)
   }
   if (place.borderCheckpoint && (place.borderCheckpoint.checkpointCode?.trim() || place.borderCheckpoint.checkpointName?.trim())) {
     xmlParts.push(`${indent}    <smcdo:BorderCheckpointDetails>`)
-    if (place.borderCheckpoint.checkpointCode) xmlParts.push(`${indent}        <csdo:BorderCheckpointCode codeListId="2052">${escapeXML(place.borderCheckpoint.checkpointCode)}</csdo:BorderCheckpointCode>`)
+    // BorderCheckpointCodeType в XSD — простой тип без codeListId; у Unified*Code / DocKindCode и т.п. codeListId по схеме нужен
+    if (place.borderCheckpoint.checkpointCode) xmlParts.push(`${indent}        <csdo:BorderCheckpointCode>${escapeXML(place.borderCheckpoint.checkpointCode)}</csdo:BorderCheckpointCode>`)
     if (place.borderCheckpoint.checkpointName) xmlParts.push(`${indent}        <csdo:BorderCheckpointName>${escapeXML(place.borderCheckpoint.checkpointName)}</csdo:BorderCheckpointName>`)
     xmlParts.push(`${indent}    </smcdo:BorderCheckpointDetails>`)
   }
@@ -1005,30 +1017,30 @@ export function exportSpreadingZone(xmlParts: string[], place: DetectionPlaceDat
 
 function exportSanitaryMeasure(xmlParts: string[], measure: SanitaryMeasure, indent: string) {
   xmlParts.push(`${indent}<smcdo:SanitaryMeasureBaseDetails>`)
+  // Порядок по XSD SanitaryMeasureBaseDetailsType: LanguageCode, MeasureCode, MeasureName, MeasureDocDetails (обязателен),
+  // InitialMeasureDocDetails, StartDate, EndDate, MeasureInitiationBasisDetails*, MeasureJustificationText, DescriptionText?,
+  // MeasureAffectedObjectKindCode*, MeasureImplementationDetails*
   if (measure.languageCode) xmlParts.push(`${indent}  <csdo:LanguageCode>${escapeXML(measure.languageCode)}</csdo:LanguageCode>`)
   if (measure.measureCode?.trim()) {
     const listId = measure.measureCodeListId?.trim() || '1026'
     xmlParts.push(`${indent}  <smsdo:MeasureCode codeListId="${escapeXML(listId)}">${escapeXML(measure.measureCode.trim())}</smsdo:MeasureCode>`)
-  } else if (measure.measureName?.trim()) {
+  }
+  if (measure.measureName?.trim()) {
     xmlParts.push(`${indent}  <smsdo:MeasureName>${escapeXML(measure.measureName.trim())}</smsdo:MeasureName>`)
   }
-  if (measure.measureAffectedObjectKindCode) {
-    const codes = measure.measureAffectedObjectKindCode.split(';').map((c) => c.trim()).filter(Boolean)
-    codes.forEach((code) => xmlParts.push(`${indent}  <smsdo:MeasureAffectedObjectKindCode>${escapeXML(code)}</smsdo:MeasureAffectedObjectKindCode>`))
-  }
-  if (measure.startDate) xmlParts.push(`${indent}  <csdo:StartDate>${escapeXML(measure.startDate)}</csdo:StartDate>`)
-  if (measure.endDate) xmlParts.push(`${indent}  <csdo:EndDate>${escapeXML(measure.endDate)}</csdo:EndDate>`)
-  if (measure.measureJustificationText) xmlParts.push(`${indent}  <smsdo:MeasureJustificationText>${escapeXML(measure.measureJustificationText)}</smsdo:MeasureJustificationText>`)
-  // description не экспортируем, так как его нет в исходном XML для SanitaryMeasureBaseDetails
-  
   if (hasMeasureDocDetailsContent(measure.measureDocDetails)) {
     exportMeasureDocDetails(xmlParts, measure.measureDocDetails!, 'MeasureDocDetails', `${indent}  `)
+  } else {
+    xmlParts.push(`${indent}  <smcdo:MeasureDocDetails></smcdo:MeasureDocDetails>`)
   }
 
   if (hasMeasureDocDetailsContent(measure.initialMeasureDocDetails)) {
     exportMeasureDocDetails(xmlParts, measure.initialMeasureDocDetails!, 'InitialMeasureDocDetails', `${indent}  `)
   }
-  
+
+  if (measure.startDate) xmlParts.push(`${indent}  <csdo:StartDate>${escapeXML(measure.startDate)}</csdo:StartDate>`)
+  if (measure.endDate) xmlParts.push(`${indent}  <csdo:EndDate>${escapeXML(measure.endDate)}</csdo:EndDate>`)
+
   const basisWithContent = (measure.measureInitiationBasisDetails ?? []).filter(hasBasisContent)
   if (basisWithContent.length > 0) {
     basisWithContent.forEach(basis => {
@@ -1041,13 +1053,26 @@ function exportSanitaryMeasure(xmlParts: string[], measure: SanitaryMeasure, ind
     })
   }
 
+  if (measure.measureJustificationText) {
+    xmlParts.push(`${indent}  <smsdo:MeasureJustificationText>${escapeXML(measure.measureJustificationText)}</smsdo:MeasureJustificationText>`)
+  }
+  if (measure.description?.trim()) {
+    xmlParts.push(`${indent}  <csdo:DescriptionText>${escapeXML(measure.description.trim())}</csdo:DescriptionText>`)
+  }
+  if (measure.measureAffectedObjectKindCode) {
+    const codes = measure.measureAffectedObjectKindCode.split(';').map((c) => c.trim()).filter(Boolean)
+    codes.forEach((code) =>
+      xmlParts.push(`${indent}  <smsdo:MeasureAffectedObjectKindCode>${escapeXML(code)}</smsdo:MeasureAffectedObjectKindCode>`)
+    )
+  }
+
   const implWithContent = (measure.measureImplementationDetails ?? []).filter(hasImplementationContent)
   if (implWithContent.length > 0) {
     implWithContent.forEach(impl => {
       exportMeasureImplementation(xmlParts, impl, `${indent}  `)
     })
   }
-  
+
   xmlParts.push(`${indent}</smcdo:SanitaryMeasureBaseDetails>`)
 }
 
@@ -1089,16 +1114,15 @@ function exportMeasureDocDetails(xmlParts: string[], doc: MeasureDocDetails, tag
 
 function exportMeasureImplementation(xmlParts: string[], impl: MeasureImplementationItem, indent: string) {
   xmlParts.push(`${indent}<smcdo:MeasureImplementationDetails>`)
+  // Порядок по XSD MeasureImplementationDetailsType: UnifiedCountryCode, StartDate, EndDate?, DescriptionText,
+  // ImplementingEntityDetails*, MeasureAffectedObjectKindCode*, DocReferenceDetails?, RegionName?, BorderCheckpointDetails?
   if (impl.country) {
     xmlParts.push(`${indent}  <csdo:UnifiedCountryCode codeListId="2021">${escapeXML(impl.country)}</csdo:UnifiedCountryCode>`)
   }
   if (impl.startDate) xmlParts.push(`${indent}  <csdo:StartDate>${escapeXML(impl.startDate)}</csdo:StartDate>`)
   if (impl.endDate) xmlParts.push(`${indent}  <csdo:EndDate>${escapeXML(impl.endDate)}</csdo:EndDate>`)
-  if (impl.description) xmlParts.push(`${indent}  <csdo:DescriptionText>${escapeXML(impl.description)}</csdo:DescriptionText>`)
-  if (impl.measureAffectedObjectKindCode) {
-    const codes = impl.measureAffectedObjectKindCode.split(';').map((c) => c.trim()).filter(Boolean)
-    codes.forEach((code) => xmlParts.push(`${indent}  <smsdo:MeasureAffectedObjectKindCode>${escapeXML(code)}</smsdo:MeasureAffectedObjectKindCode>`))
-  }
+  const desc = (impl.description ?? '').trim()
+  xmlParts.push(`${indent}  <csdo:DescriptionText>${escapeXML(desc || ' ')}</csdo:DescriptionText>`)
 
   const authList = (impl.authorities ?? []).filter(hasUnifiedAuthorityMeasureContent)
   if (authList.length === 0 && hasUnifiedAuthorityMeasureContent(impl.authority)) authList.push(impl.authority!)
@@ -1106,7 +1130,6 @@ function exportMeasureImplementation(xmlParts: string[], impl: MeasureImplementa
   if (subjectList.length === 0 && hasSubjectDetailsContent(impl.subjectDetails)) subjectList.push(impl.subjectDetails!)
   if (authList.length > 0 || subjectList.length > 0) {
     // По XSD: в одном ImplementingEntityDetails максимум один УО и один Субъект.
-    // Поэтому формируем несколько повторяющихся блоков ImplementingEntityDetails.
     const entityCount = Math.max(authList.length, subjectList.length)
     for (let i = 0; i < entityCount; i++) {
       xmlParts.push(`${indent}  <smcdo:ImplementingEntityDetails>`)
@@ -1116,6 +1139,13 @@ function exportMeasureImplementation(xmlParts: string[], impl: MeasureImplementa
       if (entitySubject) exportMeasureSubjectDetails(xmlParts, entitySubject, `${indent}    `)
       xmlParts.push(`${indent}  </smcdo:ImplementingEntityDetails>`)
     }
+  }
+
+  if (impl.measureAffectedObjectKindCode) {
+    const codes = impl.measureAffectedObjectKindCode.split(';').map((c) => c.trim()).filter(Boolean)
+    codes.forEach((code) =>
+      xmlParts.push(`${indent}  <smsdo:MeasureAffectedObjectKindCode>${escapeXML(code)}</smsdo:MeasureAffectedObjectKindCode>`)
+    )
   }
 
   if (impl.documentDetails && hasDocumentReferenceContent(impl.documentDetails)) {
@@ -1132,29 +1162,29 @@ function exportMeasureImplementation(xmlParts: string[], impl: MeasureImplementa
     if (impl.documentDetails.docStartDate) xmlParts.push(`${indent}    <csdo:DocStartDate>${escapeXML(impl.documentDetails.docStartDate)}</csdo:DocStartDate>`)
     xmlParts.push(`${indent}  </ccdo:DocReferenceDetails>`)
   }
-  
+
   const place = impl.placeDetails
+  if (place?.regionName?.trim()) {
+    xmlParts.push(`${indent}  <csdo:RegionName>${escapeXML(place.regionName.trim())}</csdo:RegionName>`)
+  }
   if (
     place &&
-    ((place.regionName ?? '').trim() ||
-      (place.borderCheckpointCode ?? '').trim() ||
-      (place.borderCheckpointName ?? '').trim())
+    ((place.borderCheckpointCode ?? '').trim() || (place.borderCheckpointName ?? '').trim())
   ) {
-    xmlParts.push(`${indent}  <smcdo:MeasurePlaceDetails>`)
-    if (place.regionName?.trim()) {
-      xmlParts.push(`${indent}    <smcdo:RegionName>${escapeXML(place.regionName.trim())}</smcdo:RegionName>`)
-    }
+    xmlParts.push(`${indent}  <smcdo:BorderCheckpointDetails>`)
     if (place.borderCheckpointCode?.trim()) {
       xmlParts.push(
-        `${indent}    <csdo:BorderCheckpointCode codeListId="2052">${escapeXML(place.borderCheckpointCode.trim())}</csdo:BorderCheckpointCode>`
+        `${indent}    <csdo:BorderCheckpointCode>${escapeXML(place.borderCheckpointCode.trim())}</csdo:BorderCheckpointCode>`
       )
     }
     if (place.borderCheckpointName?.trim()) {
-      xmlParts.push(`${indent}    <csdo:BorderCheckpointName>${escapeXML(place.borderCheckpointName.trim())}</csdo:BorderCheckpointName>`)
+      xmlParts.push(
+        `${indent}    <csdo:BorderCheckpointName>${escapeXML(place.borderCheckpointName.trim())}</csdo:BorderCheckpointName>`
+      )
     }
-    xmlParts.push(`${indent}  </smcdo:MeasurePlaceDetails>`)
+    xmlParts.push(`${indent}  </smcdo:BorderCheckpointDetails>`)
   }
-  
+
   xmlParts.push(`${indent}</smcdo:MeasureImplementationDetails>`)
 }
 

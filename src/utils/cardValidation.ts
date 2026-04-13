@@ -61,6 +61,32 @@ function getAddresses(party: {
   return out
 }
 
+/**
+ * В ТТН при непустых полях продукта (кроме наименования) блок ProductDetails попадёт в XML, а по XSD в нём обязателен ProductName.
+ */
+function shippingProductDetailsHasContentAsideFromName(p: ProductDetails | undefined): boolean {
+  if (!p) return false
+  const s = (v: string | undefined) => (v ?? '').trim()
+  if (
+    s(p.productId) ||
+    s(p.description) ||
+    s(p.commodityCode) ||
+    s(p.productPurpose) ||
+    s(p.applicationMethod) ||
+    s(p.releaseForm) ||
+    s(p.storageCondition) ||
+    s(p.labelText)
+  ) {
+    return true
+  }
+  const tradeNames = p.tradeNames?.length ? p.tradeNames : p.tradeName ? [p.tradeName] : []
+  if (tradeNames.some((t) => s(t))) return true
+  return (p.technicalDocs ?? []).some((d) => {
+    if (!d) return false
+    return !!(s(d.docKindCode) || s(d.docName) || s(d.docId) || s(d.docCreationDate) || s(d.docStartDate))
+  })
+}
+
 export function validateOutgoingCard(data: CardData): ValidationResult {
   const sections: { sectionName: string; remarks: string[] }[] = []
   const n = (name: string) => ({ sectionName: name, remarks: [] as string[] })
@@ -192,6 +218,17 @@ export function validateOutgoingCard(data: CardData): ValidationResult {
         add(sectionTsd, 'Для каждого товаросопроводительного документа должна быть указана его дата')
       }
     }
+    for (let di = 0; di < docs.length; di++) {
+      const d = docs[di]
+      ;(d.products ?? []).forEach((p, pi) => {
+        if (shippingProductDetailsHasContentAsideFromName(p) && empty(p?.productName)) {
+          add(
+            sectionTsd,
+            `Партия ${i + 1}, товаросопроводительный документ ${di + 1}, продукт ${pi + 1}: по схеме XSD в сведениях о продукции обязательно наименование продукции — укажите наименование в детализации документа.`
+          )
+        }
+      })
+    }
   }
   if (sectionTsd.remarks.length) sections.push(sectionTsd)
 
@@ -258,8 +295,10 @@ export function validateOutgoingCard(data: CardData): ValidationResult {
       if (empty(r?.technicalRegulationId)) {
         add(sectionViolations, 'В каждом составе сведении о нарушенных требованиях должен быть указан номер техрегламента')
       }
-      if (!empty(r?.technicalRegulationId) && empty(r?.technicalRegulationName)) {
-        add(sectionViolations, 'В каждом составе сведении о нарушенных требованиях должно быть указано наименование техрегламента')
+      // Наименование обязательно только при выборе из справочника (оба поля подставляются вместе). Вручную — достаточно номера.
+      const fromTechRegulDict = (r?.techRegulDictionaryCode ?? '').trim() !== ''
+      if (fromTechRegulDict && !empty(r?.technicalRegulationId) && empty(r?.technicalRegulationName)) {
+        add(sectionViolations, 'При выборе техрегламента из справочника должно быть указано наименование (подставьте запись заново при пустом наименовании)')
       }
     }
     const inds = allViolations.flatMap((v) => v?.violatedIndicators ?? [])

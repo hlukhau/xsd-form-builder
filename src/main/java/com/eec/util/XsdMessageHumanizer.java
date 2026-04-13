@@ -8,15 +8,38 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 /**
- * Перевод сообщений Xerces/JAXP при валидации по XSD в короткие формулировки для пользователя
- * (сущности и разделы карты, без имён XML-тегов и без кодов cvc).
+ * Перевод сообщений Xerces/JAXP при валидации по XSD в формулировки для пользователя
+ * (вкладка/блок формы, поля без имён XML-тегов и без кодов cvc).
  */
 public final class XsdMessageHumanizer {
 
     private static final Map<String, String> LABEL = new LinkedHashMap<String, String>();
 
+    /** Сегменты пути «где в форме» по локальным именам контейнеров в XML. */
+    private static final Map<String, String> FORM_SECTION = new LinkedHashMap<String, String>();
+
     static {
-        // Продукция / ТСД
+        FORM_SECTION.put("NonCompliantSanitaryProductDetails", "вкладка «ТСД»");
+        FORM_SECTION.put("NonCompliantSanitaryProductBatchDetails", "партия");
+        FORM_SECTION.put("ShippingDocumentDetails", "товаросопроводительный документ");
+        FORM_SECTION.put("RequirementViolationDetails", "вкладка «Нарушения»");
+        FORM_SECTION.put("RequirementsDocDetails", "нарушенное требование");
+        FORM_SECTION.put("DocStructuralElementDetails", "структурный элемент документа");
+        FORM_SECTION.put("DiscrepancyOfQualityIndexDetails", "показатель по нарушению");
+        FORM_SECTION.put("DetectionPlaceDetails", "вкладка «Место обнаружения»");
+        FORM_SECTION.put("BorderCheckpointDetails", "пункт пропуска");
+        FORM_SECTION.put("OrganizationDetails", "организация");
+        FORM_SECTION.put("SanitaryMeasureBaseDetails", "вкладка «Меры»");
+        FORM_SECTION.put("SanitaryMeasureDetails", "вкладка «Меры»");
+        FORM_SECTION.put("MeasureImplementationDetails", "реализация меры");
+        FORM_SECTION.put("MeasurePlaceDetails", "место реализации меры");
+        FORM_SECTION.put("SubjectDetails", "субъект");
+        FORM_SECTION.put("ConformityDocDetails", "документ соответствия");
+        FORM_SECTION.put("DangerousProductAlertDetails", "уведомление");
+        FORM_SECTION.put("PublicHealthAlertDetails", "уведомление PHA");
+        FORM_SECTION.put("PublicHealthIncidentDetails", "нежелательная ситуация");
+        FORM_SECTION.put("DiseaseHealthProblemDetails", "болезнь");
+
         LABEL.put("ProductDetails", "сведения о продукции");
         LABEL.put("ProductId", "идентификатор продукции");
         LABEL.put("ProductName", "наименование продукции");
@@ -68,41 +91,300 @@ public final class XsdMessageHumanizer {
         LABEL.put("AuthorityId", "идентификатор органа");
         LABEL.put("EventDate", "дата первого случая");
         LABEL.put("EndDate", "дата окончания");
+        LABEL.put("BusinessEntityId", "идентификатор хозяйствующего субъекта (ОГРН/ИНН и т.п.)");
+        LABEL.put("BusinessEntityName", "полное наименование хозяйствующего субъекта");
+        LABEL.put("BusinessEntityBriefName", "краткое наименование хозяйствующего субъекта");
+        LABEL.put("SubjectName", "наименование субъекта");
+        LABEL.put("SubjectBriefName", "краткое наименование субъекта");
     }
 
     private XsdMessageHumanizer() {
     }
 
-    private static String label(String elementLocalName) {
-        if (elementLocalName == null) {
+    /**
+     * Локальное имя элемента: {@code {uri}ProductDetails} или {@code smcdo:ProductDetails} → {@code ProductDetails}.
+     */
+    private static String elementLocalName(String raw) {
+        if (raw == null) {
+            return "";
+        }
+        String s = raw.trim();
+        if (s.startsWith("{")) {
+            int br = s.indexOf('}');
+            if (br > 0 && br + 1 < s.length()) {
+                return s.substring(br + 1);
+            }
+            return s;
+        }
+        int colon = s.indexOf(':');
+        if (colon > 0 && colon < s.length() - 1) {
+            return s.substring(colon + 1);
+        }
+        return s;
+    }
+
+    private static String label(String elementRef) {
+        String key = elementLocalName(elementRef);
+        if (key.isEmpty()) {
             return "данные";
         }
-        String v = LABEL.get(elementLocalName);
+        String v = LABEL.get(key);
         if (v != null) {
             return v;
         }
-        // Не подставляем имя XML-элемента в текст для пользователя
-        return "реквизит по структуре формы";
+        return "элемент «" + key + "»";
     }
 
     /**
-     * Полное сообщение для отчёта (сохраняет префикс «Строка N: », если был).
+     * Сообщение без номера строки (устаревший префикс «Строка N: » из входа удаляется).
      */
     public static String humanizeFull(String raw) {
-        if (raw == null || raw.isEmpty()) {
+        return humanizeFull(raw, -1, null, null);
+    }
+
+    /**
+     * @param rawMessage   текст ошибки валидатора
+     * @param lineNumber   номер строки XML (1-based), -1 если неизвестен
+     * @param documentXml  полный XML для контекста вкладки/блока
+     * @param docType      {@code dpa} или {@code pha}
+     */
+    public static String humanizeFull(String rawMessage, int lineNumber, String documentXml, String docType) {
+        if (rawMessage == null || rawMessage.isEmpty()) {
             return "";
         }
-        Matcher lineM = Pattern.compile("^(Строка\\s+\\d+:\\s*)(.*)$", Pattern.DOTALL).matcher(raw);
-        String prefix = "";
-        String body = raw;
-        if (lineM.matches()) {
-            prefix = lineM.group(1);
-            body = lineM.group(2);
+        String body = rawMessage;
+        Matcher legacyLine = Pattern.compile("^Строка\\s+\\d+:\\s*").matcher(body);
+        if (legacyLine.find()) {
+            body = body.substring(legacyLine.end());
         }
-        String out = humanizeBody(body);
-        out = stripNamespaces(out);
-        out = out.replaceAll("\\s{2,}", " ").trim();
-        return prefix + out;
+        String human = humanizeBody(body);
+        human = stripNamespaces(human);
+        human = human.replaceAll("\\s{2,}", " ").trim();
+
+        String hint = "";
+        if (lineNumber > 0 && documentXml != null && !documentXml.isEmpty()) {
+            String prefix = xmlPrefixBeforeLine(documentXml, lineNumber);
+            hint = formLocationHint(prefix);
+        }
+        if (hint.isEmpty()) {
+            return human;
+        }
+        // Путь по форме без префикса «Где смотреть: карта ДПА →» — только цепочка вкладок/блоков
+        return human + " (" + hint + ")";
+    }
+
+    /** Строки XML с 1 по (lineNumber − 1), без строки с ошибкой — предки элемента. */
+    private static String xmlPrefixBeforeLine(String xml, int lineNumber) {
+        String[] lines = xml.split("\r\n|\n|\r", -1);
+        StringBuilder sb = new StringBuilder();
+        int last = Math.min(lineNumber - 1, lines.length);
+        for (int i = 0; i < last; i++) {
+            if (i > 0) {
+                sb.append('\n');
+            }
+            sb.append(lines[i]);
+        }
+        return sb.toString();
+    }
+
+    private static void closeStack(List<String> stack, String local) {
+        while (!stack.isEmpty()) {
+            String top = stack.get(stack.size() - 1);
+            if (top.equals(local)) {
+                stack.remove(stack.size() - 1);
+                return;
+            }
+            stack.remove(stack.size() - 1);
+        }
+    }
+
+    private static String parseTagLocalName(String tagFull, boolean closing) {
+        String s = tagFull.trim();
+        if (s.startsWith("<")) {
+            s = s.substring(1);
+        }
+        if (closing && s.startsWith("/")) {
+            s = s.substring(1);
+        }
+        s = s.trim();
+        int end = 0;
+        while (end < s.length()) {
+            char ch = s.charAt(end);
+            if (Character.isWhitespace(ch) || ch == '/' || ch == '>') {
+                break;
+            }
+            end++;
+        }
+        String name = s.substring(0, end);
+        return elementLocalName(name);
+    }
+
+    /**
+     * Упрощённый разбор тегов до позиции ошибки: стек открытых локальных имён.
+     */
+    private static List<String> buildElementStack(String prefixXml) {
+        List<String> stack = new ArrayList<String>();
+        if (prefixXml == null || prefixXml.isEmpty()) {
+            return stack;
+        }
+        int n = prefixXml.length();
+        int i = 0;
+        while (i < n) {
+            int lt = prefixXml.indexOf('<', i);
+            if (lt < 0) {
+                break;
+            }
+            int gt = prefixXml.indexOf('>', lt);
+            if (gt < 0) {
+                break;
+            }
+            String tagFull = prefixXml.substring(lt, gt + 1);
+            if (tagFull.startsWith("<!--")) {
+                int endComment = prefixXml.indexOf("-->", lt + 4);
+                i = endComment >= 0 ? endComment + 3 : gt + 1;
+                continue;
+            }
+            if (tagFull.startsWith("<?") || tagFull.startsWith("<!")) {
+                i = gt + 1;
+                continue;
+            }
+            if (tagFull.startsWith("</")) {
+                String local = parseTagLocalName(tagFull, true);
+                if (!local.isEmpty()) {
+                    closeStack(stack, local);
+                }
+                i = gt + 1;
+                continue;
+            }
+            String local = parseTagLocalName(tagFull, false);
+            boolean selfClosing = tagFull.trim().endsWith("/>");
+            if (!local.isEmpty() && !selfClosing) {
+                stack.add(local);
+            }
+            i = gt + 1;
+        }
+        return stack;
+    }
+
+    private static int batchIndexInPrefix(String prefixXml) {
+        Pattern openP = Pattern.compile("<(?:[\\w.-]+:)?NonCompliantSanitaryProductBatchDetails\\b");
+        Pattern closeP = Pattern.compile("</(?:[\\w.-]+:)?NonCompliantSanitaryProductBatchDetails\\s*>");
+        int opens = 0;
+        Matcher mo = openP.matcher(prefixXml);
+        while (mo.find()) {
+            opens++;
+        }
+        int closes = 0;
+        Matcher mc = closeP.matcher(prefixXml);
+        while (mc.find()) {
+            closes++;
+        }
+        if (opens > closes) {
+            return closes + 1;
+        }
+        return 0;
+    }
+
+    private static int shippingDocIndexInPrefix(String prefixXml) {
+        Pattern openP = Pattern.compile("<(?:[\\w.-]+:)?ShippingDocumentDetails\\b");
+        Pattern closeP = Pattern.compile("</(?:[\\w.-]+:)?ShippingDocumentDetails\\s*>");
+        int opens = 0;
+        Matcher mo = openP.matcher(prefixXml);
+        while (mo.find()) {
+            opens++;
+        }
+        int closes = 0;
+        Matcher mc = closeP.matcher(prefixXml);
+        while (mc.find()) {
+            closes++;
+        }
+        if (opens > closes) {
+            return closes + 1;
+        }
+        return 0;
+    }
+
+    /**
+     * В UI: сведения о продукции по XSD либо на вкладке «Продукция» карты, либо в ТСД — только внутри детализации
+     * товаросопроводительного документа (кнопка «Детализация» → панель «Продукция»).
+     */
+    private static String segmentForProductDetailsInContext(List<String> stack) {
+        if (stack == null || stack.isEmpty()) {
+            return "вкладка «Продукция»";
+        }
+        if (stack.contains("ShippingDocumentDetails")) {
+            return "детализация ТСД → панель «Продукция» в товаросопроводительном документе";
+        }
+        return "вкладка «Продукция» карты (не раздел партий ТСД)";
+    }
+
+    private static int measureIndexInPrefix(String prefixXml) {
+        Pattern openP = Pattern.compile("<(?:[\\w.-]+:)?SanitaryMeasureBaseDetails\\b");
+        Pattern closeP = Pattern.compile("</(?:[\\w.-]+:)?SanitaryMeasureBaseDetails\\s*>");
+        int opens = 0;
+        Matcher mo = openP.matcher(prefixXml);
+        while (mo.find()) {
+            opens++;
+        }
+        int closes = 0;
+        Matcher mc = closeP.matcher(prefixXml);
+        while (mc.find()) {
+            closes++;
+        }
+        if (opens > closes) {
+            return closes + 1;
+        }
+        return 0;
+    }
+
+    private static String formLocationHint(String prefixXml) {
+        if (prefixXml == null || prefixXml.isEmpty()) {
+            return "";
+        }
+        List<String> stack = buildElementStack(prefixXml);
+        List<String> segments = new ArrayList<String>();
+        String prev = null;
+        for (String el : stack) {
+            String seg;
+            if ("ProductDetails".equals(el)) {
+                seg = segmentForProductDetailsInContext(stack);
+            } else {
+                seg = FORM_SECTION.get(el);
+            }
+            if (seg != null && (prev == null || !seg.equals(prev))) {
+                segments.add(seg);
+                prev = seg;
+            }
+        }
+        if (segments.isEmpty()) {
+            return "";
+        }
+        int bi = batchIndexInPrefix(prefixXml);
+        int si = shippingDocIndexInPrefix(prefixXml);
+        int mi = measureIndexInPrefix(prefixXml);
+        for (int k = 0; k < segments.size(); k++) {
+            if ("партия".equals(segments.get(k)) && bi > 0) {
+                segments.set(k, "партия №" + bi);
+            }
+            if (segments.get(k).contains("товаросопроводительный документ") && si > 0) {
+                segments.set(k, "товаросопроводительный документ №" + si);
+            }
+            if (segments.get(k).contains("Меры»") && mi > 0) {
+                segments.set(k, "вкладка «Меры», запись №" + mi);
+            }
+        }
+        return joinArrow(segments);
+    }
+
+    private static String joinArrow(List<String> parts) {
+        StringBuilder b = new StringBuilder();
+        for (int i = 0; i < parts.size(); i++) {
+            if (i > 0) {
+                b.append(" → ");
+            }
+            b.append(parts.get(i));
+        }
+        return b.toString();
     }
 
     private static String stripNamespaces(String s) {
@@ -120,16 +402,29 @@ public final class XsdMessageHumanizer {
         if (s == null || s.isEmpty()) {
             return "";
         }
-        // --- Конкретные шаблоны Xerces ---
+        Matcher attrRequired = Pattern.compile(
+                "cvc-complex-type\\.4:\\s*Attribute\\s+'([^']+)'\\s+must\\s+appear\\s+on\\s+element\\s+'([^']+)'\\.",
+                Pattern.CASE_INSENSITIVE | Pattern.DOTALL)
+                .matcher(s);
+        if (attrRequired.find()) {
+            String attr = attrRequired.group(1);
+            String el = attrRequired.group(2);
+            String elLabel = label(el);
+            if ("kindId".equalsIgnoreCase(attr) && "BusinessEntityId".equals(elementLocalName(el))) {
+                return "Для «" + elLabel + "» в XML обязателен атрибут kindId (метод идентификации). "
+                        + "В карте ДПА укажите поле «Метод идентификации» для субъекта или участника цепи поставки, если задан идентификатор (ОГРН/ИНН и т.п.).";
+            }
+            return "Для элемента «" + elLabel + "» по схеме обязателен атрибут «" + attr + "».";
+        }
+
         Matcher m24b = Pattern.compile(
                 "cvc-complex-type\\.2\\.4\\.b:\\s*The content of element '([^']+)' is not complete\\.\\s*One of '([^']+)'\\s+is expected\\.",
                 Pattern.CASE_INSENSITIVE | Pattern.DOTALL)
                 .matcher(s);
         if (m24b.find()) {
-            String el = m24b.group(1);
-            String choices = m24b.group(2);
-            return "Неполный блок «" + label(el) + "»: по схеме должны быть заданы обязательные поля, например: "
-                    + humanizeChoiceList(choices) + ".";
+            String choices = humanizeChoiceList(m24b.group(2));
+            return "В блоке «" + label(m24b.group(1)) + "» не хватает обязательных данных по схеме. Укажите одно из: "
+                    + choices + ".";
         }
 
         Matcher m24d = Pattern.compile(
@@ -137,8 +432,8 @@ public final class XsdMessageHumanizer {
                 Pattern.CASE_INSENSITIVE | Pattern.DOTALL)
                 .matcher(s);
         if (m24d.find()) {
-            return "В этом месте структуры данных схема не ожидает дочерних элементов; начинается лишний или смещённый блок «"
-                    + label(m24d.group(1)) + "» (часто это нарушение порядка полей).";
+            return "Поле «" + label(m24d.group(1))
+                    + "» здесь лишнее или стоит не в том порядке: вложенные элементы на этой позиции схема не предусматривает.";
         }
 
         Matcher m24a = Pattern.compile(
@@ -146,7 +441,7 @@ public final class XsdMessageHumanizer {
                 Pattern.CASE_INSENSITIVE | Pattern.DOTALL)
                 .matcher(s);
         if (m24a.find()) {
-            return "Вместо или перед «" + label(m24a.group(1)) + "» в этом месте должны идти данные вида: "
+            return "Поле «" + label(m24a.group(1)) + "» не подходит для этой позиции. Должно быть: "
                     + humanizeChoiceList(m24a.group(2)) + ".";
         }
 
@@ -155,11 +450,10 @@ public final class XsdMessageHumanizer {
                 Pattern.CASE_INSENSITIVE | Pattern.DOTALL)
                 .matcher(s);
         if (m311.find()) {
-            return "Для «" + label(m311.group(1))
-                    + "» указан атрибут (например привязка к справочнику), а по схеме допустимо только текстовое значение без таких атрибутов.";
+            return "Для поля «" + label(m311.group(1))
+                    + "» в XML передано значение с атрибутом, а по схеме допустим только текст элемента без атрибутов.";
         }
 
-        // Общий случай: убрать коды cvc и заменить element '…'
         String t = s.replaceAll("(?i)cvc-[a-z0-9.-]+:\\s*", "");
         t = t.replaceAll("(?i)However, the attribute[^.]+\\.", "");
         t = replaceQuotedElements(t);
@@ -191,7 +485,7 @@ public final class XsdMessageHumanizer {
             }
         }
         if (parts.isEmpty()) {
-            return "см. требования схемы к обязательным полям";
+            return "обязательные поля по структуре схемы";
         }
         return joinUnique(parts);
     }
