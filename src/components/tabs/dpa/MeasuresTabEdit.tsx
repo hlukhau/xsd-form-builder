@@ -14,7 +14,7 @@ import { useIdentificationMethodOptions } from '@/hooks/shared/useIdentification
 import { useBorderCheckpointOptions } from '@/hooks/shared/useBorderCheckpointOptions'
 import { useCommunicationChannelOptions } from '@/hooks/shared/useCommunicationChannelOptions'
 import { FieldTagBlock } from '@/components/common/FieldTag'
-import { getDefaultAddressKindName } from '@/utils/addressFormatUtils'
+import { getDefaultAddressKindName, getAddressListFromSubject } from '@/utils/addressFormatUtils'
 import CountrySelect from '@/components/common/CountrySelect'
 import { DpaEmbeddedUnifiedAuthorityForm } from '@/components/common/DpaEmbeddedUnifiedAuthorityForm'
 import { labelWithHelp } from '@/components/common/FieldHelp'
@@ -1204,9 +1204,21 @@ const SubjectDetailsUnifiedEdit: React.FC<{
   const customsNumber = be?.customsNumber
   const taxpayerId = be?.taxpayerId
 
-  const addressList = be?.addresses ?? []
+  const addressList =
+    be?.addresses && be.addresses.length > 0 ? be.addresses : getAddressListFromSubject(subject)
   const syncAddresses = (list: AddressDetails[]) => {
-    upd({}, { addresses: list.length > 0 ? list : undefined })
+    const addresses = list.length > 0 ? list : undefined
+    if (subject.businessEntity != null) {
+      upd({}, { addresses })
+    } else {
+      onChange({
+        ...subject,
+        addresses,
+        registrationAddress: undefined,
+        actualAddress: undefined,
+        mailingAddress: undefined,
+      })
+    }
   }
   const handleImplAddressChange = (index: number, field: keyof AddressDetails, value: string | undefined) => {
     const list = [...addressList]
@@ -1220,9 +1232,14 @@ const SubjectDetailsUnifiedEdit: React.FC<{
   const handleImplAddressAdd = () => syncAddresses([...addressList, { addressKindCode: '1' }])
   const handleImplAddressRemove = (index: number) => syncAddresses(addressList.filter((_, i) => i !== index))
 
-  const contactList = be?.contacts ?? []
+  const contactList = be?.contacts && be.contacts.length > 0 ? be.contacts : (subject.contacts ?? [])
   const syncContacts = (list: ContactDetails[]) => {
-    upd({}, { contacts: list.length > 0 ? list : undefined })
+    const contacts = list.length > 0 ? list : undefined
+    if (subject.businessEntity != null) {
+      upd({}, { contacts })
+    } else {
+      onChange({ ...subject, contacts })
+    }
   }
   const handleImplContactChange = (index: number, field: keyof ContactDetails, value: string) => {
     const list = [...contactList]

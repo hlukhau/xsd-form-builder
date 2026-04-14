@@ -761,6 +761,8 @@ function exportMeasureSubjectDetails(xmlParts: string[], subject: SubjectDetails
     }
     if (entity.customsNumber) xmlParts.push(`${subIndent}<csdo:UniqueCustomsNumberId>${escapeXML(entity.customsNumber)}</csdo:UniqueCustomsNumberId>`)
     if (entity.taxpayerId) xmlParts.push(`${subIndent}<csdo:TaxpayerId>${escapeXML(entity.taxpayerId)}</csdo:TaxpayerId>`)
+    // SubjectDetailsType: после TaxpayerId — IdentityDocV3Details, затем SubjectAddressDetails, затем CommunicationDetails (EEC_M_ComplexDataObjects SubjectDetailsType).
+    if (subject.identityDoc) exportIdentityDocV3Details(xmlParts, subject.identityDoc, subIndent)
     if (entity.addresses && entity.addresses.length > 0) {
       entity.addresses.forEach(addr => {
         exportAddress(xmlParts, addr, addr.addressKindCode || '1', subIndent)
@@ -769,7 +771,6 @@ function exportMeasureSubjectDetails(xmlParts: string[], subject: SubjectDetails
     if (entity.contacts && entity.contacts.length > 0) {
       entity.contacts.forEach((contact) => exportCommunicationDetailsBlock(xmlParts, contact, subIndent))
     }
-    if (subject.identityDoc) exportIdentityDocV3Details(xmlParts, subject.identityDoc, subIndent)
   } else {
     if (subject.country) xmlParts.push(`${subIndent}<csdo:UnifiedCountryCode codeListId="2021">${escapeXML(subject.country)}</csdo:UnifiedCountryCode>`)
     if (subject.subjectName) xmlParts.push(`${subIndent}<csdo:SubjectName>${escapeXML(subject.subjectName)}</csdo:SubjectName>`)

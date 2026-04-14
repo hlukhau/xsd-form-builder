@@ -39,6 +39,7 @@ public final class XsdMessageHumanizer {
         FORM_SECTION.put("PublicHealthAlertDetails", "уведомление PHA");
         FORM_SECTION.put("PublicHealthIncidentDetails", "нежелательная ситуация");
         FORM_SECTION.put("DiseaseHealthProblemDetails", "болезнь");
+        FORM_SECTION.put("SupplyChainPartyDetails", "участник цепи поставки");
 
         LABEL.put("ProductDetails", "сведения о продукции");
         LABEL.put("ProductId", "идентификатор продукции");
@@ -89,6 +90,8 @@ public final class XsdMessageHumanizer {
         LABEL.put("UnifiedAuthorityDetails", "уполномоченный орган");
         LABEL.put("AuthorityName", "наименование органа");
         LABEL.put("AuthorityId", "идентификатор органа");
+        LABEL.put("SupplyChainPartyDetails", "участник цепи поставки");
+        LABEL.put("SupplyChainPartyKindCode", "код вида участника цепи поставки");
         LABEL.put("EventDate", "дата первого случая");
         LABEL.put("EndDate", "дата окончания");
         LABEL.put("BusinessEntityId", "идентификатор хозяйствующего субъекта (ОГРН/ИНН и т.п.)");
@@ -422,6 +425,14 @@ public final class XsdMessageHumanizer {
                 Pattern.CASE_INSENSITIVE | Pattern.DOTALL)
                 .matcher(s);
         if (m24b.find()) {
+            String container = elementLocalName(m24b.group(1));
+            // SupplyChainPartyDetails extends BusinessEntityDetailsType + обязательный csdo:SupplyChainPartyKindCode;
+            // сообщение Xerces «один из …» смешивает опциональные поля базового типа с обязательным кодом вида.
+            if ("SupplyChainPartyDetails".equalsIgnoreCase(container)) {
+                return "В блоке «" + label(m24b.group(1))
+                        + "» по схеме обязателен код вида участника цепи поставки (элемент «SupplyChainPartyKindCode»). "
+                        + "Остальные реквизиты хозяйствующего субъекта указываются при необходимости.";
+            }
             String choices = humanizeChoiceList(m24b.group(2));
             return "В блоке «" + label(m24b.group(1)) + "» не хватает обязательных данных по схеме. Укажите одно из: "
                     + choices + ".";

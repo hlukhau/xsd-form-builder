@@ -11,7 +11,12 @@ import { useIdentificationMethodOptions } from '@/hooks/shared/useIdentification
 import { useCountryOptions } from '@/hooks/shared/useCountryOptions'
 import { useLegalFormOptions } from '@/hooks/shared/useLegalFormOptions'
 import { useCommunicationChannelOptions } from '@/hooks/shared/useCommunicationChannelOptions'
+import { useBorderCheckpointOptions } from '@/hooks/shared/useBorderCheckpointOptions'
 import { buildContactDisplayLines } from '@/utils/contactDisplayUtils'
+
+/** Единая ширина колонки подписей между блоками «Адрес», «Организация», «Пункт пропуска», «Координаты». */
+const DETECTION_PLACE_LABEL_STYLE: React.CSSProperties = { minWidth: 300, width: 300, verticalAlign: 'top' }
+const DETECTION_PLACE_CONTENT_STYLE: React.CSSProperties = { wordBreak: 'break-word', verticalAlign: 'top' }
 
 interface DetectionPlaceTabProps {
   data: DetectionPlaceData
@@ -24,6 +29,7 @@ const DetectionPlaceTab: React.FC<DetectionPlaceTabProps> = ({ data, label = 'м
   const { getDisplayLabel: getCountryDisplayLabel } = useCountryOptions()
   const { getNameByCode: getLegalFormNameByCode } = useLegalFormOptions(data?.organization?.country)
   const { getNameByCode: getCommunicationChannelNameByCode } = useCommunicationChannelOptions()
+  const { getNameByCode: getBorderCheckpointNameByCode } = useBorderCheckpointOptions()
   const getCountryNameForAddress = (code?: string) => getCountryDisplayLabel(code) || getDefaultCountryName(code) || '-'
 
   const formatOrgLegalForm = (org: BusinessEntityDetails) => {
@@ -35,21 +41,19 @@ const DetectionPlaceTab: React.FC<DetectionPlaceTabProps> = ({ data, label = 'м
     return org.businessEntityTypeName || (org as unknown as SupplyChainPartyDetails).organizationalForm
   }
 
-  const formatCheckpoint = (checkpoint?: { checkpointCode?: string; checkpointName?: string }): string => {
+  /** Код вида пункта пропуска: код из данных + наименование из справочника BORDERCHECKPOINT (как в MeasuresTab). */
+  const formatBorderCheckpointCodeForView = (checkpoint?: { checkpointCode?: string; checkpointName?: string }): string => {
     if (!checkpoint) return '-'
-    if (checkpoint.checkpointCode && checkpoint.checkpointName) {
-      return `${checkpoint.checkpointCode} - ${checkpoint.checkpointName}`
+    const code = checkpoint.checkpointCode?.trim()
+    if (code) {
+      return `${code} — ${getBorderCheckpointNameByCode(code) ?? '—'}`
     }
-    return checkpoint.checkpointCode || checkpoint.checkpointName || '-'
+    return checkpoint.checkpointName?.trim() || '-'
   }
 
   if (!data) {
     return <div>Данные о {label} не найдены</div>
   }
-
-  console.log('DetectionPlaceTab получил данные:', data)
-  console.log('borderCheckpoint:', data.borderCheckpoint)
-  console.log('geoCoordinates:', data.geoCoordinates)
 
   const hasData = data.organization || data.borderCheckpoint || data.address || data.geoCoordinates || data.description
 
@@ -60,7 +64,13 @@ const DetectionPlaceTab: React.FC<DetectionPlaceTabProps> = ({ data, label = 'м
   return (
     <div>
       {/* Адрес и Описание сверху (не в раскрывающихся секциях) */}
-      <Descriptions column={1} bordered style={{ marginBottom: '16px' }}>
+      <Descriptions
+        column={1}
+        bordered
+        style={{ marginBottom: '16px' }}
+        labelStyle={DETECTION_PLACE_LABEL_STYLE}
+        contentStyle={DETECTION_PLACE_CONTENT_STYLE}
+      >
         {data.address && (
           <Descriptions.Item label="Адрес места обнаружения">
             {formatAddressLineObjectAddress(data.address, getCountryNameForAddress)}
@@ -83,7 +93,13 @@ const DetectionPlaceTab: React.FC<DetectionPlaceTabProps> = ({ data, label = 'м
             key: 'organization',
             label: 'Организация',
             children: data.organization ? (
-              <Descriptions column={1} bordered size="small">
+              <Descriptions
+                column={1}
+                bordered
+                size="small"
+                labelStyle={DETECTION_PLACE_LABEL_STYLE}
+                contentStyle={DETECTION_PLACE_CONTENT_STYLE}
+              >
                 <Descriptions.Item label="Страна">
                   {getCountryDisplayLabel(data.organization.country)}
                 </Descriptions.Item>
@@ -148,9 +164,15 @@ const DetectionPlaceTab: React.FC<DetectionPlaceTabProps> = ({ data, label = 'м
             key: 'checkpoint',
             label: 'Пункт пропуска',
             children: data.borderCheckpoint ? (
-              <Descriptions column={1} bordered size="small">
+              <Descriptions
+                column={1}
+                bordered
+                size="small"
+                labelStyle={DETECTION_PLACE_LABEL_STYLE}
+                contentStyle={DETECTION_PLACE_CONTENT_STYLE}
+              >
                 <Descriptions.Item label="Код вида пункта пропуска">
-                  {formatCheckpoint(data.borderCheckpoint)}
+                  {formatBorderCheckpointCodeForView(data.borderCheckpoint)}
                 </Descriptions.Item>
                 <Descriptions.Item label="Наименование пункта пропуска">
                   {data.borderCheckpoint.checkpointName || '-'}
@@ -171,7 +193,15 @@ const DetectionPlaceTab: React.FC<DetectionPlaceTabProps> = ({ data, label = 'м
               return coords.length > 0 ? (
               <div>
                 {coords.map((coord: { longitude?: string; latitude?: string }, idx: number) => (
-                  <Descriptions key={idx} column={1} bordered size="small" style={{ marginBottom: idx < coords.length - 1 ? 8 : 0 }}>
+                  <Descriptions
+                    key={idx}
+                    column={1}
+                    bordered
+                    size="small"
+                    style={{ marginBottom: idx < coords.length - 1 ? 8 : 0 }}
+                    labelStyle={DETECTION_PLACE_LABEL_STYLE}
+                    contentStyle={DETECTION_PLACE_CONTENT_STYLE}
+                  >
                     <Descriptions.Item label="Долгота">{coord.longitude || '-'}</Descriptions.Item>
                     <Descriptions.Item label="Широта">{coord.latitude || '-'}</Descriptions.Item>
                   </Descriptions>
