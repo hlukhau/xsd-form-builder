@@ -140,13 +140,12 @@ export const XSD_FIELD_CONSTRAINTS: Record<string, FieldConstraint> = {
     maxLength: 20,
     messageMaxLength: 'Не более 20 символов (smsdo:DocStructuralElementId)',
   },
-  technicalRegulationId: { maxLength: 50, messageMaxLength: 'Не более 50 символов', formatHint: 'Например: ТР ТС 001/2011' },
+  /** REGNUM из НСИ или ввод вручную; длину не ограничиваем — для ручного ввода действует шаблон technicalRegulationManualRegNum. */
+  technicalRegulationId: { formatHint: 'Например: ТР ТС 001/2011' },
   /** Наименование техрегламента в нарушениях (тип как у Name500Type, сообщения без имён тегов XSD). */
   violationTechnicalRegulationName: { maxLength: 500, messageMaxLength: 'Не более 500 символов' },
   /** Ручной номер техрегламента (не из справочника): ТР ТС 003/2012 или ТР ЕАЭС 042/2017 */
   technicalRegulationManualRegNum: {
-    maxLength: 50,
-    messageMaxLength: 'Не более 50 символов',
     pattern: /^ТР (ТС|ЕАЭС) \d{3}\/\d{4}$/,
     messagePattern:
       'Номер должен соответствовать шаблону: ТР ТС 003/2012 или ТР ЕАЭС 042/2017 (ТР, пробел, ТС или ЕАЭС, пробел, 3 цифры, «/», 4 цифры)',

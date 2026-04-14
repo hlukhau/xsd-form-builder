@@ -426,12 +426,9 @@ public final class XsdMessageHumanizer {
                 .matcher(s);
         if (m24b.find()) {
             String container = elementLocalName(m24b.group(1));
-            // SupplyChainPartyDetails extends BusinessEntityDetailsType + обязательный csdo:SupplyChainPartyKindCode;
-            // сообщение Xerces «один из …» смешивает опциональные поля базового типа с обязательным кодом вида.
+            // SupplyChainPartyDetails: Xerces «один из …» смешивает опциональные поля базового типа с обязательным кодом вида.
             if ("SupplyChainPartyDetails".equalsIgnoreCase(container)) {
-                return "В блоке «" + label(m24b.group(1))
-                        + "» по схеме обязателен код вида участника цепи поставки (элемент «SupplyChainPartyKindCode»). "
-                        + "Остальные реквизиты хозяйствующего субъекта указываются при необходимости.";
+                return "В блоке «" + label(m24b.group(1)) + "» по схеме обязателен код вида участника цепи поставки.";
             }
             String choices = humanizeChoiceList(m24b.group(2));
             return "В блоке «" + label(m24b.group(1)) + "» не хватает обязательных данных по схеме. Укажите одно из: "

@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { Form, Input, Button, Table, Descriptions, Select, Collapse } from 'antd'
-import { PlusOutlined, DeleteOutlined } from '@ant-design/icons'
+import { PlusOutlined, DeleteOutlined, CloseOutlined } from '@ant-design/icons'
 import { format } from 'date-fns'
 import { ru } from 'date-fns/locale'
 import { labelWithHelp } from '@/components/common/FieldHelp'
@@ -268,67 +268,96 @@ const ViolationsTabEdit: React.FC<ViolationsTabEditProps> = ({ tsd, onTsdChange 
 
     const requirementsColumns = [
       {
-        title: labelWithHelp('Номер техрегламента', FIELD_HELP.technicalRegulationId),
-        key: 'technicalRegulationId',
-        width: 200,
+        title: labelWithHelp(
+          'Техрегламент',
+          `${FIELD_HELP.technicalRegulationId} ${FIELD_HELP.technicalRegulationName}`
+        ),
+        key: 'technicalRegulation',
+        width: 520,
         render: (_: unknown, record: ViolatedRequirement, index: number) => {
           const fromDict = (record.techRegulDictionaryCode ?? '').trim() !== ''
           const errK = manualRegErrKey(index)
           const err = techRegulManualNumErrors[errK]
+          const id = (record.technicalRegulationId ?? '').trim()
+          const name = (record.technicalRegulationName ?? '').trim()
+          const dictLine = [id, name].filter(Boolean).join(' — ')
           return (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-              <Select
-                {...techRegulSelectProps}
-                value={record.techRegulDictionaryCode || undefined}
-                onChange={(code) => applyTechRegulByCode(index, code)}
-              />
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8, minWidth: 360 }}>
               {!fromDict ? (
-                <div>
-                  <Input
-                    value={record.technicalRegulationId ?? ''}
-                    onChange={(e) => {
-                      setManualRequirementNumber(index, e.target.value)
-                      validateManualRegNum(index, e.target.value)
-                    }}
-                    onBlur={(e) => validateManualRegNum(index, e.target.value)}
-                    maxLength={getMaxLength('technicalRegulationId')}
-                    showCount
-                    placeholder="Или номер вручную: ТР ТС 003/2012"
-                    status={err ? 'error' : undefined}
-                    style={{ wordWrap: 'break-word', whiteSpace: 'normal' }}
-                  />
-                  {err ? <div style={{ fontSize: 12, color: '#ff4d4f', marginTop: 2 }}>{err}</div> : null}
+                <Select
+                  {...techRegulSelectProps}
+                  value={record.techRegulDictionaryCode || undefined}
+                  onChange={(code) => applyTechRegulByCode(index, code)}
+                />
+              ) : null}
+              <div style={{ display: 'flex', flexDirection: 'row', gap: 8, alignItems: 'flex-start' }}>
+                <div style={{ flex: '0 0 200px', width: 200, maxWidth: 220, minWidth: 0 }}>
+                  <div style={{ fontSize: 12, color: 'rgba(0,0,0,0.45)', marginBottom: 2 }}>Номер</div>
+                  {fromDict ? (
+                    <div style={{ display: 'flex', alignItems: 'flex-start', gap: 2 }}>
+                      <div
+                        style={{
+                          fontSize: 13,
+                          color: 'rgba(0,0,0,0.65)',
+                          lineHeight: 1.5,
+                          wordBreak: 'break-word',
+                          flex: 1,
+                          minWidth: 0,
+                        }}
+                      >
+                        {id || '—'}
+                      </div>
+                      <Button
+                        type="text"
+                        size="small"
+                        icon={<CloseOutlined />}
+                        title="Сбросить выбор и снова открыть поиск по справочнику"
+                        aria-label="Сбросить выбор техрегламента из справочника"
+                        onClick={() => applyTechRegulByCode(index, undefined)}
+                        style={{ flexShrink: 0, padding: '0 4px', height: 22 }}
+                      />
+                    </div>
+                  ) : (
+                    <div>
+                      <Input
+                        value={record.technicalRegulationId ?? ''}
+                        onChange={(e) => {
+                          setManualRequirementNumber(index, e.target.value)
+                          validateManualRegNum(index, e.target.value)
+                        }}
+                        onBlur={(e) => validateManualRegNum(index, e.target.value)}
+                        placeholder="ТР ТС 003/2012"
+                        status={err ? 'error' : undefined}
+                        style={{ width: '100%' }}
+                      />
+                      {err ? <div style={{ fontSize: 12, color: '#ff4d4f', marginTop: 2 }}>{err}</div> : null}
+                    </div>
+                  )}
+                </div>
+                <div style={{ flex: '1 1 0', minWidth: 0 }}>
+                  <div style={{ fontSize: 12, color: 'rgba(0,0,0,0.45)', marginBottom: 2 }}>Наименование</div>
+                  {fromDict ? (
+                    <div style={{ fontSize: 13, color: 'rgba(0,0,0,0.65)', lineHeight: 1.5, wordBreak: 'break-word' }}>
+                      {dictLine || '—'}
+                    </div>
+                  ) : (
+                    <Input
+                      value={record.technicalRegulationName ?? ''}
+                      onChange={(e) => setManualRequirementName(index, e.target.value)}
+                      maxLength={getMaxLength('violationTechnicalRegulationName')}
+                      showCount
+                      placeholder="По желанию при вводе номера вручную"
+                      style={{ width: '100%' }}
+                    />
+                  )}
+                </div>
+              </div>
+              {fromDict ? (
+                <div style={{ fontSize: 11, color: 'rgba(0,0,0,0.45)' }}>
+                  Нажмите «×» у номера, чтобы снова открыть поиск по справочнику.
                 </div>
               ) : null}
             </div>
-          )
-        },
-      },
-      {
-        title: labelWithHelp('Наименование техрегламента', FIELD_HELP.technicalRegulationName),
-        key: 'technicalRegulationName',
-        width: 320,
-        render: (_: unknown, record: ViolatedRequirement, index: number) => {
-          const fromDict = (record.techRegulDictionaryCode ?? '').trim() !== ''
-          if (fromDict) {
-            const id = (record.technicalRegulationId ?? '').trim()
-            const name = (record.technicalRegulationName ?? '').trim()
-            const line = [id, name].filter(Boolean).join(' — ')
-            return (
-              <div style={{ fontSize: 13, color: 'rgba(0,0,0,0.65)', lineHeight: 1.5, wordBreak: 'break-word' }}>
-                {line || '—'}
-                <div style={{ fontSize: 11, color: 'rgba(0,0,0,0.45)', marginTop: 4 }}>Из справочника (редактирование — в колонке «Номер»)</div>
-              </div>
-            )
-          }
-          return (
-            <Input
-              value={record.technicalRegulationName ?? ''}
-              onChange={(e) => setManualRequirementName(index, e.target.value)}
-              maxLength={getMaxLength('violationTechnicalRegulationName')}
-              showCount
-              placeholder="Необязательно при вводе номера вручную"
-            />
           )
         },
       },
@@ -529,7 +558,7 @@ const ViolationsTabEdit: React.FC<ViolationsTabEditProps> = ({ tsd, onTsdChange 
             <Button type="dashed" icon={<PlusOutlined />} onClick={handleAddRequirement}>Добавить требование</Button>
           </div>
           <div style={{ fontSize: 12, color: 'rgba(0,0,0,0.45)', marginBottom: 8, maxWidth: 960 }}>
-            Техрегламент из справочника: в колонке «Номер техрегламента» в списке показаны строки вида «номер — наименование», доступен поиск по номеру и по наименованию; в карту и XML в поле номера техрегламента попадает только номер (REGNUM), наименование — в отдельное поле. Регистрационный номер вводится отдельно. Вручную: очистите список (×) и укажите номер по шаблону; наименование — по желанию.
+            Справочник техрегламентов: в списке — строки «номер — наименование», поиск по номеру и названию; после выбора список скрывается, под ним номер (и «×» для сброса) и в поле наименования — строка «номер — наименование». Регистрационный номер — в отдельной колонке. Вручную: очистите список (× в поле выбора), введите номер по шаблону; наименование — по желанию.
           </div>
           <Table dataSource={vData.violatedRequirements || []} columns={requirementsColumns} rowKey={(record, index) => `requirement-${index}`} pagination={false} scroll={{ x: 'max-content' }} />
         </div>
