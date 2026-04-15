@@ -22,6 +22,7 @@ import type {
   MeasureImplementationItem,
 } from '@/types/card'
 import { mergeComplianceDocumentsFromBatches } from '@/utils/xmlParser'
+import { getAddressListFromParty } from '@/utils/addressFormatUtils'
 import { validateFieldValue } from '@/constants/xsdFieldConstraints'
 import { exportCardDataToXML } from '@/utils/xmlExporter'
 import { fetchSchemaValidationErrors } from '@/utils/schemaValidationApi'
@@ -230,6 +231,95 @@ export function validateOutgoingCard(data: CardData): ValidationResult {
       })
     }
   }
+
+  /** Участники цепи поставки в ТСД (ShippingDocumentDetails → SupplyChainPartyDetails): контроли как для изготовителя на вкладке «Продукция». */
+  let tsdSupplyChainPartyMissingCountry = false
+  let tsdSupplyChainPartyMissingBusinessName = false
+  let tsdSupplyChainPartyMissingAddress = false
+  let tsdSupplyChainAddressMissingCountry = false
+  let tsdSupplyChainAddressMissingCityOrSettlement = false
+  let tsdSupplyChainPartyIdWithoutIdentificationMethod = false
+
+  for (const batch of batches) {
+    for (const doc of batch?.shippingDocuments ?? []) {
+      for (const party of doc.supplyChainParties ?? []) {
+        if (empty(party.country)) tsdSupplyChainPartyMissingCountry = true
+        if (empty(party.businessEntityName)) tsdSupplyChainPartyMissingBusinessName = true
+
+        const addrList = getAddressListFromParty(party)
+        if (addrList.length === 0) {
+          tsdSupplyChainPartyMissingAddress = true
+        } else {
+          for (const addr of addrList) {
+            if (empty(addr.country)) tsdSupplyChainAddressMissingCountry = true
+            if (empty(addr.cityName) && empty(addr.settlementName)) {
+              tsdSupplyChainAddressMissingCityOrSettlement = true
+            }
+          }
+        }
+
+        if (
+          party.subjectIdentifier != null &&
+          String(party.subjectIdentifier).trim() !== '' &&
+          empty(party.identificationMethod)
+        ) {
+          tsdSupplyChainPartyIdWithoutIdentificationMethod = true
+        }
+      }
+    }
+  }
+
+  const hasAnyTsdSupplyChainParty = batches.some((b) =>
+    (b.shippingDocuments ?? []).some((d) => (d.supplyChainParties ?? []).length > 0)
+  )
+  if (hasAnyTsdSupplyChainParty) {
+    if (tsdSupplyChainPartyMissingCountry) {
+      add(
+        sectionTsd,
+        'Код страны регистрации изготовителя продукции в составе данных по ТСД должен быть указан'
+      )
+    }
+    if (tsdSupplyChainPartyMissingBusinessName) {
+      add(
+        sectionTsd,
+        'Наименование изготовителя продукции в составе данных по ТСД должен быть указан'
+      )
+    }
+    if (tsdSupplyChainPartyMissingAddress) {
+      add(
+        sectionTsd,
+        'Должен быть указан хотя бы один адрес изготовителя продукции в составе данных по ТСД'
+      )
+    }
+  }
+
+  const hasAnyTsdSupplyChainAddress = batches.some((b) =>
+    (b.shippingDocuments ?? []).some((d) =>
+      (d.supplyChainParties ?? []).some((p) => getAddressListFromParty(p).length > 0)
+    )
+  )
+  if (hasAnyTsdSupplyChainAddress) {
+    if (tsdSupplyChainAddressMissingCountry) {
+      add(
+        sectionTsd,
+        'Для каждого адреса изготовителя продукции в составе данных по ТСД должна быть указана страна'
+      )
+    }
+    if (tsdSupplyChainAddressMissingCityOrSettlement) {
+      add(
+        sectionTsd,
+        'Для каждого адреса изготовителя продукции в составе данных по ТСД должен быть указан или город, или населенный пункт'
+      )
+    }
+  }
+
+  if (hasAnyTsdSupplyChainParty && tsdSupplyChainPartyIdWithoutIdentificationMethod) {
+    add(
+      sectionTsd,
+      'Если по изготовителю продукции в составе данных по ТСД указан идентификатор хозяйствующего субъекта, то метод идентификации должен быть указан обязательно'
+    )
+  }
+
   if (sectionTsd.remarks.length) sections.push(sectionTsd)
 
   // —— Документы соответствия (по XSD только в tsd.batches[]) ——
