@@ -26,14 +26,14 @@ import java.util.List;
 public class PpvStatusHistoryServlet extends HttpServlet {
 
     private static final String SQL = ""
-            + "SELECT st.DPASTATUSNAME, hs.PPVSTATUSDATETIME AS DPASTATUSDATETIME, ep.EMPCODE "
+            + "SELECT st.PPVSTATUSNAME, hs.PPVSTATUSDATETIME AS PPVSTATUSDATETIME, ep.EMPCODE "
             + "FROM PPVSTATUSHIST hs "
-            + "JOIN DPASTATUS st ON st.DPASTATUSID = hs.PPVSTATUSID "
+            + "JOIN PPVSTATUS st ON st.PPVSTATUSID = hs.PPVSTATUSID "
             + "LEFT JOIN TB_USER us ON hs.USERID = us.USERID "
             + "LEFT JOIN TB_EMP ep ON ep.EMPID = us.EMPID "
             + "WHERE hs.PPVID = ? "
             + "UNION ALL "
-            + "SELECT 'Резолюция: ' || kn.DEPKINDNAME AS DPASTATUSNAME, rs.RESOLUTIONDATETIME AS DPASTATUSDATETIME, ep.EMPCODE "
+            + "SELECT 'Резолюция: ' || kn.DEPKINDNAME AS PPVSTATUSNAME, rs.RESOLUTIONDATETIME AS PPVSTATUSDATETIME, ep.EMPCODE "
             + "FROM PPVRESOLUTION rs "
             + "JOIN TB_DEPKIND kn ON kn.DEPKINDID = rs.DEPKINDID "
             + "LEFT JOIN TB_USER us ON rs.USERID = us.USERID "
@@ -81,8 +81,8 @@ public class PpvStatusHistoryServlet extends HttpServlet {
             List<String> items = new ArrayList<>();
 
             while (rs.next()) {
-                String status = rs.getString("DPASTATUSNAME");
-                Timestamp ts = rs.getTimestamp("DPASTATUSDATETIME");
+                String status = rs.getString("PPVSTATUSNAME");
+                Timestamp ts = rs.getTimestamp("PPVSTATUSDATETIME");
                 String employee = rs.getString("EMPCODE");
                 if (rs.wasNull()) {
                     employee = null;

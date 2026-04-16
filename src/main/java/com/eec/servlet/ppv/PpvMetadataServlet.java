@@ -21,7 +21,7 @@ import java.sql.Timestamp;
 public class PpvMetadataServlet extends HttpServlet {
 
     private static final String SQL = ""
-            + "SELECT vw.INCIDENTID, vw.ALERTCOUNTRYNAME, vw.ALERTCOUNTRYID, vw.PPVVERSION, vw.DATASOURCEKINDCODE, t1.DATASOURCEKINDNAME, "
+            + "SELECT vw.INCIDENTID, vw.ALERTCOUNTRYNAME, vw.ALERTCOUNTRYID, vw.DATASOURCEKINDCODE, t1.DATASOURCEKINDNAME, "
             + "       vw.CREATIONDATETIME, vw.MODIFICATIONDATETIME, vw.PPVSTATUSID, vw.PPVSTATUSNAME, c.COUNTRYCODE AS ALERTCOUNTRYCODE, "
             + "       a.AUTHORITYUID AS AUTHORITY_UID, a.AUTHORITYNAME AS AUTHORITY_NAME, a.AUTHORITYBRIEFNAME AS AUTHORITY_BRIEFNAME, a.COUNTRYCODE AS AUTHORITY_COUNTRYCODE "
             + "FROM VW_PPV vw "
@@ -79,7 +79,7 @@ public class PpvMetadataServlet extends HttpServlet {
             String incidentId = getString(rs, "INCIDENTID");
             String alertCountryName = getString(rs, "ALERTCOUNTRYNAME");
             String alertCountryCode = getString(rs, "ALERTCOUNTRYCODE");
-            Integer dpaVersion = getInt(rs, "PPVVERSION");
+            Integer dpaVersion = null;
             String datasourceKindCode = getString(rs, "DATASOURCEKINDCODE");
             String datasourceKindName = getString(rs, "DATASOURCEKINDNAME");
             String creationDateTime = formatTimestamp(rs, "CREATIONDATETIME");

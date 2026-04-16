@@ -22,7 +22,7 @@ import java.util.regex.Pattern;
 /**
  * Создание или обновление карты.
  * POST /api/ppv/save — тело JSON:
- * - Создание: { "isNew": true, "xmlBody": "...", "metadata": { ... } } — INSERT в DPA и PPVXML (версия 1, уникальный регистрационный номер из метаданных). При конфликте уникальности — сообщение.
+ * - Создание: { "isNew": true, "xmlBody": "...", "metadata": { ... } } — INSERT в PPV и PPVXML (версия 1, уникальный регистрационный номер из метаданных). При конфликте уникальности — сообщение.
  * - Обновление: { "isNew": false, "dpaid": <number>, "xmlBody": "...", "metadata": { ... } } — UPDATE PPVXML и MODIFICATIONDATETIME по PPVID.
  */
 public class PpvSaveServlet extends HttpServlet {
@@ -33,7 +33,7 @@ public class PpvSaveServlet extends HttpServlet {
         System.out.println("[PpvSaveServlet] Initialized (POST /api/ppv/save)");
     }
 
-    /** Код типа источника для исходящих карт: в DPA и в DPASTATUS хранится 2 (код 3 — из БД ЕЭК) */
+    /** Код типа источника для исходящих карт: в PPV и в PPVSTATUS хранится 2 (код 3 — из БД ЕЭК) */
     private static final String DATASOURCEKINDCODE_OUTGOING = "2";
     private static final String EDOCCODE_DEFAULT = "R.SM.SS.08.002";
     private static final String EDOCVERSION_DEFAULT = "1.0.0";
@@ -42,22 +42,22 @@ public class PpvSaveServlet extends HttpServlet {
     private static final String SQL_NEXT_DPAID = "SELECT SQPPV.NEXTVAL FROM DUAL";
     private static final String SQL_NEXT_DPAID_FALLBACK = "SELECT NVL(MAX(PPVID),0)+1 AS NEXTVAL FROM PPV";
 
-    /** DPASTATUSID по названию «Черновик» для исходящих (в DPASTATUS у них DATASOURCEKINDCODE = 2) */
-    private static final String SQL_STATUS_DRAFT = "SELECT DPASTATUSID FROM DPASTATUS WHERE TRIM(DPASTATUSNAME) = 'Черновик' AND DATASOURCEKINDCODE = ?";
+    /** PPVSTATUSID по названию «Черновик» для исходящих (в PPVSTATUS у них DATASOURCEKINDCODE = 2) */
+    private static final String SQL_STATUS_DRAFT = "SELECT PPVSTATUSID FROM PPVSTATUS WHERE TRIM(PPVSTATUSNAME) = 'Черновик' AND DATASOURCEKINDCODE = ?";
 
     /** COUNTRYID по коду страны (COUNTRYCODE) */
     private static final String SQL_COUNTRY_ID = "SELECT COUNTRYID FROM COUNTRY WHERE UPPER(TRIM(COUNTRYCODE)) = ? AND COUNTRYSDATE <= SYSDATE AND COUNTRYEDATE >= SYSDATE";
     /** AUTHORITYID по AUTHORITYUID (или по числовому идентификатору из metadata) */
     private static final String SQL_AUTHORITY_ID_BY_UID = "SELECT AUTHORITYID FROM AUTHORITY WHERE TRIM(AUTHORITYUID) = ?";
-    /** SANITARYPRODTYPEID по коду вида продукции (для DPA при выборе по коду) */
+    /** SANITARYPRODTYPEID по коду вида продукции (для PPV при выборе по коду) */
     private static final String SQL_SANITARYPRODTYPE_ID_BY_CODE = "SELECT SANITARYPRODTYPEID FROM SANITARYPRODTYPE WHERE TRIM(SANITARYPRODTYPECODE) = ? AND ROWNUM = 1";
 
-    /** INSERT DPA (всегда версия 1 при создании) */
+    /** INSERT PPV */
     private static final String SQL_INSERT_DPA = ""
-            + "INSERT INTO PPV (PPVID, DATASOURCEKINDCODE, ALERTCOUNTRYID, INCIDENTID, PPVVERSION, AUTHORITYID, "
+            + "INSERT INTO PPV (PPVID, DATASOURCEKINDCODE, ALERTCOUNTRYID, INCIDENTID, AUTHORITYID, "
             + "INCIDENTALERTKINDCODE, DOCCREATIONDATE, PPVSTATUSID, COMMODITYCODE, SANITARYPRODTYPEID, SANITARYPRODNAME, "
             + "MANUFCOUNTRYID, MANUFBUSENTNAME, MANUFBUSENTBRIEFNAME, ENDDATE, CREATIONDATETIME, MODIFICATIONDATETIME, SANITARYPRODTYPENAME) "
-            + "VALUES (?, ?, ?, ?, 1, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, SYSDATE, NULL, ?)";
+            + "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, SYSDATE, NULL, ?)";
 
     /** INSERT PPVXML */
     private static final String SQL_INSERT_PPVXML = "INSERT INTO PPVXML (PPVID, PPVXMLBODY, EDOCCODE, EDOCVERSION) VALUES (?, ?, ?, ?)";
@@ -68,19 +68,18 @@ public class PpvSaveServlet extends HttpServlet {
     /** UPDATE PPVXML при обновлении существующей карты */
     private static final String SQL_UPDATE_PPVXML = "UPDATE PPVXML SET PPVXMLBODY = ?, EDOCCODE = ?, EDOCVERSION = ? WHERE PPVID = ?";
 
-    /** Обновить MODIFICATIONDATETIME, ENDDATE, AUTHORITYID, производителя, код ТН ВЭД и вид/наименование продукции в DPA при обновлении */
+    /** Обновить MODIFICATIONDATETIME, ENDDATE, AUTHORITYID, производителя, код ТН ВЭД и вид/наименование продукции в PPV при обновлении */
     private static final String SQL_UPDATE_DPA_MODIFIED = "UPDATE PPV SET MODIFICATIONDATETIME = SYSDATE, ENDDATE = ?, AUTHORITYID = ?, MANUFBUSENTNAME = ?, MANUFBUSENTBRIEFNAME = ?, COMMODITYCODE = ?, SANITARYPRODNAME = ?, SANITARYPRODTYPEID = ?, SANITARYPRODTYPENAME = ? WHERE PPVID = ?";
-    /** Текущий DPASTATUSID карты (при сохранении: только Отредактировано (12) → переход в «Новое»; остальные статусы не меняются) */
-    private static final String SQL_SELECT_DPASTATUSID = "SELECT PPVSTATUSID FROM PPV WHERE PPVID = ?";
+    /** Текущий PPVSTATUSID карты (при сохранении: только Отредактировано (12) → переход в «Новое»; остальные статусы не меняются) */
+    private static final String SQL_SELECT_PPVSTATUSID = "SELECT PPVSTATUSID FROM PPV WHERE PPVID = ?";
     private static final int OUTGOING_NEW = 6, OUTGOING_FAILED = 9, OUTGOING_ERROR = 10, OUTGOING_EDITED = 12;
     private static final int OUTGOING_DELIVERED = 11;
 
-    /** Исходная карта для новой версии (все поля DPA для копирования) */
+    /** Исходная карта для новой версии (все поля PPV для копирования) */
     private static final String SQL_SOURCE_DPA_FOR_COPY = ""
-            + "SELECT INCIDENTID, PPVVERSION, ALERTCOUNTRYID, AUTHORITYID, INCIDENTALERTKINDCODE, COMMODITYCODE, "
+            + "SELECT INCIDENTID, ALERTCOUNTRYID, AUTHORITYID, INCIDENTALERTKINDCODE, COMMODITYCODE, "
             + "SANITARYPRODTYPEID, SANITARYPRODNAME, MANUFCOUNTRYID, MANUFBUSENTNAME, MANUFBUSENTBRIEFNAME, SANITARYPRODTYPENAME "
             + "FROM PPV WHERE PPVID = ? AND DATASOURCEKINDCODE = ? AND PPVSTATUSID = ? AND ENDDATE IS NULL";
-    private static final String SQL_MAX_VERSION_BY_INCIDENT = "SELECT NVL(MAX(PPVVERSION), 0) FROM PPV WHERE INCIDENTID = ? AND ALERTCOUNTRYID = ?";
     private static final String SQL_INSERT_PPVDEPPERMIS = "INSERT INTO PPVDEPPERMIS (PPVID, DEPID, GRANTDATETIME) VALUES (?, ?, SYSDATE)";
     private static final String SQL_DEPS_FOR_COPY = "SELECT DEPID FROM PPVDEPPERMIS WHERE PPVID = ?";
     /** Проверка существования подразделения (FK PPVDEPPERMIS_FK2 → родительская таблица, обычно TB_DEP) */
@@ -162,7 +161,7 @@ public class PpvSaveServlet extends HttpServlet {
                     response.getWriter().print("{\"success\":true,\"dpaid\":" + newDpaidFromCopy + "}");
                     return;
                 }
-                // Создание: INSERT, версия 1. Регистрационный номер из metadata (incidentId). Поиск существующей записи не делаем.
+                // Создание: INSERT. Регистрационный номер из metadata (incidentId). Поиск существующей записи не делаем.
                 if (alertCountryId == null && countryCode != null && !countryCode.trim().isEmpty()) {
                     alertCountryId = resolveCountryId(conn, countryCode.trim());
                 }
@@ -185,10 +184,10 @@ public class PpvSaveServlet extends HttpServlet {
                 Integer draftStatusId = getDraftStatusId(conn, DATASOURCEKINDCODE_OUTGOING);
                 if (draftStatusId == null) {
                     sendJsonError(response, HttpServletResponse.SC_INTERNAL_SERVER_ERROR,
-                        "Статус «Черновик» не найден в DPASTATUS для исходящих (DATASOURCEKINDCODE=2).");
+                        "Статус «Черновик» не найден в PPVSTATUS для исходящих (DATASOURCEKINDCODE=2).");
                     return;
                 }
-                System.out.println("[PpvSaveServlet] Create: PPVID=" + dpaid + ", INCIDENTID=" + incId + ", DPASTATUSID(Черновик)=" + draftStatusId);
+                System.out.println("[PpvSaveServlet] Create: PPVID=" + dpaid + ", INCIDENTID=" + incId + ", PPVSTATUSID(Черновик)=" + draftStatusId);
 
                 Integer authorityIdResolved = resolveAuthorityId(conn, authorityIdStr);
 
@@ -265,7 +264,7 @@ public class PpvSaveServlet extends HttpServlet {
                 transactionEnded = true;
                 response.setStatus(HttpServletResponse.SC_OK);
                 response.getWriter().print("{\"success\":true,\"dpaid\":" + dpaid + "}");
-                System.out.println("[PpvSaveServlet] Created DPA: PPVID=" + dpaid);
+                System.out.println("[PpvSaveServlet] Created PPV: PPVID=" + dpaid);
             } else {
                 // Обновление: переданный в запросе dpaid и есть существующий — только UPDATE по нему
                 if (dpaidParam == null || dpaidParam <= 0) {
@@ -310,7 +309,7 @@ public class PpvSaveServlet extends HttpServlet {
                     ps.executeUpdate();
                 }
                 int currentStatusId = -1;
-                try (PreparedStatement ps = conn.prepareStatement(SQL_SELECT_DPASTATUSID)) {
+                try (PreparedStatement ps = conn.prepareStatement(SQL_SELECT_PPVSTATUSID)) {
                     ps.setLong(1, dpaid);
                     try (ResultSet rs = ps.executeQuery()) {
                         if (rs.next()) currentStatusId = rs.getInt(1);
@@ -338,7 +337,7 @@ public class PpvSaveServlet extends HttpServlet {
                 transactionEnded = true;
                 response.setStatus(HttpServletResponse.SC_OK);
                 response.getWriter().print("{\"success\":true,\"dpaid\":" + dpaid + "}");
-                System.out.println("[PpvSaveServlet] Updated DPA: PPVID=" + dpaid);
+                System.out.println("[PpvSaveServlet] Updated PPV: PPVID=" + dpaid);
             }
         } catch (SQLException e) {
             DatabaseUtil.rollbackQuietly(conn);
@@ -516,7 +515,7 @@ public class PpvSaveServlet extends HttpServlet {
     }
 
     /**
-     * DOCCREATIONDATE в таблице DPA — NOT NULL: при отсутствии или невалидной дате в metadata подставляем текущую дату.
+     * DOCCREATIONDATE в таблице PPV — NOT NULL: при отсутствии или невалидной дате в metadata подставляем текущую дату.
      */
     private static void setDocCreationDateForDpaInsert(PreparedStatement ps, int index, String dateStr) throws SQLException {
         if (dateStr == null || dateStr.trim().isEmpty()) {
@@ -551,6 +550,7 @@ public class PpvSaveServlet extends HttpServlet {
         try (PreparedStatement ps = conn.prepareStatement(SQL_STATUS_DRAFT)) {
             ps.setString(1, datasourceKindCode);
             try (ResultSet rs = ps.executeQuery()) {
+                // SQL_STATUS_DRAFT выбирает PPVSTATUSID из справочника PPVSTATUS.
                 if (rs.next()) return rs.getInt("PPVSTATUSID");
             }
         }
@@ -569,7 +569,7 @@ public class PpvSaveServlet extends HttpServlet {
     }
 
     /**
-     * Разрешает идентификатор УО из metadata (UID из справочника) в AUTHORITYID для DPA.
+     * Разрешает идентификатор УО из metadata (UID из справочника) в AUTHORITYID для PPV.
      * Ищет только по AUTHORITYUID в AUTHORITY, чтобы не нарушать PPV_FK7 (parent key must exist).
      */
     private Integer resolveAuthorityId(Connection conn, String authorityIdStr) throws SQLException {
@@ -616,7 +616,6 @@ public class PpvSaveServlet extends HttpServlet {
                 return null;
             }
             String incidentId = rs.getString("INCIDENTID");
-            int sourceVersion = rs.getInt("PPVVERSION");
             Integer alertCountryId = getIntObject(rs, "ALERTCOUNTRYID");
             Integer authorityId = getIntObject(rs, "AUTHORITYID");
             String sourceIncidentAlertKindCode = rs.getString("INCIDENTALERTKINDCODE");
@@ -631,19 +630,6 @@ public class PpvSaveServlet extends HttpServlet {
             String manufBusEntBriefName = rs.getString("MANUFBUSENTBRIEFNAME");
             String sanitaryProdTypeName = rs.getString("SANITARYPRODTYPENAME");
             rs.close();
-
-            int maxVersion = 0;
-            try (PreparedStatement ps2 = conn.prepareStatement(SQL_MAX_VERSION_BY_INCIDENT)) {
-                ps2.setString(1, incidentId != null ? incidentId : "");
-                ps2.setObject(2, alertCountryId);
-                ResultSet rs2 = ps2.executeQuery();
-                if (rs2.next()) maxVersion = rs2.getInt(1);
-            }
-            if (sourceVersion < maxVersion) {
-                sendJsonError(response, HttpServletResponse.SC_BAD_REQUEST,
-                    "Создание новой версии доступно только для карты с максимальной версией по данному регистрационному номеру.");
-                return null;
-            }
 
             java.util.Set<String> cardDepIds = new java.util.HashSet<>();
             try (PreparedStatement ps2 = conn.prepareStatement(SQL_DEPS_FOR_COPY)) {
@@ -683,7 +669,7 @@ public class PpvSaveServlet extends HttpServlet {
             long newDpaid = getNextDpaid(conn);
             Integer draftStatusId = getDraftStatusId(conn, DATASOURCEKINDCODE_OUTGOING);
             if (draftStatusId == null) {
-                sendJsonError(response, HttpServletResponse.SC_INTERNAL_SERVER_ERROR, "Статус «Черновик» не найден в DPASTATUS.");
+                sendJsonError(response, HttpServletResponse.SC_INTERNAL_SERVER_ERROR, "Статус «Черновик» не найден в PPVSTATUS.");
                 return null;
             }
 
@@ -696,17 +682,16 @@ public class PpvSaveServlet extends HttpServlet {
             }
 
             String sqlInsertDpaCopy = ""
-                + "INSERT INTO PPV (PPVID, DATASOURCEKINDCODE, ALERTCOUNTRYID, INCIDENTID, PPVVERSION, AUTHORITYID, "
+                + "INSERT INTO PPV (PPVID, DATASOURCEKINDCODE, ALERTCOUNTRYID, INCIDENTID, AUTHORITYID, "
                 + "INCIDENTALERTKINDCODE, DOCCREATIONDATE, PPVSTATUSID, COMMODITYCODE, SANITARYPRODTYPEID, SANITARYPRODNAME, "
                 + "MANUFCOUNTRYID, MANUFBUSENTNAME, MANUFBUSENTBRIEFNAME, ENDDATE, CREATIONDATETIME, MODIFICATIONDATETIME, SANITARYPRODTYPENAME) "
-                + "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, SYSDATE, SYSDATE, ?)";
+                + "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, SYSDATE, SYSDATE, ?)";
             try (PreparedStatement ps2 = conn.prepareStatement(sqlInsertDpaCopy)) {
                 int i = 1;
                 ps2.setLong(i++, newDpaid);
                 ps2.setString(i++, DATASOURCEKINDCODE_OUTGOING);
                 setIntOrNull(ps2, i++, alertCountryId);
                 ps2.setString(i++, incidentId != null ? incidentId : "");
-                ps2.setInt(i++, sourceVersion + 1);
                 setIntOrNull(ps2, i++, authorityId);
                 ps2.setString(i++, effectiveIncidentAlertKind);
                 setDocCreationDateForDpaInsert(ps2, i++, docCreationDate);

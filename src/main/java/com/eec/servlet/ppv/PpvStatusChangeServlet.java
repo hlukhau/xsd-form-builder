@@ -20,13 +20,13 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 /**
- * Смена статуса карты DPA.
+ * Смена статуса карты PPV.
  * Входящие: action first_open | complete_processing | close;
  * first_open — Получено→В обработке при открытии карты; права не проверяются (оператор сразу видит «В обработке»).
  * complete_processing | close — право violationDetectedIn:status.
  * Исходящие: action mark_ready | send | close; mark_ready/close — violationDetectedOut:status, send — violationDetectedOut:send.
  * mark_ready: тело { "dpaid", "action": "mark_ready", "depKindCode": "dep0601"|"dep0602"|"dep0603" }.
- * Обновляется DPA.DPASTATUSID, PPVSTATUSHIST (и при mark_ready — PPVRESOLUTION).
+ * Обновляется PPV.PPVSTATUSID, PPVSTATUSHIST (и при mark_ready — PPVRESOLUTION).
  */
 public class PpvStatusChangeServlet extends HttpServlet {
 
@@ -43,14 +43,14 @@ public class PpvStatusChangeServlet extends HttpServlet {
     private static final int OUTGOING_EDITED = 12;
     private static final int OUTGOING_COMPLETED = 13;
 
-    /** Текущее состояние: PPVID, DPASTATUSID, DPASTATUSNAME, источник */
+    /** Текущее состояние: PPVID, PPVSTATUSID, PPVSTATUSNAME, источник */
     private static final String SQL_CURRENT = ""
             + "SELECT vw.PPVID, vw.PPVSTATUSID, vw.PPVSTATUSNAME, t.DATASOURCEKINDNAME, vw.DATASOURCEKINDCODE "
             + "FROM VW_PPV vw "
             + "LEFT JOIN DATASOURCEKIND t ON vw.DATASOURCEKINDCODE = t.DATASOURCEKINDCODE "
             + "WHERE vw.PPVID = ?";
-    /** DPASTATUSID по названию статуса */
-    private static final String SQL_STATUS_ID = "SELECT DPASTATUSID FROM DPASTATUS WHERE TRIM(DPASTATUSNAME) = ?";
+    /** PPVSTATUSID по названию статуса */
+    private static final String SQL_STATUS_ID = "SELECT PPVSTATUSID FROM PPVSTATUS WHERE TRIM(PPVSTATUSNAME) = ?";
     private static final String SQL_UPDATE = "UPDATE PPV SET PPVSTATUSID = ?, MODIFICATIONDATETIME = SYSDATE WHERE PPVID = ?";
     private static final String SQL_INSERT_HIST = ""
             + "INSERT INTO PPVSTATUSHIST (PPVID, PPVSTATUSID, PPVSTATUSDATETIME, USERID) VALUES (?, ?, SYSDATE, ?)";
@@ -58,7 +58,7 @@ public class PpvStatusChangeServlet extends HttpServlet {
     private static final String SQL_DEPKIND_ID = "SELECT DEPKINDID FROM TB_DEPKIND WHERE TRIM(UPPER(DEPKINDCODE)) = TRIM(UPPER(?))";
     /** DEPKINDCODE по DEPKINDID (DEPKINDID из карты прав: department.depkindid) */
     private static final String SQL_DEPKINDCODE_BY_DEPKINDID = "SELECT DEPKINDCODE FROM TB_DEPKIND WHERE DEPKINDID = ?";
-    /** Вставка резолюции (для mark_ready). DPASTATUSID — статус карты после наложения резолюции (Новое). При дубликате (PPVID,DEPKINDID) — игнорируем. */
+    /** Вставка резолюции (для mark_ready). PPVSTATUSID — статус карты после наложения резолюции (Новое). При дубликате (PPVID,DEPKINDID) — игнорируем. */
     private static final String SQL_INSERT_RESOLUTION = ""
             + "INSERT INTO PPVRESOLUTION (PPVID, PPVSTATUSID, DEPKINDID, RESOLUTIONDATETIME, USERID) VALUES (?, ?, ?, SYSDATE, ?)";
     /** Есть ли резолюция областного или республиканского ЦГЭ (для разрешения «Направление сведений» при статусе Новое). */
@@ -173,7 +173,7 @@ public class PpvStatusChangeServlet extends HttpServlet {
             sendJsonError(response, HttpServletResponse.SC_BAD_REQUEST, "Смена статуса по действию доступна только для входящих или исходящих сведений");
         } catch (SQLException e) {
             DatabaseUtil.rollbackQuietly(conn);
-            log("DpaStatusChange: " + e.getMessage());
+            log("PpvStatusChange: " + e.getMessage());
             sendJsonError(response, HttpServletResponse.SC_INTERNAL_SERVER_ERROR, "Ошибка БД: " + e.getMessage());
         } finally {
             DatabaseUtil.rollbackQuietly(conn);
@@ -593,10 +593,10 @@ public class PpvStatusChangeServlet extends HttpServlet {
         ps.setString(1, newStatusName);
         ResultSet rs = ps.executeQuery();
         if (!rs.next()) {
-            sendJsonError(response, HttpServletResponse.SC_INTERNAL_SERVER_ERROR, "Статус «" + newStatusName + "» не найден в DPASTATUS");
+            sendJsonError(response, HttpServletResponse.SC_INTERNAL_SERVER_ERROR, "Статус «" + newStatusName + "» не найден в PPVSTATUS");
             return;
         }
-        int newStatusId = rs.getInt("DPASTATUSID");
+        int newStatusId = rs.getInt("PPVSTATUSID");
         rs.close();
         ps.close();
         ps = conn.prepareStatement(SQL_UPDATE);

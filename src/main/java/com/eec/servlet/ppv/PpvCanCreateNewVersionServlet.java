@@ -21,19 +21,17 @@ import java.util.regex.Pattern;
  * Проверка возможности создания новой версии карты (кнопка «Сделать копию»).
  * GET /api/ppv/can-create-new-version?dpaid=...&guid=...
  * Ответ: { "allowed": true } или { "allowed": false, "reason": "..." }.
- * Условия: исходящая (DATASOURCEKINDCODE=2), статус Доставлено (11), макс. версия по INCIDENTID,
+ * Условия: исходящая (DATASOURCEKINDCODE=2), статус Доставлено (11),
  * PPV.ENDDATE не указан, право violationDetectedOut:edit в пределах хотя бы одного подразделения из PPVDEPPERMIS.
  */
 public class PpvCanCreateNewVersionServlet extends HttpServlet {
 
     private static final String DATASOURCEKINDCODE_OUTGOING = "2";
-    private static final int DPASTATUSID_DELIVERED = 11;
+    private static final int PPVSTATUSID_DELIVERED = 11;
 
     private static final String SQL_SOURCE = ""
-            + "SELECT p.PPVID, p.INCIDENTID, p.PPVVERSION, p.PPVSTATUSID, p.DATASOURCEKINDCODE, p.ENDDATE, p.ALERTCOUNTRYID "
+            + "SELECT p.PPVID, p.INCIDENTID, p.PPVSTATUSID, p.DATASOURCEKINDCODE, p.ENDDATE, p.ALERTCOUNTRYID "
             + "FROM PPV p WHERE p.PPVID = ?";
-    private static final String SQL_MAX_VERSION = ""
-            + "SELECT NVL(MAX(PPVVERSION), 0) FROM PPV WHERE INCIDENTID = ? AND ALERTCOUNTRYID = ?";
     private static final String SQL_DEPS = "SELECT DEPID FROM PPVDEPPERMIS WHERE PPVID = ?";
 
     @Override
@@ -71,7 +69,6 @@ public class PpvCanCreateNewVersionServlet extends HttpServlet {
             int statusId = -1;
             String datasourceKindCode = null;
             String incidentId = null;
-            Integer version = null;
             Integer alertCountryId = null;
             java.sql.Date endDate = null;
 
@@ -85,7 +82,6 @@ public class PpvCanCreateNewVersionServlet extends HttpServlet {
                 statusId = rs.getInt("PPVSTATUSID");
                 datasourceKindCode = rs.getString("DATASOURCEKINDCODE");
                 incidentId = rs.getString("INCIDENTID");
-                version = rs.getInt("PPVVERSION");
                 Object alertCountryRaw = rs.getObject("ALERTCOUNTRYID");
                 if (alertCountryRaw instanceof Number) {
                     alertCountryId = ((Number) alertCountryRaw).intValue();
@@ -99,24 +95,12 @@ public class PpvCanCreateNewVersionServlet extends HttpServlet {
                 sendJson(response, false, "Создание новой версии доступно только для исходящих карт");
                 return;
             }
-            if (statusId != DPASTATUSID_DELIVERED) {
+            if (statusId != PPVSTATUSID_DELIVERED) {
                 sendJson(response, false, "Создание новой версии доступно только для карт в статусе «Доставлено»");
                 return;
             }
             if (endDate != null) {
                 sendJson(response, false, "Создание новой версии недоступно: указана дата закрытия (архивации) нежелательной ситуации");
-                return;
-            }
-
-            int maxVersion = 0;
-            try (PreparedStatement ps = conn.prepareStatement(SQL_MAX_VERSION)) {
-                ps.setString(1, incidentId != null ? incidentId : "");
-                ps.setObject(2, alertCountryId);
-                ResultSet rs = ps.executeQuery();
-                if (rs.next()) maxVersion = rs.getInt(1);
-            }
-            if (version == null || version.intValue() < maxVersion) {
-                sendJson(response, false, "Создание новой версии доступно только для карты с максимальной версией по данному регистрационному номеру");
                 return;
             }
 

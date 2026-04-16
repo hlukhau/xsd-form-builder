@@ -14,14 +14,14 @@ import java.sql.SQLException;
 
 /**
  * GET /api/ppv/next-registration-number?country=BY
- * Возвращает следующий уникальный регистрационный номер для страны в формате XX-DPNNNNN-YY (год — текущий).
- * Нет совпадений с уже существующими в DPA.
+ * Возвращает следующий уникальный регистрационный номер для страны в формате XX-VLNNNNN-YY (год — текущий).
+ * Нет совпадений с уже существующими в PPV.
  */
 public class PpvNextRegNumberServlet extends HttpServlet {
 
     private static final String SQL_COUNTRY_ID = "SELECT COUNTRYID FROM COUNTRY WHERE UPPER(TRIM(COUNTRYCODE)) = ? AND COUNTRYSDATE <= SYSDATE AND COUNTRYEDATE >= SYSDATE";
-    /** Максимальный порядковый номер в году для страны; INCIDENTID формата XX-DPNNNNN-YY */
-    private static final String SQL_MAX_SERIAL = "SELECT NVL(MAX(TO_NUMBER(REGEXP_SUBSTR(INCIDENTID, 'DP([0-9]{5})', 1, 1, NULL, 1))), 0) + 1 AS NEXTSERIAL FROM PPV WHERE ALERTCOUNTRYID = ? AND INCIDENTID LIKE ?";
+    /** Максимальный порядковый номер в году для страны; INCIDENTID формата XX-VLNNNNN-YY */
+    private static final String SQL_MAX_SERIAL = "SELECT NVL(MAX(TO_NUMBER(REGEXP_SUBSTR(INCIDENTID, 'VL([0-9]{5})', 1, 1, NULL, 1))), 0) + 1 AS NEXTSERIAL FROM PPV WHERE ALERTCOUNTRYID = ? AND INCIDENTID LIKE ?";
 
     @Override
     protected void doGet(HttpServletRequest request, HttpServletResponse response) throws ServletException, IOException {
@@ -38,7 +38,7 @@ public class PpvNextRegNumberServlet extends HttpServlet {
             countryCode = countryCode.substring(0, 2);
         }
         String year2 = String.valueOf(java.time.Year.now().getValue()).substring(2);
-        String pattern = countryCode + "-DP%-" + year2;
+        String pattern = countryCode + "-VL%-" + year2;
 
         Connection conn = null;
         try {
@@ -62,7 +62,7 @@ public class PpvNextRegNumberServlet extends HttpServlet {
                 }
             }
             String serialStr = String.format("%05d", nextSerial);
-            String registrationNumber = countryCode + "-DP" + serialStr + "-" + year2;
+            String registrationNumber = countryCode + "-VL" + serialStr + "-" + year2;
             response.setStatus(HttpServletResponse.SC_OK);
             response.getWriter().print("{\"registrationNumber\":\"" + registrationNumber.replace("\\", "\\\\").replace("\"", "\\\"") + "\"}");
         } catch (SQLException e) {

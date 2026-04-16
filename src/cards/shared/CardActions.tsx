@@ -7,7 +7,8 @@ interface CardActionsProps {
   data: CardData
   /** Определить доступ (DPA). При отсутствии кнопка не показывается. */
   onDefineAccess?: () => void
-  onOpenAllVersions: () => void
+  /** DPA/PHA: открыть реестр всех версий по случаю. В PPV не используется — не передавать. */
+  onOpenAllVersions?: () => void
   statusButton: StatusButtonConfig | null
   /** Подсказка к активной кнопке статуса (если у кнопки нет своего hint) */
   statusButtonComment?: string
@@ -81,7 +82,9 @@ const CardActions: React.FC<CardActionsProps> = ({
         {onDefineAccess != null && (
           <Button size="small" onClick={onDefineAccess}>Определить доступ</Button>
         )}
-        <Button size="small" onClick={onOpenAllVersions}>Открыть все версии</Button>
+        {onOpenAllVersions != null && (
+          <Button size="small" onClick={onOpenAllVersions}>Открыть все версии</Button>
+        )}
         {onShowRightsDebug && (
           <Tooltip title="Отладка: JSON карты прав доступа по текущему GUID">
             <Button size="small" onClick={onShowRightsDebug}>

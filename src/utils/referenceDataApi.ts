@@ -401,7 +401,8 @@ export function buildSaveMetadataFromCardData(data: CardData): DpaSaveMetadata {
 
 /**
  * Получить следующий уникальный регистрационный номер для страны (при создании карты).
- * GET /api/dpa/next-registration-number?country=BY → { registrationNumber: "BY-DP00002-26" }
+ * GET /api/dpa/next-registration-number?country=BY → { registrationNumber: "BY-DP00002-26" }.
+ * Для PPV (через /api/ppv/next-registration-number) используется префикс реестра `VL`: "BY-VL00001-26".
  */
 export async function fetchNextRegistrationNumber(countryCode: string, guid?: string): Promise<{ registrationNumber: string }> {
   const country = (countryCode || 'BY').trim().toUpperCase().slice(0, 2)

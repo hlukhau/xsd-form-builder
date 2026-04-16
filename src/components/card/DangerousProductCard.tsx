@@ -1105,22 +1105,26 @@ const DangerousProductCard: React.FC<DangerousProductCardProps> = ({
           onCopy={handleCopy}
           copyButtonDisabled={copyButtonDisabled}
           copyButtonHint={copyButtonHint}
-          onOpenAllVersions={() => {
-            const countryForMessage = resolveAlertCountryNameForPostMessage(
-              currentData.country,
-              currentData.alertCountryName,
-              countryOptions
-            )
-            const payload = {
-              code: 'all_version' as const,
-              INCIDENTID: currentData.registrationNumber ?? '',
-              COUNTRY: countryForMessage,
-            }
-            postMessageFromCardToParent(payload, 'DPA: открыть все версии')
-            if (isLegacyRegisterConfigured()) {
-              openLegacyRegisterAllVersions(currentData.country ?? '', currentData.registrationNumber ?? '')
-            }
-          }}
+          {...(!isPpvApp()
+            ? {
+                onOpenAllVersions: () => {
+                  const countryForMessage = resolveAlertCountryNameForPostMessage(
+                    currentData.country,
+                    currentData.alertCountryName,
+                    countryOptions
+                  )
+                  const payload = {
+                    code: 'all_version' as const,
+                    INCIDENTID: currentData.registrationNumber ?? '',
+                    COUNTRY: countryForMessage,
+                  }
+                  postMessageFromCardToParent(payload, 'DPA: открыть все версии')
+                  if (isLegacyRegisterConfigured()) {
+                    openLegacyRegisterAllVersions(currentData.country ?? '', currentData.registrationNumber ?? '')
+                  }
+                },
+              }
+            : {})}
           statusButton={effectiveStatusButton}
           statusButtonComment={effectiveStatusButtonComment}
           closeButton={effectiveCloseButton && !effectiveCloseButton.disabled ? effectiveCloseButton : null}

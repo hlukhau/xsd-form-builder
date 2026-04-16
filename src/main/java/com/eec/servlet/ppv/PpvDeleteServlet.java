@@ -18,13 +18,13 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 /**
- * Удаление карты исходящих сведений об опасной продукции (только черновик).
+ * Удаление карты исходящих сведений о выявленных нарушениях (только черновик).
  * POST /api/ppv/delete — тело JSON { "dpaid": <number>, "guid": "<GUID>" }.
  */
 public class PpvDeleteServlet extends HttpServlet {
 
     private static final String DATASOURCEKINDCODE_OUTGOING = "2";
-    private static final int DPASTATUSID_DRAFT = 5;
+    private static final int PPVSTATUSID_DRAFT = 5;
 
     private static final String SQL_CHECK = ""
             + "SELECT p.INCIDENTID FROM PPV p "
@@ -36,7 +36,7 @@ public class PpvDeleteServlet extends HttpServlet {
     private static final String SQL_DELETE_DEPPERMIS = "DELETE FROM PPVDEPPERMIS WHERE PPVID = ?";
     private static final String SQL_DELETE_RESOLUTION = "DELETE FROM PPVRESOLUTION WHERE PPVID = ?";
     private static final String SQL_DELETE_PPVXML = "DELETE FROM PPVXML WHERE PPVID = ?";
-    private static final String SQL_DELETE_DPA = "DELETE FROM PPV WHERE PPVID = ?";
+    private static final String SQL_DELETE_PPV = "DELETE FROM PPV WHERE PPVID = ?";
 
     @Override
     protected void doPost(HttpServletRequest request, HttpServletResponse response)
@@ -74,11 +74,11 @@ public class PpvDeleteServlet extends HttpServlet {
             try (PreparedStatement ps = conn.prepareStatement(SQL_CHECK)) {
                 ps.setLong(1, dpaid);
                 ps.setString(2, DATASOURCEKINDCODE_OUTGOING);
-                ps.setInt(3, DPASTATUSID_DRAFT);
+                ps.setInt(3, PPVSTATUSID_DRAFT);
                 ResultSet rs = ps.executeQuery();
                 if (!rs.next()) {
                     sendJsonError(response, HttpServletResponse.SC_BAD_REQUEST,
-                            "Удаление возможно только для исходящей карты в статусе «Черновик» (DPA не найдена или условия не выполнены).");
+                            "Удаление возможно только для исходящей карты в статусе «Черновик» (PPV не найдена или условия не выполнены).");
                     return;
                 }
                 incidentId = rs.getString(1);
@@ -139,12 +139,12 @@ public class PpvDeleteServlet extends HttpServlet {
                 ps.setLong(1, dpaid);
                 ps.executeUpdate();
             }
-            try (PreparedStatement ps = conn.prepareStatement(SQL_DELETE_DPA)) {
+            try (PreparedStatement ps = conn.prepareStatement(SQL_DELETE_PPV)) {
                 ps.setLong(1, dpaid);
                 int n = ps.executeUpdate();
                 if (n == 0) {
                     conn.rollback();
-                    sendJsonError(response, HttpServletResponse.SC_INTERNAL_SERVER_ERROR, "Запись DPA не удалена.");
+                    sendJsonError(response, HttpServletResponse.SC_INTERNAL_SERVER_ERROR, "Запись PPV не удалена.");
                     return;
                 }
             }

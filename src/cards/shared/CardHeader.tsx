@@ -4,6 +4,7 @@ import { ru } from 'date-fns/locale'
 import type { CardData } from '@/types/card'
 import { useCountryOptions } from '@/hooks/shared/useCountryOptions'
 import { DATE_TIME_DISPLAY_FORMAT_DATEFNS } from '@/constants/dateFormat'
+import { isPpvApp } from '@/cards/config'
 
 interface CardHeaderProps {
   data: CardData
@@ -29,7 +30,7 @@ const CardHeader: React.FC<CardHeaderProps> = ({ data, onStatusClick }) => {
     >
       <Descriptions.Item label="Регистрационный номер">{data.registrationNumber || '—'}</Descriptions.Item>
       <Descriptions.Item label="Страна">{getCountryDisplayLabel(data.country)}</Descriptions.Item>
-      <Descriptions.Item label="Версия">{data.version ?? '—'}</Descriptions.Item>
+      {!isPpvApp() && <Descriptions.Item label="Версия">{data.version ?? '—'}</Descriptions.Item>}
       {String(data.datasourceKindCode ?? '').trim() !== '3' &&
         (data.source != null && !String(data.source).toLowerCase().includes('еэк') ? (
           <Descriptions.Item label="Статус">
