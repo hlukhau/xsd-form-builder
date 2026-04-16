@@ -55,20 +55,22 @@ VITE_APP_BASE=/pha_card/ npm run build
 
 В `dist/` будет сборка, рассчитанная на развёртывание по пути `/pha_card/`.
 
-### Развёртывание обеих карт одновременно на одном Tomcat
+### Развёртывание нескольких карт на одном Tomcat
 
-Оба приложения на одном сервере:
+Приложения на одном сервере (примеры порта):
 - **DPA:** `http://localhost:8083/dpa_card/`
 - **PHA:** `http://localhost:8083/pha_card/`
+- **PPV:** `http://localhost:8083/ppv_card/`
 
 Соберите и разверните каждое приложение отдельно (в любом порядке):
 
 ```bash
 ./build-and-deploy-dpa.sh    # DPA → http://localhost:PORT/dpa_card/
 ./build-and-deploy-pha.sh    # PHA → http://localhost:PORT/pha_card/
+./build-and-deploy-ppv.sh    # PPV → http://localhost:PORT/ppv_card/
 ```
 
-Оба WAR попадают в webapps; Tomcat поднимает оба контекста. Для удалённого сервера: `./deploy-dpa-to-remote.sh` и `./deploy-pha-to-remote.sh` (с опцией `--build` при необходимости).
+WAR попадают в `webapps`; Tomcat поднимает контексты. Удалённо: `./deploy-dpa-to-remote.sh`, `./deploy-pha-to-remote.sh`, `./deploy-ppv-to-remote.sh` (опция `--build` при необходимости). В Cursor: **Terminal → Run Task…** — задачи сборки/деплоя DPA, PHA, PPV.
 
 ## Общие ресурсы (CSS и др.)
 

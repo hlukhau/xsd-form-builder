@@ -11,16 +11,30 @@ PROJECT_DIR="$(cd "$(dirname "$0")" && pwd)"
 cd "$PROJECT_DIR"
 
 TOMCAT_HOME="${TOMCAT_HOME:-/opt/tomcat8}"
-if [ -z "$JAVA_HOME" ]; then
-    if [ -x "$TOMCAT_HOME/java/bin/java" ]; then
-        JAVA_HOME="$TOMCAT_HOME/java"
-    elif [ -x "/usr/lib/jvm/java-11-openjdk-amd64/bin/java" ]; then
-        JAVA_HOME="/usr/lib/jvm/java-11-openjdk-amd64"
-    elif [ -x "/usr/lib/jvm/java-11-openjdk/bin/java" ]; then
-        JAVA_HOME="/usr/lib/jvm/java-11-openjdk"
+if [ -n "${JAVA_HOME:-}" ] && [ ! -x "$JAVA_HOME/bin/javac" ]; then
+    echo "[WARN] JAVA_HOME has no javac: $JAVA_HOME — picking another JDK" >&2
+    unset JAVA_HOME
+fi
+if [ -z "${JAVA_HOME:-}" ]; then
+    _picked=""
+    for _cand in \
+        "$TOMCAT_HOME/java" \
+        "/usr/lib/jvm/java-21-openjdk-amd64" \
+        "/usr/lib/jvm/java-21-openjdk" \
+        "/usr/lib/jvm/java-17-openjdk-amd64" \
+        "/usr/lib/jvm/java-11-openjdk-amd64" \
+        "/usr/lib/jvm/java-11-openjdk"
+    do
+        if [ -x "$_cand/bin/javac" ]; then _picked="$_cand"; break; fi
+    done
+    if [ -n "$_picked" ]; then
+        JAVA_HOME="$_picked"
+    elif _jc=$(command -v javac 2>/dev/null) && [ -n "$_jc" ]; then
+        JAVA_HOME=$(dirname "$(dirname "$(readlink -f "$_jc" 2>/dev/null || echo "$_jc")")")
     else
         JAVA_HOME="$TOMCAT_HOME/java"
     fi
+    unset _picked _jc
 fi
 APP_NAME="pha_card"
 WAR_FILE="$PROJECT_DIR/target/$APP_NAME.war"

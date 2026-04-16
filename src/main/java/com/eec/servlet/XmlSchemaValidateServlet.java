@@ -30,7 +30,7 @@ import java.util.regex.Pattern;
 /**
  * Валидация тела XML по XSD ЕЭК (DPA / PHA).
  * POST /api/xml/validate-schema
- * Заголовок X-Document-Type: dpa | pha (обязателен).
+ * Заголовок X-Document-Type: dpa | pha | ppv (ppv — та же XSD, что и dpa).
  * Тело: application/xml (сырой XML документа).
  * Ответ: application/json UTF-8 — {"errors":["…"]} (пустой массив при успехе).
  * Ошибки в блоках ccdo:EDocHeader и ccdo:ResourceItemStatusDetails в ответ не включаются.
@@ -118,7 +118,7 @@ public class XmlSchemaValidateServlet extends HttpServlet {
         }
         docType = docType.trim().toLowerCase(Locale.ROOT);
         Schema schema;
-        if ("dpa".equals(docType)) {
+        if ("dpa".equals(docType) || "ppv".equals(docType)) {
             schema = schemaDpa;
         } else if ("pha".equals(docType)) {
             schema = schemaPha;
@@ -126,7 +126,7 @@ public class XmlSchemaValidateServlet extends HttpServlet {
             response.setStatus(HttpServletResponse.SC_BAD_REQUEST);
             response.setContentType("application/json;charset=UTF-8");
             writeJsonErrors(response.getWriter(), Collections.singletonList(
-                    "Укажите заголовок " + HDR_TYPE + ": dpa или pha"));
+                    "Укажите заголовок " + HDR_TYPE + ": dpa, pha или ppv"));
             return;
         }
         if (schema == null) {

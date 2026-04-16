@@ -26,6 +26,7 @@ import { getAddressListFromParty } from '@/utils/addressFormatUtils'
 import { validateFieldValue } from '@/constants/xsdFieldConstraints'
 import { exportCardDataToXML } from '@/utils/xmlExporter'
 import { fetchSchemaValidationErrors } from '@/utils/schemaValidationApi'
+import { isPpvApp } from '@/cards/config'
 
 export interface ValidationResult {
   success: boolean
@@ -1045,7 +1046,7 @@ export async function validateOutgoingCardWithSchema(data: CardData): Promise<Va
   const base = validateOutgoingCard(data)
   let xsdRemarks: string[] = []
   try {
-    xsdRemarks = await fetchSchemaValidationErrors(exportCardDataToXML(data), 'dpa')
+    xsdRemarks = await fetchSchemaValidationErrors(exportCardDataToXML(data), isPpvApp() ? 'ppv' : 'dpa')
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e)
     xsdRemarks = [`Не удалось выполнить проверку по XSD: ${msg}`]

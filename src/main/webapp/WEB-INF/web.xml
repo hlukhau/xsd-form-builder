@@ -286,7 +286,7 @@
         <url-pattern>/api/access/check</url-pattern>
     </servlet-mapping>
 
-    <!-- Валидация XML по XSD ЕЭК (POST тело XML, заголовок X-Document-Type: dpa|pha) -->
+    <!-- Валидация XML по XSD ЕЭК (POST тело XML, заголовок X-Document-Type: dpa|pha|ppv) -->
     <servlet>
         <servlet-name>XmlSchemaValidateServlet</servlet-name>
         <servlet-class>com.eec.servlet.XmlSchemaValidateServlet</servlet-class>
@@ -514,6 +514,116 @@
     <servlet-mapping>
         <servlet-name>DpaResolutionsServlet</servlet-name>
         <url-pattern>/api/dpa/resolutions</url-pattern>
+    </servlet-mapping>
+
+    <!-- Карта PPV: копия DPA с префиксом PPV в БД и URL /api/ppv/... -->
+
+    <servlet>
+        <servlet-name>PpvXmlServlet</servlet-name>
+        <servlet-class>com.eec.servlet.ppv.PpvXmlServlet</servlet-class>
+    </servlet>
+    <servlet-mapping>
+        <servlet-name>PpvXmlServlet</servlet-name>
+        <url-pattern>/api/ppv/xml/*</url-pattern>
+    </servlet-mapping>
+
+    <servlet>
+        <servlet-name>PpvMetadataServlet</servlet-name>
+        <servlet-class>com.eec.servlet.ppv.PpvMetadataServlet</servlet-class>
+    </servlet>
+    <servlet-mapping>
+        <servlet-name>PpvMetadataServlet</servlet-name>
+        <url-pattern>/api/ppv/metadata/*</url-pattern>
+    </servlet-mapping>
+
+    <servlet>
+        <servlet-name>PpvStatusHistoryServlet</servlet-name>
+        <servlet-class>com.eec.servlet.ppv.PpvStatusHistoryServlet</servlet-class>
+    </servlet>
+    <servlet-mapping>
+        <servlet-name>PpvStatusHistoryServlet</servlet-name>
+        <url-pattern>/api/ppv/status-history/*</url-pattern>
+    </servlet-mapping>
+
+    <servlet>
+        <servlet-name>PpvElectronicDocsServlet</servlet-name>
+        <servlet-class>com.eec.servlet.ppv.PpvElectronicDocsServlet</servlet-class>
+    </servlet>
+    <servlet-mapping>
+        <servlet-name>PpvElectronicDocsServlet</servlet-name>
+        <url-pattern>/api/ppv/electronic-docs/*</url-pattern>
+    </servlet-mapping>
+
+    <servlet>
+        <servlet-name>PpvActorsServlet</servlet-name>
+        <servlet-class>com.eec.servlet.ppv.PpvActorsServlet</servlet-class>
+    </servlet>
+    <servlet-mapping>
+        <servlet-name>PpvActorsServlet</servlet-name>
+        <url-pattern>/api/ppv/actors/*</url-pattern>
+    </servlet-mapping>
+
+    <servlet>
+        <servlet-name>PpvAccessServlet</servlet-name>
+        <servlet-class>com.eec.servlet.ppv.PpvAccessServlet</servlet-class>
+    </servlet>
+    <servlet-mapping>
+        <servlet-name>PpvAccessServlet</servlet-name>
+        <url-pattern>/api/ppv/access</url-pattern>
+    </servlet-mapping>
+
+    <servlet>
+        <servlet-name>PpvStatusChangeServlet</servlet-name>
+        <servlet-class>com.eec.servlet.ppv.PpvStatusChangeServlet</servlet-class>
+    </servlet>
+    <servlet-mapping>
+        <servlet-name>PpvStatusChangeServlet</servlet-name>
+        <url-pattern>/api/ppv/status</url-pattern>
+    </servlet-mapping>
+
+    <servlet>
+        <servlet-name>PpvNextRegNumberServlet</servlet-name>
+        <servlet-class>com.eec.servlet.ppv.PpvNextRegNumberServlet</servlet-class>
+    </servlet>
+    <servlet-mapping>
+        <servlet-name>PpvNextRegNumberServlet</servlet-name>
+        <url-pattern>/api/ppv/next-registration-number</url-pattern>
+    </servlet-mapping>
+
+    <servlet>
+        <servlet-name>PpvSaveServlet</servlet-name>
+        <servlet-class>com.eec.servlet.ppv.PpvSaveServlet</servlet-class>
+    </servlet>
+    <servlet-mapping>
+        <servlet-name>PpvSaveServlet</servlet-name>
+        <url-pattern>/api/ppv/save</url-pattern>
+    </servlet-mapping>
+
+    <servlet>
+        <servlet-name>PpvDeleteServlet</servlet-name>
+        <servlet-class>com.eec.servlet.ppv.PpvDeleteServlet</servlet-class>
+    </servlet>
+    <servlet-mapping>
+        <servlet-name>PpvDeleteServlet</servlet-name>
+        <url-pattern>/api/ppv/delete</url-pattern>
+    </servlet-mapping>
+
+    <servlet>
+        <servlet-name>PpvCanCreateNewVersionServlet</servlet-name>
+        <servlet-class>com.eec.servlet.ppv.PpvCanCreateNewVersionServlet</servlet-class>
+    </servlet>
+    <servlet-mapping>
+        <servlet-name>PpvCanCreateNewVersionServlet</servlet-name>
+        <url-pattern>/api/ppv/can-create-new-version</url-pattern>
+    </servlet-mapping>
+
+    <servlet>
+        <servlet-name>PpvResolutionsServlet</servlet-name>
+        <servlet-class>com.eec.servlet.ppv.PpvResolutionsServlet</servlet-class>
+    </servlet>
+    <servlet-mapping>
+        <servlet-name>PpvResolutionsServlet</servlet-name>
+        <url-pattern>/api/ppv/resolutions</url-pattern>
     </servlet-mapping>
 
     <!-- JSON прав по GUID (department.depid для «Определить доступ» по умолчанию) -->

@@ -3,6 +3,7 @@
 # Использование:
 #   ./build-manual.sh              — DPA: frontend из dist/, WAR dpa_card.war
 #   ./build-manual.sh pha_card   — PHA: frontend из dist/ (сборка build:pha), WAR pha_card.war
+#   ./build-manual.sh ppv_card   — PPV: frontend из dist/ (сборка build:ppv), WAR ppv_card.war
 # Переменная DEPLOY=0 — только собрать WAR, не останавливать/разворачивать Tomcat.
 
 set -e
@@ -12,16 +13,31 @@ cd "$PROJECT_DIR"
 
 APP_NAME="${1:-dpa_card}"
 TOMCAT_HOME="${TOMCAT_HOME:-/opt/tomcat8}"
-if [ -z "$JAVA_HOME" ]; then
-    if [ -x "$TOMCAT_HOME/java/bin/java" ]; then
-        JAVA_HOME="$TOMCAT_HOME/java"
-    elif [ -x "/usr/lib/jvm/java-11-openjdk-amd64/bin/java" ]; then
-        JAVA_HOME="/usr/lib/jvm/java-11-openjdk-amd64"
-    elif [ -x "/usr/lib/jvm/java-11-openjdk/bin/java" ]; then
-        JAVA_HOME="/usr/lib/jvm/java-11-openjdk"
+# Сборка WAR через javac: нужен JDK. IDE часто задаёт JAVA_HOME на JRE без javac — тогда игнорируем и ищем JDK.
+if [ -n "${JAVA_HOME:-}" ] && [ ! -x "$JAVA_HOME/bin/javac" ]; then
+    echo "[WARN] JAVA_HOME has no javac: $JAVA_HOME — picking another JDK" >&2
+    unset JAVA_HOME
+fi
+if [ -z "${JAVA_HOME:-}" ]; then
+    _picked=""
+    for _cand in \
+        "$TOMCAT_HOME/java" \
+        "/usr/lib/jvm/java-21-openjdk-amd64" \
+        "/usr/lib/jvm/java-21-openjdk" \
+        "/usr/lib/jvm/java-17-openjdk-amd64" \
+        "/usr/lib/jvm/java-11-openjdk-amd64" \
+        "/usr/lib/jvm/java-11-openjdk"
+    do
+        if [ -x "$_cand/bin/javac" ]; then _picked="$_cand"; break; fi
+    done
+    if [ -n "$_picked" ]; then
+        JAVA_HOME="$_picked"
+    elif _jc=$(command -v javac 2>/dev/null) && [ -n "$_jc" ]; then
+        JAVA_HOME=$(dirname "$(dirname "$(readlink -f "$_jc" 2>/dev/null || echo "$_jc")")")
     else
         JAVA_HOME="$TOMCAT_HOME/java"
     fi
+    unset _picked _jc
 fi
 WAR_FILE="$PROJECT_DIR/target/$APP_NAME.war"
 WEBAPPS_PATH="$TOMCAT_HOME/webapps"
@@ -32,8 +48,9 @@ DEPLOY="${DEPLOY:-1}"
 
 # Check Java
 if [ ! -x "$JAVA_HOME/bin/javac" ]; then
-    echo "[ERROR] Java compiler not found: $JAVA_HOME/bin/javac"
-    echo "Set JAVA_HOME or ensure Java is at $JAVA_HOME"
+    echo "[ERROR] Java compiler (javac) not found: $JAVA_HOME/bin/javac"
+    echo "Install a JDK (not JRE), or set JAVA_HOME to a JDK that contains bin/javac."
+    echo "Example: export JAVA_HOME=/usr/lib/jvm/java-21-openjdk-amd64"
     exit 1
 fi
 

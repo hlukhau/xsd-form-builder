@@ -16,10 +16,10 @@ import java.io.OutputStream;
 import java.nio.charset.StandardCharsets;
 /**
  * Сервлет для работы с XSD Form Builder.
- * POST /dpa_card или /pha_card — принимает JSON с GUID и сохраняет в мапу (контекст приложения).
- * GET .../{DPAID} — возвращает HTML форму (SPA) для отображения карты по DPAID
- * GET .../{DPAID}/{GUID} — возвращает HTML форму (SPA) с проверкой GUID в мапе
- * Форма загружает XML из базы через API /api/dpa/xml/{DPAID}
+ * POST /dpa_card, /pha_card или /ppv_card — принимает JSON с GUID и сохраняет в мапу (контекст приложения).
+ * GET .../{DPAID|PPVID|PHAID} — возвращает HTML форму (SPA) для отображения карты
+ * GET .../{id}/{GUID} — возвращает HTML форму (SPA) с проверкой GUID в мапе
+ * Форма загружает XML из базы через /api/dpa/xml/{id}, /api/ppv/xml/{id} или /api/pha/xml/{id} (в зависимости от контекста WAR)
  */
 public class XsdFormBuilderServlet extends HttpServlet {
 
@@ -67,6 +67,46 @@ public class XsdFormBuilderServlet extends HttpServlet {
                     "      }\n" +
                     "    },\n" +
                     "    \"dangerousProductIn\": {\n" +
+                    "      \"view\": {\n" +
+                    "        \"522\": {}\n" +
+                    "      },\n" +
+                    "      \"access\": {\n" +
+                    "        \"522\": {}\n" +
+                    "      },\n" +
+                    "      \"status\": {\n" +
+                    "        \"522\": {}\n" +
+                    "      }\n" +
+                    "    },\n" +
+                    "    \"violationDetectedOut\": {\n" +
+                    "      \"view\": {\n" +
+                    "        \"522\": {}\n" +
+                    "      },\n" +
+                    "      \"access\": {\n" +
+                    "        \"522\": {}\n" +
+                    "      },\n" +
+                    "      \"edit\": {\n" +
+                    "        \"522\": {}\n" +
+                    "      },\n" +
+                    "      \"send\": {\n" +
+                    "        \"522\": {}\n" +
+                    "      },\n" +
+                    "      \"status\": {\n" +
+                    "        \"522\": {}\n" +
+                    "      },\n" +
+                    "      \"create\": {\n" +
+                    "        \"132\": {},\n" +
+                    "        \"522\": {}\n" +
+                    "      }\n" +
+                    "    },\n" +
+                    "    \"violationDetectedDB\": {\n" +
+                    "      \"view\": {\n" +
+                    "        \"522\": {}\n" +
+                    "      },\n" +
+                    "      \"access\": {\n" +
+                    "        \"522\": {}\n" +
+                    "      }\n" +
+                    "    },\n" +
+                    "    \"violationDetectedIn\": {\n" +
                     "      \"view\": {\n" +
                     "        \"522\": {}\n" +
                     "      },\n" +
@@ -134,6 +174,13 @@ public class XsdFormBuilderServlet extends HttpServlet {
         String pathInfo = request.getPathInfo();
         if (pathInfo != null && pathInfo.equals("/api/dpa/save")) {
             javax.servlet.RequestDispatcher rd = getServletContext().getNamedDispatcher("DpaSaveServlet");
+            if (rd != null) {
+                rd.forward(request, response);
+                return;
+            }
+        }
+        if (pathInfo != null && pathInfo.equals("/api/ppv/save")) {
+            javax.servlet.RequestDispatcher rd = getServletContext().getNamedDispatcher("PpvSaveServlet");
             if (rd != null) {
                 rd.forward(request, response);
                 return;
@@ -245,13 +292,15 @@ public class XsdFormBuilderServlet extends HttpServlet {
                         response.getWriter().print("{\"success\":false,\"message\":\"Неверный DPAID\"}");
                         return;
                     }
-                    boolean phaContext = request.getRequestURI() != null && request.getRequestURI().contains("/pha_card/");
+                    String uri = request.getRequestURI();
+                    boolean phaContext = uri != null && uri.contains("/pha_card/");
+                    boolean ppvContext = uri != null && uri.contains("/ppv_card/");
                     String body = phaContext
                             ? "{\"phaid\":" + dpaid + ",\"guid\":\"" + escapeJsonString(guid) + "\"}"
                             : "{\"dpaid\":" + dpaid + ",\"guid\":\"" + escapeJsonString(guid) + "\"}";
                     HttpServletRequest wrapped = new PostBodyRequestWrapper(request, body, true);
                     try {
-                        String deleteApi = phaContext ? "/api/pha/delete" : "/api/dpa/delete";
+                        String deleteApi = phaContext ? "/api/pha/delete" : ppvContext ? "/api/ppv/delete" : "/api/dpa/delete";
                         request.getRequestDispatcher(deleteApi).forward(wrapped, response);
                     } catch (Exception e) {
                         System.err.println("[XsdFormBuilderServlet] command=delete forward error: " + e.getMessage());

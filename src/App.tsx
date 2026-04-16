@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { Routes, Route, useParams, useSearchParams, useNavigate, useLocation } from 'react-router-dom'
 import { message, Spin } from 'antd'
-import { isPhaApp } from './cards/config'
+import { isPhaApp, isPpvApp, getDpaLikeCardSessionKeys } from './cards/config'
 import { DangerousProductCard } from './cards/dpa'
 import { PhaCard } from './cards/pha'
 import type { CardData } from './types/card'
@@ -139,6 +139,12 @@ function AppContent() {
     setReferenceGuidContext(guid)
   }, [guid])
 
+  useEffect(() => {
+    document.title = isPpvApp()
+      ? 'Карта сведений о выявленных нарушениях'
+      : 'Карта сведений об обнаружении опасной продукции'
+  }, [])
+
   // Режим новой карты: /dpa_card/-/1 — запросить регистрационный номер или открыть форму новой версии (Сделать копию)
   useEffect(() => {
     if (dpaid !== '-') {
@@ -270,7 +276,7 @@ function AppContent() {
           setCardData(card)
           setOriginalXML(xmlText)
           setLoadByDpaidState({ loading: false, error: null })
-          message.success('XML загружен из БД по DPAID')
+          message.success(isPpvApp() ? 'XML загружен из БД по PPVID' : 'XML загружен из БД по DPAID')
         }
       } catch (err) {
         if (!cancelled) {
@@ -314,12 +320,15 @@ function AppContent() {
     <div className="app">
       {loadByDpaidState.loading && (
         <div style={{ textAlign: 'center', padding: 16 }}>
-          <Spin size="large" tip="Загрузка XML по DPAID из БД..." />
+          <Spin size="large" tip={isPpvApp() ? 'Загрузка XML по PPVID из БД...' : 'Загрузка XML по DPAID из БД...'} />
         </div>
       )}
       {!loadByDpaidState.loading && loadByDpaidState.error && (() => {
         const err = loadByDpaidState.error ?? ''
-        const isNotFound = /не найден|404|нет доступа/i.test(err) || err.includes('DPAID')
+        const isNotFound =
+          /не найден|404|нет доступа/i.test(err) ||
+          err.includes('DPAID') ||
+          err.includes('PPVID')
         if (isNotFound) {
           return (
             <div className="empty-state">
@@ -356,8 +365,9 @@ function AppContent() {
           copyFromDpaid={copyFromForCard ?? undefined}
           onSaveNewCard={(newDpaid) => {
             try {
-              sessionStorage.setItem('dpa_card_last_saved_dpaid', String(newDpaid))
-              sessionStorage.setItem('dpa_card_save_happened', '1')
+              const { lastSavedIdKey, saveHappenedKey } = getDpaLikeCardSessionKeys()
+              sessionStorage.setItem(lastSavedIdKey, String(newDpaid))
+              sessionStorage.setItem(saveHappenedKey, '1')
             } catch (_) {}
             navigate(`/${newDpaid}/${guid ?? ''}`, { replace: true })
           }}

@@ -4,15 +4,21 @@
 
 import { message } from 'antd'
 import type { CardData } from '@/types/card'
+import { isPpvApp } from '@/cards/config'
 
 const BASE_URL = import.meta.env.BASE_URL || '/'
 
+/** Сегмент API для карты «как DPA»: dpa_card → dpa, ppv_card → ppv. */
+function dpaLikeCardApiSegment(): 'dpa' | 'ppv' {
+  return isPpvApp() ? 'ppv' : 'dpa'
+}
+
 /**
  * Базовый URL для запросов общих справочников (countries, border-checkpoints, identification-methods и т.д.).
- * При сборке PHA (base содержит pha_card) используем эндпоинты DPA, чтобы не дублировать код и данные.
+ * При сборке PHA или PPV используем эндпоинты DPA (/dpa_card/), чтобы не дублировать код и данные.
  */
 function getReferenceDataBaseUrl(): string {
-  if (BASE_URL.includes('pha_card')) return '/dpa_card/'
+  if (BASE_URL.includes('pha_card') || BASE_URL.includes('ppv_card')) return '/dpa_card/'
   return BASE_URL
 }
 
@@ -281,7 +287,7 @@ export async function saveDpaCard(payload: {
     }
   }
   if (resolvedGuid) body.guid = resolvedGuid
-  const url = `${BASE_URL}api/dpa/save`
+  const url = `${BASE_URL}api/${dpaLikeCardApiSegment()}/save`
   const response = await fetch(url, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json; charset=UTF-8' },
@@ -309,7 +315,7 @@ export interface CanCreateNewVersionResponse {
 }
 export async function canCreateNewVersion(dpaid: string, guid?: string): Promise<CanCreateNewVersionResponse> {
   const params = withGuidParams(new URLSearchParams({ dpaid }), guid)
-  const url = `${BASE_URL}api/dpa/can-create-new-version?${params.toString()}`
+  const url = `${BASE_URL}api/${dpaLikeCardApiSegment()}/can-create-new-version?${params.toString()}`
   const response = await fetch(url)
   const text = await response.text()
   if (!response.ok) {
@@ -330,7 +336,7 @@ export interface DpaDeleteResponse {
  * Условия на сервере: DATASOURCEKINDCODE=2, DPASTATUSID=5, право dangerousProductOut:edit в пределах хотя бы одного подразделения из DPADEPPERMIS.
  */
 export async function deleteDpaCard(dpaid: number | string, guid?: string): Promise<DpaDeleteResponse> {
-  const url = `${BASE_URL}api/dpa/delete`
+  const url = `${BASE_URL}api/${dpaLikeCardApiSegment()}/delete`
   const response = await fetch(url, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -400,7 +406,7 @@ export function buildSaveMetadataFromCardData(data: CardData): DpaSaveMetadata {
 export async function fetchNextRegistrationNumber(countryCode: string, guid?: string): Promise<{ registrationNumber: string }> {
   const country = (countryCode || 'BY').trim().toUpperCase().slice(0, 2)
   const params = withGuidParams(new URLSearchParams({ country }), guid)
-  const response = await fetch(`${BASE_URL}api/dpa/next-registration-number?${params.toString()}`)
+  const response = await fetch(`${BASE_URL}api/${dpaLikeCardApiSegment()}/next-registration-number?${params.toString()}`)
   if (!response.ok) {
     const text = await response.text()
     let errMsg = response.statusText
@@ -437,7 +443,7 @@ export async function fetchPhaNextRegistrationNumber(countryCode: string, guid?:
  * Загрузить XML по DPAID из таблицы DPAXML (GET /api/dpa/xml/{DPAID})
  */
 export async function fetchDpaXml(dpaid: string, guid?: string): Promise<string> {
-  const response = await fetch(withGuidUrl(`${BASE_URL}api/dpa/xml/${encodeURIComponent(dpaid)}`, guid))
+  const response = await fetch(withGuidUrl(`${BASE_URL}api/${dpaLikeCardApiSegment()}/xml/${encodeURIComponent(dpaid)}`, guid))
   if (!response.ok) {
     const text = await response.text()
     let errMsg = response.statusText
@@ -474,7 +480,7 @@ export interface DpaMetadata {
 }
 
 export async function fetchDpaMetadata(dpaid: string, guid?: string): Promise<DpaMetadata> {
-  const response = await fetch(withGuidUrl(`${BASE_URL}api/dpa/metadata/${encodeURIComponent(dpaid)}`, guid))
+  const response = await fetch(withGuidUrl(`${BASE_URL}api/${dpaLikeCardApiSegment()}/metadata/${encodeURIComponent(dpaid)}`, guid))
   if (!response.ok) {
     const text = await response.text()
     let errMsg = response.statusText
@@ -497,7 +503,7 @@ export interface DpaStatusHistoryItem {
 }
 
 export async function fetchDpaStatusHistory(dpaid: string, guid?: string): Promise<DpaStatusHistoryItem[]> {
-  const response = await fetch(withGuidUrl(`${BASE_URL}api/dpa/status-history/${encodeURIComponent(dpaid)}`, guid))
+  const response = await fetch(withGuidUrl(`${BASE_URL}api/${dpaLikeCardApiSegment()}/status-history/${encodeURIComponent(dpaid)}`, guid))
   if (!response.ok) {
     const text = await response.text()
     let errMsg = response.statusText
@@ -524,7 +530,7 @@ export interface DpaElectronicDocRaw {
 }
 
 export async function fetchDpaElectronicDocs(dpaid: string, guid?: string): Promise<DpaElectronicDocRaw[]> {
-  const response = await fetch(withGuidUrl(`${BASE_URL}api/dpa/electronic-docs/${encodeURIComponent(dpaid)}`, guid))
+  const response = await fetch(withGuidUrl(`${BASE_URL}api/${dpaLikeCardApiSegment()}/electronic-docs/${encodeURIComponent(dpaid)}`, guid))
   if (!response.ok) {
     const text = await response.text()
     let errMsg = response.statusText
@@ -537,6 +543,37 @@ export async function fetchDpaElectronicDocs(dpaid: string, guid?: string): Prom
     throw new Error(errMsg)
   }
   return response.json()
+}
+
+/** Адресат карты PPV (PPVACTOR). */
+export interface PpvActorRow {
+  ppvActorId: number
+  countryName: string | null
+  /** ДД.ММ.ГГГГ ЧЧ:МИ:СС при наличии ответа, иначе null */
+  responseDateTime: string | null
+  edocId: string | null
+}
+
+/** GET /api/ppv/actors/{PPVID} — список адресатов для вкладки «Адресаты». */
+export async function fetchPpvActors(ppvid: string, guid?: string): Promise<PpvActorRow[]> {
+  const response = await fetch(withGuidUrl(`${BASE_URL}api/ppv/actors/${encodeURIComponent(ppvid)}`, guid))
+  const text = await response.text()
+  if (!response.ok) {
+    let errMsg = response.statusText
+    try {
+      const json = JSON.parse(text) as { error?: string }
+      if (json.error) errMsg = json.error
+    } catch {
+      if (text) errMsg = text.slice(0, 200)
+    }
+    throw new Error(errMsg)
+  }
+  try {
+    const data = JSON.parse(text) as { actors?: PpvActorRow[] }
+    return Array.isArray(data.actors) ? data.actors : []
+  } catch {
+    return []
+  }
 }
 
 /**
@@ -891,7 +928,7 @@ export async function fetchDpaAccess(dpaid: string, source?: string, creatorDepI
   const apiSource = source != null ? cardSourceToApiSource(source) : undefined
   if (apiSource) params.set('source', apiSource)
   if (creatorDepId != null && String(creatorDepId).trim()) params.set('creatorDepId', String(creatorDepId).trim())
-  const response = await fetch(`${BASE_URL}api/dpa/access?${params.toString()}`)
+  const response = await fetch(`${BASE_URL}api/${dpaLikeCardApiSegment()}/access?${params.toString()}`)
   if (!response.ok) {
     const text = await response.text()
     let errMsg = response.statusText
@@ -907,7 +944,7 @@ export async function fetchDpaAccess(dpaid: string, source?: string, creatorDepI
 }
 
 export async function addDpaAccess(dpaid: string, depId: string, guid?: string): Promise<void> {
-  const response = await fetch(`${BASE_URL}api/dpa/access`, {
+  const response = await fetch(`${BASE_URL}api/${dpaLikeCardApiSegment()}/access`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(withGuidBody({ dpaid, depId }, guid)),
@@ -928,7 +965,7 @@ export async function addDpaAccess(dpaid: string, depId: string, guid?: string):
 export async function removeDpaAccess(dpaid: string, depId: string, guid?: string): Promise<void> {
   const params = withGuidParams(new URLSearchParams({ dpaid, depId }), guid)
   const response = await fetch(
-    `${BASE_URL}api/dpa/access?${params.toString()}`,
+    `${BASE_URL}api/${dpaLikeCardApiSegment()}/access?${params.toString()}`,
     { method: 'DELETE' }
   )
   if (!response.ok) {
@@ -977,7 +1014,7 @@ export interface DpaResolutionLevel {
 
 export async function fetchDpaResolutions(dpaid: string, guid?: string): Promise<DpaResolutionLevel[]> {
   const params = withGuidParams(new URLSearchParams({ dpaid }), guid)
-  const response = await fetch(`${BASE_URL}api/dpa/resolutions?${params.toString()}`)
+  const response = await fetch(`${BASE_URL}api/${dpaLikeCardApiSegment()}/resolutions?${params.toString()}`)
   if (!response.ok) return []
   const data = await response.json()
   return Array.isArray(data.resolutions) ? data.resolutions : []
@@ -1004,7 +1041,7 @@ export async function changeDpaStatus(
   if (options?.depKindCode != null && options.depKindCode !== '') body.depKindCode = options.depKindCode
   const resolvedGuid = resolveGuid(options?.guid)
   if (resolvedGuid) body.guid = resolvedGuid
-  const response = await fetch(`${BASE_URL}api/dpa/status`, {
+  const response = await fetch(`${BASE_URL}api/${dpaLikeCardApiSegment()}/status`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body),

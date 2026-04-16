@@ -19,6 +19,7 @@ import ComplianceDocumentsTab from '../tabs/dpa/ComplianceDocumentsTab'
 import ViolationsTab from '../tabs/dpa/ViolationsTab'
 import DetectionPlaceTab from '../tabs/dpa/DetectionPlaceTab'
 import MeasuresTab from '../tabs/dpa/MeasuresTab'
+import PpvAddresseesTab from '../tabs/ppv/PpvAddresseesTab'
 import { exportCardDataToXML, getEmptyTagsWarnings } from '@/utils/xmlExporter'
 import { parseXMLToCardData } from '@/utils/xmlParser'
 import { loadDpaCardFromDb } from '@/utils/loadDpaCardFromDb'
@@ -39,6 +40,7 @@ import {
   type ValidationResult,
 } from '@/utils/cardValidation'
 import type { CardData, StatusHistoryItem, ElectronicDocument } from '@/types/card'
+import { isPpvApp, getDpaLikeCardSessionKeys, getDpaLikeCardIdLabel } from '@/cards/config'
 import { format } from 'date-fns'
 
 /** Статусы исходящей карты, при которых разрешено редактирование (DPASTATUSID). */
@@ -490,59 +492,78 @@ const DangerousProductCard: React.FC<DangerousProductCardProps> = ({
 
   // Создаем tabItems с использованием currentData, чтобы изменения были видны в режиме просмотра
   // Используем useMemo, чтобы пересоздавать tabItems при изменении currentData
-  const tabItems = useMemo(() => [
-    {
-      key: 'notification',
-      label: 'Уведомление',
-      children: <NotificationTab data={currentData.notification} />,
-    },
-    {
-      key: 'product',
-      label: 'Продукция',
-      children: currentData.product ? (
-        <ProductTab data={currentData.product} />
-      ) : (
-        <div>Данные о продукции не найдены</div>
-      ),
-    },
-    {
-      key: 'tsd',
-      label: 'ТСД',
-      children: currentData.tsd ? (
-        <TSDTab data={currentData.tsd} />
-      ) : (
-        <div>Данные о партиях продукции не найдены</div>
-      ),
-    },
-    {
-      key: 'compliance',
-      label: 'Документы соответствия',
-      children: <ComplianceDocumentsTab tsd={currentData.tsd} hasEditPermission={true} guid={guid} />,
-    },
-    {
-      key: 'violations',
-      label: 'Нарушения',
-      children: <ViolationsTab tsd={currentData.tsd} />,
-    },
-    {
-      key: 'detectionPlace',
-      label: 'Место обнаружения',
-      children: currentData.detectionPlace ? (
-        <DetectionPlaceTab data={currentData.detectionPlace} />
-      ) : (
-        <div>Данные о месте обнаружения не найдены</div>
-      ),
-    },
-    {
-      key: 'measures',
-      label: 'Принятые меры',
-      children: currentData.measures ? (
-        <MeasuresTab data={currentData.measures} />
-      ) : (
-        <div>Данные о принятых мерах не найдены</div>
-      ),
-    },
-  ], [currentData])
+  const tabItems = useMemo(() => {
+    const base = [
+      {
+        key: 'notification',
+        label: 'Уведомление',
+        children: <NotificationTab data={currentData.notification} />,
+      },
+      {
+        key: 'product',
+        label: 'Продукция',
+        children: currentData.product ? (
+          <ProductTab data={currentData.product} />
+        ) : (
+          <div>Данные о продукции не найдены</div>
+        ),
+      },
+      {
+        key: 'tsd',
+        label: 'ТСД',
+        children: currentData.tsd ? (
+          <TSDTab data={currentData.tsd} />
+        ) : (
+          <div>Данные о партиях продукции не найдены</div>
+        ),
+      },
+      {
+        key: 'compliance',
+        label: 'Документы соответствия',
+        children: <ComplianceDocumentsTab tsd={currentData.tsd} hasEditPermission={true} guid={guid} />,
+      },
+      {
+        key: 'violations',
+        label: 'Нарушения',
+        children: <ViolationsTab tsd={currentData.tsd} />,
+      },
+      {
+        key: 'detectionPlace',
+        label: 'Место обнаружения',
+        children: currentData.detectionPlace ? (
+          <DetectionPlaceTab data={currentData.detectionPlace} />
+        ) : (
+          <div>Данные о месте обнаружения не найдены</div>
+        ),
+      },
+    ]
+
+    if (isPpvApp()) {
+      return [
+        ...base,
+        {
+          key: 'addressees',
+          label: 'Адресаты',
+          children: (
+            <PpvAddresseesTab ppvid={effectiveDpaid} guid={guid} hasPersisted={hasPersistedDpaid} />
+          ),
+        },
+      ]
+    }
+
+    return [
+      ...base,
+      {
+        key: 'measures',
+        label: 'Принятые меры',
+        children: currentData.measures ? (
+          <MeasuresTab data={currentData.measures} />
+        ) : (
+          <div>Данные о принятых мерах не найдены</div>
+        ),
+      },
+    ]
+  }, [currentData, effectiveDpaid, guid, hasPersistedDpaid])
 
   const handleCancelEdit = async () => {
     if (!hasPersistedDpaid || !effectiveDpaid || effectiveDpaid === '-') return
@@ -679,10 +700,11 @@ const DangerousProductCard: React.FC<DangerousProductCardProps> = ({
       if (isNewCard) {
         setSavedDpaid(res.dpaid)
         try {
-          sessionStorage.setItem('dpa_card_last_saved_dpaid', String(res.dpaid))
-          sessionStorage.setItem('dpa_card_save_happened', '1')
+          const { lastSavedIdKey, saveHappenedKey } = getDpaLikeCardSessionKeys()
+          sessionStorage.setItem(lastSavedIdKey, String(res.dpaid))
+          sessionStorage.setItem(saveHappenedKey, '1')
         } catch (_) {}
-        message.success(`Карта сохранена в БД с DPAID ${res.dpaid}`)
+        message.success(`Карта сохранена в БД с ${getDpaLikeCardIdLabel()} ${res.dpaid}`)
         onSaveNewCard?.(res.dpaid)
       } else {
         message.success('Карта обновлена в БД')
@@ -886,6 +908,9 @@ const DangerousProductCard: React.FC<DangerousProductCardProps> = ({
             )
           }
           break
+        case 'addressees':
+          editChildren = item.children
+          break
         default:
           editChildren = (
             <div style={{ padding: '16px', border: '1px dashed #d9d9d9', borderRadius: '4px' }}>
@@ -924,7 +949,9 @@ const DangerousProductCard: React.FC<DangerousProductCardProps> = ({
         }}
       >
         <div className="card-sticky-header-title-row">
-          <span className="card-sticky-header-title">Карта сведений об обнаружении опасной продукции</span>
+          <span className="card-sticky-header-title">
+            {isPpvApp() ? 'Карта сведений о выявленных нарушениях' : 'Карта сведений об обнаружении опасной продукции'}
+          </span>
           <Space size="small" wrap>
             {!isEditMode && (
               <>

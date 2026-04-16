@@ -8,6 +8,7 @@
     "build": "vite build",
     "build:dpa": "vite build",
     "build:pha": "VITE_APP_BASE=/pha_card/ vite build",
+    "build:ppv": "VITE_APP_BASE=/ppv_card/ vite build",
     "build:check": "tsc && vite build",
     "preview": "vite preview",
     "lint": "eslint . --ext ts,tsx --report-unused-disable-directives --max-warnings 0"
