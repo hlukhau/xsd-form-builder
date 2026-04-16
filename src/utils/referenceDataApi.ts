@@ -766,6 +766,23 @@ export interface RightsJson {
       /** Временные санитарные меры: ключи — DEPID */
       temporarySanitaryMeasures?: Record<string, unknown>
     }
+    /** PPV: те же поля, что у dangerousProduct*, блоки violationDetected* в JSON прав */
+    violationDetectedDB?: {
+      view?: Record<string, unknown>
+    }
+    violationDetectedIn?: {
+      view?: Record<string, unknown>
+      status?: Record<string, unknown>
+    }
+    violationDetectedOut?: {
+      view?: Record<string, unknown>
+      create?: Record<string, unknown>
+      edit?: Record<string, unknown>
+      status?: Record<string, unknown>
+      send?: Record<string, unknown>
+      violations?: Record<string, unknown>
+      temporarySanitaryMeasures?: Record<string, unknown>
+    }
     /** PHA: просмотр входящих сведений об обнаружении болезней */
     publicHealthIn?: { view?: Record<string, unknown>; status?: Record<string, unknown> }
     /** PHA: просмотр исходящих сведений */
@@ -791,12 +808,16 @@ function depIdsFromRightsBlock(block: unknown): string[] {
 /**
  * DEPID для фильтра списка УО при создании исходящей карты (DPA): объединение подразделений,
  * в пределах которых выданы соответствующие права. Бэкенд: AUTHORITY ⟕ TB_DEP ON AUTHORITYUID = DEPCODE, DEPID IN (...).
- * Берём ключи из: dangerousProductOut.create, publicHealthOut.edit, dangerousProductOut.violations,
- * dangerousProductOut.temporarySanitaryMeasures (если блоки есть в JSON прав).
+ * Берём ключи из: dangerousProductOut / violationDetectedOut (PPV).create, publicHealthOut.edit,
+ * …Out.violations, …Out.temporarySanitaryMeasures (если блоки есть в JSON прав).
  */
-export function getOutgoingAuthorityFilterDepIdsFromRights(rights: RightsJson | null | undefined): string[] {
+export function getOutgoingAuthorityFilterDepIdsFromRights(
+  rights: RightsJson | null | undefined,
+  /** PPV: объединять ключи из violationDetectedOut вместо dangerousProductOut */
+  useViolationDetectedOut?: boolean
+): string[] {
   const up = rights?.up
-  const out = up?.dangerousProductOut
+  const out = useViolationDetectedOut === true ? up?.violationDetectedOut : up?.dangerousProductOut
   const parts = [
     depIdsFromRightsBlock(out?.create),
     depIdsFromRightsBlock(up?.publicHealthOut?.edit),
@@ -895,9 +916,26 @@ export function cardSourceToApiSource(source: string): 'incoming' | 'outgoing' |
   return undefined
 }
 
-/** Право для проверки управления доступом по источнику карты. */
-export function cardSourceToAccessRight(source: string): 'dangerousProductIn:access' | 'dangerousProductOut:access' | 'dangerousProductDB:access' | undefined {
+/** Право для проверки управления доступом по источнику карты (DPA — dangerousProduct*; PPV — violationDetected*). */
+export function cardSourceToAccessRight(
+  source: string,
+  /** PPV: violationDetectedIn|Out|DB:access для /api/access/check */
+  useViolationDetected?: boolean
+):
+  | 'dangerousProductIn:access'
+  | 'dangerousProductOut:access'
+  | 'dangerousProductDB:access'
+  | 'violationDetectedIn:access'
+  | 'violationDetectedOut:access'
+  | 'violationDetectedDB:access'
+  | undefined {
   const api = cardSourceToApiSource(source)
+  if (useViolationDetected === true) {
+    if (api === 'incoming') return 'violationDetectedIn:access'
+    if (api === 'outgoing') return 'violationDetectedOut:access'
+    if (api === 'eec') return 'violationDetectedDB:access'
+    return undefined
+  }
   if (api === 'incoming') return 'dangerousProductIn:access'
   if (api === 'outgoing') return 'dangerousProductOut:access'
   if (api === 'eec') return 'dangerousProductDB:access'

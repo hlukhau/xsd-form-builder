@@ -53,12 +53,37 @@ const HINT_NO_STATUS_RIGHT_OUT =
 const HINT_NO_SEND_RIGHT_OUT =
   'Недостаточно прав: для направления исходящих сведений требуется право dangerousProductOut:send.'
 
+function hintNoStatusRightIn(forPpv: boolean): string {
+  return forPpv
+    ? 'Недостаточно прав: для смены статуса входящих сведений требуется право violationDetectedIn:status.'
+    : HINT_NO_STATUS_RIGHT_IN
+}
+
+function hintNoStatusRightOut(forPpv: boolean): string {
+  return forPpv
+    ? 'Недостаточно прав: для смены статуса исходящих сведений (закрытие карты, отметка готовности) требуется право violationDetectedOut:status.'
+    : HINT_NO_STATUS_RIGHT_OUT
+}
+
+function hintNoSendRightOut(forPpv: boolean): string {
+  return forPpv
+    ? 'Недостаточно прав: для направления исходящих сведений требуется право violationDetectedOut:send.'
+    : HINT_NO_SEND_RIGHT_OUT
+}
+
+function hintNoStatusAndSendOut(forPpv: boolean): string {
+  return forPpv
+    ? 'Недостаточно прав: для смены статуса требуется право violationDetectedOut:status, для направления сведений — violationDetectedOut:send.'
+    : 'Недостаточно прав: для смены статуса требуется право dangerousProductOut:status, для направления сведений — dangerousProductOut:send.'
+}
+
 /** Дата закрытия (csdo:EndDate) не влияет на доступность кнопки «Закрытие карты». */
 function incomingStatusButton(
   statusId: number | null | undefined,
   status: string,
   hasRight: boolean,
-  _notificationEndDate?: string | null
+  _notificationEndDate: string | null | undefined,
+  forPpvRightsHints: boolean
 ): StatusButtonResult {
   const sid = incomingDpStatusId(statusId)
   const s = norm(status)
@@ -82,9 +107,10 @@ function incomingStatusButton(
     const isProcessed = sid === INCOMING_PROCESSED || (s.includes('обработано') && !s.includes('завершено'))
     const label = isProcessing ? 'Завершение обработки' : isProcessed ? 'Закрытие карты' : 'Смена статуса'
     const action = isProcessing ? 'complete_processing' : isProcessed ? 'close' : 'complete_processing'
+    const hin = hintNoStatusRightIn(forPpvRightsHints)
     return {
-      config: { label, action, disabled: true, hint: HINT_NO_STATUS_RIGHT_IN },
-      comment: HINT_NO_STATUS_RIGHT_IN,
+      config: { label, action, disabled: true, hint: hin },
+      comment: hin,
     }
   }
   if (sid === INCOMING_PROCESSING) {
@@ -192,9 +218,13 @@ function outgoingStatusButton(
   hasResolution: boolean,
   userDepKindCode: string | null | undefined,
   existingResolutionDepKindCodes: string[] | undefined,
-  userDepKindName?: string | null,
-  _notificationEndDate?: string | null
+  userDepKindName: string | null | undefined,
+  _notificationEndDate: string | null | undefined,
+  forPpvRightsHints: boolean
 ): StatusButtonResult {
+  const noSt = hintNoStatusRightOut(forPpvRightsHints)
+  const noSn = hintNoSendRightOut(forPpvRightsHints)
+  const noBoth = hintNoStatusAndSendOut(forPpvRightsHints)
   if (!hasStatusRight && !hasSendRight) {
     const resolutionLabel = getResolutionButtonLabel(userDepKindCode)
     return {
@@ -202,9 +232,9 @@ function outgoingStatusButton(
         label: resolutionLabel,
         action: 'mark_ready',
         disabled: true,
-        hint: 'Недостаточно прав: для смены статуса требуется право dangerousProductOut:status, для направления сведений — dangerousProductOut:send.',
+        hint: noBoth,
       },
-      comment: 'Недостаточно прав: для смены статуса требуется право dangerousProductOut:status, для направления сведений — dangerousProductOut:send.',
+      comment: noBoth,
     }
   }
   const resolutionLabel = getResolutionButtonLabel(userDepKindCode)
@@ -235,9 +265,9 @@ function outgoingStatusButton(
           label: resolutionLabel,
           action: 'mark_ready',
           disabled: true,
-          hint: HINT_NO_STATUS_RIGHT_OUT,
+          hint: noSt,
         },
-        comment: HINT_NO_STATUS_RIGHT_OUT,
+        comment: noSt,
       }
     }
     const draftComment = getResolutionHintForDraft(userDepKindCode, userDepKindName)
@@ -255,7 +285,7 @@ function outgoingStatusButton(
         comment: hintNewToPending,
         closeConfig: hasStatusRight
           ? { label: 'Закрытие карты', action: 'close', hint: hintClose }
-          : { label: 'Закрытие карты', action: 'close', disabled: true, hint: HINT_NO_STATUS_RIGHT_OUT },
+          : { label: 'Закрытие карты', action: 'close', disabled: true, hint: noSt },
       }
     }
     if (hasRegionalOrRepublicanResolution && !hasSendRight && hasStatusRight) {
@@ -264,9 +294,9 @@ function outgoingStatusButton(
           label: 'Направление сведений',
           action: 'send',
           disabled: true,
-          hint: HINT_NO_SEND_RIGHT_OUT,
+          hint: noSn,
         },
-        comment: HINT_NO_SEND_RIGHT_OUT,
+        comment: noSn,
         closeConfig: { label: 'Закрытие карты', action: 'close', hint: hintClose },
       }
     }
@@ -301,9 +331,9 @@ function outgoingStatusButton(
           label: 'Направление сведений',
           action: 'send',
           disabled: true,
-          hint: HINT_NO_SEND_RIGHT_OUT,
+          hint: noSn,
         },
-        comment: HINT_NO_SEND_RIGHT_OUT,
+        comment: noSn,
         closeConfig: { label: 'Закрытие карты', action: 'close', hint: hintClose },
       }
     }
@@ -324,7 +354,7 @@ function outgoingStatusButton(
         comment: hintSend,
         closeConfig: hasStatusRight
           ? { label: 'Закрытие карты', action: 'close', hint: hintClose }
-          : { label: 'Закрытие карты', action: 'close', disabled: true, hint: HINT_NO_STATUS_RIGHT_OUT },
+          : { label: 'Закрытие карты', action: 'close', disabled: true, hint: noSt },
       }
     }
     if (hasSendRight && !hasRegionalOrRepublicanResolution) {
@@ -345,8 +375,8 @@ function outgoingStatusButton(
       }
     }
     return {
-      config: { label: 'Закрытие карты', action: 'close', disabled: true, hint: HINT_NO_STATUS_RIGHT_OUT },
-      comment: HINT_NO_STATUS_RIGHT_OUT,
+      config: { label: 'Закрытие карты', action: 'close', disabled: true, hint: noSt },
+      comment: noSt,
     }
   }
   if (statusId === OUTGOING_PENDING) {
@@ -376,16 +406,16 @@ function outgoingStatusButton(
       }
     }
     return {
-      config: { label: 'Перевести в Новое', action: 'to_new', disabled: true, hint: HINT_NO_STATUS_RIGHT_OUT },
-      comment: HINT_NO_STATUS_RIGHT_OUT,
-      closeConfig: { label: 'Закрытие карты', action: 'close', disabled: true, hint: HINT_NO_STATUS_RIGHT_OUT },
+      config: { label: 'Перевести в Новое', action: 'to_new', disabled: true, hint: noSt },
+      comment: noSt,
+      closeConfig: { label: 'Закрытие карты', action: 'close', disabled: true, hint: noSt },
     }
   }
   if (statusId === OUTGOING_DELIVERED) {
     if (!hasStatusRight) {
       return {
-        config: { label: 'Закрытие карты', action: 'close', disabled: true, hint: HINT_NO_STATUS_RIGHT_OUT },
-        comment: HINT_NO_STATUS_RIGHT_OUT,
+        config: { label: 'Закрытие карты', action: 'close', disabled: true, hint: noSt },
+        comment: noSt,
       }
     }
     if (!hasResolution) {
@@ -412,9 +442,9 @@ function outgoingStatusButton(
           label: resolutionLabel,
           action: 'mark_ready',
           disabled: true,
-          hint: HINT_NO_STATUS_RIGHT_OUT,
+          hint: noSt,
         },
-        comment: HINT_NO_STATUS_RIGHT_OUT,
+        comment: noSt,
       }
     }
     const draftComment = getResolutionHintForDraft(userDepKindCode, userDepKindName)
@@ -431,7 +461,7 @@ function outgoingStatusButton(
         comment: hintNewToPending,
         closeConfig: hasStatusRight
           ? { label: 'Закрытие карты', action: 'close', hint: hintClose }
-          : { label: 'Закрытие карты', action: 'close', disabled: true, hint: HINT_NO_STATUS_RIGHT_OUT },
+          : { label: 'Закрытие карты', action: 'close', disabled: true, hint: noSt },
       }
     }
     if (hasRegionalOrRepublicanResolution && !hasSendRight && hasStatusRight) {
@@ -440,9 +470,9 @@ function outgoingStatusButton(
           label: 'Направление сведений',
           action: 'send',
           disabled: true,
-          hint: HINT_NO_SEND_RIGHT_OUT,
+          hint: noSn,
         },
-        comment: HINT_NO_SEND_RIGHT_OUT,
+        comment: noSn,
         closeConfig: { label: 'Закрытие карты', action: 'close', hint: hintClose },
       }
     }
@@ -477,9 +507,9 @@ function outgoingStatusButton(
           label: 'Направление сведений',
           action: 'send',
           disabled: true,
-          hint: HINT_NO_SEND_RIGHT_OUT,
+          hint: noSn,
         },
-        comment: HINT_NO_SEND_RIGHT_OUT,
+        comment: noSn,
         closeConfig: { label: 'Закрытие карты', action: 'close', hint: hintClose },
       }
     }
@@ -500,7 +530,7 @@ function outgoingStatusButton(
         comment: hintSend,
         closeConfig: hasStatusRight
           ? { label: 'Закрытие карты', action: 'close', hint: hintClose }
-          : { label: 'Закрытие карты', action: 'close', disabled: true, hint: HINT_NO_STATUS_RIGHT_OUT },
+          : { label: 'Закрытие карты', action: 'close', disabled: true, hint: noSt },
       }
     }
     if (hasStatusRight) {
@@ -510,8 +540,8 @@ function outgoingStatusButton(
       }
     }
     return {
-      config: { label: 'Закрытие карты', action: 'close', disabled: true, hint: HINT_NO_STATUS_RIGHT_OUT },
-      comment: HINT_NO_STATUS_RIGHT_OUT,
+      config: { label: 'Закрытие карты', action: 'close', disabled: true, hint: noSt },
+      comment: noSt,
     }
   }
   if (s.includes('ожидает отправки')) {
@@ -540,16 +570,16 @@ function outgoingStatusButton(
       }
     }
     return {
-      config: { label: 'Перевести в Новое', action: 'to_new', disabled: true, hint: HINT_NO_STATUS_RIGHT_OUT },
-      comment: HINT_NO_STATUS_RIGHT_OUT,
-      closeConfig: { label: 'Закрытие карты', action: 'close', disabled: true, hint: HINT_NO_STATUS_RIGHT_OUT },
+      config: { label: 'Перевести в Новое', action: 'to_new', disabled: true, hint: noSt },
+      comment: noSt,
+      closeConfig: { label: 'Закрытие карты', action: 'close', disabled: true, hint: noSt },
     }
   }
   if (s.includes('доставлено')) {
     if (!hasStatusRight) {
       return {
-        config: { label: 'Закрытие карты', action: 'close', disabled: true, hint: HINT_NO_STATUS_RIGHT_OUT },
-        comment: HINT_NO_STATUS_RIGHT_OUT,
+        config: { label: 'Закрытие карты', action: 'close', disabled: true, hint: noSt },
+        comment: noSt,
       }
     }
     if (!hasResolution) {
@@ -595,14 +625,17 @@ export function getStatusButtonConfig(
   /** Название уровня ЦГЭ пользователя (из текущего пользователя / карты прав) для подсказки в черновике */
   userDepKindName?: string | null,
   /** Дата закрытия (архивации) csdo:EndDate — на доступность кнопки «Закрытие карты» не влияет */
-  notificationEndDate?: string | null
+  notificationEndDate?: string | null,
+  /** PPV: в подсказках указывать violationDetected* вместо dangerousProduct* */
+  usePpvRightsHints?: boolean
 ): StatusButtonResult {
   const code = datasourceKindCode != null ? String(datasourceKindCode).trim() : ''
   const src = norm(source)
+  const ppvHints = usePpvRightsHints === true
 
   // Тип карты по метаданным DATASOURCEKINDCODE (1 = входящие, 2 = исходящие)
   if (code === '1') {
-    return incomingStatusButton(statusId, status ?? '', hasStatusRight, notificationEndDate ?? null)
+    return incomingStatusButton(statusId, status ?? '', hasStatusRight, notificationEndDate ?? null, ppvHints)
   }
   if (code === '2') {
     return outgoingStatusButton(
@@ -614,7 +647,8 @@ export function getStatusButtonConfig(
       userDepKindCode ?? null,
       existingResolutionDepKindCodes ?? [],
       userDepKindName ?? null,
-      notificationEndDate ?? null
+      notificationEndDate ?? null,
+      ppvHints
     )
   }
   if (code === '3') {
@@ -635,11 +669,12 @@ export function getStatusButtonConfig(
       userDepKindCode ?? null,
       existingResolutionDepKindCodes ?? [],
       userDepKindName ?? null,
-      notificationEndDate ?? null
+      notificationEndDate ?? null,
+      ppvHints
     )
   }
   if (src.includes('входящ')) {
-    return incomingStatusButton(statusId, status ?? '', hasStatusRight, notificationEndDate ?? null)
+    return incomingStatusButton(statusId, status ?? '', hasStatusRight, notificationEndDate ?? null, ppvHints)
   }
   if (src.includes('еэк')) {
     return {

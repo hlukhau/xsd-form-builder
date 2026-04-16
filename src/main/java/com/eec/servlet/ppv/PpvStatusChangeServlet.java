@@ -23,8 +23,8 @@ import java.util.regex.Pattern;
  * Смена статуса карты DPA.
  * Входящие: action first_open | complete_processing | close;
  * first_open — Получено→В обработке при открытии карты; права не проверяются (оператор сразу видит «В обработке»).
- * complete_processing | close — право dangerousProductIn:status.
- * Исходящие: action mark_ready | send | close; mark_ready/close — dangerousProductOut:status, send — dangerousProductOut:send.
+ * complete_processing | close — право violationDetectedIn:status.
+ * Исходящие: action mark_ready | send | close; mark_ready/close — violationDetectedOut:status, send — violationDetectedOut:send.
  * mark_ready: тело { "dpaid", "action": "mark_ready", "depKindCode": "dep0601"|"dep0602"|"dep0603" }.
  * Обновляется DPA.DPASTATUSID, PPVSTATUSHIST (и при mark_ready — PPVRESOLUTION).
  */
@@ -109,7 +109,7 @@ public class PpvStatusChangeServlet extends HttpServlet {
         if (depKindCode != null) depKindCode = depKindCode.trim();
         if (guid != null) guid = guid.trim();
 
-        /** JSON прав по GUID — для проверки dangerousProductIn:status / dangerousProductOut:status (не путать с PPVID). */
+        /** JSON прав по GUID — violationDetectedIn:status / violationDetectedOut:status (не путать с PPVID). */
         String rightsJson = (guid != null && !guid.isEmpty()) ? RightsJsonStore.guidMap.get(guid) : null;
 
         Integer userId = resolveUserId(guid);
@@ -198,9 +198,9 @@ public class PpvStatusChangeServlet extends HttpServlet {
             applyNewStatus(response, conn, dpaid, "В обработке", userId, true);
             return;
         }
-        if (!AccessRightService.hasDangerousProductInStatus(rightsJson)) {
-            sendJsonError(response, HttpServletResponse.SC_FORBIDDEN,
-                    "Нет права управления статусом входящих сведений (dangerousProductIn:status)");
+        if (!AccessRightService.hasViolationDetectedInStatus(rightsJson)) {
+                sendJsonError(response, HttpServletResponse.SC_FORBIDDEN,
+                    "Нет права управления статусом входящих сведений (violationDetectedIn:status)");
             return;
         }
         String newStatusName = null;
@@ -253,8 +253,8 @@ public class PpvStatusChangeServlet extends HttpServlet {
                                 long dpaid, String action, String depKindCode,
                                 int currentStatusId, String currentStatusName, Integer userId, String guid, String rightsJson) throws IOException, SQLException {
         if ("mark_ready".equals(action)) {
-            if (!AccessRightService.hasDangerousProductOutStatus(rightsJson)) {
-                sendJsonError(response, HttpServletResponse.SC_FORBIDDEN, "Нет права управления статусом исходящих сведений (dangerousProductOut:status)");
+            if (!AccessRightService.hasViolationDetectedOutStatus(rightsJson)) {
+                sendJsonError(response, HttpServletResponse.SC_FORBIDDEN, "Нет права управления статусом исходящих сведений (violationDetectedOut:status)");
                 return;
             }
             if (depKindCode == null || depKindCode.trim().isEmpty()) {
@@ -314,8 +314,8 @@ public class PpvStatusChangeServlet extends HttpServlet {
             return;
         }
         if ("to_new".equals(action)) {
-            if (!AccessRightService.hasDangerousProductOutStatus(rightsJson)) {
-                sendJsonError(response, HttpServletResponse.SC_FORBIDDEN, "Нет права управления статусом исходящих сведений (dangerousProductOut:status)");
+            if (!AccessRightService.hasViolationDetectedOutStatus(rightsJson)) {
+                sendJsonError(response, HttpServletResponse.SC_FORBIDDEN, "Нет права управления статусом исходящих сведений (violationDetectedOut:status)");
                 return;
             }
             if (currentStatusId != OUTGOING_FAILED && currentStatusId != OUTGOING_ERROR) {
@@ -338,8 +338,8 @@ public class PpvStatusChangeServlet extends HttpServlet {
             return;
         }
         if ("send".equals(action)) {
-            if (!AccessRightService.hasDangerousProductOutSend(rightsJson)) {
-                sendJsonError(response, HttpServletResponse.SC_FORBIDDEN, "Нет права на направление исходящих сведений (dangerousProductOut:send)");
+            if (!AccessRightService.hasViolationDetectedOutSend(rightsJson)) {
+                sendJsonError(response, HttpServletResponse.SC_FORBIDDEN, "Нет права на направление исходящих сведений (violationDetectedOut:send)");
                 return;
             }
             if (currentStatusId != OUTGOING_NEW) {
@@ -374,8 +374,8 @@ public class PpvStatusChangeServlet extends HttpServlet {
             return;
         }
         if ("close".equals(action)) {
-            if (!AccessRightService.hasDangerousProductOutStatus(rightsJson)) {
-                sendJsonError(response, HttpServletResponse.SC_FORBIDDEN, "Нет права управления статусом исходящих сведений (dangerousProductOut:status)");
+            if (!AccessRightService.hasViolationDetectedOutStatus(rightsJson)) {
+                sendJsonError(response, HttpServletResponse.SC_FORBIDDEN, "Нет права управления статусом исходящих сведений (violationDetectedOut:status)");
                 return;
             }
             if (currentStatusId != OUTGOING_NEW && currentStatusId != OUTGOING_FAILED && currentStatusId != OUTGOING_ERROR && currentStatusId != OUTGOING_DELIVERED) {

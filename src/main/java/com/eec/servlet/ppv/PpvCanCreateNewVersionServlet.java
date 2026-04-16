@@ -22,7 +22,7 @@ import java.util.regex.Pattern;
  * GET /api/ppv/can-create-new-version?dpaid=...&guid=...
  * Ответ: { "allowed": true } или { "allowed": false, "reason": "..." }.
  * Условия: исходящая (DATASOURCEKINDCODE=2), статус Доставлено (11), макс. версия по INCIDENTID,
- * DPA.ENDDATE не указан, право dangerousProductOut:edit в пределах хотя бы одного подразделения из PPVDEPPERMIS.
+ * PPV.ENDDATE не указан, право violationDetectedOut:edit в пределах хотя бы одного подразделения из PPVDEPPERMIS.
  */
 public class PpvCanCreateNewVersionServlet extends HttpServlet {
 
@@ -159,7 +159,7 @@ public class PpvCanCreateNewVersionServlet extends HttpServlet {
 
     private static Set<String> parseEditDepIdsFromRights(String json) {
         Set<String> out = new HashSet<>();
-        int outStart = json.indexOf("\"dangerousProductOut\"");
+        int outStart = json.indexOf("\"violationDetectedOut\"");
         if (outStart < 0) return out;
         int editStart = json.indexOf("\"edit\"", outStart);
         if (editStart < 0) return out;

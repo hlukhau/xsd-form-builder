@@ -12,8 +12,8 @@ import java.io.PrintWriter;
 /**
  * API проверки прав доступа.
  * GET /api/access/check?id=...&right=... — id опционален (GUID для JSON прав); right — код права
- * (dangerousProductIn:access, dangerousProductOut:access, dangerousProductDB:access;
- *  publicHealthIn:view, publicHealthIn:status, publicHealthOut:view, publicHealthOut:status, publicHealthOut:send, publicHealthOut:edit, publicHealthDB:view для PHA).
+ * (dangerousProductIn/Out/DB:access|status|send|edit; violationDetectedIn/Out/DB — то же для PPV;
+ *  publicHealthIn:view, … для PHA).
  * Ответ: { "allowed": true }
  */
 public class AccessCheckServlet extends HttpServlet {
@@ -53,6 +53,27 @@ public class AccessCheckServlet extends HttpServlet {
                     break;
                 case "dangerousProductOut:edit":
                     allowed = AccessRightService.hasDangerousProductOutEdit(rightsJson);
+                    break;
+                case "violationDetectedIn:access":
+                    allowed = AccessRightService.hasViolationDetectedInAccess(rightsJson);
+                    break;
+                case "violationDetectedOut:access":
+                    allowed = AccessRightService.hasViolationDetectedOutAccess(rightsJson);
+                    break;
+                case "violationDetectedDB:access":
+                    allowed = AccessRightService.hasViolationDetectedDBAccess(rightsJson);
+                    break;
+                case "violationDetectedIn:status":
+                    allowed = AccessRightService.hasViolationDetectedInStatus(rightsJson);
+                    break;
+                case "violationDetectedOut:status":
+                    allowed = AccessRightService.hasViolationDetectedOutStatus(rightsJson);
+                    break;
+                case "violationDetectedOut:send":
+                    allowed = AccessRightService.hasViolationDetectedOutSend(rightsJson);
+                    break;
+                case "violationDetectedOut:edit":
+                    allowed = AccessRightService.hasViolationDetectedOutEdit(rightsJson);
                     break;
                 case "publicHealthIn:view":
                     allowed = AccessRightService.hasPublicHealthInView(rightsJson);

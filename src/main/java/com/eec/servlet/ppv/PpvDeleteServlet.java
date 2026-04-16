@@ -168,7 +168,7 @@ public class PpvDeleteServlet extends HttpServlet {
 
     private static Set<String> parseEditDepIdsFromRights(String json) {
         Set<String> out = new HashSet<>();
-        int outStart = json.indexOf("\"dangerousProductOut\"");
+        int outStart = json.indexOf("\"violationDetectedOut\"");
         if (outStart < 0) return out;
         int editStart = json.indexOf("\"edit\"", outStart);
         if (editStart < 0) return out;

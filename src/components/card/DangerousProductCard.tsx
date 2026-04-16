@@ -24,7 +24,24 @@ import { exportCardDataToXML, getEmptyTagsWarnings } from '@/utils/xmlExporter'
 import { parseXMLToCardData } from '@/utils/xmlParser'
 import { loadDpaCardFromDb } from '@/utils/loadDpaCardFromDb'
 import { compareCardData, getCardDataReview } from '@/utils/cardDataComparator'
-import { fetchDpaStatusHistory, fetchDpaElectronicDocs, changeDpaStatus, checkAccessRight, fetchCurrentUser, fetchDpaResolutions, fetchRightsByGuid, fetchRightsByGuidRaw, getOutgoingAuthorityFilterDepIdsFromRights, fetchDepInfo, saveDpaCard, buildSaveMetadataFromCardData, deleteDpaCard, canCreateNewVersion, type DpaSaveMetadata, type RightsJson } from '@/utils/referenceDataApi'
+import {
+  fetchDpaStatusHistory,
+  fetchDpaElectronicDocs,
+  changeDpaStatus,
+  checkAccessRight,
+  fetchCurrentUser,
+  fetchDpaResolutions,
+  fetchRightsByGuid,
+  fetchRightsByGuidRaw,
+  getOutgoingAuthorityFilterDepIdsFromRights,
+  fetchDepInfo,
+  saveDpaCard,
+  buildSaveMetadataFromCardData,
+  deleteDpaCard,
+  canCreateNewVersion,
+  type DpaSaveMetadata,
+  type RightsJson,
+} from '@/utils/referenceDataApi'
 import { getStatusButtonConfig } from '@/utils/statusButtonConfig'
 import { parseElectronicDocContentBody } from '@/utils/xmlParser'
 import { openLegacyRegisterAllVersions, isLegacyRegisterConfigured } from '@/utils/legacyRegisterUrl'
@@ -145,17 +162,13 @@ const DangerousProductCard: React.FC<DangerousProductCardProps> = ({
   const overrideDepid = rightsOverride?.department?.depid != null ? String(rightsOverride.department.depid) : null
   const overrideHasByMap = (map: Record<string, unknown> | undefined | null): boolean =>
     !!(overrideDepid && map && typeof map === 'object' && Object.prototype.hasOwnProperty.call(map, overrideDepid))
+  const upOutBlock = isPpvApp() ? rightsOverride?.up?.violationDetectedOut : rightsOverride?.up?.dangerousProductOut
+  const upInBlock = isPpvApp() ? rightsOverride?.up?.violationDetectedIn : rightsOverride?.up?.dangerousProductIn
   const effectiveHasStatusRight = rightsOverride
-    ? (isOutgoingSource
-        ? overrideHasByMap(rightsOverride.up?.dangerousProductOut?.status)
-        : overrideHasByMap(rightsOverride.up?.dangerousProductIn?.status))
+    ? (isOutgoingSource ? overrideHasByMap(upOutBlock?.status) : overrideHasByMap(upInBlock?.status))
     : hasStatusRight
-  const effectiveHasSendRight = rightsOverride
-    ? overrideHasByMap(rightsOverride.up?.dangerousProductOut?.send)
-    : hasSendRight
-  const effectiveHasSaveRight = rightsOverride
-    ? overrideHasByMap(rightsOverride.up?.dangerousProductOut?.edit)
-    : hasSaveRight
+  const effectiveHasSendRight = rightsOverride ? overrideHasByMap(upOutBlock?.send) : hasSendRight
+  const effectiveHasSaveRight = rightsOverride ? overrideHasByMap(upOutBlock?.edit) : hasSaveRight
 
   const currentStatusId = editedData.statusId ?? data.statusId ?? undefined
   const canEditByStatus =
@@ -177,7 +190,7 @@ const DangerousProductCard: React.FC<DangerousProductCardProps> = ({
 
   /** depIds для фильтра УО: при отладочном override — из JSON; иначе из GET /api/rights (не сбрасываем при сбое fetchDepInfo). */
   const outgoingAuthorityFilterDepIds = useMemo(() => {
-    const fromOverride = rightsOverride ? getOutgoingAuthorityFilterDepIdsFromRights(rightsOverride) : []
+    const fromOverride = rightsOverride ? getOutgoingAuthorityFilterDepIdsFromRights(rightsOverride, isPpvApp()) : []
     if (fromOverride.length > 0) return fromOverride
     return createAuthorityIds
   }, [rightsOverride, createAuthorityIds])
@@ -193,7 +206,7 @@ const DangerousProductCard: React.FC<DangerousProductCardProps> = ({
       const src = (data?.source ?? '').toLowerCase()
       if (src.includes('входящ')) {
         // Права по JSON привязаны к пользователю (guid), не к карте
-        checkAccessRight(guid ?? null, 'dangerousProductIn:status')
+        checkAccessRight(guid ?? null, isPpvApp() ? 'violationDetectedIn:status' : 'dangerousProductIn:status')
           .then(setHasStatusRight)
           .catch(() => setHasStatusRight(false))
       }
@@ -202,9 +215,9 @@ const DangerousProductCard: React.FC<DangerousProductCardProps> = ({
     if (isOutgoingSource) {
       // Права по JSON привязаны к пользователю (guid); без guid или без ключа в JSON — кнопки блокируются
       Promise.all([
-        checkAccessRight(guid ?? null, 'dangerousProductOut:status'),
-        checkAccessRight(guid ?? null, 'dangerousProductOut:send'),
-        checkAccessRight(guid ?? null, 'dangerousProductOut:edit'),
+        checkAccessRight(guid ?? null, isPpvApp() ? 'violationDetectedOut:status' : 'dangerousProductOut:status'),
+        checkAccessRight(guid ?? null, isPpvApp() ? 'violationDetectedOut:send' : 'dangerousProductOut:send'),
+        checkAccessRight(guid ?? null, isPpvApp() ? 'violationDetectedOut:edit' : 'dangerousProductOut:edit'),
       ])
         .then(([status, send, edit]) => {
           setHasStatusRight(status)
@@ -223,7 +236,7 @@ const DangerousProductCard: React.FC<DangerousProductCardProps> = ({
       if (guid) {
         fetchRightsByGuid(guid)
           .then(async (r) => {
-            setCreateAuthorityIds(getOutgoingAuthorityFilterDepIdsFromRights(r))
+            setCreateAuthorityIds(getOutgoingAuthorityFilterDepIdsFromRights(r, isPpvApp()))
 
             const depid = r.department?.depid != null ? String(r.department.depid) : null
             const hasRightInMap = (map: Record<string, unknown> | undefined | null): boolean => {
@@ -232,7 +245,7 @@ const DangerousProductCard: React.FC<DangerousProductCardProps> = ({
             }
 
             // Уточняем права по исходящим сведениям на основе JSON прав
-            const upOut = r.up?.dangerousProductOut
+            const upOut = isPpvApp() ? r.up?.violationDetectedOut : r.up?.dangerousProductOut
             const hasStatusByGuid = hasRightInMap(upOut?.status)
             const hasSendByGuid = hasRightInMap(upOut?.send)
             const hasEditByGuid = hasRightInMap(upOut?.edit)
@@ -283,7 +296,7 @@ const DangerousProductCard: React.FC<DangerousProductCardProps> = ({
   }, [hasPersistedDpaid, effectiveDpaid, isOutgoingSource, data?.source, guid])
 
   const editSwitchDisabled = isIncomingNoEdit || (isOutgoingSource && !canEditByStatus)
-  /** Исходящие: право dangerousProductOut:edit; черновик (-) — форма доступна до проверки прав. */
+  /** Исходящие: право violationDetectedOut:edit (PPV) / dangerousProductOut:edit (DPA); черновик (-) — форма доступна до проверки прав. */
   const showEditButton =
     !editSwitchDisabled &&
     (!isOutgoingSource || effectiveHasSaveRight || effectiveDpaid === '-')
@@ -306,7 +319,8 @@ const DangerousProductCard: React.FC<DangerousProductCardProps> = ({
     editedData.statusId ?? undefined,
     effectiveDatasourceKindCode,
     currentUserDepKindName ?? rightsDepKindName,
-    editedData.notification?.endDate ?? data.notification?.endDate ?? null
+    editedData.notification?.endDate ?? data.notification?.endDate ?? null,
+    isPpvApp()
   )
   const statusButton = statusButtonResult.config
   const statusButtonComment = statusButtonResult.comment
@@ -341,7 +355,9 @@ const DangerousProductCard: React.FC<DangerousProductCardProps> = ({
     effectiveDpaid != null
   const canDeleteCard = effectiveHasSaveRight && !!guid
   const deleteButtonHint = !effectiveHasSaveRight
-    ? 'Недостаточно прав: требуется dangerousProductOut:edit.'
+    ? isPpvApp()
+      ? 'Недостаточно прав: требуется violationDetectedOut:edit.'
+      : 'Недостаточно прав: требуется dangerousProductOut:edit.'
     : !guid
       ? 'GUID не задан: не удалось определить права доступа.'
       : undefined
@@ -1134,7 +1150,10 @@ const DangerousProductCard: React.FC<DangerousProductCardProps> = ({
                 okText: 'Направить сведения',
                 cancelText: 'Отмена',
                 onOk: async () => {
-                  const hasSend = await checkAccessRight(guid ?? null, 'dangerousProductOut:send')
+                  const hasSend = await checkAccessRight(
+                    guid ?? null,
+                    isPpvApp() ? 'violationDetectedOut:send' : 'dangerousProductOut:send'
+                  )
                   if (!hasSend) {
                     message.error('Нет права на направление сведений об опасной продукции в пределах доступа к данной карте.')
                     return
@@ -1216,7 +1235,10 @@ const DangerousProductCard: React.FC<DangerousProductCardProps> = ({
                 okText: 'Продолжить',
                 cancelText: 'Отмена',
                 onOk: async () => {
-                  const hasRight = await checkAccessRight(guid ?? null, 'dangerousProductIn:status')
+                  const hasRight = await checkAccessRight(
+                    guid ?? null,
+                    isPpvApp() ? 'violationDetectedIn:status' : 'dangerousProductIn:status'
+                  )
                   if (!hasRight) {
                     message.error('Нет права на управление статусом входящих сведений.')
                     return
@@ -1244,7 +1266,13 @@ const DangerousProductCard: React.FC<DangerousProductCardProps> = ({
                 cancelText: 'Отмена',
                 okButtonProps: { danger: true },
                 onOk: async () => {
-                  const rightKey = isOutgoingSource ? 'dangerousProductOut:status' : 'dangerousProductIn:status'
+                  const rightKey = isOutgoingSource
+                    ? isPpvApp()
+                      ? 'violationDetectedOut:status'
+                      : 'dangerousProductOut:status'
+                    : isPpvApp()
+                      ? 'violationDetectedIn:status'
+                      : 'dangerousProductIn:status'
                   const hasRight = await checkAccessRight(guid ?? null, rightKey)
                   if (!hasRight) {
                     message.error(isOutgoingSource ? 'Нет права на управление статусом исходящих сведений.' : 'Нет права на управление статусом входящих сведений.')

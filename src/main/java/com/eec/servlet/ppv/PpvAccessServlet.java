@@ -259,9 +259,9 @@ public class PpvAccessServlet extends HttpServlet {
             String name = rs.getString(1);
             if (name == null) return null;
             String n = name.trim().toLowerCase();
-            if (n.contains("входящ")) return "dangerousProductIn:access";
-            if (n.contains("исходящ")) return "dangerousProductOut:access";
-            if (n.contains("еэк") || n.contains("данные еэк")) return "dangerousProductDB:access";
+            if (n.contains("входящ")) return "violationDetectedIn:access";
+            if (n.contains("исходящ")) return "violationDetectedOut:access";
+            if (n.contains("еэк") || n.contains("данные еэк")) return "violationDetectedDB:access";
             return null;
         } catch (SQLException e) {
             log("DpaAccess resolveAccessRight: " + e.getMessage());
@@ -274,9 +274,9 @@ public class PpvAccessServlet extends HttpServlet {
     }
 
     private static boolean checkAccessRight(String right, String rightsJson) {
-        if ("dangerousProductIn:access".equals(right)) return AccessRightService.hasDangerousProductInAccess(rightsJson);
-        if ("dangerousProductOut:access".equals(right)) return AccessRightService.hasDangerousProductOutAccess(rightsJson);
-        if ("dangerousProductDB:access".equals(right)) return AccessRightService.hasDangerousProductDBAccess(rightsJson);
+        if ("violationDetectedIn:access".equals(right)) return AccessRightService.hasViolationDetectedInAccess(rightsJson);
+        if ("violationDetectedOut:access".equals(right)) return AccessRightService.hasViolationDetectedOutAccess(rightsJson);
+        if ("violationDetectedDB:access".equals(right)) return AccessRightService.hasViolationDetectedDBAccess(rightsJson);
         return true;
     }
 

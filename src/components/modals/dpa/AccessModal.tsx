@@ -13,6 +13,7 @@ import {
   cardSourceToApiSource,
   type DepOption,
 } from '@/utils/referenceDataApi'
+import { isPpvApp } from '@/cards/config'
 
 const ALLOWED_DEP_KINDS = ['dep0601', 'dep0602', 'dep0603']
 
@@ -98,7 +99,7 @@ const AccessModal: React.FC<AccessModalProps> = ({
       setCanManageAccess(false)
       return
     }
-    const right = source != null ? cardSourceToAccessRight(source) : undefined
+    const right = source != null ? cardSourceToAccessRight(source, isPpvApp()) : undefined
     if (!right) {
       setCanManageAccess(true)
       return

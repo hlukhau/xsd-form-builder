@@ -157,6 +157,36 @@ public final class AccessRightService {
         return hasAccessRightInJson(rightsJson, "dangerousProductOut", "edit");
     }
 
+    // ——— PPV (карта сведений о выявленных нарушениях): те же роли, блоки JSON violationDetected*
+
+    public static boolean hasViolationDetectedInAccess(String rightsJson) {
+        return hasAccessRightInJson(rightsJson, "violationDetectedIn", "access");
+    }
+
+    public static boolean hasViolationDetectedOutAccess(String rightsJson) {
+        return hasAccessRightInJson(rightsJson, "violationDetectedOut", "access");
+    }
+
+    public static boolean hasViolationDetectedDBAccess(String rightsJson) {
+        return hasAccessRightInJson(rightsJson, "violationDetectedDB", "access");
+    }
+
+    public static boolean hasViolationDetectedInStatus(String rightsJson) {
+        return hasAccessRightInJson(rightsJson, "violationDetectedIn", "status");
+    }
+
+    public static boolean hasViolationDetectedOutStatus(String rightsJson) {
+        return hasAccessRightInJson(rightsJson, "violationDetectedOut", "status");
+    }
+
+    public static boolean hasViolationDetectedOutSend(String rightsJson) {
+        return hasAccessRightInJson(rightsJson, "violationDetectedOut", "send");
+    }
+
+    public static boolean hasViolationDetectedOutEdit(String rightsJson) {
+        return hasAccessRightInJson(rightsJson, "violationDetectedOut", "edit");
+    }
+
     // ——— PHA (сведения об обнаружении болезней): просмотр по источнику
 
     /**

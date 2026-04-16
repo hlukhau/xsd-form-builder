@@ -764,7 +764,7 @@ public class PpvSaveServlet extends HttpServlet {
 
     private static java.util.Set<String> parseEditDepIdsFromRights(String json) {
         java.util.Set<String> out = new java.util.HashSet<>();
-        int outStart = json.indexOf("\"dangerousProductOut\"");
+        int outStart = json.indexOf("\"violationDetectedOut\"");
         if (outStart < 0) return out;
         int editStart = json.indexOf("\"edit\"", outStart);
         if (editStart < 0) return out;
