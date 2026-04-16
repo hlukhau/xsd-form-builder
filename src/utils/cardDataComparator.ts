@@ -70,6 +70,33 @@ function formatValueForDiff(path: string, value: unknown): string {
   return `${preview}… (длина ${s.length})`
 }
 
+/** Нормализация кодов стран адресатов PPV для сравнения и сохранения. */
+export function normalizePpvActorCountryCodesList(codes: string[] | undefined | null): string[] {
+  return [
+    ...new Set(
+      (codes ?? [])
+        .map((c) => String(c ?? '').trim().toUpperCase())
+        .filter((c) => /^[A-Z]{2}$/.test(c))
+    ),
+  ].sort()
+}
+
+function appendPpvActorCountryCodeDiffs(
+  differences: string[],
+  added: string[],
+  orig: string[] | undefined | null,
+  exp: string[] | undefined | null
+): void {
+  const o = new Set(normalizePpvActorCountryCodesList(orig))
+  const e = new Set(normalizePpvActorCountryCodesList(exp))
+  for (const c of e) {
+    if (!o.has(c)) added.push(`Адресаты: добавлен код страны ${c}`)
+  }
+  for (const c of o) {
+    if (!e.has(c)) differences.push(`Адресаты: удалён код страны ${c}`)
+  }
+}
+
 function normalizeCardForCompare<T>(input: T): T {
   const clone = JSON.parse(JSON.stringify(input ?? null))
   if (!clone || typeof clone !== 'object') return input
@@ -112,6 +139,8 @@ function normalizeCardForCompare<T>(input: T): T {
  */
 export function compareCardData(original: CardData, exported: CardData): {
   isIdentical: boolean
+  /** Совпадение данных, попадающих в XML (и прочих сравниваемых полей), до учёта реляционных адресатов PPV */
+  xmlStructureIdentical: boolean
   differences: string[]
   warnings: string[]
   added: string[]
@@ -354,8 +383,19 @@ export function compareCardData(original: CardData, exported: CardData): {
   // Сравниваем accessList
   compareValue('accessList', normalizedOriginal.accessList, normalizedExported.accessList)
 
+  const xmlStructureIdentical =
+    differences.length === 0 && warnings.length === 0 && added.length === 0
+
+  appendPpvActorCountryCodeDiffs(
+    differences,
+    added,
+    (normalizedOriginal as CardData).ppvActorCountryCodes,
+    (normalizedExported as CardData).ppvActorCountryCodes
+  )
+
   return {
     isIdentical: differences.length === 0 && warnings.length === 0 && added.length === 0,
+    xmlStructureIdentical,
     differences: [...new Set(differences)],
     warnings: [...new Set(warnings)],
     added: [...new Set(added)],
@@ -429,6 +469,9 @@ export function getCardDataReview(data: CardData): { filled: string[]; unfilled:
   walk('measures', data.measures)
   walk('electronicDocument', data.electronicDocument)
   walk('statusHistory', data.statusHistory)
+  if (data.ppvActorCountryCodes != null) {
+    walk('ppvActorCountryCodes', data.ppvActorCountryCodes)
+  }
 
   return { filled, unfilled }
 }

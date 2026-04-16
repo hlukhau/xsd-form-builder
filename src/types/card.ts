@@ -59,6 +59,12 @@ export interface CardData {
   spreadingZone?: DetectionPlaceData
   /** PHA: зоны распространения (0..n smcdo:SpreadingZoneDetails). */
   spreadingZones?: DetectionPlaceData[]
+
+  /**
+   * PPV: очередь новых кодов стран адресатов (ЕАЭС, не BY), подлежащих дописыванию в PPVACTOR при следующем сохранении.
+   * Уже сохранённые адресаты не хранятся здесь — они подгружаются с сервера на вкладке «Адресаты».
+   */
+  ppvActorCountryCodes?: string[]
 }
 
 /** PHA: группа пациентов (smcdo:PatientGroupDetails). */

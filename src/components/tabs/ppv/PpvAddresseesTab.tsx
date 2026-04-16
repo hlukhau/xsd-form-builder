@@ -1,21 +1,8 @@
 import { useEffect, useState, useMemo, useCallback } from 'react'
-import { Table, Spin, Alert, Tooltip, Button } from 'antd'
-import { LinkOutlined } from '@ant-design/icons'
+import { Table, Spin, Alert, Tooltip, Button, Modal } from 'antd'
+import { FileTextOutlined } from '@ant-design/icons'
 import type { ColumnsType } from 'antd/es/table'
 import { fetchPpvActors, type PpvActorRow } from '@/utils/referenceDataApi'
-
-function reviewResultCardUrl(edocId: string, guid: string | undefined): string | null {
-  const raw = (import.meta.env.VITE_REVIEW_RESULT_CARD_BASE as string | undefined)?.trim()
-  if (!raw) return null
-  const encId = encodeURIComponent(edocId)
-  const encGuid = encodeURIComponent(guid ?? '')
-  if (raw.startsWith('http://') || raw.startsWith('https://')) {
-    const base = raw.replace(/\/$/, '')
-    return `${base}/${encId}/${encGuid}`
-  }
-  const path = raw.startsWith('/') ? raw.replace(/\/$/, '') : `/${raw.replace(/\/$/, '')}`
-  return `${window.location.origin}${path}/${encId}/${encGuid}`
-}
 
 interface PpvAddresseesTabProps {
   ppvid: string
@@ -27,6 +14,8 @@ const PpvAddresseesTab: React.FC<PpvAddresseesTabProps> = ({ ppvid, guid, hasPer
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [rows, setRows] = useState<PpvActorRow[]>([])
+  const [reviewStubOpen, setReviewStubOpen] = useState(false)
+  const [reviewStubEdocId, setReviewStubEdocId] = useState<string | null>(null)
 
   useEffect(() => {
     if (!hasPersisted || !ppvid || ppvid === '-') {
@@ -56,18 +45,10 @@ const PpvAddresseesTab: React.FC<PpvAddresseesTabProps> = ({ ppvid, guid, hasPer
     }
   }, [ppvid, guid, hasPersisted])
 
-  const openReview = useCallback(
-    (edocId: string) => {
-      const href = reviewResultCardUrl(edocId, guid)
-      if (href) window.open(href, '_blank', 'noopener,noreferrer')
-    },
-    [guid]
-  )
-
-  const reviewBaseConfigured = useMemo(
-    () => Boolean((import.meta.env.VITE_REVIEW_RESULT_CARD_BASE as string | undefined)?.trim()),
-    []
-  )
+  const openReviewStub = useCallback((edocId: string) => {
+    setReviewStubEdocId(edocId)
+    setReviewStubOpen(true)
+  }, [])
 
   const columns: ColumnsType<PpvActorRow> = useMemo(
     () => [
@@ -76,6 +57,14 @@ const PpvAddresseesTab: React.FC<PpvAddresseesTabProps> = ({ ppvid, guid, hasPer
         dataIndex: 'countryName',
         key: 'countryName',
         render: (v: string | null) => (v && String(v).trim() ? v : '—'),
+      },
+      {
+        title: 'Код страны',
+        dataIndex: 'actorCountryCode',
+        key: 'actorCountryCode',
+        width: 110,
+        render: (_: unknown, record: PpvActorRow) =>
+          record.actorCountryCode?.trim() ? String(record.actorCountryCode).trim().toUpperCase() : '—',
       },
       {
         title: 'Дата получения ответа',
@@ -91,19 +80,12 @@ const PpvAddresseesTab: React.FC<PpvAddresseesTabProps> = ({ ppvid, guid, hasPer
         render: (_: unknown, record: PpvActorRow) => {
           const id = record.edocId?.trim()
           if (!id) return ''
-          if (!reviewBaseConfigured) {
-            return (
-              <Tooltip title="Задайте VITE_REVIEW_RESULT_CARD_BASE (базовый URL карты результата рассмотрения) при сборке">
-                <Button type="text" disabled icon={<LinkOutlined />} aria-label="Ответ" />
-              </Tooltip>
-            )
-          }
           return (
-            <Tooltip title="Открыть карту сведений о результате рассмотрения">
+            <Tooltip title="Карта сведений о результатах рассмотрения (заглушка)">
               <Button
                 type="link"
-                icon={<LinkOutlined style={{ fontSize: 18 }} />}
-                onClick={() => openReview(id)}
+                icon={<FileTextOutlined style={{ fontSize: 18 }} />}
+                onClick={() => openReviewStub(id)}
                 aria-label="Открыть карту результата рассмотрения"
               />
             </Tooltip>
@@ -111,7 +93,7 @@ const PpvAddresseesTab: React.FC<PpvAddresseesTabProps> = ({ ppvid, guid, hasPer
         },
       },
     ],
-    [openReview, reviewBaseConfigured]
+    [openReviewStub]
   )
 
   if (!hasPersisted || ppvid === '-') {
@@ -135,14 +117,32 @@ const PpvAddresseesTab: React.FC<PpvAddresseesTabProps> = ({ ppvid, guid, hasPer
   }
 
   return (
-    <Table<PpvActorRow>
-      rowKey={(r) => String(r.ppvActorId)}
-      columns={columns}
-      dataSource={rows}
-      pagination={false}
-      size="small"
-      bordered
-    />
+    <>
+      <Table<PpvActorRow>
+        rowKey={(r) => String(r.ppvActorId)}
+        columns={columns}
+        dataSource={rows}
+        pagination={false}
+        size="small"
+        bordered
+      />
+      <Modal
+        title="Карта сведений о результатах рассмотрения"
+        open={reviewStubOpen}
+        onCancel={() => setReviewStubOpen(false)}
+        footer={null}
+        destroyOnClose
+      >
+        <p style={{ color: '#595959', marginBottom: 8 }}>
+          Просмотр карты сведений о результате рассмотрения будет подключён позже.
+        </p>
+        {reviewStubEdocId ? (
+          <p style={{ fontFamily: 'monospace', fontSize: 12, wordBreak: 'break-all' }}>
+            Идентификатор ответа (EDOCID): {reviewStubEdocId}
+          </p>
+        ) : null}
+      </Modal>
+    </>
   )
 }
 

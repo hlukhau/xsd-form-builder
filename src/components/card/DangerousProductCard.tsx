@@ -20,10 +20,15 @@ import ViolationsTab from '../tabs/dpa/ViolationsTab'
 import DetectionPlaceTab from '../tabs/dpa/DetectionPlaceTab'
 import MeasuresTab from '../tabs/dpa/MeasuresTab'
 import PpvAddresseesTab from '../tabs/ppv/PpvAddresseesTab'
+import PpvAddresseesTabEdit from '../tabs/ppv/PpvAddresseesTabEdit'
 import { exportCardDataToXML, getEmptyTagsWarnings } from '@/utils/xmlExporter'
 import { parseXMLToCardData } from '@/utils/xmlParser'
 import { loadDpaCardFromDb } from '@/utils/loadDpaCardFromDb'
-import { compareCardData, getCardDataReview } from '@/utils/cardDataComparator'
+import {
+  compareCardData,
+  getCardDataReview,
+  normalizePpvActorCountryCodesList,
+} from '@/utils/cardDataComparator'
 import {
   fetchDpaStatusHistory,
   fetchDpaElectronicDocs,
@@ -655,9 +660,14 @@ const DangerousProductCard: React.FC<DangerousProductCardProps> = ({
     if (xmlToCompare) {
       try {
         const originalData = parseXMLToCardData(xmlToCompare)
+        // Адресаты PPV не входят в XML: в «исходную» сторону сравнения подставляем коды, загруженные с БД (props data).
+        const originalForCompare: CardData = {
+          ...originalData,
+          ppvActorCountryCodes: normalizePpvActorCountryCodesList(data.ppvActorCountryCodes),
+        }
         // Сравниваем с текущим состоянием формы (editedData), а не с повторно распарсенным XML,
         // чтобы корректно учитывать несколько нарушений в партии и не получать ложные различия
-        const result = compareCardData(originalData, editedData)
+        const result = compareCardData(originalForCompare, editedData)
         const emptyTagsWarnings = getEmptyTagsWarnings(editedData)
         const resultWithWarnings = emptyTagsWarnings.length > 0
           ? { ...result, warnings: [...(result.warnings ?? []), ...emptyTagsWarnings] }
@@ -710,7 +720,8 @@ const DangerousProductCard: React.FC<DangerousProductCardProps> = ({
       })
       setPendingSavePayload(null)
       setComparisonModalVisible(false)
-      onUpdate(editedData)
+      onUpdate({ ...editedData, ppvActorCountryCodes: [] })
+      setEditedData((prev) => ({ ...prev, ppvActorCountryCodes: [] }))
       setIsEditMode(false)
       setOriginalXML(xmlJustSaved)
       if (isNewCard) {
@@ -925,7 +936,16 @@ const DangerousProductCard: React.FC<DangerousProductCardProps> = ({
           }
           break
         case 'addressees':
-          editChildren = item.children
+          editChildren = (
+            <PpvAddresseesTabEdit
+              pendingCountryCodes={editedData.ppvActorCountryCodes ?? []}
+              ppvid={effectiveDpaid}
+              hasPersisted={hasPersistedDpaid}
+              formationDate={editedData.notification?.formationDate}
+              guid={guid}
+              onChange={(codes) => setEditedData((prev) => ({ ...prev, ppvActorCountryCodes: codes }))}
+            />
+          )
           break
         default:
           editChildren = (

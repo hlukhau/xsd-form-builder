@@ -16,6 +16,10 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Timestamp;
 import java.sql.Types;
+import java.util.ArrayList;
+import java.util.LinkedHashSet;
+import java.util.List;
+import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -84,6 +88,27 @@ public class PpvSaveServlet extends HttpServlet {
     private static final String SQL_DEPS_FOR_COPY = "SELECT DEPID FROM PPVDEPPERMIS WHERE PPVID = ?";
     /** Проверка существования подразделения (FK PPVDEPPERMIS_FK2 → родительская таблица, обычно TB_DEP) */
     private static final String SQL_EXISTS_DEP = "SELECT 1 FROM TB_DEP WHERE DEPID = ?";
+
+    /** Код участника общего процесса для адресатов PPV (PPVACTOR.ACTORCODE) */
+    private static final String PPV_ACTOR_CODE = "P.SS.08.ACT.005";
+
+    private static final String SQL_NEXT_PPVACTORID = "SELECT NVL(MAX(PPVACTORID),0)+1 AS N FROM PPVACTOR";
+    private static final String SQL_INSERT_PPVACTOR = ""
+            + "INSERT INTO PPVACTOR (PPVACTORID, PPVID, ACTORCOUNTRYCODE, ACTORCODE, EDOCID, PPVACTORACTFL, CDATE) "
+            + "VALUES (?, ?, ?, ?, NULL, 1, SYSDATE)";
+    /** Актуальная запись адресата по паре (PPVID, ACTORCODE, ACTORCOUNTRYCODE) */
+    private static final String SQL_EXIST_ACTIVE_PPVACTOR = ""
+            + "SELECT 1 FROM PPVACTOR WHERE PPVID = ? AND ACTORCODE = ? AND UPPER(TRIM(ACTORCOUNTRYCODE)) = ? "
+            + "AND PPVACTORACTFL = 1 AND ROWNUM = 1";
+    private static final String SQL_VALIDATE_PPV_ACTOR_COUNTRY = ""
+            + "SELECT 1 FROM DUAL WHERE EXISTS ("
+            + "  SELECT 1 FROM COUNTRY c "
+            + "  WHERE UPPER(TRIM(c.COUNTRYCODE)) = ? "
+            + "    AND TRUNC(?) BETWEEN TRUNC(c.COUNTRYSDATE) AND TRUNC(c.COUNTRYEDATE) "
+            + "    AND UPPER(TRIM(c.COUNTRYCODE)) <> 'BY' "
+            + "    AND EXISTS (SELECT 1 FROM COUNTRYGRSET g WHERE g.COUNTRYID = c.COUNTRYID "
+            + "      AND g.COUNTRYGRCODE = 'EAUE' AND g.COUNTRYGRSETACTFL = 1)"
+            + ")";
 
     @Override
     protected void doPost(HttpServletRequest request, HttpServletResponse response)
@@ -260,6 +285,12 @@ public class PpvSaveServlet extends HttpServlet {
                     System.out.println("[PpvSaveServlet] No department.depid in rights for guid=" + guid + ", PPVDEPPERMIS not inserted");
                 }
 
+                if (!syncPpvActors(conn, response, dpaid, metaBlock, docCreationDate)) {
+                    DatabaseUtil.rollbackQuietly(conn);
+                    transactionEnded = true;
+                    return;
+                }
+
                 conn.commit();
                 transactionEnded = true;
                 response.setStatus(HttpServletResponse.SC_OK);
@@ -332,6 +363,11 @@ public class PpvSaveServlet extends HttpServlet {
                         ps.setInt(3, userId);
                         ps.executeUpdate();
                     }
+                }
+                if (!syncPpvActors(conn, response, dpaid, metaBlock, docCreationDate)) {
+                    DatabaseUtil.rollbackQuietly(conn);
+                    transactionEnded = true;
+                    return;
                 }
                 conn.commit();
                 transactionEnded = true;
@@ -494,6 +530,51 @@ public class PpvSaveServlet extends HttpServlet {
             i++;
         }
         return depth == 0 ? json.substring(start, i) : null;
+    }
+
+    /** Массив строк JSON: "key":["RU","KZ"] */
+    private static List<String> extractJsonStringArray(String json, String key) {
+        List<String> out = new ArrayList<>();
+        if (json == null) return out;
+        String pat = "\"" + key + "\"";
+        int k = json.indexOf(pat);
+        if (k < 0) return out;
+        int brack = json.indexOf('[', k + pat.length());
+        if (brack < 0) return out;
+        int i = brack + 1;
+        while (i < json.length()) {
+            char c = json.charAt(i);
+            if (Character.isWhitespace(c) || c == ',') {
+                i++;
+                continue;
+            }
+            if (c == ']') break;
+            if (c == '"') {
+                i++;
+                StringBuilder sb = new StringBuilder();
+                while (i < json.length()) {
+                    char ch = json.charAt(i);
+                    if (ch == '\\' && i + 1 < json.length()) {
+                        sb.append(json.charAt(i + 1));
+                        i += 2;
+                        continue;
+                    }
+                    if (ch == '"') {
+                        i++;
+                        break;
+                    }
+                    sb.append(ch);
+                    i++;
+                }
+                String s = sb.toString().trim().toUpperCase();
+                if (s.length() >= 2) {
+                    out.add(s.length() > 2 ? s.substring(0, 2) : s);
+                }
+                continue;
+            }
+            i++;
+        }
+        return out;
     }
 
     private static void setIntOrNull(PreparedStatement ps, int index, Integer value) throws SQLException {
@@ -743,6 +824,10 @@ public class PpvSaveServlet extends HttpServlet {
                 System.out.println("[PpvSaveServlet] New version: No department.depid in rights for guid=" + guid + ", PPVDEPPERMIS not inserted");
             }
 
+            if (!syncPpvActors(conn, response, newDpaid, metaBlock, docCreationDate)) {
+                return null;
+            }
+
             return Long.valueOf(newDpaid);
         }
     }
@@ -836,6 +921,93 @@ public class PpvSaveServlet extends HttpServlet {
             return Integer.parseInt(String.valueOf(v));
         } catch (NumberFormatException e) {
             return null;
+        }
+    }
+
+    private static java.sql.Date resolveDocDateForPpvActor(String docCreationDate) {
+        if (docCreationDate != null) {
+            String t = docCreationDate.trim();
+            if (t.length() >= 10 && t.charAt(4) == '-' && t.charAt(7) == '-') {
+                try {
+                    return java.sql.Date.valueOf(t.substring(0, 10));
+                } catch (Exception ignored) { }
+            }
+        }
+        return new java.sql.Date(System.currentTimeMillis());
+    }
+
+    private static boolean isValidPpvActorCountry(Connection conn, String countryUpper2, java.sql.Date refDate)
+            throws SQLException {
+        try (PreparedStatement ps = conn.prepareStatement(SQL_VALIDATE_PPV_ACTOR_COUNTRY)) {
+            ps.setString(1, countryUpper2);
+            ps.setDate(2, refDate);
+            try (ResultSet rs = ps.executeQuery()) {
+                return rs.next();
+            }
+        }
+    }
+
+    private static long getNextPpvActorId(Connection conn) throws SQLException {
+        try (PreparedStatement ps = conn.prepareStatement(SQL_NEXT_PPVACTORID);
+             ResultSet rs = ps.executeQuery()) {
+            if (rs.next()) return rs.getLong(1);
+        }
+        throw new SQLException("Не удалось получить PPVACTORID");
+    }
+
+    private static void insertPpvActorRow(Connection conn, long ppvid, String countryCodeUpper2) throws SQLException {
+        long id = getNextPpvActorId(conn);
+        try (PreparedStatement ps = conn.prepareStatement(SQL_INSERT_PPVACTOR)) {
+            ps.setLong(1, id);
+            ps.setLong(2, ppvid);
+            ps.setString(3, countryCodeUpper2);
+            ps.setString(4, PPV_ACTOR_CODE);
+            ps.executeUpdate();
+        }
+    }
+
+    /**
+     * Дописывание в PPVACTOR только новых адресатов: metadata.ppvActorCountryCodes — коды для INSERT,
+     * если ещё нет актуальной строки (PPVID + ACTORCODE + ACTORCOUNTRYCODE, PPVACTORACTFL=1).
+     * Существующие строки не изменяются и не снимаются с актуальности.
+     */
+    private boolean syncPpvActors(Connection conn, HttpServletResponse response, long ppvid, String metaBlock,
+                                    String docCreationDate) throws SQLException, IOException {
+        if (metaBlock == null || !metaBlock.contains("\"ppvActorCountryCodes\"")) {
+            return true;
+        }
+        List<String> raw = extractJsonStringArray(metaBlock, "ppvActorCountryCodes");
+        Set<String> toAppend = new LinkedHashSet<>();
+        for (String c : raw) {
+            if (c == null) continue;
+            String u = c.trim().toUpperCase();
+            if (u.length() == 2) toAppend.add(u);
+        }
+        java.sql.Date refDate = resolveDocDateForPpvActor(docCreationDate != null ? docCreationDate : "");
+        for (String cc : toAppend) {
+            if (!isValidPpvActorCountry(conn, cc, refDate)) {
+                sendJsonError(response, HttpServletResponse.SC_BAD_REQUEST,
+                        "Недопустимый код страны адресата: " + cc + " (ЕАЭС, не BY, дата в диапазоне справочника COUNTRY).");
+                return false;
+            }
+        }
+        for (String countryUpper : toAppend) {
+            if (existsActivePpvActor(conn, ppvid, countryUpper)) {
+                continue;
+            }
+            insertPpvActorRow(conn, ppvid, countryUpper);
+        }
+        return true;
+    }
+
+    private static boolean existsActivePpvActor(Connection conn, long ppvid, String countryUpper2) throws SQLException {
+        try (PreparedStatement ps = conn.prepareStatement(SQL_EXIST_ACTIVE_PPVACTOR)) {
+            ps.setLong(1, ppvid);
+            ps.setString(2, PPV_ACTOR_CODE);
+            ps.setString(3, countryUpper2);
+            try (ResultSet rs = ps.executeQuery()) {
+                return rs.next();
+            }
         }
     }
 }

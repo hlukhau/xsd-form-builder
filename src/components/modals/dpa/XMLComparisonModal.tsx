@@ -5,6 +5,11 @@ const { Text, Paragraph } = Typography
 
 export interface ComparisonResultShape {
   isIdentical: boolean
+  /**
+   * Совпадение содержимого, сравниваемого с XML (до реляционных полей вне XML, например адресатов PPV).
+   * Если true и isIdentical false — отличаются только данные вне XML.
+   */
+  xmlStructureIdentical?: boolean
   differences: string[]
   warnings: string[]
   /** Добавленные пользователем значения (отображаются зелёным в разделе «Добавленные данные») */
@@ -160,6 +165,15 @@ const XMLComparisonModal: React.FC<XMLComparisonModalProps> = ({
         <Alert
           message="XML документы идентичны"
           description="Экспортированный XML полностью соответствует исходному документу."
+          type="success"
+          icon={<CheckCircleOutlined />}
+          showIcon
+          style={{ marginBottom: '16px' }}
+        />
+      ) : comparisonResult.xmlStructureIdentical === true ? (
+        <Alert
+          message="XML документы идентичны"
+          description="Экспортированный XML полностью соответствует исходному документу. Изменены также сведения карты, которые не входят в XML (например, адресаты)."
           type="success"
           icon={<CheckCircleOutlined />}
           showIcon

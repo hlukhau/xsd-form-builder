@@ -252,6 +252,8 @@ export interface DpaSaveMetadata {
   endDate?: string | null
   /** Идентификатор УО (UID из справочника или числовой AUTHORITYID) — сохраняется в DPA.AUTHORITYID */
   authorityId?: string | null
+  /** PPV: только новые коды стран для дописывания в PPVACTOR при сохранении (INSERT, без обновления существующих строк) */
+  ppvActorCountryCodes?: string[] | null
 }
 
 /** Ответ успешного сохранения новой карты */
@@ -380,6 +382,15 @@ export function buildSaveMetadataFromCardData(data: CardData): DpaSaveMetadata {
   const edocVersion = '1.0.0'
   const endDate = notification?.endDate ?? undefined
   const authorityId = notification?.authorizedBody?.identifier ?? undefined
+  const ppvActorCountryCodes = isPpvApp()
+    ? [
+        ...new Set(
+          (data.ppvActorCountryCodes ?? [])
+            .map((c) => String(c ?? '').trim().toUpperCase())
+            .filter((c) => /^[A-Z]{2}$/.test(c))
+        ),
+      ]
+    : undefined
   return {
     incidentId: incidentId || null,
     countryCode: countryCode || null,
@@ -396,6 +407,7 @@ export function buildSaveMetadataFromCardData(data: CardData): DpaSaveMetadata {
     edocVersion: edocVersion || null,
     endDate: endDate || null,
     authorityId: authorityId || null,
+    ...(isPpvApp() ? { ppvActorCountryCodes: ppvActorCountryCodes ?? [] } : {}),
   }
 }
 
@@ -549,10 +561,48 @@ export async function fetchDpaElectronicDocs(dpaid: string, guid?: string): Prom
 /** Адресат карты PPV (PPVACTOR). */
 export interface PpvActorRow {
   ppvActorId: number
+  actorCountryCode: string | null
+  ppvActorActFl: number | null
   countryName: string | null
   /** ДД.ММ.ГГГГ ЧЧ:МИ:СС при наличии ответа, иначе null */
   responseDateTime: string | null
   edocId: string | null
+}
+
+/** Страны — адресаты PPV (EAЭС, не BY), дата формирования в диапазоне COUNTRYSDATE/COUNTRYEDATE. */
+export interface PpvActorCountryOption {
+  code: string
+  name: string
+}
+
+/** GET /api/ppv/actors/country-options?docDate=YYYY-MM-DD */
+export async function fetchPpvActorCountryOptions(
+  formationDate?: string | null,
+  guid?: string
+): Promise<PpvActorCountryOption[]> {
+  const params = withGuidParams(new URLSearchParams(), guid)
+  const d = formationDate?.trim().slice(0, 10)
+  if (d) params.set('docDate', d)
+  const response = await fetch(
+    withGuidUrl(`${BASE_URL}api/ppv/actors/country-options?${params.toString()}`, guid)
+  )
+  const text = await response.text()
+  if (!response.ok) {
+    let errMsg = response.statusText
+    try {
+      const json = JSON.parse(text) as { error?: string }
+      if (json.error) errMsg = json.error
+    } catch {
+      if (text) errMsg = text.slice(0, 200)
+    }
+    throw new Error(errMsg)
+  }
+  try {
+    const data = JSON.parse(text) as { countries?: PpvActorCountryOption[] }
+    return Array.isArray(data.countries) ? data.countries : []
+  } catch {
+    return []
+  }
 }
 
 /** GET /api/ppv/actors/{PPVID} — список адресатов для вкладки «Адресаты». */
