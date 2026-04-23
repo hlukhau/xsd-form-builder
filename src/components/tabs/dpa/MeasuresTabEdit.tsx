@@ -20,6 +20,7 @@ import { DpaEmbeddedUnifiedAuthorityForm } from '@/components/common/DpaEmbedded
 import { labelWithHelp } from '@/components/common/FieldHelp'
 import { FIELD_HELP } from '@/constants/fieldDescriptions'
 import { getMaxLength, validateFieldValue, getFormatHint } from '@/constants/xsdFieldConstraints'
+import { binaryDownloadFileName, blobMimeTypeFromDocBinaryMediaTypeCode } from '@/utils/docBinaryDownload'
 import { DATE_DISPLAY_FORMAT } from '@/constants/dateFormat'
 import type { CountryOption } from '@/utils/referenceDataApi'
 import type {
@@ -45,7 +46,20 @@ const MeasureDocDetailsEditStandalone: React.FC<{
   normalizeCountryCode: (code: string | undefined) => string | undefined
   loadingMediaTypes: boolean
   getMediaTypeSelectOptions: () => Array<{ value: string; label: string }>
-}> = ({ doc, onChange, title, defaultLanguageCode, loadingCountries, countryOptions, normalizeCountryCode, getMediaTypeSelectOptions }) => {
+  getMediaTypeNameByCode: (code: string | undefined) => string | null
+  getMediaTypeCodeByName: (name: string | undefined) => string | null
+}> = ({
+  doc,
+  onChange,
+  title,
+  defaultLanguageCode,
+  loadingCountries,
+  countryOptions,
+  normalizeCountryCode,
+  getMediaTypeSelectOptions,
+  getMediaTypeNameByCode,
+  getMediaTypeCodeByName,
+}) => {
   const [uploadedFileName, setUploadedFileName] = useState<string>('')
   const { getSelectOptions: getShipDocKindSelectOptions, loading: loadingShipDocKinds } = useShipDocKindOptions()
   const { getLangCatalogSelectOptions } = useLanguageOptions()
@@ -74,11 +88,12 @@ const MeasureDocDetailsEditStandalone: React.FC<{
     if (!bin?.content) return
     try {
       const bytes = Uint8Array.from(atob(bin.content), (c) => c.charCodeAt(0))
-      const blob = new Blob([bytes], { type: bin.mediaTypeCode || 'application/octet-stream' })
+      const mime = blobMimeTypeFromDocBinaryMediaTypeCode(bin.mediaTypeCode)
+      const blob = new Blob([bytes], { type: mime })
       const link = document.createElement('a')
       link.href = URL.createObjectURL(blob)
-      const ext = (bin.mediaTypeCode || '').split('/').pop() || 'bin'
-      link.download = uploadedFileName || `document.${ext}`
+      const dictExt = getMediaTypeCodeByName(bin.mediaTypeCode)
+      link.download = binaryDownloadFileName(bin.mediaTypeCode, uploadedFileName, dictExt)
       document.body.appendChild(link)
       link.click()
       document.body.removeChild(link)
@@ -264,6 +279,14 @@ const MeasureDocDetailsEditStandalone: React.FC<{
                   })
                   return false
                 }
+                const mediatypeName = getMediaTypeNameByCode(normalizedCode)?.trim()
+                if (!mediatypeName) {
+                  Modal.warning({
+                    title: 'Справочник типов файла',
+                    content: 'Не удалось получить MEDIATYPENAME по MEDIATYPECODE. Повторите попытку позже.',
+                  })
+                  return false
+                }
                 const reader = new FileReader()
                 reader.onload = (e) => {
                   const result = e.target?.result as string
@@ -271,7 +294,7 @@ const MeasureDocDetailsEditStandalone: React.FC<{
                   setUploadedFileName(file.name)
                   onChange({
                     ...doc,
-                    docBinaryText: { content: base64Content, mediaTypeCode: normalizedCode },
+                    docBinaryText: { content: base64Content, mediaTypeCode: mediatypeName },
                   })
                   message.success(`Файл "${file.name}" загружен`)
                 }
@@ -287,7 +310,11 @@ const MeasureDocDetailsEditStandalone: React.FC<{
           {doc.docBinaryText?.content && (
             <div style={{ fontSize: '12px', color: '#999', display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
               <span style={{ color: '#1677ff', fontWeight: 600 }}>
-                Файл в бинарном виде: {uploadedFileName || 'файл'} ({doc.docBinaryText.mediaTypeCode || 'тип не указан'})
+                Файл в бинарном виде: {uploadedFileName || 'файл'}
+                {(() => {
+                  const ext = getMediaTypeCodeByName(doc.docBinaryText.mediaTypeCode)
+                  return ext ? ` (${ext})` : ''
+                })()}
               </span>
               <Button size="small" icon={<DownloadOutlined />} onClick={downloadBinary}>
                 Выгрузить файл
@@ -336,7 +363,12 @@ const MeasuresTabEdit: React.FC<MeasuresTabEditProps> = ({ data, onChange }) => 
   const { getSelectOptions: getSanitaryMeasureObjKindSelectOptions, getNameByCode: getSanitaryMeasureObjKindNameByCode } = useSanitaryMeasureObjKindOptions()
   const { getSelectOptions: getSanitaryMeasureSelectOptions, loading: loadingSanitaryMeasures } = useSanitaryMeasureOptions()
   const { getLanguageName, getLangCatalogSelectOptions } = useLanguageOptions()
-  const { getSelectOptions: getMediaTypeSelectOptions, loading: loadingMediaTypes } = useMediaTypeOptions()
+  const {
+    getSelectOptions: getMediaTypeSelectOptions,
+    getNameByCode: getMediaTypeNameByCode,
+    getCodeByName: getMediaTypeCodeByName,
+    loading: loadingMediaTypes,
+  } = useMediaTypeOptions()
 
   const handleAddMeasure = () => {
     const newMeasure: SanitaryMeasure = {
@@ -651,6 +683,8 @@ const MeasuresTabEdit: React.FC<MeasuresTabEditProps> = ({ data, onChange }) => 
                   normalizeCountryCode={normalizeCountryCode}
                   loadingMediaTypes={loadingMediaTypes}
                   getMediaTypeSelectOptions={getMediaTypeSelectOptions}
+                  getMediaTypeNameByCode={getMediaTypeNameByCode}
+                  getMediaTypeCodeByName={getMediaTypeCodeByName}
                 />
               ),
             },
@@ -668,6 +702,8 @@ const MeasuresTabEdit: React.FC<MeasuresTabEditProps> = ({ data, onChange }) => 
                   normalizeCountryCode={normalizeCountryCode}
                   loadingMediaTypes={loadingMediaTypes}
                   getMediaTypeSelectOptions={getMediaTypeSelectOptions}
+                  getMediaTypeNameByCode={getMediaTypeNameByCode}
+                  getMediaTypeCodeByName={getMediaTypeCodeByName}
                 />
               ),
             },

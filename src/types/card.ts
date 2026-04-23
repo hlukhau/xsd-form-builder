@@ -463,7 +463,8 @@ export interface MeasureDocDetails {
   pageQuantity?: string // PageQuantity
   docBinaryText?: {
     content?: string // DocBinaryText
-    mediaTypeCode?: string // mediaTypeCode атрибут
+    /** В XML атрибут mediaTypeCode: значение MEDIATYPENAME (MIME). MEDIATYPECODE (расширение) — только в справочнике, на фронте через getCodeByName(MIME) */
+    mediaTypeCode?: string
   }
   xmlDocument?: string // AnyDetails
 }

@@ -19,7 +19,9 @@ import { useCountryOptions } from '@/hooks/shared/useCountryOptions'
 import { useLegalFormOptions } from '@/hooks/shared/useLegalFormOptions'
 import { useIdentificationMethodOptions } from '@/hooks/shared/useIdentificationMethodOptions'
 import { useCommunicationChannelOptions } from '@/hooks/shared/useCommunicationChannelOptions'
+import { useMediaTypeOptions } from '@/hooks/shared/useMediaTypeOptions'
 import { buildContactDisplayLines } from '@/utils/contactDisplayUtils'
+import { binaryDownloadFileName, blobMimeTypeFromDocBinaryMediaTypeCode } from '@/utils/docBinaryDownload'
 import type {
   MeasuresData,
   SanitaryMeasure,
@@ -222,6 +224,7 @@ const MeasureDocDetailsView: React.FC<{ doc: MeasureDocDetails }> = ({ doc }) =>
   const { getDisplayLabel: getCountryDisplayLabel } = useCountryOptions()
   const { getLangCatalogSelectOptions } = useLanguageOptions()
   const { getDisplayLabel: getShipDocKindLabel } = useShipDocKindOptions()
+  const { getCodeByName: getMediaTypeCodeByName } = useMediaTypeOptions()
   const formatDate = (date: string | null | undefined) => {
     if (!date) return '-'
     const dateObj = new Date(date)
@@ -267,15 +270,16 @@ const MeasureDocDetailsView: React.FC<{ doc: MeasureDocDetails }> = ({ doc }) =>
                 for (let i = 0; i < binaryString.length; i++) {
                   bytes[i] = binaryString.charCodeAt(i)
                 }
-                const blob = new Blob([bytes], { 
-                  type: doc.docBinaryText!.mediaTypeCode || 'application/octet-stream' 
-                })
-                
-                // Создаем ссылку для скачивания
+                const mime = blobMimeTypeFromDocBinaryMediaTypeCode(doc.docBinaryText?.mediaTypeCode)
+                const blob = new Blob([bytes], { type: mime })
                 const url = URL.createObjectURL(blob)
                 const link = document.createElement('a')
                 link.href = url
-                link.download = `document.${doc.docBinaryText!.mediaTypeCode?.split('/').pop() || 'bin'}`
+                link.download = binaryDownloadFileName(
+                  doc.docBinaryText?.mediaTypeCode,
+                  undefined,
+                  getMediaTypeCodeByName(doc.docBinaryText?.mediaTypeCode),
+                )
                 document.body.appendChild(link)
                 link.click()
                 document.body.removeChild(link)
@@ -286,7 +290,11 @@ const MeasureDocDetailsView: React.FC<{ doc: MeasureDocDetails }> = ({ doc }) =>
               }
             }}
           >
-            Скачать ({doc.docBinaryText.mediaTypeCode || 'файл'})
+            Скачать
+            {(() => {
+              const ext = getMediaTypeCodeByName(doc.docBinaryText.mediaTypeCode)
+              return ext ? ` (${ext})` : ''
+            })()}
           </Button>
         </Descriptions.Item>
       )}

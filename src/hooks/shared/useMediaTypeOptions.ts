@@ -42,6 +42,14 @@ export function useMediaTypeOptions() {
     return option ? option.name : null
   }
 
+  /** MEDIATYPECODE (расширение) по MEDIATYPENAME (MIME) — поле name в API */
+  const getCodeByName = (mediatypeName: string | undefined): string | null => {
+    if (!mediatypeName?.trim()) return null
+    const t = mediatypeName.trim()
+    const option = options.find((opt) => (opt.name?.trim() ?? '') === t)
+    return option?.code ?? null
+  }
+
   const getSelectOptions = () => {
     return options.map(opt => ({
       value: opt.code,
@@ -54,6 +62,7 @@ export function useMediaTypeOptions() {
     loading,
     error,
     getNameByCode,
+    getCodeByName,
     getSelectOptions,
   }
 }

@@ -1101,7 +1101,9 @@ function exportMeasureDocDetails(xmlParts: string[], doc: MeasureDocDetails, tag
   if (doc.description) xmlParts.push(`${inner}<csdo:DescriptionText>${escapeXML(doc.description)}</csdo:DescriptionText>`)
   if (doc.pageQuantity) xmlParts.push(`${inner}<csdo:PageQuantity>${escapeXML(doc.pageQuantity)}</csdo:PageQuantity>`)
   if (doc.docBinaryText && (doc.docBinaryText.content || doc.docBinaryText.mediaTypeCode)) {
-    const mediaAttr = doc.docBinaryText.mediaTypeCode ? ` mediaTypeCode="${escapeXML(doc.docBinaryText.mediaTypeCode)}"` : ''
+    const mediaAttr = doc.docBinaryText.mediaTypeCode
+      ? ` mediaTypeCode="${escapeXML(doc.docBinaryText.mediaTypeCode)}"`
+      : ''
     xmlParts.push(`${inner}<csdo:DocBinaryText${mediaAttr}>${escapeXML(doc.docBinaryText.content || '')}</csdo:DocBinaryText>`)
   }
   if (doc.xmlDocument) {
