@@ -100,6 +100,10 @@ public class PpvSaveServlet extends HttpServlet {
     private static final String SQL_EXIST_ACTIVE_PPVACTOR = ""
             + "SELECT 1 FROM PPVACTOR WHERE PPVID = ? AND ACTORCODE = ? AND UPPER(TRIM(ACTORCOUNTRYCODE)) = ? "
             + "AND PPVACTORACTFL = 1 AND ROWNUM = 1";
+    /** Физическое удаление строки адресата без ответа (EDOCID пустой), принадлежащей карте */
+    private static final String SQL_DELETE_PPVACTOR_NO_EDOC = ""
+            + "DELETE FROM PPVACTOR WHERE PPVACTORID = ? AND PPVID = ? AND ACTORCODE = ? "
+            + "AND NVL(LENGTH(TRIM(EDOCID)), 0) = 0";
     private static final String SQL_VALIDATE_PPV_ACTOR_COUNTRY = ""
             + "SELECT 1 FROM DUAL WHERE EXISTS ("
             + "  SELECT 1 FROM COUNTRY c "
@@ -577,6 +581,63 @@ public class PpvSaveServlet extends HttpServlet {
         return out;
     }
 
+    /** Массив целых JSON: "key":[1,2] */
+    private static List<Long> extractJsonLongArray(String json, String key) {
+        List<Long> out = new ArrayList<>();
+        if (json == null) return out;
+        String pat = "\"" + key + "\"";
+        int k = json.indexOf(pat);
+        if (k < 0) return out;
+        int brack = json.indexOf('[', k + pat.length());
+        if (brack < 0) return out;
+        int i = brack + 1;
+        while (i < json.length()) {
+            char c = json.charAt(i);
+            if (Character.isWhitespace(c) || c == ',') {
+                i++;
+                continue;
+            }
+            if (c == ']') break;
+            if (c == '"') {
+                i++;
+                StringBuilder sb = new StringBuilder();
+                while (i < json.length()) {
+                    char ch = json.charAt(i);
+                    if (ch == '"') {
+                        i++;
+                        break;
+                    }
+                    sb.append(ch);
+                    i++;
+                }
+                try {
+                    long v = Long.parseLong(sb.toString().trim());
+                    if (v > 0) out.add(v);
+                } catch (NumberFormatException ignored) { }
+                continue;
+            }
+            if (c == '-' || Character.isDigit(c)) {
+                int start = i;
+                i++;
+                while (i < json.length()) {
+                    char ch = json.charAt(i);
+                    if (Character.isDigit(ch)) {
+                        i++;
+                        continue;
+                    }
+                    break;
+                }
+                try {
+                    long v = Long.parseLong(json.substring(start, i).trim());
+                    if (v > 0) out.add(v);
+                } catch (NumberFormatException ignored) { }
+                continue;
+            }
+            i++;
+        }
+        return out;
+    }
+
     private static void setIntOrNull(PreparedStatement ps, int index, Integer value) throws SQLException {
         if (value != null) ps.setInt(index, value);
         else ps.setNull(index, Types.INTEGER);
@@ -967,13 +1028,31 @@ public class PpvSaveServlet extends HttpServlet {
     }
 
     /**
-     * Дописывание в PPVACTOR только новых адресатов: metadata.ppvActorCountryCodes — коды для INSERT,
-     * если ещё нет актуальной строки (PPVID + ACTORCODE + ACTORCOUNTRYCODE, PPVACTORACTFL=1).
-     * Существующие строки не изменяются и не снимаются с актуальности.
+     * PPVACTOR: metadata.ppvActorRemovalIds — DELETE строк без EDOCID (ответа нет);
+     * metadata.ppvActorCountryCodes — INSERT новых адресатов, если ещё нет актуальной строки по паре (PPVID, ACTORCODE, страна).
      */
     private boolean syncPpvActors(Connection conn, HttpServletResponse response, long ppvid, String metaBlock,
                                     String docCreationDate) throws SQLException, IOException {
-        if (metaBlock == null || !metaBlock.contains("\"ppvActorCountryCodes\"")) {
+        boolean hasAppend = metaBlock != null && metaBlock.contains("\"ppvActorCountryCodes\"");
+        boolean hasRemove = metaBlock != null && metaBlock.contains("\"ppvActorRemovalIds\"");
+        if (!hasAppend && !hasRemove) {
+            return true;
+        }
+        if (hasRemove) {
+            List<Long> rawIds = extractJsonLongArray(metaBlock, "ppvActorRemovalIds");
+            Set<Long> removalIds = new LinkedHashSet<>(rawIds);
+            for (Long actorId : removalIds) {
+                if (actorId == null || actorId <= 0) continue;
+                int n = deletePpvActorNoEdoc(conn, ppvid, actorId);
+                if (n == 0) {
+                    sendJsonError(response, HttpServletResponse.SC_BAD_REQUEST,
+                            "Удаление адресата не выполнено для PPVACTORID=" + actorId
+                                    + ": запись не найдена, не относится к карте или есть EDOCID (ответ).");
+                    return false;
+                }
+            }
+        }
+        if (!hasAppend) {
             return true;
         }
         List<String> raw = extractJsonStringArray(metaBlock, "ppvActorCountryCodes");
@@ -998,6 +1077,15 @@ public class PpvSaveServlet extends HttpServlet {
             insertPpvActorRow(conn, ppvid, countryUpper);
         }
         return true;
+    }
+
+    private static int deletePpvActorNoEdoc(Connection conn, long ppvid, long ppvActorId) throws SQLException {
+        try (PreparedStatement ps = conn.prepareStatement(SQL_DELETE_PPVACTOR_NO_EDOC)) {
+            ps.setLong(1, ppvActorId);
+            ps.setLong(2, ppvid);
+            ps.setString(3, PPV_ACTOR_CODE);
+            return ps.executeUpdate();
+        }
     }
 
     private static boolean existsActivePpvActor(Connection conn, long ppvid, String countryUpper2) throws SQLException {

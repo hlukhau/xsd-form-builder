@@ -36,6 +36,20 @@ echo "Target: $REMOTE_USER@$REMOTE_HOST:$REMOTE_WEBAPPS/"
 echo "WAR:    $WAR_FILE"
 echo ""
 
+echo "[cleanup] Удаление старых контекстов PPV в $REMOTE_WEBAPPS ..."
+remote_rm() {
+    if command -v sshpass &>/dev/null && [ -n "${REMOTE_PASSWORD:-}" ]; then
+        export SSHPASS="$REMOTE_PASSWORD"
+        sshpass -e ssh -o StrictHostKeyChecking=accept-new "$REMOTE_USER@$REMOTE_HOST" "$1"
+        unset SSHPASS
+    else
+        ssh -o StrictHostKeyChecking=accept-new "$REMOTE_USER@$REMOTE_HOST" "$1"
+    fi
+}
+remote_rm "cd \"$REMOTE_WEBAPPS\" && rm -rf ppv_card && rm -f ppv_card.war" || true
+echo "[OK] Старые WAR/папки (ppv_card*) убраны с сервера"
+echo ""
+
 if command -v sshpass &>/dev/null; then
     export SSHPASS="$REMOTE_PASSWORD"
     sshpass -e scp -o StrictHostKeyChecking=accept-new "$WAR_FILE" "$REMOTE_USER@$REMOTE_HOST:$REMOTE_WEBAPPS/"

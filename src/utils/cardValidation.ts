@@ -118,11 +118,20 @@ export function validateOutgoingCard(data: CardData): ValidationResult {
   if (empty(incidentKind)) {
     add(sectionNotification, 'Вид уведомления должен быть указан')
   } else {
-    if (version === 1 && incidentKind !== '7') {
-      add(sectionNotification, 'Неверно указан вид уведомления')
-    }
-    if (version !== 1 && incidentKind !== '8' && incidentKind !== '9') {
-      add(sectionNotification, 'Неверно указан вид уведомления')
+    if (isPpvApp()) {
+      if (version === 1 && incidentKind !== '19') {
+        add(sectionNotification, 'Неверно указан вид уведомления')
+      }
+      if (version !== 1 && incidentKind !== '8' && incidentKind !== '9') {
+        add(sectionNotification, 'Неверно указан вид уведомления')
+      }
+    } else {
+      if (version === 1 && incidentKind !== '7') {
+        add(sectionNotification, 'Неверно указан вид уведомления')
+      }
+      if (version !== 1 && incidentKind !== '8' && incidentKind !== '9') {
+        add(sectionNotification, 'Неверно указан вид уведомления')
+      }
     }
   }
   if (empty(notif?.formationDate)) {

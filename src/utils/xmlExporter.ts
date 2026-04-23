@@ -670,9 +670,7 @@ function hasSubjectDetailsContent(sd: SubjectDetails | undefined): boolean {
 function hasImplementationContent(impl: MeasureImplementationItem | undefined): boolean {
   if (!impl) return false
   const s = (v: string | undefined) => (v ?? '').trim()
-  // По XSD MeasureImplementationDetailsType обязательны UnifiedCountryCode и StartDate
-  if (!s(impl.country) || !s(impl.startDate)) return false
-  if (s(impl.endDate) || s(impl.description)) return true
+  if (s(impl.country) || s(impl.startDate) || s(impl.endDate) || s(impl.description)) return true
   if (impl.measureAffectedObjectKindCode?.trim()) return true
   if ((impl.authorities ?? []).some(hasUnifiedAuthorityMeasureContent)) return true
   if ((impl.subjectDetailsList ?? []).some(hasSubjectDetailsContent)) return true
@@ -680,7 +678,7 @@ function hasImplementationContent(impl: MeasureImplementationItem | undefined): 
   if (hasSubjectDetailsContent(impl.subjectDetails)) return true
   if (impl.documentDetails && hasDocumentReferenceContent(impl.documentDetails)) return true
   if (impl.placeDetails && (s(impl.placeDetails.regionName) || s(impl.placeDetails.borderCheckpointCode) || s(impl.placeDetails.borderCheckpointName))) return true
-  return true
+  return false
 }
 
 function hasDocumentReferenceContent(doc: DocumentReferenceDetails | undefined): boolean {
@@ -1023,7 +1021,7 @@ function exportSanitaryMeasure(xmlParts: string[], measure: SanitaryMeasure, ind
   // MeasureAffectedObjectKindCode*, MeasureImplementationDetails*
   if (measure.languageCode) xmlParts.push(`${indent}  <csdo:LanguageCode>${escapeXML(measure.languageCode)}</csdo:LanguageCode>`)
   if (measure.measureCode?.trim()) {
-    const listId = measure.measureCodeListId?.trim() || '1026'
+    const listId = measure.measureCodeListId?.trim() || '1067'
     xmlParts.push(`${indent}  <smsdo:MeasureCode codeListId="${escapeXML(listId)}">${escapeXML(measure.measureCode.trim())}</smsdo:MeasureCode>`)
   }
   if (measure.measureName?.trim()) {

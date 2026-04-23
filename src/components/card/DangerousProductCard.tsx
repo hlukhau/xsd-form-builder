@@ -28,6 +28,7 @@ import {
   compareCardData,
   getCardDataReview,
   normalizePpvActorCountryCodesList,
+  normalizePpvActorRemovalIds,
 } from '@/utils/cardDataComparator'
 import {
   fetchDpaStatusHistory,
@@ -613,6 +614,12 @@ const DangerousProductCard: React.FC<DangerousProductCardProps> = ({
       const kindErrors: string[] = []
       if (!kind) {
         kindErrors.push('Уведомление: Вид уведомления должен быть указан')
+      } else if (isPpvApp()) {
+        if (v === 1 && kind !== '19') {
+          kindErrors.push('Уведомление: Неверно указан вид уведомления')
+        } else if (v !== 1 && kind !== '8' && kind !== '9') {
+          kindErrors.push('Уведомление: Неверно указан вид уведомления')
+        }
       } else if (v === 1 && kind !== '7') {
         kindErrors.push('Уведомление: Неверно указан вид уведомления')
       } else if (v !== 1 && kind !== '8' && kind !== '9') {
@@ -664,6 +671,7 @@ const DangerousProductCard: React.FC<DangerousProductCardProps> = ({
         const originalForCompare: CardData = {
           ...originalData,
           ppvActorCountryCodes: normalizePpvActorCountryCodesList(data.ppvActorCountryCodes),
+          ppvActorRemovalIds: normalizePpvActorRemovalIds(data.ppvActorRemovalIds),
         }
         // Сравниваем с текущим состоянием формы (editedData), а не с повторно распарсенным XML,
         // чтобы корректно учитывать несколько нарушений в партии и не получать ложные различия
@@ -695,6 +703,12 @@ const DangerousProductCard: React.FC<DangerousProductCardProps> = ({
       const kindErrors: string[] = []
       if (!kind) {
         kindErrors.push('Уведомление: Вид уведомления должен быть указан')
+      } else if (isPpvApp()) {
+        if (v === 1 && kind !== '19') {
+          kindErrors.push('Уведомление: Неверно указан вид уведомления')
+        } else if (v !== 1 && kind !== '8' && kind !== '9') {
+          kindErrors.push('Уведомление: Неверно указан вид уведомления')
+        }
       } else if (v === 1 && kind !== '7') {
         kindErrors.push('Уведомление: Неверно указан вид уведомления')
       } else if (v !== 1 && kind !== '8' && kind !== '9') {
@@ -720,8 +734,8 @@ const DangerousProductCard: React.FC<DangerousProductCardProps> = ({
       })
       setPendingSavePayload(null)
       setComparisonModalVisible(false)
-      onUpdate({ ...editedData, ppvActorCountryCodes: [] })
-      setEditedData((prev) => ({ ...prev, ppvActorCountryCodes: [] }))
+      onUpdate({ ...editedData, ppvActorCountryCodes: [], ppvActorRemovalIds: [] })
+      setEditedData((prev) => ({ ...prev, ppvActorCountryCodes: [], ppvActorRemovalIds: [] }))
       setIsEditMode(false)
       setOriginalXML(xmlJustSaved)
       if (isNewCard) {
@@ -819,6 +833,7 @@ const DangerousProductCard: React.FC<DangerousProductCardProps> = ({
               isDraft={effectiveDpaid === '-' || (currentStatusId === 5) || /черновик/i.test(editedData.status ?? data.status ?? '')}
               isOutgoing={isOutgoingSource}
               allowedAuthorityIds={isOutgoingSource && (effectiveDpaid === '-' || isDraftStatus) ? outgoingAuthorityFilterDepIds ?? undefined : undefined}
+              ppvCard={isPpvApp()}
             />
           )
           break
@@ -939,11 +954,13 @@ const DangerousProductCard: React.FC<DangerousProductCardProps> = ({
           editChildren = (
             <PpvAddresseesTabEdit
               pendingCountryCodes={editedData.ppvActorCountryCodes ?? []}
+              removalIds={editedData.ppvActorRemovalIds ?? []}
               ppvid={effectiveDpaid}
               hasPersisted={hasPersistedDpaid}
               formationDate={editedData.notification?.formationDate}
               guid={guid}
               onChange={(codes) => setEditedData((prev) => ({ ...prev, ppvActorCountryCodes: codes }))}
+              onRemovalIdsChange={(ids) => setEditedData((prev) => ({ ...prev, ppvActorRemovalIds: ids }))}
             />
           )
           break

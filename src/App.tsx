@@ -169,7 +169,7 @@ function AppContent() {
       try {
         const { registrationNumber } = await fetchNextRegistrationNumber(country, guid)
         if (cancelled) return
-        const newData = createNewCardData(country, { registrationNumber })
+        const newData = createNewCardData(country, { registrationNumber }, { forPpv: isPpvApp() })
         setCardData(newData)
         setOriginalXML(null)
         setLoadByDpaidState({ loading: false, error: null })

@@ -412,6 +412,25 @@ export function getTextContent(
 }
 
 /**
+ * Текст первого прямого дочернего элемента с заданным локальным именем (без учёта префикса).
+ * Исключает подмешивание значений из вложенных блоков (адрес субъекта, мероприятие, DescriptionText документа и т.д.).
+ */
+function getDirectChildTextByLocalName(parent: Element, localName: string): string | null {
+  const want = localName.toLowerCase()
+  for (let i = 0; i < parent.children.length; i++) {
+    const n = parent.children[i]
+    if (n.nodeType !== Node.ELEMENT_NODE) continue
+    const el = n as Element
+    const ln = (el.localName || el.tagName.split(':').pop() || '').toLowerCase()
+    if (ln === want) {
+      const t = el.textContent?.trim()
+      return t || null
+    }
+  }
+  return null
+}
+
+/**
  * Извлекает внутренний XML первого элемента с заданным именем (все дочерние узлы сериализованы в строку).
  * Используется для ccdo:AnyDetails -> ccdo:DocDetails и вложенной структуры (сохраняются теги).
  */
@@ -2293,7 +2312,7 @@ function parseOrganizationDetails(placeElement: Element): BusinessEntityDetails 
     return undefined
   }
   
-  const country = getTextContent(orgElement, 'UnifiedCountryCode') || undefined
+  const country = getDirectChildTextByLocalName(orgElement, 'UnifiedCountryCode') || undefined
   const businessEntityName = getTextContent(orgElement, 'BusinessEntityName') || undefined
   const businessEntityBriefName = getTextContent(orgElement, 'BusinessEntityBriefName') || undefined
   let businessEntityTypeCode: string | undefined
@@ -2637,9 +2656,9 @@ function parseSanitaryMeasure(measureElement: Element): SanitaryMeasure | null {
   const languageCode = getTextContent(measureElement, 'LanguageCode') || undefined
   const measureName = getTextContent(measureElement, 'MeasureName') || undefined
   const measureJustificationText = getTextContent(measureElement, 'MeasureJustificationText') || undefined
-  const description = getTextContent(measureElement, 'DescriptionText') || undefined
-  const startDate = getTextContent(measureElement, 'StartDate') || undefined
-  const endDate = getTextContent(measureElement, 'EndDate') || undefined
+  const description = getDirectChildTextByLocalName(measureElement, 'DescriptionText') || undefined
+  const startDate = getDirectChildTextByLocalName(measureElement, 'StartDate') || undefined
+  const endDate = getDirectChildTextByLocalName(measureElement, 'EndDate') || undefined
   const measureAffectedObjectKindCodes = getAllTextContents(measureElement, 'MeasureAffectedObjectKindCode')
   const measureAffectedObjectKindCode = measureAffectedObjectKindCodes.length > 0 ? measureAffectedObjectKindCodes.join(';') : undefined
   
@@ -2909,10 +2928,10 @@ function parseMeasureImplementationDetails(measureElement: Element): MeasureImpl
  * Парсит один MeasureImplementationItem
  */
 function parseMeasureImplementationItem(implElement: Element): MeasureImplementationItem | null {
-  const country = getTextContent(implElement, 'UnifiedCountryCode') || undefined
-  const startDate = getTextContent(implElement, 'StartDate') || undefined
-  const endDate = getTextContent(implElement, 'EndDate') || undefined
-  const description = getTextContent(implElement, 'DescriptionText') || undefined
+  const country = getDirectChildTextByLocalName(implElement, 'UnifiedCountryCode') || undefined
+  const startDate = getDirectChildTextByLocalName(implElement, 'StartDate') || undefined
+  const endDate = getDirectChildTextByLocalName(implElement, 'EndDate') || undefined
+  const description = getDirectChildTextByLocalName(implElement, 'DescriptionText') || undefined
   const measureAffectedObjectKindCodesImpl = getAllTextContents(implElement, 'MeasureAffectedObjectKindCode')
   const measureAffectedObjectKindCode = measureAffectedObjectKindCodesImpl.length > 0 ? measureAffectedObjectKindCodesImpl.join(';') : undefined
 
@@ -3084,7 +3103,7 @@ function parseBusinessEntityIdAndKindId(parent: Element): { businessEntityId?: s
  * В XML: SubjectBriefName, BusinessEntityTypeCode, BusinessEntityId (kindId), UniqueCustomsNumberId, TaxpayerId и т.д.
  */
 function parseSubjectDetailsDirect(subjectElement: Element): BusinessEntityDetails | undefined {
-  const country = getTextContent(subjectElement, 'UnifiedCountryCode') || undefined
+  const country = getDirectChildTextByLocalName(subjectElement, 'UnifiedCountryCode') || undefined
   const subjectName = getTextContent(subjectElement, 'SubjectName') || undefined
   const businessEntityName = getTextContent(subjectElement, 'BusinessEntityName') || subjectName || undefined
   const subjectBriefName = getTextContent(subjectElement, 'SubjectBriefName') || undefined
@@ -3195,7 +3214,7 @@ function parseSubjectDetails(parent: Element): SubjectDetails | undefined {
   // интерпретироваться как BusinessEntityName и identityDoc потеряется.
   const identityDoc = parseIdentityDocDetails(subjectElement)
   if (identityDoc) {
-    const country = getTextContent(subjectElement, 'UnifiedCountryCode') || undefined
+    const country = getDirectChildTextByLocalName(subjectElement, 'UnifiedCountryCode') || undefined
     const subjectName = getTextContent(subjectElement, 'SubjectName') || undefined
     const addresses = parseAllAddresses(subjectElement)
     const registrationAddress = addresses.find((a) => (a.addressKindCode || '').trim() === '1')
@@ -3227,14 +3246,14 @@ function parseSubjectDetails(parent: Element): SubjectDetails | undefined {
   }
   
   // Физлицо
-  const country = getTextContent(subjectElement, 'UnifiedCountryCode') || undefined
+  const country = getDirectChildTextByLocalName(subjectElement, 'UnifiedCountryCode') || undefined
   const subjectName = getTextContent(subjectElement, 'SubjectName') || undefined
   const addresses = parseAllAddresses(subjectElement)
   const registrationAddress = addresses.find((a) => (a.addressKindCode || '').trim() === '1')
   const actualAddress = addresses.find((a) => (a.addressKindCode || '').trim() === '2')
   const mailingAddress = addresses.find((a) => (a.addressKindCode || '').trim() === '3')
   const contacts = parseContacts(subjectElement)
-  
+
   return {
     country,
     subjectName,

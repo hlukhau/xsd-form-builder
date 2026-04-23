@@ -65,6 +65,10 @@ export interface CardData {
    * Уже сохранённые адресаты не хранятся здесь — они подгружаются с сервера на вкладке «Адресаты».
    */
   ppvActorCountryCodes?: string[]
+  /**
+   * PPV: идентификаторы PPVACTOR без EDOCID — при сохранении удаляются из БД (DELETE).
+   */
+  ppvActorRemovalIds?: number[]
 }
 
 /** PHA: группа пациентов (smcdo:PatientGroupDetails). */

@@ -254,6 +254,8 @@ export interface DpaSaveMetadata {
   authorityId?: string | null
   /** PPV: только новые коды стран для дописывания в PPVACTOR при сохранении (INSERT, без обновления существующих строк) */
   ppvActorCountryCodes?: string[] | null
+  /** PPV: PPVACTORID строк без EDOCID — физическое удаление из PPVACTOR при сохранении */
+  ppvActorRemovalIds?: number[] | null
 }
 
 /** Ответ успешного сохранения новой карты */
@@ -391,6 +393,15 @@ export function buildSaveMetadataFromCardData(data: CardData): DpaSaveMetadata {
         ),
       ]
     : undefined
+  const ppvActorRemovalIds = isPpvApp()
+    ? [
+        ...new Set(
+          (data.ppvActorRemovalIds ?? [])
+            .map((x) => Number(x))
+            .filter((n) => Number.isInteger(n) && n > 0)
+        ),
+      ]
+    : undefined
   return {
     incidentId: incidentId || null,
     countryCode: countryCode || null,
@@ -407,7 +418,14 @@ export function buildSaveMetadataFromCardData(data: CardData): DpaSaveMetadata {
     edocVersion: edocVersion || null,
     endDate: endDate || null,
     authorityId: authorityId || null,
-    ...(isPpvApp() ? { ppvActorCountryCodes: ppvActorCountryCodes ?? [] } : {}),
+    ...(isPpvApp()
+      ? {
+          ppvActorCountryCodes: ppvActorCountryCodes ?? [],
+          ...(ppvActorRemovalIds != null && ppvActorRemovalIds.length > 0
+            ? { ppvActorRemovalIds: ppvActorRemovalIds }
+            : {}),
+        }
+      : {}),
   }
 }
 

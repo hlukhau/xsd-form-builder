@@ -357,10 +357,38 @@ const MeasureImplementationView: React.FC<{ items: MeasureImplementationItem[] }
 const MeasureImplementationDetailView: React.FC<{ item: MeasureImplementationItem }> = ({ item }) => {
   const { getDisplayLabel: getCountryDisplayLabel } = useCountryOptions()
   const { getNameByCode: getCheckpointNameByCode } = useBorderCheckpointOptions()
+  const { getNameByCode: getSanitaryMeasureObjKindNameByCode } = useSanitaryMeasureObjKindOptions()
   const authorities = item.authorities?.length ? item.authorities : (item.authority ? [item.authority] : [])
   const subjects = item.subjectDetailsList?.length ? item.subjectDetailsList : (item.subjectDetails ? [item.subjectDetails] : [])
 
+  const formatDate = (date: string | null | undefined) => {
+    if (!date) return '—'
+    const dateObj = new Date(date)
+    if (isNaN(dateObj.getTime())) return date
+    return format(dateObj, 'dd.MM.yyyy', { locale: ru })
+  }
+
+  const objKindRaw = item.measureAffectedObjectKindCode?.trim()
+  const objKindDisplay =
+    objKindRaw
+      ?.split(';')
+      .map((c) => c.trim())
+      .filter(Boolean)
+      .map((code) => {
+        const name = getSanitaryMeasureObjKindNameByCode(code)
+        return name ? `${code} — ${name}` : code
+      })
+      .join('; ') || '—'
+
   return (
+    <>
+      <Descriptions column={1} bordered size="small" style={{ marginBottom: 12 }} title="Сведения о мероприятии">
+        <Descriptions.Item label="Страна мероприятия">{getCountryDisplayLabel(item.country) || '—'}</Descriptions.Item>
+        <Descriptions.Item label="Дата начала">{formatDate(item.startDate)}</Descriptions.Item>
+        <Descriptions.Item label="Дата окончания">{formatDate(item.endDate)}</Descriptions.Item>
+        <Descriptions.Item label="Вид объекта действия">{objKindDisplay}</Descriptions.Item>
+        <Descriptions.Item label="Описание">{(item.description ?? '').trim() || '—'}</Descriptions.Item>
+      </Descriptions>
     <Collapse
       defaultActiveKey={['authority', 'subject', 'document', 'place']}
       items={[
@@ -418,6 +446,7 @@ const MeasureImplementationDetailView: React.FC<{ item: MeasureImplementationIte
         },
       ].filter(Boolean) as any[]}
     />
+    </>
   )
 }
 

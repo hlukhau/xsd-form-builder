@@ -48,7 +48,7 @@ public class PpvActorsServlet extends HttpServlet {
             + "FROM PPVACTOR a "
             + "LEFT JOIN COUNTRY c ON UPPER(TRIM(c.COUNTRYCODE)) = UPPER(TRIM(a.ACTORCOUNTRYCODE)) "
             + "     AND c.COUNTRYSDATE <= SYSDATE AND c.COUNTRYEDATE >= SYSDATE "
-            + "WHERE a.PPVID = ? "
+            + "WHERE a.PPVID = ? AND a.PPVACTORACTFL = 1 "
             + "ORDER BY a.PPVACTORID";
 
     @Override

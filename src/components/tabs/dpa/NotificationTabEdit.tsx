@@ -24,6 +24,8 @@ export interface NotificationTabEditProps {
   isOutgoing?: boolean
   /** DEPID из карт прав (объединённые) — только соответствующие УО в списке (при isOutgoing && isDraft) */
   allowedAuthorityIds?: string[]
+  /** Карта PPV (нарушения): версия 1 — только вид 19 в списке */
+  ppvCard?: boolean
   /**
    * Новая версия по копии (/- с copyFromDpaid): подсветка и валидация поля «Вид».
    * Обычное создание DPA — без этого (вид по умолчанию, сохранение без логической блокировки разделов).
@@ -31,7 +33,8 @@ export interface NotificationTabEditProps {
   enforceIncidentKindForCopy?: boolean
 }
 
-const VERSION_1_KIND_CODES = ['7']
+const VERSION_1_KIND_CODES_DPA = ['7']
+const VERSION_1_KIND_CODES_PPV = ['19']
 const OTHER_VERSIONS_KIND_CODES = ['8', '9']
 
 const NotificationTabEdit: React.FC<NotificationTabEditProps> = ({
@@ -43,6 +46,7 @@ const NotificationTabEdit: React.FC<NotificationTabEditProps> = ({
   isOutgoing = false,
   allowedAuthorityIds,
   enforceIncidentKindForCopy = false,
+  ppvCard = false,
 }) => {
   const [form] = Form.useForm()
   const { loading: loadingIncidentAlertKinds, getSelectOptions: getIncidentAlertKindSelectOptions } = useIncidentAlertKindOptions()
@@ -56,8 +60,9 @@ const NotificationTabEdit: React.FC<NotificationTabEditProps> = ({
   
   const [selectedAuthorityUid, setSelectedAuthorityUid] = useState<string | undefined>(undefined)
 
-  // Ограничение видов уведомления по версии: 1 — только 7; иначе — 8 и 9. Сортировка по коду как числу.
-  const allowedKindCodes = version === 1 ? VERSION_1_KIND_CODES : OTHER_VERSIONS_KIND_CODES
+  // Ограничение видов уведомления по версии: DPA v1 — 7; PPV v1 — 19; иначе — 8 и 9.
+  const allowedKindCodes =
+    version === 1 ? (ppvCard ? VERSION_1_KIND_CODES_PPV : VERSION_1_KIND_CODES_DPA) : OTHER_VERSIONS_KIND_CODES
   const incidentKindSelectOptions = getIncidentAlertKindSelectOptions()
     .filter((opt) => allowedKindCodes.includes(String(opt.value)))
     .sort((a, b) => (Number(a.value) || 0) - (Number(b.value) || 0))
@@ -105,6 +110,7 @@ const NotificationTabEdit: React.FC<NotificationTabEditProps> = ({
     data.authorizedBody?.country,
     formationDateOnly,
     enforceIncidentKindForCopy,
+    ppvCard,
   ])
 
   // При создании новой карточки: дата формирования = сегодня, страна УО = BY
@@ -231,10 +237,12 @@ const NotificationTabEdit: React.FC<NotificationTabEditProps> = ({
                       return Promise.resolve()
                     }
                     const v = String(value).trim()
-                    if (version === 1 && v !== '7') {
-                      return Promise.reject(new Error('Для версии 1 карты допустим только вид «7»'))
+                    if (version === 1 && !allowedKindCodes.includes(v)) {
+                      return Promise.reject(
+                        new Error(`Для версии 1 карты допустим вид: ${allowedKindCodes.join(' или ')}`)
+                      )
                     }
-                    if (version !== 1 && v !== '8' && v !== '9') {
+                    if (version !== 1 && !OTHER_VERSIONS_KIND_CODES.includes(v)) {
                       return Promise.reject(new Error('Для версии 2 и выше укажите вид «8» или «9»'))
                     }
                     return Promise.resolve()

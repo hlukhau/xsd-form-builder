@@ -4,7 +4,10 @@ import type { CardData } from '@/types/card'
 export const PHA_NEW_STATUS_ID = 5
 export const PHA_NEW_STATUS_NAME = 'Новое' as const
 
-const DEFAULT_INCIDENT_KIND_CODE = '7'
+/** DPA (опасная продукция), версия 1 — вид уведомления по умолчанию */
+const DEFAULT_INCIDENT_KIND_CODE_DPA = '7'
+/** PPV (выявленные нарушения), создаваемая карта — вид уведомления всегда 19 */
+const DEFAULT_INCIDENT_KIND_CODE_PPV = '19'
 const DEFAULT_SERIAL_IN_YEAR = '00001'
 
 /**
@@ -26,20 +29,22 @@ export function buildNewRegistrationNumber(
  * Создаёт предзаполненные данные для новой карты (режим создания по ссылке с ? вместо DPAID).
  * - Регистрационный номер: из options.registrationNumber (уникальный с бэкенда) или по правилу [Страна]-DP[5 цифр]-[Год]
  * - Код страны: из параметра
- * - Вид уведомления: IncidentKindCode = 7
+ * - Вид уведомления: DPA — IncidentKindCode = 7; PPV — 19
  * - Дата формирования: текущая дата
  * - Статус: для DPA — «Черновик» (DPASTATUS); для PHA — сразу «Новое», PHASTATUSID = 5 (черновика нет).
  */
 export function createNewCardData(
   countryCode: string = 'BY',
   serialOrOptions?: string | { serialInYear?: string; registrationNumber?: string },
-  options?: { forPha?: boolean }
+  options?: { forPha?: boolean; forPpv?: boolean }
 ): CardData {
   const now = new Date()
   const formationDate = now.toISOString().slice(0, 10) // YYYY-MM-DD
   const documentDateTime = now.toISOString() // ISO 8601
   const forPha = options?.forPha === true
+  const forPpv = options?.forPpv === true
   const country = forPha ? 'BY' : countryCode.toUpperCase().slice(0, 2)
+  const defaultIncidentKind = forPha ? '' : forPpv ? DEFAULT_INCIDENT_KIND_CODE_PPV : DEFAULT_INCIDENT_KIND_CODE_DPA
   const registrationNumber =
     typeof serialOrOptions === 'object' && serialOrOptions?.registrationNumber
       ? serialOrOptions.registrationNumber
@@ -73,7 +78,7 @@ export function createNewCardData(
     notification: {
       country,
       registrationNumber,
-      type: forPha ? '' : DEFAULT_INCIDENT_KIND_CODE,
+      type: defaultIncidentKind,
       formationDate, // csdo:DocCreationDate
       endDate: null,
       authorizedBody: {

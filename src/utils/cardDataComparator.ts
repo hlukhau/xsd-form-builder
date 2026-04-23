@@ -81,6 +81,16 @@ export function normalizePpvActorCountryCodesList(codes: string[] | undefined | 
   ].sort()
 }
 
+export function normalizePpvActorRemovalIds(ids: readonly number[] | undefined | null): number[] {
+  return [
+    ...new Set(
+      (ids ?? [])
+        .map((x) => Number(x))
+        .filter((n) => Number.isInteger(n) && n > 0)
+    ),
+  ].sort((a, b) => a - b)
+}
+
 function appendPpvActorCountryCodeDiffs(
   differences: string[],
   added: string[],
@@ -94,6 +104,22 @@ function appendPpvActorCountryCodeDiffs(
   }
   for (const c of o) {
     if (!e.has(c)) differences.push(`Адресаты: удалён код страны ${c}`)
+  }
+}
+
+function appendPpvActorRemovalIdDiffs(
+  differences: string[],
+  added: string[],
+  orig: number[] | undefined | null,
+  exp: number[] | undefined | null
+): void {
+  const o = new Set(normalizePpvActorRemovalIds(orig))
+  const e = new Set(normalizePpvActorRemovalIds(exp))
+  for (const id of e) {
+    if (!o.has(id)) differences.push(`Адресаты: к удалению из БД после сохранения (PPVACTORID=${id})`)
+  }
+  for (const id of o) {
+    if (!e.has(id)) added.push(`Адресаты: отмена удаления из БД (PPVACTORID=${id})`)
   }
 }
 
@@ -392,6 +418,12 @@ export function compareCardData(original: CardData, exported: CardData): {
     (normalizedOriginal as CardData).ppvActorCountryCodes,
     (normalizedExported as CardData).ppvActorCountryCodes
   )
+  appendPpvActorRemovalIdDiffs(
+    differences,
+    added,
+    (normalizedOriginal as CardData).ppvActorRemovalIds,
+    (normalizedExported as CardData).ppvActorRemovalIds
+  )
 
   return {
     isIdentical: differences.length === 0 && warnings.length === 0 && added.length === 0,
@@ -471,6 +503,9 @@ export function getCardDataReview(data: CardData): { filled: string[]; unfilled:
   walk('statusHistory', data.statusHistory)
   if (data.ppvActorCountryCodes != null) {
     walk('ppvActorCountryCodes', data.ppvActorCountryCodes)
+  }
+  if (data.ppvActorRemovalIds != null) {
+    walk('ppvActorRemovalIds', data.ppvActorRemovalIds)
   }
 
   return { filled, unfilled }

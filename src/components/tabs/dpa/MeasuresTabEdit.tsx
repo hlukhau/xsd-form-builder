@@ -501,7 +501,7 @@ const MeasuresTabEdit: React.FC<MeasuresTabEditProps> = ({ data, onChange }) => 
                 updatedMeasures[index] = {
                   ...cur,
                   measureCode: value,
-                  measureCodeListId: '1026',
+                  measureCodeListId: '1067',
                   measureName: undefined,
                 }
               }
