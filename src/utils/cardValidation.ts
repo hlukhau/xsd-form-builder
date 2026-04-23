@@ -20,9 +20,10 @@ import type {
   SanitaryMeasure,
   MeasureInitiationBasisItem,
   MeasureImplementationItem,
+  SubjectDetails,
 } from '@/types/card'
 import { mergeComplianceDocumentsFromBatches } from '@/utils/xmlParser'
-import { getAddressListFromParty } from '@/utils/addressFormatUtils'
+import { getAddressListFromParty, getAddressListFromSubject } from '@/utils/addressFormatUtils'
 import { validateFieldValue } from '@/constants/xsdFieldConstraints'
 import { exportCardDataToXML } from '@/utils/xmlExporter'
 import { fetchSchemaValidationErrors } from '@/utils/schemaValidationApi'
@@ -43,6 +44,48 @@ function hasAtLeastOneAddress(party: { registrationAddress?: unknown; actualAddr
 
 function hasAtLeastOneAddressFromArray(addresses: unknown[] | undefined): boolean {
   return !!(addresses && addresses.length > 0)
+}
+
+/** Есть ли в строке адреса субъекта-исполнителя мероприятия хотя бы одно заполненное поле (аналог наличия SubjectAddressDetails в XML). */
+function measureExecutorAddressRowHasContent(addr: AddressDetails | undefined): boolean {
+  if (!addr) return false
+  const s = (v: string | undefined) => (v ?? '').trim()
+  return !!(
+    s(addr.country) ||
+    s(addr.fullAddress) ||
+    s(addr.addressKindCode) ||
+    s(addr.territoryCode) ||
+    s(addr.postCode) ||
+    s(addr.regionName) ||
+    s(addr.districtName) ||
+    s(addr.cityName) ||
+    s(addr.settlementName) ||
+    s(addr.streetName) ||
+    s(addr.buildingNumberId) ||
+    s(addr.roomNumberId) ||
+    s(addr.postOfficeBoxId)
+  )
+}
+
+/** csdo:UnifiedCountryCode на уровне SubjectDetails (юрлицо: страна регистрации в businessEntity). */
+function measureExecutorSubjectCountry(sd: SubjectDetails): string | undefined {
+  const v = sd.businessEntity?.country ?? sd.country
+  if (v == null || String(v).trim() === '') return undefined
+  return String(v).trim()
+}
+
+/** csdo:SubjectName / BusinessEntityName для исполнителя мероприятия. */
+function measureExecutorSubjectName(sd: SubjectDetails): string | undefined {
+  const v = sd.businessEntity?.businessEntityName ?? sd.subjectName
+  if (v == null || String(v).trim() === '') return undefined
+  return String(v).trim()
+}
+
+/** Адреса субъекта-исполнителя: у юрлица — из businessEntity.addresses, иначе как у физлица. */
+function getMeasureExecutorSubjectAddressList(sd: SubjectDetails): AddressDetails[] {
+  const be = sd.businessEntity
+  if (be?.addresses && be.addresses.length > 0) return [...be.addresses]
+  return getAddressListFromSubject(sd)
 }
 
 function normalizeBatchViolations(batch: ProductBatchDetails): ViolationsData[] {
@@ -601,6 +644,38 @@ export function validateOutgoingCard(data: CardData): ValidationResult {
       if (noCityOrSettlement) {
         add(sectionMeasures, 'В составе каждого адреса субъекта-исполнителя мероприятия должен быть указан или город, или населенный пункт')
       }
+    }
+  }
+  if (!isPpvApp()) {
+    let subjectMissingCountry = false
+    let subjectMissingName = false
+    let subjectMissingAddress = false
+    for (const impl of implList) {
+      for (const subj of getSubjects(impl)) {
+        if (!subj) continue
+        if (empty(measureExecutorSubjectCountry(subj))) subjectMissingCountry = true
+        if (empty(measureExecutorSubjectName(subj))) subjectMissingName = true
+        const addrList = getMeasureExecutorSubjectAddressList(subj)
+        if (!addrList.some((a) => measureExecutorAddressRowHasContent(a))) subjectMissingAddress = true
+      }
+    }
+    if (subjectMissingCountry) {
+      add(
+        sectionMeasures,
+        'Код страны регистрации субъекта, обеспечивающего соблюдение меры должен быть указан'
+      )
+    }
+    if (subjectMissingName) {
+      add(
+        sectionMeasures,
+        'Наименование субъекта, обеспечивающего соблюдение меры должно быть указано'
+      )
+    }
+    if (subjectMissingAddress) {
+      add(
+        sectionMeasures,
+        'Должен быть указан хотя бы один адрес субъекта, обеспечивающего соблюдение меры'
+      )
     }
   }
   for (const impl of implList) {
