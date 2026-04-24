@@ -13,6 +13,10 @@ import java.util.regex.Pattern;
  */
 public final class XsdMessageHumanizer {
 
+    /** Вместо технич. XSD «StartDate не на месте / ожидается код страны» в MeasureImplementationDetails. */
+    private static final String MEASURE_IMPLEMENTATION_COUNTRY_REMARK =
+            "В составе каждого набора сведений о мероприятии, обеспечивающем соблюдение меры должна быть указана Страна проведения мероприятия";
+
     private static final Map<String, String> LABEL = new LinkedHashMap<String, String>();
 
     /** Сегменты пути «где в форме» по локальным именам контейнеров в XML. */
@@ -169,11 +173,43 @@ public final class XsdMessageHumanizer {
             String prefix = xmlPrefixBeforeLine(documentXml, lineNumber);
             hint = formLocationHint(prefix);
         }
+        if (isMeasureImplementationMissingCountryXsdHumanMessage(human, body, hint)) {
+            return MEASURE_IMPLEMENTATION_COUNTRY_REMARK;
+        }
         if (hint.isEmpty()) {
             return human;
         }
         // Путь по форме без префикса «Где смотреть: карта ДПА →» — только цепочка вкладок/блоков
         return human + " (" + hint + ")";
+    }
+
+    /**
+     * Xerces cvc-complex-type.2.4.a: в {@code MeasureImplementationDetails} первым должен идти
+     * {@code UnifiedCountryCode}; при отсутствии страны валидатор сообщает про «StartDate» и «код страны».
+     */
+    private static boolean isMeasureImplementationMissingCountryXsdHumanMessage(
+            String human, String rawBody, String hint) {
+        if (human == null || human.isEmpty()) {
+            return false;
+        }
+        if (!human.contains("не подходит для этой позиции") || !human.contains("код страны")) {
+            return false;
+        }
+        if (!human.contains("StartDate")) {
+            return false;
+        }
+        if (hint != null && hint.contains("реализация меры")) {
+            return true;
+        }
+        if (rawBody != null) {
+            String rb = rawBody;
+            if (rb.contains("cvc-complex-type.2.4.a")
+                    && rb.contains("StartDate")
+                    && rb.contains("UnifiedCountryCode")) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /** Строки XML с 1 по (lineNumber − 1), без строки с ошибкой — предки элемента. */
