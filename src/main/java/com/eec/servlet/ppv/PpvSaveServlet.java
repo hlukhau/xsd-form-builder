@@ -1,6 +1,6 @@
 package com.eec.servlet.ppv;
 
-import com.eec.servlet.RightsJsonStore;
+import com.eec.rights.RightsRegistryProvider;
 import com.eec.util.DatabaseUtil;
 
 import javax.servlet.ServletException;
@@ -274,7 +274,7 @@ public class PpvSaveServlet extends HttpServlet {
                 }
 
                 // Запись в PPVDEPPERMIS: подразделение пользователя, выполнившего сохранение (department.depid из карты прав)
-                String rightsJson = (guid != null && !guid.trim().isEmpty()) ? RightsJsonStore.guidMap.get(guid.trim()) : null;
+                String rightsJson = (guid != null && !guid.trim().isEmpty()) ? RightsRegistryProvider.get().getRightsJson(guid.trim()) : null;
                 Integer creatorDepId = getDepartmentDepIdFromRights(rightsJson);
                 if (creatorDepId != null && existsDepIdInTbDep(conn, creatorDepId)) {
                     try (PreparedStatement psDep = conn.prepareStatement(SQL_INSERT_PPVDEPPERMIS)) {
@@ -783,7 +783,7 @@ public class PpvSaveServlet extends HttpServlet {
                 }
             }
             String rightsJson = (guid != null && !guid.trim().isEmpty())
-                    ? RightsJsonStore.guidMap.get(guid.trim())
+                    ? RightsRegistryProvider.get().getRightsJson(guid.trim())
                     : null;
             // Проверка права edit — пропускаем при вызове по command=copy (без проверки прав)
             boolean commandInvoke = Boolean.TRUE.equals(request.getAttribute("com.eec.command.invoke"));
@@ -919,7 +919,7 @@ public class PpvSaveServlet extends HttpServlet {
     /** USERID из карты прав (атрибут userId) по guid. */
     private static Integer getUserIdFromRightsByGuid(String guid) {
         if (guid == null || guid.isEmpty()) return null;
-        String rightsJson = RightsJsonStore.guidMap.get(guid);
+        String rightsJson = RightsRegistryProvider.get().getRightsJson(guid);
         if (rightsJson == null || rightsJson.isEmpty()) return null;
         return getUserIdFromRights(rightsJson);
     }

@@ -1,6 +1,6 @@
 package com.eec.servlet.dpa;
 
-import com.eec.servlet.RightsJsonStore;
+import com.eec.rights.RightsRegistryProvider;
 import com.eec.util.AccessRightService;
 import com.eec.util.DatabaseUtil;
 
@@ -110,7 +110,7 @@ public class DpaStatusChangeServlet extends HttpServlet {
         if (guid != null) guid = guid.trim();
 
         /** JSON прав по GUID — для проверки dangerousProductIn:status / dangerousProductOut:status (не путать с DPAID). */
-        String rightsJson = (guid != null && !guid.isEmpty()) ? RightsJsonStore.guidMap.get(guid) : null;
+        String rightsJson = (guid != null && !guid.isEmpty()) ? RightsRegistryProvider.get().getRightsJson(guid) : null;
 
         Integer userId = resolveUserId(guid);
         log("[DpaStatusChange] userId from rights: " + (userId != null ? userId : "null") + (guid != null ? " (guid=" + guid + ")" : ""));
@@ -262,7 +262,7 @@ public class DpaStatusChangeServlet extends HttpServlet {
                 depKindCode = resolveDepKindCodeFromRights(conn, guid);
             }
             if (depKindCode == null || depKindCode.trim().isEmpty()) {
-                log("[DpaStatusChange] mark_ready: depKindCode still null; guid=" + guid + ", mapSize=" + RightsJsonStore.guidMap.size() + ", mapContainsGuid=" + (guid != null && RightsJsonStore.guidMap.containsKey(guid)));
+                log("[DpaStatusChange] mark_ready: depKindCode still null; guid=" + guid + ", mapSize=" + RightsRegistryProvider.get().size() + ", mapContainsGuid=" + (guid != null && RightsRegistryProvider.get().containsGuid(guid)));
                 sendJsonError(response, HttpServletResponse.SC_BAD_REQUEST, "Для действия «Отметка готовности» укажите depKindCode в теле запроса или guid (в карте прав должен быть department.depkindid)");
                 return;
             }
@@ -418,9 +418,9 @@ public class DpaStatusChangeServlet extends HttpServlet {
             return null;
         }
         String g = guid.trim();
-        String rightsJson = RightsJsonStore.guidMap.get(g);
+        String rightsJson = RightsRegistryProvider.get().getRightsJson(g);
         if (rightsJson == null || rightsJson.isEmpty()) {
-            System.out.println("[DpaStatusChange] resolveDepKindCodeFromRights: no rights for guid=" + g + ", mapSize=" + RightsJsonStore.guidMap.size() + ", keys=" + RightsJsonStore.guidMap.keySet());
+            System.out.println("[DpaStatusChange] resolveDepKindCodeFromRights: no rights for guid=" + g + ", mapSize=" + RightsRegistryProvider.get().size() + ", keys=" + RightsRegistryProvider.get().guidKeySet());
             return null;
         }
         Integer depkindid = extractDepKindIdFromRights(rightsJson);
@@ -506,7 +506,7 @@ public class DpaStatusChangeServlet extends HttpServlet {
 
     private static Integer getDepartmentDepIdFromRights(String guid) {
         if (guid == null || guid.trim().isEmpty()) return null;
-        String json = RightsJsonStore.guidMap.get(guid.trim());
+        String json = RightsRegistryProvider.get().getRightsJson(guid.trim());
         if (json == null || json.isEmpty()) return null;
         Matcher m = Pattern.compile("\"depid\"\\s*:\\s*(\\d+)").matcher(json);
         if (m.find()) return parseIntOrNull(m.group(1));
@@ -654,7 +654,7 @@ public class DpaStatusChangeServlet extends HttpServlet {
     /** USERID из карты прав (атрибут userId) по guid. */
     private static Integer resolveUserId(String guid) {
         if (guid == null || guid.isEmpty()) return null;
-        String rightsJson = RightsJsonStore.guidMap.get(guid);
+        String rightsJson = RightsRegistryProvider.get().getRightsJson(guid);
         if (rightsJson == null || rightsJson.isEmpty()) return null;
         return extractUserIdFromRights(rightsJson);
     }

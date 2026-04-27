@@ -1,5 +1,6 @@
 package com.eec.servlet;
 
+import com.eec.rights.RightsRegistryProvider;
 import com.eec.util.DatabaseUtil;
 
 import javax.servlet.ServletException;
@@ -58,7 +59,7 @@ public class CurrentUserServlet extends HttpServlet {
         if (userId == null) {
             String guid = request.getParameter("guid");
             if (guid != null && !guid.trim().isEmpty()) {
-                userId = getUserIdFromRights(RightsJsonStore.guidMap.get(guid.trim()));
+                userId = getUserIdFromRights(RightsRegistryProvider.get().getRightsJson(guid.trim()));
             }
         }
 

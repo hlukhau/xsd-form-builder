@@ -1,6 +1,6 @@
 package com.eec.servlet.pha;
 
-import com.eec.servlet.RightsJsonStore;
+import com.eec.rights.RightsRegistryProvider;
 import com.eec.util.AccessRightService;
 import com.eec.util.DatabaseUtil;
 
@@ -130,7 +130,7 @@ public class PhaStatusChangeServlet extends HttpServlet {
             boolean incoming = row.sourceName != null && row.sourceName.toLowerCase().contains("входящ");
             boolean outgoing = row.sourceName != null && row.sourceName.toLowerCase().contains("исходящ");
 
-            String rightsJson = (guid != null && !guid.isEmpty()) ? RightsJsonStore.guidMap.get(guid) : null;
+            String rightsJson = (guid != null && !guid.isEmpty()) ? RightsRegistryProvider.get().getRightsJson(guid) : null;
 
             if (outgoing) {
                 Integer userId = resolveUserId(guid);
@@ -839,7 +839,7 @@ public class PhaStatusChangeServlet extends HttpServlet {
 
     private static Integer resolveUserId(String guid) {
         if (guid == null || guid.isEmpty()) return null;
-        String rightsJson = RightsJsonStore.guidMap.get(guid);
+        String rightsJson = RightsRegistryProvider.get().getRightsJson(guid);
         if (rightsJson == null || rightsJson.isEmpty()) return null;
         return extractUserIdFromRights(rightsJson);
     }

@@ -1,6 +1,6 @@
 package com.eec.servlet.dpa;
 
-import com.eec.servlet.RightsJsonStore;
+import com.eec.rights.RightsRegistryProvider;
 import com.eec.util.AccessRightService;
 import com.eec.util.DatabaseUtil;
 
@@ -177,7 +177,7 @@ public class DpaAccessServlet extends HttpServlet {
             sendJsonError(response, HttpServletResponse.SC_FORBIDDEN, "Для управления доступом необходим guid (карта прав)");
             return;
         }
-        String rightsJson = RightsJsonStore.guidMap.get(guid.trim());
+        String rightsJson = RightsRegistryProvider.get().getRightsJson(guid.trim());
         String accessRight = resolveAccessRightByDpaid(request, dpaid, guid);
         if (accessRight != null && !checkAccessRight(accessRight, rightsJson)) {
             sendJsonError(response, HttpServletResponse.SC_FORBIDDEN, "Нет права на управление доступом");
@@ -220,7 +220,7 @@ public class DpaAccessServlet extends HttpServlet {
         response.setCharacterEncoding("UTF-8");
         response.setHeader("Access-Control-Allow-Origin", "*");
 
-        String rightsJson = RightsJsonStore.guidMap.get(guid.trim());
+        String rightsJson = RightsRegistryProvider.get().getRightsJson(guid.trim());
         String accessRight = resolveAccessRightByDpaid(request, dpaid, guid);
         if (accessRight != null && !checkAccessRight(accessRight, rightsJson)) {
             sendJsonError(response, HttpServletResponse.SC_FORBIDDEN, "Нет права на управление доступом");

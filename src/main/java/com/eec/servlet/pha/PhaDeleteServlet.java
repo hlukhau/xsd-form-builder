@@ -1,6 +1,6 @@
 package com.eec.servlet.pha;
 
-import com.eec.servlet.RightsJsonStore;
+import com.eec.rights.RightsRegistryProvider;
 import com.eec.util.DatabaseUtil;
 
 import javax.servlet.ServletException;
@@ -104,7 +104,7 @@ public class PhaDeleteServlet extends HttpServlet {
                             "Нет доступа к карте: в доступе к карте нет подразделений.");
                     return;
                 }
-                String rightsJson = RightsJsonStore.guidMap.get(guid);
+                String rightsJson = RightsRegistryProvider.get().getRightsJson(guid);
                 if (rightsJson == null || rightsJson.isEmpty()) {
                     sendJsonError(response, HttpServletResponse.SC_FORBIDDEN, "Права по GUID не найдены.");
                     return;

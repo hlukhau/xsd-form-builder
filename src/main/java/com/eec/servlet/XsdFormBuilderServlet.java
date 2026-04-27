@@ -1,5 +1,9 @@
 package com.eec.servlet;
 
+import com.eec.rights.GuidJsonExtractor;
+import com.eec.rights.RightsRegistryException;
+import com.eec.rights.RightsRegistryProvider;
+
 import javax.servlet.ReadListener;
 import javax.servlet.ServletException;
 import javax.servlet.ServletInputStream;
@@ -27,7 +31,7 @@ public class XsdFormBuilderServlet extends HttpServlet {
     private static final String ENGINEERING_GUID = "1";
     private static final String ENGINEERING_GUID_JSON =
             "{\n" +
-                    "  \"GUID\": \"4c5a50f1-a7b7-494c-93a6-85f8f0b16998\",\n" +
+                    "  \"GUID\": \"1\",\n" +
                     "  \"dbConnectString\": \"jdbc:oracle:thin:@192.168.203.212:1521/ses\",\n" +
                     "  \"userId\": \"1\",\n" +
                     "  \"dbUsername\": \"sesdev\",\n" +
@@ -163,7 +167,11 @@ public class XsdFormBuilderServlet extends HttpServlet {
     @Override
     public void init() throws ServletException {
         super.init();
-        RightsJsonStore.guidMap.put(ENGINEERING_GUID, ENGINEERING_GUID_JSON);
+        try {
+            RightsRegistryProvider.get().putRightsJson(ENGINEERING_GUID, ENGINEERING_GUID_JSON);
+        } catch (RightsRegistryException e) {
+            System.err.println("[XsdFormBuilderServlet] Failed to register engineering GUID in rights registry: " + e.getMessage());
+        }
         System.out.println("[XsdFormBuilderServlet] Initialized; engineering GUID " + ENGINEERING_GUID + " added to map");
     }
 
@@ -218,8 +226,18 @@ public class XsdFormBuilderServlet extends HttpServlet {
                 return;
             }
 
-            // Сохраняем GUID -> JSON в мапу (читается RightsServlet для «Определить доступ»)
-            RightsJsonStore.guidMap.put(guid, jsonBody);
+            // Сохраняем GUID -> JSON в реестр (in-memory WAR или eec-rights-service)
+            try {
+                RightsRegistryProvider.get().putRightsJsonBody(jsonBody);
+            } catch (IllegalStateException e) {
+                response.setStatus(HttpServletResponse.SC_BAD_REQUEST);
+                response.getWriter().print("{\"error\":\"" + e.getMessage().replace("\"", "'") + "\"}");
+                return;
+            } catch (RightsRegistryException e) {
+                response.setStatus(HttpServletResponse.SC_BAD_GATEWAY);
+                response.getWriter().print("{\"error\":\"Сервис прав: " + e.getMessage().replace("\"", "'") + "\"}");
+                return;
+            }
             System.out.println("[XsdFormBuilderServlet] Stored GUID: " + guid);
 
             response.setStatus(HttpServletResponse.SC_OK);
@@ -319,22 +337,40 @@ public class XsdFormBuilderServlet extends HttpServlet {
                 }
             }
 
-            // Проверяем наличие GUID в мапе (инженерный GUID "1" всегда разрешён и уже в карте)
-            System.out.println("[XsdFormBuilderServlet] Checking GUID in map for DPAID: " + dpaidStr + ", GUID: " + guid);
-            System.out.println("[XsdFormBuilderServlet] Current map size: " + RightsJsonStore.guidMap.size());
-            
-            if (!RightsJsonStore.guidMap.containsKey(guid)) {
-                System.err.println("[XsdFormBuilderServlet] GUID not found in map: " + guid);
-                System.err.println("[XsdFormBuilderServlet] Available GUIDs in map: " + RightsJsonStore.guidMap.keySet());
-                // Возвращаем HTML страницу с ошибкой вместо JSON
-                response.setStatus(HttpServletResponse.SC_FORBIDDEN);
-                response.setContentType("text/html;charset=UTF-8");
-                response.getWriter().print("<!DOCTYPE html><html><head><meta charset='UTF-8'><title>Доступ запрещен</title></head><body><h1>403 - Доступ запрещен</h1><p>GUID не найден или истек срок действия.</p><p>GUID: " + guid + "</p></body></html>");
+            // Инженерный GUID "1" — доступ к SPA без запроса к eec-rights-service (сервис может быть остановлен)
+            if (guid != null && ENGINEERING_GUID.equals(guid.trim())) {
+                System.out.println("[XsdFormBuilderServlet] Engineering GUID — пропуск проверки реестра, DPAID: " + dpaidStr);
+                forwardToSpa(request, response);
                 return;
             }
-            
+
+            System.out.println("[XsdFormBuilderServlet] Checking GUID in map for DPAID: " + dpaidStr + ", GUID: " + guid);
+            System.out.println("[XsdFormBuilderServlet] Current map size: " + RightsRegistryProvider.get().size());
+
+            try {
+                if (!RightsRegistryProvider.get().containsGuid(guid)) {
+                    System.err.println("[XsdFormBuilderServlet] GUID not found in map: " + guid);
+                    System.err.println("[XsdFormBuilderServlet] Available GUIDs in map: " + RightsRegistryProvider.get().guidKeySet());
+                    response.setStatus(HttpServletResponse.SC_FORBIDDEN);
+                    response.setContentType("text/html;charset=UTF-8");
+                    response.getWriter().print("<!DOCTYPE html><html><head><meta charset='UTF-8'><title>Доступ запрещен</title></head><body><h1>403 - Доступ запрещен</h1><p>GUID не найден или истек срок действия.</p><p>GUID: " + guid + "</p></body></html>");
+                    return;
+                }
+            } catch (RightsRegistryException e) {
+                System.err.println("[XsdFormBuilderServlet] eec-rights-service недоступен: " + e.getMessage());
+                response.setStatus(HttpServletResponse.SC_SERVICE_UNAVAILABLE);
+                response.setContentType("text/html;charset=UTF-8");
+                response.getWriter().print(
+                        "<!DOCTYPE html><html><head><meta charset='UTF-8'><title>Сервис прав</title></head><body>"
+                        + "<h1>503 — реестр прав (WAR <code>card_rigths</code>) недоступен</h1>"
+                        + "<p>Убедитесь, что <code>card_rigths.war</code> в <code>webapps</code> и URL для PHA/… совпадает: "
+                        + "<code>eec.rights.service.baseUrl</code> = <code>http://&lt;хост&gt;:&lt;порт-tomcat&gt;/card_rigths</code> (без слеша в конце, порт = HTTP Connector, например 8083).</p>"
+                        + "<p>Или задайте <code>EEC_RIGHTS_SERVICE_BASE_URL</code> для Tomcat (в окружении JVM).</p>"
+                        + "</body></html>");
+                return;
+            }
+
             System.out.println("[XsdFormBuilderServlet] GUID found in map: " + guid + ", returning SPA for DPAID: " + dpaidStr);
-            // GUID найден - возвращаем SPA форму
             forwardToSpa(request, response);
             return;
         }
@@ -487,52 +523,7 @@ public class XsdFormBuilderServlet extends HttpServlet {
      * Поддерживает форматы: {"guid": "..."}, {"GUID": "..."}, {"guid":"..."}
      */
     private String extractGuidFromJson(String json) {
-        if (json == null || json.isEmpty()) {
-            return null;
-        }
-
-        // Простой парсинг JSON без библиотек
-        // Ищем "guid" или "GUID" в любом регистре
-        json = json.trim();
-        
-        // Убираем фигурные скобки если есть
-        if (json.startsWith("{") && json.endsWith("}")) {
-            json = json.substring(1, json.length() - 1).trim();
-        }
-
-        // Ищем ключ "guid" (case-insensitive)
-        String[] patterns = {"\"guid\"", "\"GUID\"", "'guid'", "'GUID'"};
-        for (String pattern : patterns) {
-            int keyIndex = json.toLowerCase().indexOf(pattern.toLowerCase());
-            if (keyIndex >= 0) {
-                // Находим значение после двоеточия
-                int colonIndex = json.indexOf(':', keyIndex);
-                if (colonIndex >= 0) {
-                    String valuePart = json.substring(colonIndex + 1).trim();
-                    // Убираем кавычки
-                    if (valuePart.startsWith("\"")) {
-                        int endQuote = valuePart.indexOf('"', 1);
-                        if (endQuote > 0) {
-                            return valuePart.substring(1, endQuote);
-                        }
-                    } else if (valuePart.startsWith("'")) {
-                        int endQuote = valuePart.indexOf('\'', 1);
-                        if (endQuote > 0) {
-                            return valuePart.substring(1, endQuote);
-                        }
-                    } else {
-                        // Без кавычек - берем до запятой или конца
-                        int commaIndex = valuePart.indexOf(',');
-                        if (commaIndex > 0) {
-                            return valuePart.substring(0, commaIndex).trim();
-                        }
-                        return valuePart.trim();
-                    }
-                }
-            }
-        }
-
-        return null;
+        return GuidJsonExtractor.extractGuidFromJson(json);
     }
 
     /** Экранирование строки для вставки в JSON (кавычки и обратный слэш). */

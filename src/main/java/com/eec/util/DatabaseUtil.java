@@ -1,6 +1,7 @@
 package com.eec.util;
 
-import com.eec.servlet.RightsJsonStore;
+import com.eec.rights.RightsRegistryException;
+import com.eec.rights.RightsRegistryProvider;
 
 import javax.servlet.http.HttpServletRequest;
 import java.sql.Connection;
@@ -82,7 +83,12 @@ public class DatabaseUtil {
             throw new SQLException("GUID не задан. Подключение к БД возможно только по db-кредам из JSON прав.");
         }
 
-        String rightsJson = RightsJsonStore.guidMap.get(normalizedGuid);
+        String rightsJson;
+        try {
+            rightsJson = RightsRegistryProvider.get().getRightsJson(normalizedGuid);
+        } catch (RightsRegistryException e) {
+            throw new SQLException("Сервис прав: " + e.getMessage(), e);
+        }
         if (rightsJson == null || rightsJson.trim().isEmpty()) {
             throw new SQLException("Права по GUID не найдены: " + normalizedGuid);
         }

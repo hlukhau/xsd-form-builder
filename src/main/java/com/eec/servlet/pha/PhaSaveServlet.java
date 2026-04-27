@@ -1,6 +1,6 @@
 package com.eec.servlet.pha;
 
-import com.eec.servlet.RightsJsonStore;
+import com.eec.rights.RightsRegistryProvider;
 import com.eec.util.DatabaseUtil;
 
 import javax.servlet.ServletException;
@@ -179,7 +179,7 @@ public class PhaSaveServlet extends HttpServlet {
                     ps.executeUpdate();
                 }
 
-                String rightsJson = (guid != null && !guid.isEmpty()) ? RightsJsonStore.guidMap.get(guid) : null;
+                String rightsJson = (guid != null && !guid.isEmpty()) ? RightsRegistryProvider.get().getRightsJson(guid) : null;
                 Integer creatorDepId = getDepartmentDepIdFromRights(rightsJson);
                 if (creatorDepId != null && existsDepIdInTbDep(conn, creatorDepId)) {
                     try (PreparedStatement psDep = conn.prepareStatement(SQL_INSERT_DEP)) {
@@ -203,7 +203,7 @@ public class PhaSaveServlet extends HttpServlet {
                             "Укажите guid (в карте прав должен быть userId)");
                     return;
                 }
-                String rightsJson = (guid != null && !guid.isEmpty()) ? RightsJsonStore.guidMap.get(guid) : null;
+                String rightsJson = (guid != null && !guid.isEmpty()) ? RightsRegistryProvider.get().getRightsJson(guid) : null;
                 if (rightsJson == null || rightsJson.isEmpty()) {
                     sendJsonError(response, HttpServletResponse.SC_FORBIDDEN, "Права по GUID не найдены");
                     return;
@@ -440,7 +440,7 @@ public class PhaSaveServlet extends HttpServlet {
 
     private static Integer getUserIdFromRightsByGuid(String guid) {
         if (guid == null || guid.isEmpty()) return null;
-        String json = RightsJsonStore.guidMap.get(guid.trim());
+        String json = RightsRegistryProvider.get().getRightsJson(guid.trim());
         if (json == null || json.isEmpty()) return null;
         Matcher m = Pattern.compile("\"userId\"\\s*:\\s*(-?\\d+)").matcher(json);
         if (m.find()) try { return Integer.parseInt(m.group(1)); } catch (NumberFormatException e) { return null; }

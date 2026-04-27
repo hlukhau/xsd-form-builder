@@ -1,6 +1,6 @@
 package com.eec.servlet.dpa;
 
-import com.eec.servlet.RightsJsonStore;
+import com.eec.rights.RightsRegistryProvider;
 import com.eec.util.DatabaseUtil;
 
 import javax.servlet.ServletException;
@@ -134,7 +134,7 @@ public class DpaCanCreateNewVersionServlet extends HttpServlet {
                 return;
             }
 
-            String rightsJson = RightsJsonStore.guidMap.get(guid);
+            String rightsJson = RightsRegistryProvider.get().getRightsJson(guid);
             if (rightsJson == null || rightsJson.isEmpty()) {
                 sendJson(response, false, "Права по GUID не найдены");
                 return;

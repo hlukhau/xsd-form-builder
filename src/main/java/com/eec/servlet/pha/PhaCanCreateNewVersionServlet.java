@@ -1,6 +1,6 @@
 package com.eec.servlet.pha;
 
-import com.eec.servlet.RightsJsonStore;
+import com.eec.rights.RightsRegistryProvider;
 import com.eec.util.DatabaseUtil;
 
 import javax.servlet.ServletException;
@@ -133,7 +133,7 @@ public class PhaCanCreateNewVersionServlet extends HttpServlet {
                 return;
             }
 
-            String rightsJson = RightsJsonStore.guidMap.get(guid);
+            String rightsJson = RightsRegistryProvider.get().getRightsJson(guid);
             if (rightsJson == null || rightsJson.isEmpty()) {
                 sendJson(response, false, "Права по GUID не найдены");
                 return;

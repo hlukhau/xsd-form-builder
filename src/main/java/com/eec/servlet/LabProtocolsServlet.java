@@ -1,5 +1,6 @@
 package com.eec.servlet;
 
+import com.eec.rights.RightsRegistryProvider;
 import com.eec.util.DatabaseUtil;
 
 import javax.servlet.ServletException;
@@ -76,7 +77,7 @@ public class LabProtocolsServlet extends HttpServlet {
 
         Integer userId = resolveUserId(guid);
         if (userId == null && guid != null) {
-            String rightsJson = RightsJsonStore.guidMap.get(guid);
+            String rightsJson = RightsRegistryProvider.get().getRightsJson(guid);
             if (rightsJson == null || rightsJson.isEmpty()) {
                 sendJsonError(response, HttpServletResponse.SC_BAD_REQUEST, "GUID не найден в карте прав или в карте прав отсутствует userId");
                 return;
@@ -286,7 +287,7 @@ public class LabProtocolsServlet extends HttpServlet {
 
     private static Integer resolveUserId(String guid) {
         if (guid == null || guid.isEmpty()) return null;
-        String rightsJson = RightsJsonStore.guidMap.get(guid);
+        String rightsJson = RightsRegistryProvider.get().getRightsJson(guid);
         if (rightsJson == null || rightsJson.isEmpty()) return null;
         Matcher m = Pattern.compile("\"userId\"\\s*:\\s*(-?\\d+)").matcher(rightsJson);
         if (m.find()) {

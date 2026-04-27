@@ -1,5 +1,7 @@
 package com.eec.servlet;
 
+import com.eec.rights.RightsRegistryProvider;
+
 import javax.servlet.ServletException;
 import javax.servlet.http.HttpServlet;
 import javax.servlet.http.HttpServletRequest;
@@ -22,7 +24,7 @@ public class RightsServlet extends HttpServlet {
             return;
         }
         guid = guid.trim();
-        String json = RightsJsonStore.guidMap.get(guid);
+        String json = RightsRegistryProvider.get().getRightsJson(guid);
         response.setContentType("application/json;charset=UTF-8");
         response.setCharacterEncoding("UTF-8");
         response.setHeader("Access-Control-Allow-Origin", "*");

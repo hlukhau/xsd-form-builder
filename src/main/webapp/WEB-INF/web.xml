@@ -9,6 +9,16 @@
     <display-name>XSD Form Builder</display-name>
     <description>Frontend application for visualizing Dangerous Product Alert Details card</description>
 
+    <!-- eec-rights: тот же Tomcat, что и pha/dpa/ppv. Порт = HTTP Connector (conf/server.xml) или EEC_RIGHTS_SERVICE_BASE_URL -->
+    <context-param>
+        <param-name>eec.rights.service.baseUrl</param-name>
+        <param-value>http://127.0.0.1:8083/card_rigths</param-value>
+    </context-param>
+    <context-param>
+        <param-name>eec.rights.service.apiKey</param-name>
+        <param-value></param-value>
+    </context-param>
+
     <!-- Кодировка по умолчанию -->
     <request-character-encoding>UTF-8</request-character-encoding>
     <response-character-encoding>UTF-8</response-character-encoding>
@@ -51,6 +61,11 @@
         <error-code>500</error-code>
         <location>/index.html</location>
     </error-page>
+
+    <!-- Реестр JSON-прав (in-memory WAR или HTTP) — раньше справочников -->
+    <listener>
+        <listener-class>com.eec.rights.RightsRegistryContextListener</listener-class>
+    </listener>
 
     <!-- Listener для инициализации справочников при старте -->
     <listener>

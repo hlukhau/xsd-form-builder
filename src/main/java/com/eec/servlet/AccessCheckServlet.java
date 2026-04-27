@@ -1,5 +1,6 @@
 package com.eec.servlet;
 
+import com.eec.rights.RightsRegistryProvider;
 import com.eec.util.AccessRightService;
 
 import javax.servlet.ServletException;
@@ -31,7 +32,7 @@ public class AccessCheckServlet extends HttpServlet {
 
         boolean allowed;
         if (right != null && !right.trim().isEmpty()) {
-            String rightsJson = (id != null && !id.trim().isEmpty()) ? RightsJsonStore.guidMap.get(id.trim()) : null;
+            String rightsJson = (id != null && !id.trim().isEmpty()) ? RightsRegistryProvider.get().getRightsJson(id.trim()) : null;
             switch (right.trim()) {
                 case "dangerousProductIn:access":
                     allowed = AccessRightService.hasDangerousProductInAccess(rightsJson);
