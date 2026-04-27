@@ -1115,15 +1115,18 @@ function exportMeasureDocDetails(xmlParts: string[], doc: MeasureDocDetails, tag
 
 function exportMeasureImplementation(xmlParts: string[], impl: MeasureImplementationItem, indent: string) {
   xmlParts.push(`${indent}<smcdo:MeasureImplementationDetails>`)
-  // Порядок по XSD MeasureImplementationDetailsType: UnifiedCountryCode, StartDate, EndDate?, DescriptionText,
+  // Порядок по XSD MeasureImplementationDetailsType: UnifiedCountryCode, StartDate, EndDate?, DescriptionText?,
   // ImplementingEntityDetails*, MeasureAffectedObjectKindCode*, DocReferenceDetails?, RegionName?, BorderCheckpointDetails?
+  // DescriptionText не выводим, если на форме поле пустое (без placeholder-пробела в XML).
   if (impl.country) {
     xmlParts.push(`${indent}  <csdo:UnifiedCountryCode codeListId="2021">${escapeXML(impl.country)}</csdo:UnifiedCountryCode>`)
   }
   if (impl.startDate) xmlParts.push(`${indent}  <csdo:StartDate>${escapeXML(impl.startDate)}</csdo:StartDate>`)
   if (impl.endDate) xmlParts.push(`${indent}  <csdo:EndDate>${escapeXML(impl.endDate)}</csdo:EndDate>`)
   const desc = (impl.description ?? '').trim()
-  xmlParts.push(`${indent}  <csdo:DescriptionText>${escapeXML(desc || ' ')}</csdo:DescriptionText>`)
+  if (desc) {
+    xmlParts.push(`${indent}  <csdo:DescriptionText>${escapeXML(desc)}</csdo:DescriptionText>`)
+  }
 
   const authList = (impl.authorities ?? []).filter(hasUnifiedAuthorityMeasureContent)
   if (authList.length === 0 && hasUnifiedAuthorityMeasureContent(impl.authority)) authList.push(impl.authority!)
