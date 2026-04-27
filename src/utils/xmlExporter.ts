@@ -666,8 +666,11 @@ function hasSubjectDetailsContent(sd: SubjectDetails | undefined): boolean {
   return false
 }
 
-/** Есть ли контент в блоке реализации меры (MeasureImplementationDetails). */
-function hasImplementationContent(impl: MeasureImplementationItem | undefined): boolean {
+/**
+ * Есть ли контент в блоке реализации меры (MeasureImplementationDetails) — как при отборе к экспорту.
+ * Для валидации: пустой черновик строки не требует страны/дат/описания.
+ */
+export function hasMeasureImplementationEntryContent(impl: MeasureImplementationItem | undefined): boolean {
   if (!impl) return false
   const s = (v: string | undefined) => (v ?? '').trim()
   if (s(impl.country) || s(impl.startDate) || s(impl.endDate) || s(impl.description)) return true
@@ -804,7 +807,7 @@ function hasMeasureContent(measure: SanitaryMeasure | undefined): boolean {
   if (hasMeasureDocDetailsContent(measure.initialMeasureDocDetails)) return true
   const basisWithContent = (measure.measureInitiationBasisDetails ?? []).filter(hasBasisContent)
   if (basisWithContent.length > 0) return true
-  const implWithContent = (measure.measureImplementationDetails ?? []).filter(hasImplementationContent)
+  const implWithContent = (measure.measureImplementationDetails ?? []).filter(hasMeasureImplementationEntryContent)
   if (implWithContent.length > 0) return true
   // Есть только дата начала — всё равно выводим блок (MeasureDocDetails пустой, остальное по умолчанию)
   return true
@@ -1065,7 +1068,7 @@ function exportSanitaryMeasure(xmlParts: string[], measure: SanitaryMeasure, ind
     )
   }
 
-  const implWithContent = (measure.measureImplementationDetails ?? []).filter(hasImplementationContent)
+  const implWithContent = (measure.measureImplementationDetails ?? []).filter(hasMeasureImplementationEntryContent)
   if (implWithContent.length > 0) {
     implWithContent.forEach(impl => {
       exportMeasureImplementation(xmlParts, impl, `${indent}  `)

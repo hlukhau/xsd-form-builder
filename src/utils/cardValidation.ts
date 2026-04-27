@@ -25,7 +25,7 @@ import type {
 import { mergeComplianceDocumentsFromBatches } from '@/utils/xmlParser'
 import { getAddressListFromParty, getAddressListFromSubject } from '@/utils/addressFormatUtils'
 import { validateFieldValue } from '@/constants/xsdFieldConstraints'
-import { exportCardDataToXML } from '@/utils/xmlExporter'
+import { exportCardDataToXML, hasMeasureImplementationEntryContent } from '@/utils/xmlExporter'
 import { fetchSchemaValidationErrors } from '@/utils/schemaValidationApi'
 import { isPpvApp } from '@/cards/config'
 
@@ -589,6 +589,37 @@ export function validateOutgoingCard(data: CardData): ValidationResult {
     }
   }
   const implList = measuresList.flatMap((m) => m?.measureImplementationDetails ?? [])
+  {
+    let anyImplMissingCountry = false
+    let anyImplMissingStartDate = false
+    let anyImplMissingDescription = false
+    for (const m of measuresList) {
+      for (const impl of m?.measureImplementationDetails ?? []) {
+        if (!hasMeasureImplementationEntryContent(impl)) continue
+        if (empty(impl.country)) anyImplMissingCountry = true
+        if (empty(impl.startDate)) anyImplMissingStartDate = true
+        if (!(impl.description ?? '').trim()) anyImplMissingDescription = true
+      }
+    }
+    if (anyImplMissingCountry) {
+      add(
+        sectionMeasures,
+        'В составе каждого набора сведений о мероприятии, обеспечивающем соблюдение меры должна быть указана Страна проведения мероприятия',
+      )
+    }
+    if (anyImplMissingStartDate) {
+      add(
+        sectionMeasures,
+        'В составе каждого набора сведений о мероприятии, обеспечивающем соблюдение меры должна быть указана начальная дата проведения мероприятия',
+      )
+    }
+    if (anyImplMissingDescription) {
+      add(
+        sectionMeasures,
+        'В составе каждого набора сведений о мероприятии, обеспечивающем соблюдение меры должно быть указано описание мероприятия',
+      )
+    }
+  }
   const getAuthorities = (impl: MeasureImplementationItem) =>
     (impl.authorities && impl.authorities.length > 0 ? impl.authorities : (impl.authority ? [impl.authority] : []))
   const getSubjects = (impl: MeasureImplementationItem) =>
@@ -1124,23 +1155,35 @@ function pushPhaXsdFormatErrors(errors: string[], data: CardData): void {
 }
 
 /**
- * Логические контроли и формат полей + проверка XML по XSD на сервере (кнопка «Валидация карты», направление сведений).
+ * Сначала логические контроли и проверка формата полей; при полном успехе — структурный контроль (XSD) на сервере.
+ * Кнопка «Валидация карты», направление сведений.
  */
 export async function validateOutgoingCardWithSchema(data: CardData): Promise<ValidationResult> {
   const base = validateOutgoingCard(data)
+  const formatResult = collectFormatValidationErrors(data)
+  const combinedSections: { sectionName: string; remarks: string[] }[] = [...base.sections]
+  if (formatResult.errors.length > 0) {
+    combinedSections.push({ sectionName: 'Формат данных (XSD)', remarks: formatResult.errors })
+  }
+  if (!base.success || formatResult.errors.length > 0) {
+    return {
+      success: false,
+      sections: combinedSections.filter((s) => s.remarks.length > 0),
+    }
+  }
   let xsdRemarks: string[] = []
   try {
     xsdRemarks = await fetchSchemaValidationErrors(exportCardDataToXML(data), isPpvApp() ? 'ppv' : 'dpa')
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e)
-    xsdRemarks = [`Не удалось выполнить проверку по XSD: ${msg}`]
+    xsdRemarks = [`Не удалось выполнить структурный контроль: ${msg}`]
   }
-  const sections = [...base.sections]
+  const sections = [...combinedSections]
   if (xsdRemarks.length > 0) {
-    sections.push({ sectionName: 'Проверка по схеме XSD', remarks: xsdRemarks })
+    sections.push({ sectionName: 'Структурный контроль', remarks: xsdRemarks })
   }
   return {
-    success: base.success && xsdRemarks.length === 0,
-    sections,
+    success: xsdRemarks.length === 0,
+    sections: sections.filter((s) => s.remarks.length > 0),
   }
 }

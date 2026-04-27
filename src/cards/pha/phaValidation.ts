@@ -390,9 +390,12 @@ export function validatePhaOutgoingCardFull(data: CardData): ValidationResult {
   return { success: vr.success && fmt.length === 0, sections }
 }
 
-/** Как validatePhaOutgoingCardFull, плюс серверная валидация XML по XSD. */
+/** Как validatePhaOutgoingCardFull, плюс структурный контроль (XSD) на сервере, только если остальные проверки пройдены. */
 export async function validatePhaOutgoingCardFullWithSchema(data: CardData): Promise<ValidationResult> {
   const vr = validatePhaOutgoingCardFull(data)
+  if (!vr.success) {
+    return vr
+  }
   let xsdRemarks: string[] = []
   let xsdPassed = false
   try {
@@ -400,14 +403,14 @@ export async function validatePhaOutgoingCardFullWithSchema(data: CardData): Pro
     xsdPassed = xsdRemarks.length === 0
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e)
-    xsdRemarks = [`Не удалось выполнить проверку по XSD: ${msg}`]
+    xsdRemarks = [`Не удалось выполнить структурный контроль: ${msg}`]
     xsdPassed = false
   }
   const sections = [...vr.sections]
-  const xsdDisplayRemarks = xsdPassed ? ['Ошибок по схеме XSD не выявлено.'] : xsdRemarks
-  sections.push({ sectionName: 'Проверка по схеме XSD', remarks: xsdDisplayRemarks })
+  const xsdDisplayRemarks = xsdPassed ? ['Ошибок структурного контроля не выявлено.'] : xsdRemarks
+  sections.push({ sectionName: 'Структурный контроль', remarks: xsdDisplayRemarks })
   return {
-    success: vr.success && xsdPassed,
+    success: xsdPassed,
     sections,
   }
 }
