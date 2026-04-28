@@ -1,6 +1,8 @@
 #!/bin/bash
-# Запуск Tomcat вручную (если после build-and-deploy сервер не поднялся)
+# Запуск локального Tomcat (если не запущен).
 # Использование: ./start-tomcat.sh
+
+set -e
 
 TOMCAT_HOME="${TOMCAT_HOME:-/opt/tomcat8}"
 if [ -z "$JAVA_HOME" ]; then
@@ -24,6 +26,11 @@ if [ ! -x "$TOMCAT_HOME/bin/startup.sh" ]; then
     echo "Ошибка: не найден $TOMCAT_HOME/bin/startup.sh"
     echo "Задайте TOMCAT_HOME и при необходимости JAVA_HOME."
     exit 1
+fi
+
+if pgrep -f "catalina" >/dev/null 2>&1; then
+    echo "Tomcat уже запущен (процесс catalina). TOMCAT_HOME=$TOMCAT_HOME"
+    exit 0
 fi
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"

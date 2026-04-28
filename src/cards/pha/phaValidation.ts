@@ -17,6 +17,7 @@ import { collectFormatValidationErrors, type ValidationResult } from '@/utils/ca
 import { exportPhaCardDataToXML } from '@/cards/pha/phaXmlExporter'
 import { fetchSchemaValidationErrors } from '@/utils/schemaValidationApi'
 import { phaShouldExportPublicHealthIncident } from '@/cards/pha/phaXmlExporter'
+import { remarkContactsIncomplete } from '@/utils/contactValidation'
 
 export type { ValidationResult }
 
@@ -102,32 +103,9 @@ function organizationTrioComplete(o: BusinessEntityDetails): boolean {
   return (o.addresses ?? []).some(subjectAddressRowHasContent)
 }
 
-function contactNeedsCommunicationValue(c: ContactDetails): boolean {
-  return (
-    !empty(c.communicationChannelCode) ||
-    !empty(c.communicationChannelName) ||
-    !empty(c.communicationChannelId) ||
-    !empty(c.contactKind)
-  )
-}
-
-/**
- * «Значение» контакта: по XSD и в форме оно уходит в CommunicationChannelId и/или (при двух id) в contactValue;
- * см. {@link buildContactDisplayLines} и {@link parseOneCommunicationDetails} (один ChannelId в XML → только communicationChannelId).
- */
-function contactHasValue(c: ContactDetails): boolean {
-  return !empty(c.contactValue) || !empty(c.communicationChannelId)
-}
-
 function collectOrgContactRemarks(contacts: ContactDetails[] | undefined): string[] {
-  if (!contacts?.length) return []
-  for (const c of contacts) {
-    if (!contactNeedsCommunicationValue(c)) continue
-    if (!contactHasValue(c)) {
-      return ['Для контактного реквизита должно быть указано значение']
-    }
-  }
-  return []
+  const r = remarkContactsIncomplete(contacts)
+  return r ? [r] : []
 }
 
 function hasPlaceAnyBlock(place: DetectionPlaceData | undefined): boolean {
@@ -387,40 +365,44 @@ export function validatePhaOutgoingCard(data: CardData): ValidationResult {
   return { success, sections }
 }
 
-/** Обязательные поля / логические контроли + ошибки формата XSD (кнопка «Валидация карты», направление ОП 57). */
+/** Обязательные поля / логические контроли; при успехе — ограничения полей (без дубля при уже упавшей логике). */
 export function validatePhaOutgoingCardFull(data: CardData): ValidationResult {
   const vr = validatePhaOutgoingCard(data)
-  const fmt = collectPhaFormatValidationErrors(data)
-  const sections = [...vr.sections]
-  if (fmt.length > 0) {
-    sections.push({ sectionName: 'Формат данных (XSD)', remarks: fmt })
+  if (!vr.success) {
+    return vr
   }
-  return { success: vr.success && fmt.length === 0, sections }
+  const fmt = collectPhaFormatValidationErrors(data)
+  if (fmt.length === 0) {
+    return { success: true, sections: [] }
+  }
+  return {
+    success: false,
+    sections: [{ sectionName: 'Структурный контроль', remarks: fmt }],
+  }
 }
 
-/** Как validatePhaOutgoingCardFull, плюс структурный контроль (XSD) на сервере, только если остальные проверки пройдены. */
+/** Как validatePhaOutgoingCardFull, плюс проверка XML по XSD на сервере только при успехе предыдущих шагов. */
 export async function validatePhaOutgoingCardFullWithSchema(data: CardData): Promise<ValidationResult> {
   const vr = validatePhaOutgoingCardFull(data)
   if (!vr.success) {
     return vr
   }
   let xsdRemarks: string[] = []
-  let xsdPassed = false
+  let schemaRequestFailed = false
   try {
     xsdRemarks = await fetchSchemaValidationErrors(exportPhaCardDataToXML(data), 'pha')
-    xsdPassed = xsdRemarks.length === 0
   } catch (e) {
+    schemaRequestFailed = true
     const msg = e instanceof Error ? e.message : String(e)
     xsdRemarks = [`Не удалось выполнить структурный контроль: ${msg}`]
-    xsdPassed = false
   }
-  const sections = [...vr.sections]
-  const xsdDisplayRemarks = xsdPassed ? ['Ошибок структурного контроля не выявлено.'] : xsdRemarks
-  sections.push({ sectionName: 'Структурный контроль', remarks: xsdDisplayRemarks })
-  return {
-    success: xsdPassed,
-    sections,
+  if (schemaRequestFailed || xsdRemarks.length > 0) {
+    return {
+      success: false,
+      sections: [{ sectionName: 'Структурный контроль', remarks: xsdRemarks }],
+    }
   }
+  return { success: true, sections: [] }
 }
 
 export function collectPhaFormatValidationErrors(data: CardData): string[] {

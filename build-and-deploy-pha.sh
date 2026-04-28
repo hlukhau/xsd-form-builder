@@ -4,6 +4,7 @@
 # Использование: ./build-and-deploy-pha.sh
 #
 # Переменные: TOMCAT_HOME, JAVA_HOME (по умолчанию /opt/tomcat8, $TOMCAT_HOME/java)
+# HOT_DEPLOY=1 по умолчанию — только WAR; полный рестарт: HOT_DEPLOY=0 ./build-and-deploy-pha.sh
 
 set -e
 
@@ -71,8 +72,9 @@ fi
 echo "[OK] Java found"
 echo ""
 
-echo "[3/4] Building WAR and deploying..."
+echo "[3/4] Building WAR and deploying (hot WAR)..."
 export TOMCAT_HOME JAVA_HOME
+export HOT_DEPLOY="${HOT_DEPLOY:-1}"
 ./build-manual.sh pha_card
 echo "[OK] WAR built and deployed"
 echo ""
@@ -93,5 +95,6 @@ echo "========================================"
 echo ""
 echo "  http://localhost:$TOMCAT_PORT/pha_card/"
 echo ""
-echo "Wait 15-25 seconds for Tomcat. Logs: $TOMCAT_HOME/logs/catalina.out"
+echo "При работающем Tomcat подождите 10–30 с после подмены WAR. Лог: $TOMCAT_HOME/logs/catalina.out"
+echo "Запуск Tomcat (если не запущен): таск «Tomcat: start (local)» или ./start-tomcat.sh"
 echo ""

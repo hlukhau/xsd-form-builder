@@ -28,6 +28,7 @@ import { validateFieldValue } from '@/constants/xsdFieldConstraints'
 import { exportCardDataToXML, hasMeasureImplementationEntryContent } from '@/utils/xmlExporter'
 import { fetchSchemaValidationErrors } from '@/utils/schemaValidationApi'
 import { isPpvApp } from '@/cards/config'
+import { remarkContactsIncomplete } from '@/utils/contactValidation'
 
 export interface ValidationResult {
   success: boolean
@@ -86,6 +87,13 @@ function getMeasureExecutorSubjectAddressList(sd: SubjectDetails): AddressDetail
   const be = sd.businessEntity
   if (be?.addresses && be.addresses.length > 0) return [...be.addresses]
   return getAddressListFromSubject(sd)
+}
+
+/** Контакты субъекта-исполнителя: как в exportMeasureSubjectDetails (entity.contacts иначе subject.contacts). */
+function getMeasureSubjectContacts(sd: SubjectDetails) {
+  const be = sd.businessEntity
+  if (be?.contacts && be.contacts.length > 0) return be.contacts
+  return sd.contacts ?? []
 }
 
 function normalizeBatchViolations(batch: ProductBatchDetails): ViolationsData[] {
@@ -236,6 +244,10 @@ export function validateOutgoingCard(data: CardData): ValidationResult {
     if (mfr?.subjectIdentifier != null && String(mfr.subjectIdentifier).trim() !== '' && empty(mfr?.identificationMethod)) {
       add(sectionProduct, 'Если по изготовителю продукции указан идентификатор хозяйствующего субъекта, то метод идентификации должен быть указан обязательно')
     }
+    const mfrContactsRemark = remarkContactsIncomplete(mfr?.contacts, 'изготовителя продукции')
+    if (mfrContactsRemark) {
+      add(sectionProduct, mfrContactsRemark)
+    }
   }
   if (sectionProduct.remarks.length) sections.push(sectionProduct)
 
@@ -373,6 +385,22 @@ export function validateOutgoingCard(data: CardData): ValidationResult {
     )
   }
 
+  for (let bi = 0; bi < batches.length; bi++) {
+    const batch = batches[bi]
+    for (let di = 0; di < (batch?.shippingDocuments ?? []).length; di++) {
+      const doc = batch.shippingDocuments![di]
+      const parties = doc.supplyChainParties ?? []
+      for (let pi = 0; pi < parties.length; pi++) {
+        const party = parties[pi]
+        const cr = remarkContactsIncomplete(
+          party.contacts,
+          `изготовителя продукции в составе данных по ТСД (партия ${bi + 1}, участник цепи поставок ${pi + 1})`,
+        )
+        if (cr) add(sectionTsd, cr)
+      }
+    }
+  }
+
   if (sectionTsd.remarks.length) sections.push(sectionTsd)
 
   // —— Документы соответствия (по XSD только в tsd.batches[]) ——
@@ -500,6 +528,10 @@ export function validateOutgoingCard(data: CardData): ValidationResult {
       }
       if (org.businessEntityId != null && String(org.businessEntityId).trim() !== '' && empty(org.identificationMethod)) {
         add(sectionDetectionPlace, 'Если для организации, указанной в качестве места обнаружения определен идентификатор хозяйствующего субъекта, то также должен быть указан метод идентификации')
+      }
+      const contactRemark = remarkContactsIncomplete(org.contacts, 'организации в месте обнаружения')
+      if (contactRemark) {
+        add(sectionDetectionPlace, contactRemark)
       }
     }
     const addr = place.address
@@ -659,7 +691,8 @@ export function validateOutgoingCard(data: CardData): ValidationResult {
   for (const impl of implList) {
     for (const subj of getSubjects(impl)) {
       if (!subj) continue
-      const subjAddrs = getAddresses(subj)
+      /** Как exportMeasureSubjectDetails / форма: у юрлица строки в businessEntity.addresses, не registrationAddress на subject. */
+      const subjAddrs = getMeasureExecutorSubjectAddressList(subj).filter((a) => measureExecutorAddressRowHasContent(a))
       if (subjAddrs.length === 0) continue
       for (const addr of subjAddrs) {
         if (empty(addr?.country)) {
@@ -720,6 +753,24 @@ export function validateOutgoingCard(data: CardData): ValidationResult {
       }
       if (empty(docRef?.docCreationDate)) {
         add(sectionMeasures, 'В составе сведений о документе, устанавливающем мероприятие, обеспечивающее соблюдение меры должна быть указана его дата')
+      }
+    }
+  }
+  for (let mi = 0; mi < measuresList.length; mi++) {
+    const m = measuresList[mi]
+    const impls = m?.measureImplementationDetails ?? []
+    for (let ii = 0; ii < impls.length; ii++) {
+      const impl = impls[ii]
+      const subjects = getSubjects(impl)
+      for (let si = 0; si < subjects.length; si++) {
+        const subj = subjects[si]
+        if (!subj) continue
+        const scope =
+          subjects.length > 1
+            ? `субъекта-исполнителя ${si + 1} (принятая мера ${mi + 1}, мероприятие ${ii + 1})`
+            : `субъекта-исполнителя мероприятия (принятая мера ${mi + 1}, мероприятие ${ii + 1})`
+        const cr = remarkContactsIncomplete(getMeasureSubjectContacts(subj), scope)
+        if (cr) add(sectionMeasures, cr)
       }
     }
   }
@@ -1155,35 +1206,40 @@ function pushPhaXsdFormatErrors(errors: string[], data: CardData): void {
 }
 
 /**
- * Сначала логические контроли и проверка формата полей; при полном успехе — структурный контроль (XSD) на сервере.
+ * По очереди: логические контроли → при успехе ограничения полей (длина/шаблоны) → при успехе проверка XML по XSD на сервере.
+ * Пока есть ошибки логики, блок ограничений полей не показывается (без дублирования с формулировками логики).
  * Кнопка «Валидация карты», направление сведений.
  */
 export async function validateOutgoingCardWithSchema(data: CardData): Promise<ValidationResult> {
   const base = validateOutgoingCard(data)
-  const formatResult = collectFormatValidationErrors(data)
-  const combinedSections: { sectionName: string; remarks: string[] }[] = [...base.sections]
-  if (formatResult.errors.length > 0) {
-    combinedSections.push({ sectionName: 'Формат данных (XSD)', remarks: formatResult.errors })
+  if (!base.success) {
+    return { success: false, sections: base.sections }
   }
-  if (!base.success || formatResult.errors.length > 0) {
+
+  const formatResult = collectFormatValidationErrors(data)
+  if (formatResult.errors.length > 0) {
     return {
       success: false,
-      sections: combinedSections.filter((s) => s.remarks.length > 0),
+      sections: [{ sectionName: 'Структурный контроль', remarks: formatResult.errors }],
     }
   }
+
   let xsdRemarks: string[] = []
+  let schemaRequestFailed = false
   try {
     xsdRemarks = await fetchSchemaValidationErrors(exportCardDataToXML(data), isPpvApp() ? 'ppv' : 'dpa')
   } catch (e) {
+    schemaRequestFailed = true
     const msg = e instanceof Error ? e.message : String(e)
     xsdRemarks = [`Не удалось выполнить структурный контроль: ${msg}`]
   }
-  const sections = [...combinedSections]
-  if (xsdRemarks.length > 0) {
-    sections.push({ sectionName: 'Структурный контроль', remarks: xsdRemarks })
+
+  if (schemaRequestFailed || xsdRemarks.length > 0) {
+    return {
+      success: false,
+      sections: [{ sectionName: 'Структурный контроль', remarks: xsdRemarks }],
+    }
   }
-  return {
-    success: xsdRemarks.length === 0,
-    sections: sections.filter((s) => s.remarks.length > 0),
-  }
+
+  return { success: true, sections: [] }
 }

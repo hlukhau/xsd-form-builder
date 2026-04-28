@@ -1247,6 +1247,7 @@ const SubjectDetailsUnifiedEdit: React.FC<{
     if (subject.businessEntity != null) {
       upd({}, { addresses })
     } else {
+      // Только канонический список адресов + сброс legacy-полей; identityDoc и прочие поля субъекта сохраняются через spread.
       onChange({
         ...subject,
         addresses,

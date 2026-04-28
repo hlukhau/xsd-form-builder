@@ -25,31 +25,36 @@ const ValidationResultModal: React.FC<ValidationResultModalProps> = ({
       width={560}
       destroyOnClose
     >
-      {result == null ? null : success ? (
-        <Typography.Paragraph style={{ marginBottom: 0 }}>
-          Все контроли пройдены успешно.
-        </Typography.Paragraph>
-      ) : (
-        <List
-          dataSource={sections}
-          renderItem={({ sectionName, remarks }) => (
-            <List.Item key={sectionName}>
-              <div>
-                <Typography.Text strong>{sectionName}</Typography.Text>
-                <List
-                  size="small"
-                  dataSource={remarks}
-                  renderItem={(remark, idx) => (
-                    <List.Item key={idx} style={{ border: 'none', padding: '2px 0' }}>
-                      <Typography.Text type="secondary">• </Typography.Text>
-                      {sanitizeValidationMessageForDisplay(remark)}
-                    </List.Item>
-                  )}
-                />
-              </div>
-            </List.Item>
-          )}
-        />
+      {result == null ? null : (
+        <>
+          {success ? (
+            <Typography.Paragraph style={{ marginBottom: sections.length > 0 ? 12 : 0 }}>
+              Все контроли пройдены.
+            </Typography.Paragraph>
+          ) : null}
+          {sections.length > 0 ? (
+            <List
+              dataSource={sections}
+              renderItem={({ sectionName, remarks }) => (
+                <List.Item key={sectionName}>
+                  <div>
+                    <Typography.Text strong>{sectionName}</Typography.Text>
+                    <List
+                      size="small"
+                      dataSource={remarks}
+                      renderItem={(remark, idx) => (
+                        <List.Item key={idx} style={{ border: 'none', padding: '2px 0' }}>
+                          <Typography.Text type="secondary">• </Typography.Text>
+                          {sanitizeValidationMessageForDisplay(remark)}
+                        </List.Item>
+                      )}
+                    />
+                  </div>
+                </List.Item>
+              )}
+            />
+          ) : null}
+        </>
       )}
     </Modal>
   )

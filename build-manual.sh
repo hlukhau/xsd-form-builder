@@ -5,6 +5,8 @@
 #   ./build-manual.sh pha_card   — PHA: frontend из dist/ (сборка build:pha), WAR pha_card.war
 #   ./build-manual.sh ppv_card   — PPV: frontend из dist/ (сборка build:ppv), WAR ppv_card.war
 # Переменная DEPLOY=0 — только собрать WAR, не останавливать/разворачивать Tomcat.
+# HOT_DEPLOY=1 — скопировать WAR в webapps без остановки/запуска Tomcat (развёртывание подхватит работающий экземпляр).
+# Полный рестарт Tomcat как раньше: HOT_DEPLOY=0 (по умолчанию) при DEPLOY=1 — shutdown, удаление, копия WAR, startup.
 
 set -e
 
@@ -45,6 +47,7 @@ APP_PATH="$WEBAPPS_PATH/$APP_NAME"
 SRC_DIR="$PROJECT_DIR/src/main/java"
 CLASS_DIR="$PROJECT_DIR/target/$APP_NAME/WEB-INF/classes"
 DEPLOY="${DEPLOY:-1}"
+HOT_DEPLOY="${HOT_DEPLOY:-0}"
 
 # Check Java
 if [ ! -x "$JAVA_HOME/bin/javac" ]; then
@@ -208,7 +211,7 @@ WAR_SIZE=$(stat -c%s "$WAR_FILE" 2>/dev/null || stat -f%z "$WAR_FILE" 2>/dev/nul
 echo "[OK] WAR file created: $WAR_FILE ($(($WAR_SIZE / 1048576)) MB)"
 echo ""
 
-# [6/6] Stop Tomcat, deploy, start Tomcat (пропускается при DEPLOY=0)
+# [6/6] Deploy to webapps (пропускается при DEPLOY=0)
 if [ "$DEPLOY" != "1" ]; then
     echo "[6/6] Skipping deploy (DEPLOY=$DEPLOY). WAR: $WAR_FILE"
     exit 0
@@ -218,7 +221,43 @@ export CATALINA_HOME="$TOMCAT_HOME"
 export CATALINA_BASE="${CATALINA_BASE:-$TOMCAT_HOME}"
 export JAVA_HOME
 
-echo "[6/6] Stopping Tomcat..."
+remove_old_deployment_and_copy_war() {
+    echo "Removing old deployment..."
+    rm -rf "$APP_PATH"
+    rm -f "$WEBAPPS_PATH/$APP_NAME.war"
+    if [ "$APP_NAME" = "dpa_card" ]; then
+        rm -rf "$WEBAPPS_PATH/xsd_form_builder" "$WEBAPPS_PATH/xsd-form-builder"
+        rm -f "$WEBAPPS_PATH/xsd_form_builder.war" "$WEBAPPS_PATH/xsd-form-builder.war"
+    elif [ "$APP_NAME" = "pha_card" ]; then
+        rm -rf "$WEBAPPS_PATH/xsd_form_builder_57"
+        rm -f "$WEBAPPS_PATH/xsd_form_builder_57.war"
+    fi
+    echo "[OK] Old deployment removed"
+    echo ""
+    echo "Deploying WAR..."
+    cp "$WAR_FILE" "$WEBAPPS_PATH/$APP_NAME.war"
+    if [ $? -ne 0 ]; then
+        echo "[ERROR] Failed to copy WAR to $WEBAPPS_PATH"
+        exit 1
+    fi
+    echo "[OK] Application WAR installed: $WEBAPPS_PATH/$APP_NAME.war"
+    echo ""
+}
+
+if [ "$HOT_DEPLOY" = "1" ]; then
+    echo "[6/6] Hot deploy — подмена WAR без остановки Tomcat (HOT_DEPLOY=1)..."
+    remove_old_deployment_and_copy_war
+    if pgrep -f "catalina" >/dev/null 2>&1; then
+        echo "Tomcat запущен: подождите 10–30 с, пока подтянется новое развёртывание."
+    else
+        echo "Tomcat не запущен: выполните таск «Tomcat: start (local)» или: ./start-tomcat.sh"
+    fi
+    echo "  Лог: $TOMCAT_HOME/logs/catalina.out"
+    echo ""
+    exit 0
+fi
+
+echo "[6/6] Stopping Tomcat (полный рестарт; для только WAR задайте HOT_DEPLOY=1)..."
 # Проверяем, запущен ли Tomcat
 if pgrep -f "catalina" >/dev/null 2>&1; then
     echo "  Tomcat is running, stopping..."
@@ -266,29 +305,7 @@ else
 fi
 echo ""
 
-echo "Removing old deployment..."
-rm -rf "$APP_PATH"
-rm -f "$WEBAPPS_PATH/$APP_NAME.war"
-# До переименования контекстов: убрать старые WAR и развёрнутые папки из webapps
-if [ "$APP_NAME" = "dpa_card" ]; then
-  rm -rf "$WEBAPPS_PATH/xsd_form_builder" "$WEBAPPS_PATH/xsd-form-builder"
-  rm -f "$WEBAPPS_PATH/xsd_form_builder.war" "$WEBAPPS_PATH/xsd-form-builder.war"
-elif [ "$APP_NAME" = "pha_card" ]; then
-  rm -rf "$WEBAPPS_PATH/xsd_form_builder_57"
-  rm -f "$WEBAPPS_PATH/xsd_form_builder_57.war"
-fi
-echo "[OK] Old deployment removed"
-echo ""
-
-echo "Deploying WAR..."
-cp "$WAR_FILE" "$WEBAPPS_PATH/$APP_NAME.war"
-if [ $? -ne 0 ]; then
-    echo "[ERROR] Failed to copy WAR to $WEBAPPS_PATH"
-    exit 1
-fi
-echo "[OK] Application deployed"
-echo ""
-
+remove_old_deployment_and_copy_war
 echo "Starting Tomcat..."
 if [ ! -x "$TOMCAT_HOME/bin/startup.sh" ]; then
     echo "[ERROR] startup.sh not found at $TOMCAT_HOME/bin/startup.sh"

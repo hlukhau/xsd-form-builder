@@ -4,6 +4,8 @@
 # Использование: ./build-and-deploy-dpa.sh
 #
 # Переменные: TOMCAT_HOME, JAVA_HOME (по умолчанию /opt/tomcat8, $TOMCAT_HOME/java)
+# Развёртывание: HOT_DEPLOY=1 — только подмена WAR в webapps (Tomcat целиком не перезапускается).
+# Полный рестарт Tomcat: HOT_DEPLOY=0 ./build-and-deploy-dpa.sh
 
 set -e
 
@@ -67,8 +69,9 @@ fi
 echo "[OK] Java found"
 echo ""
 
-echo "[3/4] Building WAR and deploying..."
+echo "[3/4] Building WAR and deploying (hot WAR)..."
 export TOMCAT_HOME JAVA_HOME
+export HOT_DEPLOY="${HOT_DEPLOY:-1}"
 ./build-manual.sh dpa_card
 echo "[OK] WAR built and deployed"
 echo ""
@@ -89,5 +92,6 @@ echo "========================================"
 echo ""
 echo "  http://localhost:$TOMCAT_PORT/dpa_card/"
 echo ""
-echo "Wait 15-25 seconds for Tomcat. Logs: $TOMCAT_HOME/logs/catalina.out"
+echo "При работающем Tomcat подождите 10–30 с после подмены WAR. Лог: $TOMCAT_HOME/logs/catalina.out"
+echo "Запуск Tomcat (если не запущен): таск «Tomcat: start (local)» или ./start-tomcat.sh"
 echo ""

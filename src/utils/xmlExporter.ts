@@ -29,6 +29,7 @@ import type {
   ComplianceDocument,
   IdentityDocDetails,
 } from '@/types/card'
+import { getAddressListFromSubject } from '@/utils/addressFormatUtils'
 
 /**
  * Нормализует строку даты-времени к формату для XML: yyyy-MM-ddThh:mm:ss или с дробной частью секунд.
@@ -445,8 +446,10 @@ function exportAddress(
 
 /**
  * ccdo:CommunicationDetails по XSD (CommunicationDetailsType): CommunicationChannelCode?, CommunicationChannelName?,
- * затем один или несколько CommunicationChannelId. ContactKind / ContactValue / Communication в этот блок не входят.
- * Текст из поля «Значение контакта» выводится как CommunicationChannelId, если отдельный идентификатор канала пуст.
+ * затем один или несколько CommunicationChannelId (по схеме обязателен хотя бы один).
+ * Внутреннее поле формы contactValue при экспорте мапится на элемент csdo:CommunicationChannelId (отдельное имя в TS, не в XSD).
+ * <p>Если указаны только код/имя канала без идентификатора — блок всё равно выводим: отсутствие обязательного
+ * {@code CommunicationChannelId} должно выявляться структурной проверкой XSD, а не молчаливо отбрасываться при экспорте.
  */
 function exportCommunicationDetailsBlock(xmlParts: string[], contact: ContactDetails, indent: string): void {
   const code = (contact.communicationChannelCode ?? '').trim()
@@ -454,7 +457,6 @@ function exportCommunicationDetailsBlock(xmlParts: string[], contact: ContactDet
   const idChannel = (contact.communicationChannelId ?? '').trim()
   const idFromValue = (contact.contactValue ?? '').trim()
   if (!code && !name && !idChannel && !idFromValue) return
-  if (!idChannel && !idFromValue) return
 
   const child = `${indent}  `
   xmlParts.push(`${indent}<ccdo:CommunicationDetails>`)
@@ -463,7 +465,7 @@ function exportCommunicationDetailsBlock(xmlParts: string[], contact: ContactDet
   if (idChannel && idFromValue && idChannel !== idFromValue) {
     xmlParts.push(`${child}<csdo:CommunicationChannelId>${escapeXML(idChannel)}</csdo:CommunicationChannelId>`)
     xmlParts.push(`${child}<csdo:CommunicationChannelId>${escapeXML(idFromValue)}</csdo:CommunicationChannelId>`)
-  } else {
+  } else if (idChannel || idFromValue) {
     const single = idChannel || idFromValue
     xmlParts.push(`${child}<csdo:CommunicationChannelId>${escapeXML(single)}</csdo:CommunicationChannelId>`)
   }
@@ -524,11 +526,30 @@ function hasBatchContent(batch: ProductBatchDetails): boolean {
   return false
 }
 
-/** Есть ли контент в адресе (хотя бы одно поле). */
+/**
+ * Есть ли в строке адреса хоть какие-то данные (не «полностью пустая» строка).
+ * Учитываем вид адреса (addressKindCode): иначе черновик «только вид» или неполный адрес
+ * отбрасывался бы при экспорте и не попадал в XML — структурный контроль XSD его не видел.
+ * Отфильтровывать на этапе экспорта нужно только полностью пустые строки, не неполные по бизнес-правилам.
+ */
 function hasAddressContent(addr: AddressDetails | undefined): boolean {
   if (!addr) return false
   const s = (v: string | undefined) => (v ?? '').trim()
-  return !!(s(addr.country) || s(addr.territoryCode) || s(addr.regionName) || s(addr.districtName) || s(addr.cityName) || s(addr.settlementName) || s(addr.streetName) || s(addr.buildingNumberId) || s(addr.roomNumberId) || s(addr.postOfficeBoxId) || s(addr.postCode) || s(addr.fullAddress))
+  return !!(
+    s(addr.addressKindCode) ||
+    s(addr.country) ||
+    s(addr.territoryCode) ||
+    s(addr.regionName) ||
+    s(addr.districtName) ||
+    s(addr.cityName) ||
+    s(addr.settlementName) ||
+    s(addr.streetName) ||
+    s(addr.buildingNumberId) ||
+    s(addr.roomNumberId) ||
+    s(addr.postOfficeBoxId) ||
+    s(addr.postCode) ||
+    s(addr.fullAddress)
+  )
 }
 
 /** Есть ли контент в контакте (хотя бы одно поле). */
@@ -764,21 +785,24 @@ function exportMeasureSubjectDetails(xmlParts: string[], subject: SubjectDetails
     if (entity.taxpayerId) xmlParts.push(`${subIndent}<csdo:TaxpayerId>${escapeXML(entity.taxpayerId)}</csdo:TaxpayerId>`)
     // SubjectDetailsType: после TaxpayerId — IdentityDocV3Details, затем SubjectAddressDetails, затем CommunicationDetails (EEC_M_ComplexDataObjects SubjectDetailsType).
     if (subject.identityDoc) exportIdentityDocV3Details(xmlParts, subject.identityDoc, subIndent)
-    if (entity.addresses && entity.addresses.length > 0) {
-      entity.addresses.forEach(addr => {
-        exportAddress(xmlParts, addr, addr.addressKindCode || '1', subIndent)
-      })
-    }
-    if (entity.contacts && entity.contacts.length > 0) {
-      entity.contacts.forEach((contact) => exportCommunicationDetailsBlock(xmlParts, contact, subIndent))
-    }
+    /** Адреса: при юрлице обычно в businessEntity.addresses; если массив пуст, форма может держать строки в subject (регистрационный/фактический/почтовый или addresses) — как в getAddressListFromSubject. */
+    const implAddresses =
+      entity.addresses && entity.addresses.length > 0 ? entity.addresses : getAddressListFromSubject(subject)
+    implAddresses.forEach((addr) => {
+      exportAddress(xmlParts, addr, addr.addressKindCode || '1', subIndent)
+    })
+    const implContacts =
+      entity.contacts && entity.contacts.length > 0 ? entity.contacts : (subject.contacts ?? [])
+    implContacts.forEach((contact) => exportCommunicationDetailsBlock(xmlParts, contact, subIndent))
   } else {
+    // SubjectDetailsType (XSD): UnifiedCountryCode, SubjectName, … IdentityDocV3Details, затем SubjectAddressDetails, CommunicationDetails — порядок не менять.
     if (subject.country) xmlParts.push(`${subIndent}<csdo:UnifiedCountryCode codeListId="2021">${escapeXML(subject.country)}</csdo:UnifiedCountryCode>`)
     if (subject.subjectName) xmlParts.push(`${subIndent}<csdo:SubjectName>${escapeXML(subject.subjectName)}</csdo:SubjectName>`)
     if (subject.identityDoc) exportIdentityDocV3Details(xmlParts, subject.identityDoc, subIndent)
-    if (subject.registrationAddress) exportAddress(xmlParts, subject.registrationAddress, '1', subIndent)
-    if (subject.actualAddress) exportAddress(xmlParts, subject.actualAddress, '2', subIndent)
-    if (subject.mailingAddress) exportAddress(xmlParts, subject.mailingAddress, '3', subIndent)
+    /** Адреса: subject.addresses из формы исполнителя (syncAddresses); иначе рег./факт./почт. Логику identityDoc не затрагивает. */
+    getAddressListFromSubject(subject).forEach((addr) => {
+      exportAddress(xmlParts, addr, addr.addressKindCode || '1', subIndent)
+    })
     if (subject.contacts && subject.contacts.length > 0) {
       subject.contacts.forEach((contact) => exportCommunicationDetailsBlock(xmlParts, contact, subIndent))
     }
