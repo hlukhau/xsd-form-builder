@@ -111,11 +111,19 @@ function contactNeedsCommunicationValue(c: ContactDetails): boolean {
   )
 }
 
+/**
+ * «Значение» контакта: по XSD и в форме оно уходит в CommunicationChannelId и/или (при двух id) в contactValue;
+ * см. {@link buildContactDisplayLines} и {@link parseOneCommunicationDetails} (один ChannelId в XML → только communicationChannelId).
+ */
+function contactHasValue(c: ContactDetails): boolean {
+  return !empty(c.contactValue) || !empty(c.communicationChannelId)
+}
+
 function collectOrgContactRemarks(contacts: ContactDetails[] | undefined): string[] {
   if (!contacts?.length) return []
   for (const c of contacts) {
     if (!contactNeedsCommunicationValue(c)) continue
-    if (empty(c.contactValue)) {
+    if (!contactHasValue(c)) {
       return ['Для контактного реквизита должно быть указано значение']
     }
   }
