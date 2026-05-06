@@ -253,8 +253,12 @@ function AppContent() {
         } catch (e) {
           console.warn('Метаданные VW_DPA не загружены:', e)
         }
+        /* DPA входящие: POST first_open, если в метаданных ещё «Получено» (часто DPASTATUSID=1).
+           PPV входящие: переход RECEIVED→PROCESSING уже выполняется в одной транзакции с GET /api/ppv/metadata
+           (PpvMetadataServlet); здесь повторный first_open не вызываем — после метаданных statusId уже PROCESSING. */
         if (
           !cancelled &&
+          !isPpvApp() &&
           incomingMetaForFirstOpen != null &&
           String(incomingMetaForFirstOpen.datasourceKindCode ?? '').trim() === '1' &&
           incomingMetaForFirstOpen.dpaStatusId === 1

@@ -107,6 +107,11 @@ public class PpvStatusChangeServlet extends HttpServlet {
 
     private static final String SQL_STATUS_NAME_BY_ID = "SELECT TRIM(PPVSTATUSNAME) FROM PPVSTATUS WHERE PPVSTATUSID = ?";
 
+    /** Как в PpvMetadataServlet: только строка в RECEIVED переходит в PROCESSING. */
+    private static final String SQL_UPDATE_INCOMING_RECEIVED_TO_PROCESSING = ""
+            + "UPDATE PPV SET PPVSTATUSID = ?, MODIFICATIONDATETIME = SYSDATE "
+            + "WHERE PPVID = ? AND TRIM(TO_CHAR(DATASOURCEKINDCODE)) = '1' AND PPVSTATUSID = ?";
+
     @Override
     protected void doGet(HttpServletRequest request, HttpServletResponse response)
             throws ServletException, IOException {
@@ -255,6 +260,44 @@ public class PpvStatusChangeServlet extends HttpServlet {
                         "Первичное открытие (Получено→В обработке) доступно только для входящей карты (DATASOURCEKINDCODE=1)");
                 return;
             }
+            Integer receivedIdByCode = findIncomingPpvStatusIdByCode(conn, "RECEIVED");
+            Integer processingIdByCode = findIncomingPpvStatusIdByCode(conn, "PROCESSING");
+            if (receivedIdByCode != null && processingIdByCode != null) {
+                if (currentStatusId == processingIdByCode) {
+                    response.getWriter().print(buildDpaFirstOpenJson(false, currentStatusName, currentStatusId));
+                    return;
+                }
+                boolean looksReceived = currentStatusId == receivedIdByCode || isIncomingReceivedStatusName(currentStatusName);
+                if (!looksReceived) {
+                    response.getWriter().print(buildDpaFirstOpenJson(false, currentStatusName, currentStatusId));
+                    return;
+                }
+                try (PreparedStatement ps = conn.prepareStatement(SQL_UPDATE_INCOMING_RECEIVED_TO_PROCESSING)) {
+                    ps.setInt(1, processingIdByCode);
+                    ps.setLong(2, dpaid);
+                    ps.setInt(3, receivedIdByCode);
+                    int updated = ps.executeUpdate();
+                    if (updated == 0) {
+                        response.getWriter().print(buildDpaFirstOpenJson(false, currentStatusName, currentStatusId));
+                        return;
+                    }
+                }
+                try (PreparedStatement ps = conn.prepareStatement(SQL_INSERT_HIST)) {
+                    ps.setLong(1, dpaid);
+                    ps.setInt(2, processingIdByCode);
+                    if (userId != null) {
+                        ps.setInt(3, userId);
+                    } else {
+                        ps.setNull(3, Types.INTEGER);
+                    }
+                    ps.executeUpdate();
+                }
+                String displayName = resolvePpvStatusDisplayName(conn, processingIdByCode, "В обработке");
+                conn.commit();
+                response.getWriter().print("{\"ok\":true,\"changed\":true,\"newStatus\":\"" + escapeJson(displayName)
+                        + "\",\"newStatusId\":" + processingIdByCode + "}");
+                return;
+            }
             boolean isReceived = currentStatusId == INCOMING_RECEIVED || isIncomingReceivedStatusName(currentStatusName);
             if (!isReceived) {
                 response.getWriter().print(buildDpaFirstOpenJson(false, currentStatusName, currentStatusId));
@@ -268,7 +311,6 @@ public class PpvStatusChangeServlet extends HttpServlet {
                     "Нет права управления статусом входящих сведений (violationDetectedIn:status)");
             return;
         }
-        String newStatusName = null;
         if ("complete_processing".equals(action)) {
             Set<String> statusDepKeys = AccessRightService.violationDetectedInStatusDepKeys(rightsJson);
             if (statusDepKeys.isEmpty()) {
@@ -317,7 +359,6 @@ public class PpvStatusChangeServlet extends HttpServlet {
             sendJsonError(response, HttpServletResponse.SC_BAD_REQUEST, "Неизвестное действие: " + action);
             return;
         }
-        applyNewStatus(response, conn, dpaid, newStatusName, userId, false);
     }
 
     private static Integer findIncomingPpvStatusIdByCode(Connection conn, String statusCode) throws SQLException {
@@ -330,6 +371,22 @@ public class PpvStatusChangeServlet extends HttpServlet {
                 return rs.getInt("PPVSTATUSID");
             }
         }
+    }
+
+    private static String resolvePpvStatusDisplayName(Connection conn, int statusId, String fallback)
+            throws SQLException {
+        try (PreparedStatement ps = conn.prepareStatement(SQL_STATUS_NAME_BY_ID)) {
+            ps.setInt(1, statusId);
+            try (ResultSet rs = ps.executeQuery()) {
+                if (rs.next()) {
+                    String n = rs.getString(1);
+                    if (n != null && !n.trim().isEmpty()) {
+                        return n.trim();
+                    }
+                }
+            }
+        }
+        return fallback != null ? fallback : "";
     }
 
     private static boolean isReviewOutcomeSent(Connection conn, long ppvid) throws SQLException {
@@ -396,16 +453,7 @@ public class PpvStatusChangeServlet extends HttpServlet {
                 return;
             }
         }
-        String displayName = "Обработано";
-        try (PreparedStatement ps = conn.prepareStatement(SQL_STATUS_NAME_BY_ID)) {
-            ps.setInt(1, processedId);
-            try (ResultSet rs = ps.executeQuery()) {
-                if (rs.next()) {
-                    String n = rs.getString(1);
-                    if (n != null && !n.trim().isEmpty()) displayName = n.trim();
-                }
-            }
-        }
+        String displayName = resolvePpvStatusDisplayName(conn, processedId, "Обработано");
         try (PreparedStatement ps = conn.prepareStatement(SQL_INSERT_HIST)) {
             ps.setLong(1, dpaid);
             ps.setInt(2, processedId);
