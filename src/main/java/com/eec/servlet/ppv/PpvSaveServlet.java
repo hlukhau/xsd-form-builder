@@ -2,6 +2,7 @@ package com.eec.servlet.ppv;
 
 import com.eec.rights.RightsRegistryProvider;
 import com.eec.util.DatabaseUtil;
+import com.eec.util.PpvIncomingDefaultDepPermis;
 
 import javax.servlet.ServletException;
 import javax.servlet.http.HttpServlet;
@@ -41,9 +42,6 @@ public class PpvSaveServlet extends HttpServlet {
     private static final String DATASOURCEKINDCODE_INCOMING = "1";
     private static final String DATASOURCEKINDCODE_OUTGOING = "2";
     private static final String DATASOURCEKINDCODE_EEC = "3";
-    /** ЦГЭ по умолчанию для входящих и данных ЕЭК (DEPCODE в TB_DEP → PPVDEPPERMIS при первом сохранении). */
-    private static final String[] DEFAULT_INCOMING_PPV_DEP_CODES =
-            { "006", "101", "201", "301", "401", "501", "601", "700" };
     private static final String EDOCCODE_DEFAULT = "R.SM.SS.08.002";
     private static final String EDOCVERSION_DEFAULT = "1.0.0";
 
@@ -93,7 +91,6 @@ public class PpvSaveServlet extends HttpServlet {
     private static final String SQL_DEPS_FOR_COPY = "SELECT DEPID FROM PPVDEPPERMIS WHERE PPVID = ?";
     /** Проверка существования подразделения (FK PPVDEPPERMIS_FK2 → родительская таблица, обычно TB_DEP) */
     private static final String SQL_EXISTS_DEP = "SELECT 1 FROM TB_DEP WHERE DEPID = ?";
-    private static final String SQL_DEPID_BY_DEPCODE = "SELECT DEPID FROM TB_DEP WHERE TRIM(DEPCODE) = ? AND ROWNUM = 1";
     private static final String SQL_EXISTS_PPVDEPPERMIS_PAIR = "SELECT 1 FROM PPVDEPPERMIS WHERE PPVID = ? AND DEPID = ?";
 
     /** Код участника общего процесса для адресатов PPV (PPVACTOR.ACTORCODE) */
@@ -982,21 +979,7 @@ public class PpvSaveServlet extends HttpServlet {
     private static void seedPpvDepPermisOnCreate(Connection conn, long ppvid, String datasourceKind, String rightsJson)
             throws SQLException {
         if (DATASOURCEKINDCODE_INCOMING.equals(datasourceKind) || DATASOURCEKINDCODE_EEC.equals(datasourceKind)) {
-            for (String depCode : DEFAULT_INCOMING_PPV_DEP_CODES) {
-                String depId = resolveDepIdByDepCode(conn, depCode);
-                if (depId == null || depId.trim().isEmpty()) {
-                    System.out.println("[PpvSaveServlet] DEPCODE=" + depCode + " not found in TB_DEP, skip PPVDEPPERMIS");
-                    continue;
-                }
-                if (!existsDepIdString(conn, depId)) {
-                    continue;
-                }
-                if (ppvDepPermisExists(conn, ppvid, depId)) {
-                    continue;
-                }
-                insertPpvDepPermisRow(conn, ppvid, depId);
-                System.out.println("[PpvSaveServlet] Created PPVDEPPERMIS (incoming/eec default): PPVID=" + ppvid + ", DEPID=" + depId);
-            }
+            PpvIncomingDefaultDepPermis.seedDefaultsIfMissing(conn, ppvid);
             return;
         }
         Integer creatorDepId = getDepartmentDepIdFromRights(rightsJson);
@@ -1013,18 +996,6 @@ public class PpvSaveServlet extends HttpServlet {
             insertPpvDepPermisRow(conn, ppvid, creatorDepStr);
         }
         System.out.println("[PpvSaveServlet] Created PPVDEPPERMIS (outgoing creator): PPVID=" + ppvid + ", DEPID=" + creatorDepStr);
-    }
-
-    private static String resolveDepIdByDepCode(Connection conn, String depCode) throws SQLException {
-        try (PreparedStatement ps = conn.prepareStatement(SQL_DEPID_BY_DEPCODE)) {
-            ps.setString(1, depCode.trim());
-            try (ResultSet rs = ps.executeQuery()) {
-                if (!rs.next()) {
-                    return null;
-                }
-                return rs.getString(1);
-            }
-        }
     }
 
     private static boolean existsDepIdString(Connection conn, String depId) throws SQLException {

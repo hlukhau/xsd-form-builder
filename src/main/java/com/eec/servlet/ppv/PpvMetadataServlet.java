@@ -2,6 +2,7 @@ package com.eec.servlet.ppv;
 
 import com.eec.rights.RightsRegistryProvider;
 import com.eec.util.DatabaseUtil;
+import com.eec.util.PpvIncomingDefaultDepPermis;
 
 import javax.servlet.ServletException;
 import javax.servlet.http.HttpServlet;
@@ -24,8 +25,9 @@ import java.util.regex.Pattern;
  * GET /api/ppv/metadata/{PPVID}
  * <p>
  * Входящие сведения (DATASOURCEKINDCODE=1): при первом открытии карты для просмотра, если текущий статус
- * RECEIVED (PPVSTATUSCODE), в той же транзакции выполняется переход в PROCESSING и запись в PPVSTATUSHIST
- * (USERID — из JSON прав по параметру {@code guid}).
+ * RECEIVED (PPVSTATUSCODE), в той же транзакции выполняется переход в PROCESSING, запись в PPVSTATUSHIST
+ * (USERID — из JSON прав по параметру {@code guid}) и при необходимости — дефолтные строки {@code PPVDEPPERMIS}
+ * по перечню ЦГЭ только для департаментов без активной строки PPVDEPPERMIS ({@code REVOKEDATETIME IS NULL}).
  */
 public class PpvMetadataServlet extends HttpServlet {
 
@@ -214,6 +216,7 @@ public class PpvMetadataServlet extends HttpServlet {
             }
             ps.executeUpdate();
         }
+        PpvIncomingDefaultDepPermis.seedDefaultsIfMissing(conn, ppvid);
         System.out.println("[PpvMetadataServlet] Incoming first open: PPVID=" + ppvid + " RECEIVED→PROCESSING, userId=" + userId);
     }
 

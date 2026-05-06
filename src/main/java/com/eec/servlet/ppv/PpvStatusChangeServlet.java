@@ -3,6 +3,7 @@ package com.eec.servlet.ppv;
 import com.eec.rights.RightsRegistryProvider;
 import com.eec.util.AccessRightService;
 import com.eec.util.DatabaseUtil;
+import com.eec.util.PpvIncomingDefaultDepPermis;
 
 import javax.servlet.ServletException;
 import javax.servlet.http.HttpServlet;
@@ -304,6 +305,7 @@ public class PpvStatusChangeServlet extends HttpServlet {
                     }
                     ps.executeUpdate();
                 }
+                PpvIncomingDefaultDepPermis.seedDefaultsIfMissing(conn, dpaid);
                 String displayName = resolvePpvStatusDisplayName(conn, processingIdByCode, "В обработке");
                 conn.commit();
                 response.getWriter().print("{\"ok\":true,\"changed\":true,\"newStatus\":\"" + escapeJson(displayName)
