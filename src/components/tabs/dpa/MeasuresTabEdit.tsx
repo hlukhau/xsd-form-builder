@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react'
-import { Form, Input, Button, Table, Space, DatePicker, Collapse, Select, Upload, message, Modal } from 'antd'
+import { Form, Input, Button, Table, Space, DatePicker, Collapse, Select, Upload, message, Modal, InputNumber } from 'antd'
 import { PlusOutlined, DeleteOutlined, UploadOutlined, CaretRightOutlined, CaretDownOutlined, DownloadOutlined } from '@ant-design/icons'
 import dayjs from 'dayjs'
 import { useCountryOptions } from '@/hooks/shared/useCountryOptions'
@@ -34,6 +34,12 @@ import type {
   AddressDetails,
   ContactDetails,
 } from '@/types/card'
+
+/** Целое число дней для поля ввода, только если в модели уже PnD с целыми днями; иначе null (сырое значение остаётся только в docValidityDuration). */
+function measureDocValidityDaysFromPnD(xmlDuration: string | undefined): number | null {
+  const m = (xmlDuration ?? '').trim().match(/^P(\d+)D$/i)
+  return m ? parseInt(m[1], 10) : null
+}
 
 /** Документ, регламентирующий введение меры — вынесен на уровень модуля, чтобы при вводе не терялся фокус (компонент не пересоздаётся при каждом рендере). */
 const MeasureDocDetailsEditStandalone: React.FC<{
@@ -186,19 +192,19 @@ const MeasureDocDetailsEditStandalone: React.FC<{
           />
         </Form.Item>
       )}
-      <Form.Item label="Наименование">
+      <Form.Item label={labelWithHelp('Наименование', FIELD_HELP.measureDocDetails)}>
         <Input
           value={doc.docName}
           onChange={(e) => onChange({ ...doc, docName: e.target.value })}
-          maxLength={getMaxLength('docName')}
+          maxLength={getMaxLength('measureDocDetailsDocName')}
           showCount
         />
       </Form.Item>
-      <Form.Item label="Серия">
+      <Form.Item label="Серия" extra={getFormatHint('measureDocDetailsDocSeriesId')}>
         <Input
           value={doc.docSeriesId}
           onChange={(e) => onChange({ ...doc, docSeriesId: e.target.value })}
-          maxLength={getMaxLength('docSeriesId')}
+          maxLength={getMaxLength('measureDocDetailsDocSeriesId')}
           showCount
         />
       </Form.Item>
@@ -234,6 +240,27 @@ const MeasureDocDetailsEditStandalone: React.FC<{
           style={{ width: '100%' }}
         />
       </Form.Item>
+      <Form.Item label={labelWithHelp('Срок действия документа', FIELD_HELP.measureDocValidityDuration)} extra="Срок действия документа в днях">
+        <InputNumber
+          min={1}
+          precision={0}
+          style={{ width: '100%' }}
+          placeholder="Целое число дней"
+          value={measureDocValidityDaysFromPnD(doc.docValidityDuration) ?? undefined}
+          onChange={(v) => {
+            if (v == null) {
+              onChange({ ...doc, docValidityDuration: undefined })
+              return
+            }
+            const n = typeof v === 'number' ? v : parseInt(String(v), 10)
+            if (!Number.isFinite(n) || n < 1) {
+              onChange({ ...doc, docValidityDuration: undefined })
+              return
+            }
+            onChange({ ...doc, docValidityDuration: `P${Math.floor(n)}D` })
+          }}
+        />
+      </Form.Item>
       <Form.Item label="Уполномоченный орган. Наименование">
         <Input
           value={doc.authorityName}
@@ -249,6 +276,25 @@ const MeasureDocDetailsEditStandalone: React.FC<{
           onChange={(e) => onChange({ ...doc, description: e.target.value })}
           maxLength={getMaxLength('description')}
           showCount
+        />
+      </Form.Item>
+      <Form.Item
+        label={labelWithHelp('Количество листов', FIELD_HELP.measureDocPageQuantity)}
+        validateStatus={validateFieldValue('measureDocPageQuantity', doc.pageQuantity ?? '') ? 'error' : undefined}
+        help={
+          validateFieldValue('measureDocPageQuantity', doc.pageQuantity ?? '') ??
+          getFormatHint('measureDocPageQuantity')
+        }
+      >
+        <Input
+          inputMode="numeric"
+          placeholder="До 4 цифр"
+          value={doc.pageQuantity ?? ''}
+          onChange={(e) => {
+            const digits = e.target.value.replace(/\D/g, '').slice(0, 4)
+            onChange({ ...doc, pageQuantity: digits ? digits : undefined })
+          }}
+          maxLength={4}
         />
       </Form.Item>
       <Form.Item label="Документ в бинарном виде">

@@ -113,6 +113,18 @@ export const XSD_FIELD_CONSTRAINTS: Record<string, FieldConstraint> = {
   docName: { maxLength: 300, messageMaxLength: 'Не более 300 символов (csdo:Name300Type)' },
   /** Наименование документа в технической документации и товаросопроводительных документах (csdo:Name500Type) */
   docName500: { maxLength: 500, messageMaxLength: 'Не более 500 символов (csdo:Name500Type)' },
+  /** smcdo:MeasureDocDetails / InitialMeasureDocDetails → csdo:DocName (Name500Type) */
+  measureDocDetailsDocName: { maxLength: 500, messageMaxLength: 'Не более 500 символов (csdo:Name500Type, csdo:DocName)' },
+  /** smcdo:MeasureDocDetails / InitialMeasureDocDetails → csdo:DocSeriesId — до 30 символов по требованиям формы */
+  measureDocDetailsDocSeriesId: { maxLength: 30, messageMaxLength: 'Не более 30 символов (csdo:DocSeriesId)' },
+  /** smcdo:MeasureDocDetails / InitialMeasureDocDetails → csdo:PageQuantity (Quantity4Type) */
+  measureDocPageQuantity: {
+    maxLength: 4,
+    pattern: /^$|^[0-9]{1,4}$/,
+    messagePattern: 'Укажите целое число не более 4 цифр (csdo:PageQuantity)',
+    formatHint: 'Целое число 1–9999 (не более 4 цифр)',
+    messageMaxLength: 'Не более 4 цифр',
+  },
   docId: { maxLength: 50, messageMaxLength: 'Не более 50 символов (csdo:Id50Type)' },
   docSeriesId: { maxLength: 50, messageMaxLength: 'Не более 50 символов (csdo:Id50Type)' },
   authorityName: { maxLength: 300, messageMaxLength: 'Не более 300 символов (csdo:Name300Type)' },

@@ -252,10 +252,10 @@ const MeasureDocDetailsView: React.FC<{ doc: MeasureDocDetails }> = ({ doc }) =>
       <Descriptions.Item label="Дата документа">{formatDate(doc.docCreationDate)}</Descriptions.Item>
       <Descriptions.Item label="Срок действия. Начало">{formatDate(doc.docStartDate)}</Descriptions.Item>
       <Descriptions.Item label="Срок действия. Окончание">{formatDate(doc.docValidityDate)}</Descriptions.Item>
-      <Descriptions.Item label="Срок действия">{doc.docValidityDuration || '-'}</Descriptions.Item>
+      <Descriptions.Item label="Срок действия документа">{doc.docValidityDuration ?? '-'}</Descriptions.Item>
       <Descriptions.Item label="Уполномоченный орган. Наименование">{doc.authorityName || '-'}</Descriptions.Item>
       <Descriptions.Item label="Описание">{doc.description || '-'}</Descriptions.Item>
-      <Descriptions.Item label="Количество листов">{doc.pageQuantity || '-'}</Descriptions.Item>
+      <Descriptions.Item label="Количество листов">{doc.pageQuantity ?? '-'}</Descriptions.Item>
       {doc.docBinaryText && doc.docBinaryText.content && (
         <Descriptions.Item label="Документ в бинарном виде">
           <Button 

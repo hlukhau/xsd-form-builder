@@ -1127,15 +1127,16 @@ function exportMeasureDocDetails(xmlParts: string[], doc: MeasureDocDetails, tag
   if (doc.authorityName) xmlParts.push(`${inner}<csdo:AuthorityName>${escapeXML(doc.authorityName)}</csdo:AuthorityName>`)
   if (doc.description) xmlParts.push(`${inner}<csdo:DescriptionText>${escapeXML(doc.description)}</csdo:DescriptionText>`)
   if (doc.pageQuantity) xmlParts.push(`${inner}<csdo:PageQuantity>${escapeXML(doc.pageQuantity)}</csdo:PageQuantity>`)
+  // Порядок по XSD DocContentDetailsType: … DescriptionText, PageQuantity, AnyDetails, DocBinaryText
+  if (doc.xmlDocument) {
+    // Внутренний XML (ccdo:DocDetails и вложенная структура) выводим без экранирования — это фрагмент XML
+    xmlParts.push(`${inner}<ccdo:AnyDetails>${doc.xmlDocument}</ccdo:AnyDetails>`)
+  }
   if (doc.docBinaryText && (doc.docBinaryText.content || doc.docBinaryText.mediaTypeCode)) {
     const mediaAttr = doc.docBinaryText.mediaTypeCode
       ? ` mediaTypeCode="${escapeXML(doc.docBinaryText.mediaTypeCode)}"`
       : ''
     xmlParts.push(`${inner}<csdo:DocBinaryText${mediaAttr}>${escapeXML(doc.docBinaryText.content || '')}</csdo:DocBinaryText>`)
-  }
-  if (doc.xmlDocument) {
-    // Внутренний XML (ccdo:DocDetails и вложенная структура) выводим без экранирования — это фрагмент XML
-    xmlParts.push(`${inner}<ccdo:AnyDetails>${doc.xmlDocument}</ccdo:AnyDetails>`)
   }
   xmlParts.push(`${indent}    </smcdo:${tagName}>`)
 }

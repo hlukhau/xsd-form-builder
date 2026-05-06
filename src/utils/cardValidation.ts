@@ -1099,8 +1099,30 @@ export function collectFormatValidationErrors(data: CardData): FormatValidationE
       pushFormatError(errors, `${mPath} → Обоснование`, 'measureJustification', m.measureJustificationText)
       pushFormatError(errors, `${mPath} → Описание`, 'description', m.description)
       if (m.measureDocDetails) {
-        pushFormatError(errors, `${mPath} → Документ меры → Наименование`, 'docName', m.measureDocDetails.docName)
+        pushFormatError(errors, `${mPath} → Документ меры → Наименование`, 'measureDocDetailsDocName', m.measureDocDetails.docName)
+        pushFormatError(errors, `${mPath} → Документ меры → Серия`, 'measureDocDetailsDocSeriesId', m.measureDocDetails.docSeriesId)
+        pushFormatError(errors, `${mPath} → Документ меры → Количество листов`, 'measureDocPageQuantity', m.measureDocDetails.pageQuantity)
         pushFormatError(errors, `${mPath} → Документ меры → Номер`, 'docId', m.measureDocDetails.docId)
+      }
+      if (m.initialMeasureDocDetails) {
+        pushFormatError(
+          errors,
+          `${mPath} → Документ исходной меры → Наименование`,
+          'measureDocDetailsDocName',
+          m.initialMeasureDocDetails.docName,
+        )
+        pushFormatError(
+          errors,
+          `${mPath} → Документ исходной меры → Серия`,
+          'measureDocDetailsDocSeriesId',
+          m.initialMeasureDocDetails.docSeriesId,
+        )
+        pushFormatError(
+          errors,
+          `${mPath} → Документ исходной меры → Количество листов`,
+          'measureDocPageQuantity',
+          m.initialMeasureDocDetails.pageQuantity,
+        )
       }
       ;(m.measureInitiationBasisDetails ?? []).forEach((b, i) => {
         pushFormatError(errors, `${mPath} → Основание ${i + 1} → Вид`, 'measureInitiationBasisDocKind', b.docKindName)
