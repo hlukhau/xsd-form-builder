@@ -240,7 +240,7 @@ const MeasureDocDetailsEditStandalone: React.FC<{
           style={{ width: '100%' }}
         />
       </Form.Item>
-      <Form.Item label={labelWithHelp('Срок действия документа', FIELD_HELP.measureDocValidityDuration)} extra="Срок действия документа в днях">
+      <Form.Item label={labelWithHelp('Срок действия документа в днях', FIELD_HELP.measureDocValidityDuration)}>
         <InputNumber
           min={1}
           precision={0}

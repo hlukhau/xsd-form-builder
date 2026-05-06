@@ -955,6 +955,11 @@ public class PpvStatusChangeServlet extends HttpServlet {
         }
         ps.executeUpdate();
         ps.close();
+        if (firstOpenResponse) {
+            // first_open fallback (по имени статуса): после перехода в PROCESSING
+            // тоже досеиваем дефолтные активные доступы входящей PPV.
+            PpvIncomingDefaultDepPermis.seedDefaultsIfMissing(conn, dpaid);
+        }
         conn.commit();
         if (firstOpenResponse) {
             response.getWriter().print("{\"ok\":true,\"changed\":true,\"newStatus\":\"" + escapeJson(newStatusName)
