@@ -1,9 +1,7 @@
 package com.eec.servlet;
 
-import com.eec.rights.CachingHttpRightsRegistry;
 import com.eec.rights.GuidJsonExtractor;
 import com.eec.rights.RightsRegistryException;
-import com.eec.rights.RightsRegistry;
 import com.eec.rights.RightsRegistryProvider;
 
 import javax.servlet.ReadListener;
@@ -169,18 +167,12 @@ public class XsdFormBuilderServlet extends HttpServlet {
     @Override
     public void init() throws ServletException {
         super.init();
-        RightsRegistry reg = RightsRegistryProvider.get();
-        if (reg instanceof CachingHttpRightsRegistry) {
-            ((CachingHttpRightsRegistry) reg).putLocalCacheOnly(ENGINEERING_GUID, ENGINEERING_GUID_JSON);
-            System.out.println("[XsdFormBuilderServlet] Initialized; engineering GUID " + ENGINEERING_GUID
-                    + " в локальном кэше прав (старт без синхронного POST в EEC, иначе до ~45 с ожидания при недоступном сервисе прав)");
-        } else {
-            try {
-                reg.putRightsJson(ENGINEERING_GUID, ENGINEERING_GUID_JSON);
-                System.out.println("[XsdFormBuilderServlet] Initialized; engineering GUID " + ENGINEERING_GUID + " отправлен в реестр прав");
-            } catch (RightsRegistryException e) {
-                System.err.println("[XsdFormBuilderServlet] Failed to register engineering GUID in rights registry: " + e.getMessage());
-            }
+        // POST в eec-rights-service обязателен: общий реестр GUID→JSON для других приложений; только локальный кэш без POST недопустим.
+        try {
+            RightsRegistryProvider.get().putRightsJson(ENGINEERING_GUID, ENGINEERING_GUID_JSON);
+            System.out.println("[XsdFormBuilderServlet] Initialized; engineering GUID " + ENGINEERING_GUID + " передан в реестр прав (EEC) и закэширован в WAR");
+        } catch (RightsRegistryException e) {
+            System.err.println("[XsdFormBuilderServlet] Failed to register engineering GUID in rights registry: " + e.getMessage());
         }
     }
 

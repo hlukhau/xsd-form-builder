@@ -21,21 +21,6 @@ public final class CachingHttpRightsRegistry implements RightsRegistry {
         this.remote = remote;
     }
 
-    /**
-     * Только локальный кэш этого WAR, без HTTP к EEC. Для инженерного GUID при старте: иначе при недоступном
-     * eec-rights-service Tomcat ждёт read-timeout клиента ({@link HttpRightsRegistry}, по умолчанию ~45 с) на POST.
-     */
-    public void putLocalCacheOnly(String guid, String jsonBody) {
-        if (guid == null || jsonBody == null) {
-            return;
-        }
-        String key = guid.trim();
-        if (key.isEmpty()) {
-            return;
-        }
-        localCache.put(key, jsonBody);
-    }
-
     @Override
     public String getRightsJson(String guid) {
         if (guid == null) {
