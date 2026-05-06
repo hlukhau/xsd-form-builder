@@ -17,6 +17,10 @@ public final class XsdMessageHumanizer {
     private static final String MEASURE_IMPLEMENTATION_COUNTRY_REMARK =
             "В составе каждого набора сведений о мероприятии, обеспечивающем соблюдение меры должна быть указана Страна проведения мероприятия";
 
+    /** Вместо XSD «DocSeriesId не на месте / ожидается код страны» в удостоверении личности субъекта реализации меры. */
+    private static final String MEASURE_SUBJECT_IDENTITY_DOC_COUNTRY_REMARK =
+            "В удостоверении личности субъекта-исполнителя должна быть указана страна";
+
     private static final Map<String, String> LABEL = new LinkedHashMap<String, String>();
 
     /** Сегменты пути «где в форме» по локальным именам контейнеров в XML. */
@@ -176,6 +180,12 @@ public final class XsdMessageHumanizer {
         if (isMeasureImplementationMissingCountryXsdHumanMessage(human, body, hint)) {
             return MEASURE_IMPLEMENTATION_COUNTRY_REMARK;
         }
+        if (isMeasureSubjectIdentityDocMissingCountryXsdHumanMessage(human, body, hint)) {
+            if (hint == null || hint.isEmpty()) {
+                return MEASURE_SUBJECT_IDENTITY_DOC_COUNTRY_REMARK;
+            }
+            return MEASURE_SUBJECT_IDENTITY_DOC_COUNTRY_REMARK + " (" + hint + ")";
+        }
         if (hint.isEmpty()) {
             return human;
         }
@@ -205,6 +215,38 @@ public final class XsdMessageHumanizer {
             String rb = rawBody;
             if (rb.contains("cvc-complex-type.2.4.a")
                     && rb.contains("StartDate")
+                    && rb.contains("UnifiedCountryCode")) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * cvc-complex-type.2.4.a: в блоке удостоверения личности субъекта первым ожидается {@code UnifiedCountryCode};
+     * при отсутствии страны валидатор сообщает про «DocSeriesId» и «код страны».
+     */
+    private static boolean isMeasureSubjectIdentityDocMissingCountryXsdHumanMessage(
+            String human, String rawBody, String hint) {
+        if (human == null || human.isEmpty()) {
+            return false;
+        }
+        if (!human.contains("не подходит для этой позиции") || !human.contains("код страны")) {
+            return false;
+        }
+        if (!human.contains("DocSeriesId")) {
+            return false;
+        }
+        if (human.contains("StartDate")) {
+            return false;
+        }
+        if (hint != null && hint.contains("реализация меры") && hint.contains("субъект")) {
+            return true;
+        }
+        if (rawBody != null) {
+            String rb = rawBody;
+            if (rb.contains("cvc-complex-type.2.4.a")
+                    && rb.contains("DocSeriesId")
                     && rb.contains("UnifiedCountryCode")) {
                 return true;
             }

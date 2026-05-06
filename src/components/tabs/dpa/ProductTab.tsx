@@ -96,7 +96,7 @@ const ProductTab: React.FC<ProductTabProps> = ({ data }) => {
               ))}
             </div>
           ) : (
-            '<может быть указан перечень документов>'
+            '-'
           )}
         </Descriptions.Item>
       </Descriptions>

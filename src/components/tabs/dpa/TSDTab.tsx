@@ -109,7 +109,7 @@ const TSDTab: React.FC<TSDTabProps> = ({ data }) => {
               <Table
                 dataSource={doc.products}
                 columns={[
-                  { title: 'Идентификатор', dataIndex: 'productId', key: 'productId', render: (t: string) => t || '<штрихкод>' },
+                  { title: 'Идентификатор', dataIndex: 'productId', key: 'productId', render: (t: string) => t || '-' },
                   { title: 'Код ТН ВЭД ЕАЭС', dataIndex: 'commodityCode', key: 'commodityCode' },
                   { title: 'Наименование', dataIndex: 'productName', key: 'productName' },
                   {
@@ -266,7 +266,7 @@ const TSDTab: React.FC<TSDTabProps> = ({ data }) => {
         {selectedProduct && (
           <Descriptions column={1} bordered>
             <Descriptions.Item label="Идентификатор">
-              {selectedProduct.productId || '<штрихкод>'}
+              {selectedProduct.productId || '-'}
             </Descriptions.Item>
             <Descriptions.Item label="Наименование">
               {selectedProduct.productName || '-'}
