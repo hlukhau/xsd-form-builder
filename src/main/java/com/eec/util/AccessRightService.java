@@ -1,5 +1,7 @@
 package com.eec.util;
 
+import java.util.HashSet;
+import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -51,17 +53,20 @@ public final class AccessRightService {
      * содержащий хотя бы один ключ. Поиск rightKey ведётся только внутри значения section,
      * чтобы не принять ключ из следующего блока (например "view" из publicHealthIn при проверке publicHealthDB).
      */
-    private static boolean hasAccessRightInJson(String json, String section, String rightKey) {
-        if (json == null || json.trim().isEmpty()) return false;
+    /**
+     * Тело объекта up.{section}.{rightKey} (фигурные скобки включительно), например {@code { "522": true }}.
+     * @return null, если блок не найден
+     */
+    private static String extractUpRightObjectBlock(String json, String section, String rightKey) {
+        if (json == null || json.trim().isEmpty()) return null;
         int upStart = json.indexOf("\"up\"");
-        if (upStart < 0) return false;
+        if (upStart < 0) return null;
         int sectionStart = json.indexOf("\"" + section + "\"", upStart);
-        if (sectionStart < 0) return false;
-        // Границы значения section: после "section" идёт ": { ... }" — ищем только внутри этого объекта
+        if (sectionStart < 0) return null;
         int colonAfterSection = json.indexOf(':', sectionStart);
-        if (colonAfterSection < 0) return false;
+        if (colonAfterSection < 0) return null;
         int sectionValueStart = json.indexOf('{', colonAfterSection);
-        if (sectionValueStart < 0) return false;
+        if (sectionValueStart < 0) return null;
         int depth = 1;
         int i = sectionValueStart + 1;
         while (i < json.length() && depth > 0) {
@@ -71,13 +76,12 @@ public final class AccessRightService {
             i++;
         }
         int sectionValueEnd = (depth == 0 && i <= json.length()) ? i - 1 : -1;
-        if (sectionValueEnd < 0) return false;
+        if (sectionValueEnd < 0) return null;
         String sectionBody = json.substring(sectionValueStart, sectionValueEnd + 1);
-        // Ищем rightKey только внутри этого блока
         int rightStart = sectionBody.indexOf("\"" + rightKey + "\"");
-        if (rightStart < 0) return false;
+        if (rightStart < 0) return null;
         int braceStart = sectionBody.indexOf('{', rightStart);
-        if (braceStart < 0) return false;
+        if (braceStart < 0) return null;
         depth = 1;
         i = braceStart + 1;
         while (i < sectionBody.length() && depth > 0) {
@@ -86,10 +90,31 @@ public final class AccessRightService {
             else if (c == '}') depth--;
             i++;
         }
-        String block = (depth == 0 && i <= sectionBody.length()) ? sectionBody.substring(braceStart, i) : "";
+        if (depth != 0 || i > sectionBody.length()) return null;
+        return sectionBody.substring(braceStart, i);
+    }
+
+    private static boolean hasAccessRightInJson(String json, String section, String rightKey) {
+        String block = extractUpRightObjectBlock(json, section, rightKey);
+        if (block == null || block.isEmpty()) return false;
         Pattern keyP = Pattern.compile("\"([^\"]+)\"\\s*:");
         Matcher keyM = keyP.matcher(block);
         return keyM.find();
+    }
+
+    /**
+     * Ключи объекта up.violationDetectedIn.status (идентификаторы подразделений из JSON прав).
+     */
+    public static Set<String> violationDetectedInStatusDepKeys(String rightsJson) {
+        Set<String> keys = new HashSet<>();
+        String block = extractUpRightObjectBlock(rightsJson, "violationDetectedIn", "status");
+        if (block == null || block.isEmpty()) return keys;
+        Pattern keyP = Pattern.compile("\"([^\"]+)\"\\s*:");
+        Matcher keyM = keyP.matcher(block);
+        while (keyM.find()) {
+            keys.add(keyM.group(1).trim());
+        }
+        return keys;
     }
 
     /**

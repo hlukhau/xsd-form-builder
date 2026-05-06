@@ -37,8 +37,13 @@ public class PpvSaveServlet extends HttpServlet {
         System.out.println("[PpvSaveServlet] Initialized (POST /api/ppv/save)");
     }
 
-    /** Код типа источника для исходящих карт: в PPV и в PPVSTATUS хранится 2 (код 3 — из БД ЕЭК) */
+    /** Код типа источника: 1 — входящие, 2 — исходящие, 3 — данные ЕЭК */
+    private static final String DATASOURCEKINDCODE_INCOMING = "1";
     private static final String DATASOURCEKINDCODE_OUTGOING = "2";
+    private static final String DATASOURCEKINDCODE_EEC = "3";
+    /** ЦГЭ по умолчанию для входящих и данных ЕЭК (DEPCODE в TB_DEP → PPVDEPPERMIS при первом сохранении). */
+    private static final String[] DEFAULT_INCOMING_PPV_DEP_CODES =
+            { "006", "101", "201", "301", "401", "501", "601", "700" };
     private static final String EDOCCODE_DEFAULT = "R.SM.SS.08.002";
     private static final String EDOCVERSION_DEFAULT = "1.0.0";
 
@@ -88,6 +93,8 @@ public class PpvSaveServlet extends HttpServlet {
     private static final String SQL_DEPS_FOR_COPY = "SELECT DEPID FROM PPVDEPPERMIS WHERE PPVID = ?";
     /** Проверка существования подразделения (FK PPVDEPPERMIS_FK2 → родительская таблица, обычно TB_DEP) */
     private static final String SQL_EXISTS_DEP = "SELECT 1 FROM TB_DEP WHERE DEPID = ?";
+    private static final String SQL_DEPID_BY_DEPCODE = "SELECT DEPID FROM TB_DEP WHERE TRIM(DEPCODE) = ? AND ROWNUM = 1";
+    private static final String SQL_EXISTS_PPVDEPPERMIS_PAIR = "SELECT 1 FROM PPVDEPPERMIS WHERE PPVID = ? AND DEPID = ?";
 
     /** Код участника общего процесса для адресатов PPV (PPVACTOR.ACTORCODE) */
     private static final String PPV_ACTOR_CODE = "P.SS.08.ACT.005";
@@ -171,6 +178,11 @@ public class PpvSaveServlet extends HttpServlet {
         String manufCountryCode = extractJsonString(metaBlock, "manufCountryCode");
         String endDate = extractJsonString(metaBlock, "endDate");
         String authorityIdStr = extractJsonString(metaBlock, "authorityId");
+        String dataSourceKindCodeRaw = extractJsonString(metaBlock, "dataSourceKindCode");
+        if (dataSourceKindCodeRaw == null || dataSourceKindCodeRaw.trim().isEmpty()) {
+            dataSourceKindCodeRaw = extractJsonString(metaBlock, "datasourceKindCode");
+        }
+        final String createDatasourceKind = normalizePpvCreateDatasourceKind(dataSourceKindCodeRaw);
 
         Connection conn = null;
         boolean transactionEnded = false;
@@ -210,13 +222,14 @@ public class PpvSaveServlet extends HttpServlet {
                     return;
                 }
                 long dpaid = getNextDpaid(conn);
-                Integer draftStatusId = getDraftStatusId(conn, DATASOURCEKINDCODE_OUTGOING);
+                Integer draftStatusId = getDraftStatusId(conn, createDatasourceKind);
                 if (draftStatusId == null) {
                     sendJsonError(response, HttpServletResponse.SC_INTERNAL_SERVER_ERROR,
-                        "Статус «Черновик» не найден в PPVSTATUS для исходящих (DATASOURCEKINDCODE=2).");
+                        "Статус «Черновик» не найден в PPVSTATUS для DATASOURCEKINDCODE=" + createDatasourceKind + ".");
                     return;
                 }
-                System.out.println("[PpvSaveServlet] Create: PPVID=" + dpaid + ", INCIDENTID=" + incId + ", PPVSTATUSID(Черновик)=" + draftStatusId);
+                System.out.println("[PpvSaveServlet] Create: PPVID=" + dpaid + ", INCIDENTID=" + incId
+                        + ", DATASOURCEKINDCODE=" + createDatasourceKind + ", PPVSTATUSID(Черновик)=" + draftStatusId);
 
                 Integer authorityIdResolved = resolveAuthorityId(conn, authorityIdStr);
 
@@ -234,7 +247,7 @@ public class PpvSaveServlet extends HttpServlet {
                 try (PreparedStatement ps = conn.prepareStatement(SQL_INSERT_DPA)) {
                     int i = 1;
                     ps.setLong(i++, dpaid);
-                    ps.setString(i++, DATASOURCEKINDCODE_OUTGOING);
+                    ps.setString(i++, createDatasourceKind);
                     setIntOrNull(ps, i++, alertCountryId);
                     ps.setString(i++, incId);
                     setIntOrNull(ps, i++, authorityIdResolved);
@@ -273,21 +286,11 @@ public class PpvSaveServlet extends HttpServlet {
                     ps.executeUpdate();
                 }
 
-                // Запись в PPVDEPPERMIS: подразделение пользователя, выполнившего сохранение (department.depid из карты прав)
-                String rightsJson = (guid != null && !guid.trim().isEmpty()) ? RightsRegistryProvider.get().getRightsJson(guid.trim()) : null;
-                Integer creatorDepId = getDepartmentDepIdFromRights(rightsJson);
-                if (creatorDepId != null && existsDepIdInTbDep(conn, creatorDepId)) {
-                    try (PreparedStatement psDep = conn.prepareStatement(SQL_INSERT_PPVDEPPERMIS)) {
-                        psDep.setLong(1, dpaid);
-                        psDep.setInt(2, creatorDepId);
-                        psDep.executeUpdate();
-                    }
-                    System.out.println("[PpvSaveServlet] Created PPVDEPPERMIS: PPVID=" + dpaid + ", DEPID=" + creatorDepId);
-                } else if (creatorDepId != null) {
-                    System.out.println("[PpvSaveServlet] DEPID=" + creatorDepId + " not found in TB_DEP, PPVDEPPERMIS not inserted");
-                } else {
-                    System.out.println("[PpvSaveServlet] No department.depid in rights for guid=" + guid + ", PPVDEPPERMIS not inserted");
-                }
+                // PPVDEPPERMIS при первом сохранении: входящие/ЕЭК — перечень ЦГЭ по DEPCODE; исходящие — ЦГЭ создателя
+                String rightsJsonCreate = (guid != null && !guid.trim().isEmpty())
+                        ? RightsRegistryProvider.get().getRightsJson(guid.trim())
+                        : null;
+                seedPpvDepPermisOnCreate(conn, dpaid, createDatasourceKind, rightsJsonCreate);
 
                 if (!syncPpvActors(conn, response, dpaid, metaBlock, docCreationDate)) {
                     DatabaseUtil.rollbackQuietly(conn);
@@ -959,6 +962,113 @@ public class PpvSaveServlet extends HttpServlet {
             try (ResultSet rs = ps.executeQuery()) {
                 return rs.next();
             }
+        }
+    }
+
+    private static String normalizePpvCreateDatasourceKind(String raw) {
+        if (raw == null || raw.trim().isEmpty()) {
+            return DATASOURCEKINDCODE_OUTGOING;
+        }
+        String t = raw.trim();
+        if (DATASOURCEKINDCODE_INCOMING.equals(t) || DATASOURCEKINDCODE_OUTGOING.equals(t) || DATASOURCEKINDCODE_EEC.equals(t)) {
+            return t;
+        }
+        return DATASOURCEKINDCODE_OUTGOING;
+    }
+
+    /**
+     * Первое сохранение PPV: входящие и данные ЕЭК — доступ 8 ЦГЭ по DEPCODE; исходящие — только подразделение создателя (department.depid).
+     */
+    private static void seedPpvDepPermisOnCreate(Connection conn, long ppvid, String datasourceKind, String rightsJson)
+            throws SQLException {
+        if (DATASOURCEKINDCODE_INCOMING.equals(datasourceKind) || DATASOURCEKINDCODE_EEC.equals(datasourceKind)) {
+            for (String depCode : DEFAULT_INCOMING_PPV_DEP_CODES) {
+                String depId = resolveDepIdByDepCode(conn, depCode);
+                if (depId == null || depId.trim().isEmpty()) {
+                    System.out.println("[PpvSaveServlet] DEPCODE=" + depCode + " not found in TB_DEP, skip PPVDEPPERMIS");
+                    continue;
+                }
+                if (!existsDepIdString(conn, depId)) {
+                    continue;
+                }
+                if (ppvDepPermisExists(conn, ppvid, depId)) {
+                    continue;
+                }
+                insertPpvDepPermisRow(conn, ppvid, depId);
+                System.out.println("[PpvSaveServlet] Created PPVDEPPERMIS (incoming/eec default): PPVID=" + ppvid + ", DEPID=" + depId);
+            }
+            return;
+        }
+        Integer creatorDepId = getDepartmentDepIdFromRights(rightsJson);
+        if (creatorDepId == null) {
+            System.out.println("[PpvSaveServlet] Outgoing create: no department.depid in rights, PPVDEPPERMIS not inserted");
+            return;
+        }
+        String creatorDepStr = String.valueOf(creatorDepId);
+        if (!existsDepIdString(conn, creatorDepStr)) {
+            System.out.println("[PpvSaveServlet] Outgoing create: DEPID=" + creatorDepId + " not in TB_DEP, PPVDEPPERMIS not inserted");
+            return;
+        }
+        if (!ppvDepPermisExists(conn, ppvid, creatorDepStr)) {
+            insertPpvDepPermisRow(conn, ppvid, creatorDepStr);
+        }
+        System.out.println("[PpvSaveServlet] Created PPVDEPPERMIS (outgoing creator): PPVID=" + ppvid + ", DEPID=" + creatorDepStr);
+    }
+
+    private static String resolveDepIdByDepCode(Connection conn, String depCode) throws SQLException {
+        try (PreparedStatement ps = conn.prepareStatement(SQL_DEPID_BY_DEPCODE)) {
+            ps.setString(1, depCode.trim());
+            try (ResultSet rs = ps.executeQuery()) {
+                if (!rs.next()) {
+                    return null;
+                }
+                return rs.getString(1);
+            }
+        }
+    }
+
+    private static boolean existsDepIdString(Connection conn, String depId) throws SQLException {
+        if (depId == null || depId.trim().isEmpty()) {
+            return false;
+        }
+        try (PreparedStatement ps = conn.prepareStatement(SQL_EXISTS_DEP)) {
+            bindDepIdParameter(ps, 1, depId.trim());
+            try (ResultSet rs = ps.executeQuery()) {
+                return rs.next();
+            }
+        }
+    }
+
+    private static boolean ppvDepPermisExists(Connection conn, long ppvid, String depId) throws SQLException {
+        try (PreparedStatement ps = conn.prepareStatement(SQL_EXISTS_PPVDEPPERMIS_PAIR)) {
+            ps.setLong(1, ppvid);
+            bindDepIdParameter(ps, 2, depId.trim());
+            try (ResultSet rs = ps.executeQuery()) {
+                return rs.next();
+            }
+        }
+    }
+
+    private static void insertPpvDepPermisRow(Connection conn, long ppvid, String depId) throws SQLException {
+        try (PreparedStatement ps = conn.prepareStatement(SQL_INSERT_PPVDEPPERMIS)) {
+            ps.setLong(1, ppvid);
+            bindDepIdParameter(ps, 2, depId.trim());
+            ps.executeUpdate();
+        }
+    }
+
+    /** DEPID в TB_DEP/PPVDEPPERMIS может быть NUMBER или VARCHAR2. */
+    private static void bindDepIdParameter(PreparedStatement ps, int index, String depId) throws SQLException {
+        if (depId == null || depId.trim().isEmpty()) {
+            ps.setNull(index, Types.VARCHAR);
+            return;
+        }
+        String t = depId.trim();
+        try {
+            long n = Long.parseLong(t);
+            ps.setLong(index, n);
+        } catch (NumberFormatException e) {
+            ps.setString(index, t);
         }
     }
 

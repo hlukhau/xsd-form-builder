@@ -46,6 +46,10 @@ public class PpvAccessServlet extends HttpServlet {
     private static final String SQL_ONE_DEP = "SELECT d.DEPID, d.DEPNAME, dk.DEPKINDCODE FROM TB_DEP d LEFT JOIN TB_DEPKIND dk ON d.DEPKINDID = dk.DEPKINDID WHERE d.DEPID = ?";
     private static final String SQL_ADD = "INSERT INTO PPVDEPPERMIS (PPVID, DEPID, GRANTDATETIME) VALUES (?, ?, SYSDATE)";
     private static final String SQL_DELETE = "DELETE FROM PPVDEPPERMIS WHERE PPVID = ? AND DEPID = ?";
+    /** Управление доступом PPV: только районный / областной ЦГЭ (не республиканский). */
+    private static final String SQL_DEP_KIND_FOR_DEP = ""
+            + "SELECT UPPER(TRIM(dk.DEPKINDCODE)) FROM TB_DEP d "
+            + "LEFT JOIN TB_DEPKIND dk ON d.DEPKINDID = dk.DEPKINDID WHERE d.DEPID = ?";
 
     @Override
     protected void doGet(HttpServletRequest request, HttpServletResponse response)
@@ -188,6 +192,11 @@ public class PpvAccessServlet extends HttpServlet {
         PreparedStatement ps = null;
         try {
             conn = DatabaseUtil.getConnectionForRequest(request, guid);
+            if (!isPpvAccessAllowedDepKind(conn, depId.trim())) {
+                sendJsonError(response, HttpServletResponse.SC_BAD_REQUEST,
+                        "Добавление доступа разрешено только для подразделений с видом dep0601 или dep0602 (районный / областной ЦГЭ).");
+                return;
+            }
             ps = conn.prepareStatement(SQL_ADD);
             bindDpaid(ps, 1, dpaid);
             ps.setString(2, depId.trim());
@@ -231,6 +240,11 @@ public class PpvAccessServlet extends HttpServlet {
         PreparedStatement ps = null;
         try {
             conn = DatabaseUtil.getConnectionForRequest(request, guid);
+            if (!isPpvAccessAllowedDepKind(conn, depId.trim())) {
+                sendJsonError(response, HttpServletResponse.SC_BAD_REQUEST,
+                        "Исключение из доступа разрешено только для подразделений с видом dep0601 или dep0602.");
+                return;
+            }
             ps = conn.prepareStatement(SQL_DELETE);
             bindDpaid(ps, 1, dpaid);
             ps.setString(2, depId.trim());
@@ -305,5 +319,31 @@ public class PpvAccessServlet extends HttpServlet {
         response.setContentType("application/json;charset=UTF-8");
         String escaped = message != null ? message.replace("\\", "\\\\").replace("\"", "\\\"") : "Unknown error";
         response.getWriter().print("{\"error\":\"" + escaped + "\"}");
+    }
+
+    /** dep0601 / dep0602 — управление перечнем доступа PPV; иные виды (в т.ч. республиканский) не добавляют и не удаляют через API. */
+    private static boolean isPpvAccessAllowedDepKind(Connection conn, String depId) throws SQLException {
+        try (PreparedStatement ps = conn.prepareStatement(SQL_DEP_KIND_FOR_DEP)) {
+            bindDepIdForKindQuery(ps, 1, depId);
+            try (ResultSet rs = ps.executeQuery()) {
+                if (!rs.next()) {
+                    return false;
+                }
+                String k = rs.getString(1);
+                if (k == null) {
+                    return false;
+                }
+                String u = k.trim();
+                return "DEP0601".equalsIgnoreCase(u) || "DEP0602".equalsIgnoreCase(u);
+            }
+        }
+    }
+
+    private static void bindDepIdForKindQuery(PreparedStatement ps, int index, String depId) throws SQLException {
+        try {
+            ps.setLong(index, Long.parseLong(depId.trim()));
+        } catch (NumberFormatException e) {
+            ps.setString(index, depId.trim());
+        }
     }
 }

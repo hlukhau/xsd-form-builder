@@ -34,6 +34,7 @@ import {
   fetchDpaStatusHistory,
   fetchDpaElectronicDocs,
   changeDpaStatus,
+  fetchPpvIncomingCompletePreview,
   checkAccessRight,
   fetchCurrentUser,
   fetchDpaResolutions,
@@ -1269,31 +1270,67 @@ const DangerousProductCard: React.FC<DangerousProductCardProps> = ({
             }
 
             if (action === 'complete_processing') {
-              const regNumber = currentData.registrationNumber ?? currentData.notification?.registrationNumber ?? effectiveDpaid ?? ''
+              const regNumber =
+                currentData.registrationNumber ?? currentData.notification?.registrationNumber ?? effectiveDpaid ?? ''
+              const runCompleteProcessing = async () => {
+                const hasRight = await checkAccessRight(
+                  guid ?? null,
+                  isPpvApp() ? 'violationDetectedIn:status' : 'dangerousProductIn:status'
+                )
+                if (!hasRight) {
+                  message.error('Нет права на управление статусом входящих сведений.')
+                  return
+                }
+                try {
+                  const res = await changeDpaStatus(
+                    effectiveDpaid,
+                    'complete_processing',
+                    Object.keys(opts || {}).length ? opts : undefined
+                  )
+                  const newStatus = res.newStatus ?? currentData.status
+                  const newStatusId =
+                    res.newStatusId ?? (editedData.statusId ?? data.statusId)
+                  onUpdate({ ...currentData, status: newStatus, statusId: newStatusId })
+                  setEditedData((prev) => ({ ...prev, status: newStatus, statusId: newStatusId }))
+                  message.success('Карта переведена в статус «Обработано».')
+                } catch (e) {
+                  message.error(e instanceof Error ? e.message : 'Ошибка смены статуса')
+                }
+              }
+              if (isPpvApp()) {
+                fetchPpvIncomingCompletePreview(effectiveDpaid, guid)
+                  .then(({ reviewOutcomeSent }) => {
+                    if (reviewOutcomeSent) {
+                      Modal.confirm({
+                        title: 'Завершение обработки',
+                        content: `Карта ${regNumber} будет переведена в статус „Обработано“. Продолжить?`,
+                        okText: 'Завершить',
+                        cancelText: 'Отмена',
+                        okButtonProps: { type: 'primary' },
+                        onOk: () => runCompleteProcessing(),
+                      })
+                    } else {
+                      Modal.confirm({
+                        title: 'Завершение обработки',
+                        content:
+                          'Результат рассмотрения не готов или не отправлен. Завершить обработку?',
+                        okText: 'Завершить',
+                        cancelText: 'Отмена',
+                        okButtonProps: { type: 'default' },
+                        cancelButtonProps: { type: 'primary' },
+                        onOk: () => runCompleteProcessing(),
+                      })
+                    }
+                  })
+                  .catch((e) => message.error(e instanceof Error ? e.message : 'Не удалось проверить статус ответа'))
+                return
+              }
               Modal.confirm({
                 title: 'Завершение обработки',
                 content: `Внимание! После подтверждения карта ${regNumber} будет переведена в статус «Обработано» (завершение обработки входящих сведений). Продолжить?`,
                 okText: 'Продолжить',
                 cancelText: 'Отмена',
-                onOk: async () => {
-                  const hasRight = await checkAccessRight(
-                    guid ?? null,
-                    isPpvApp() ? 'violationDetectedIn:status' : 'dangerousProductIn:status'
-                  )
-                  if (!hasRight) {
-                    message.error('Нет права на управление статусом входящих сведений.')
-                    return
-                  }
-                  changeDpaStatus(effectiveDpaid, 'complete_processing', Object.keys(opts || {}).length ? opts : undefined)
-                    .then((res) => {
-                      const newStatus = res.newStatus ?? currentData.status
-                      const newStatusId = newStatus === 'Обработано' ? 3 : (editedData.statusId ?? data.statusId)
-                      onUpdate({ ...currentData, status: newStatus, statusId: newStatusId })
-                      setEditedData((prev) => ({ ...prev, status: newStatus, statusId: newStatusId }))
-                      message.success('Карта переведена в статус «Обработано».')
-                    })
-                    .catch((e) => message.error(e instanceof Error ? e.message : 'Ошибка смены статуса'))
-                },
+                onOk: () => runCompleteProcessing(),
               })
               return
             }
@@ -1424,6 +1461,7 @@ const DangerousProductCard: React.FC<DangerousProductCardProps> = ({
           }}
           dpaid={hasPersistedDpaid ? effectiveDpaid : undefined}
           source={currentData.source}
+          datasourceKindCode={currentData.datasourceKindCode}
           countryCode={currentData.country}
           guid={guid}
         />

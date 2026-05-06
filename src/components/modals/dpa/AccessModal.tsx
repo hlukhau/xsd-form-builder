@@ -9,13 +9,25 @@ import {
   removeDpaAccess,
   fetchDepOptions,
   checkAccessRight,
-  cardSourceToAccessRight,
-  cardSourceToApiSource,
+  cardApiSourceToAccessRight,
+  resolveCardAccessApiSource,
   type DepOption,
 } from '@/utils/referenceDataApi'
 import { isPpvApp } from '@/cards/config'
 
 const ALLOWED_DEP_KINDS = ['dep0601', 'dep0602', 'dep0603']
+/** PPV: по ТЗ добавление в доступ — только районный и областной ЦГЭ (без республиканского). */
+const PPV_ADD_DEP_KINDS = ['dep0601', 'dep0602']
+
+function normalizeDepKind(code: string | undefined): string {
+  return (code ?? '').trim().toLowerCase()
+}
+
+/** PPV: исключить из доступа можно только dep0601 / dep0602 (республиканские ЦГЭ из перечня по умолчанию не снимаются через форму). */
+function isPpvRemovableAccessDep(depKindCode: string | undefined): boolean {
+  const k = normalizeDepKind(depKindCode)
+  return k === 'dep0601' || k === 'dep0602'
+}
 
 /** Подпись уровня по коду вида подразделения (TB_DEPKIND.DEPKINDCODE) */
 function getDepLevelLabel(depKindCode: string | undefined): string | null {
@@ -43,6 +55,8 @@ export interface AccessModalProps {
   dpaid?: string
   /** Источник сведений карты (Входящие / Исходящие / Данные ЕЭК) — для прав и списка по умолчанию */
   source?: string
+  /** Код вида источника из метаданных (1/2/3), если подпись source пустая или не распознаётся */
+  datasourceKindCode?: string | null
   countryCode?: string
   /** GUID из URL — для получения department.depid из JSON прав (ЦГЭ создателя в списке по умолчанию для исходящих) */
   guid?: string
@@ -55,6 +69,7 @@ const AccessModal: React.FC<AccessModalProps> = ({
   onUpdate,
   dpaid,
   source,
+  datasourceKindCode,
   guid,
 }) => {
   const [accessList, setAccessList] = useState<AccessItem[]>(data)
@@ -74,10 +89,12 @@ const AccessModal: React.FC<AccessModalProps> = ({
     setAccessList(data)
     if (fromApi) {
       setLoadingList(true)
-      const apiSource = source != null ? cardSourceToApiSource(source) : undefined
+      const apiSource = resolveCardAccessApiSource(source, datasourceKindCode)
       const isOutgoing = apiSource === 'outgoing'
       const loadList = (creatorDepId?: string | number) =>
-        fetchDpaAccess(dpaid!, source, creatorDepId, guid).then((list) => setAccessList(list))
+        fetchDpaAccess(dpaid!, source, creatorDepId, guid, datasourceKindCode).then((list) =>
+          setAccessList(list)
+        )
       const promise =
         isOutgoing && guid
           ? fetchRightsByGuid(guid)
@@ -91,7 +108,7 @@ const AccessModal: React.FC<AccessModalProps> = ({
         })
         .finally(() => setLoadingList(false))
     }
-  }, [visible, dpaid, source, data, fromApi, guid])
+  }, [visible, dpaid, source, datasourceKindCode, data, fromApi, guid])
 
   useEffect(() => {
     if (!visible || !fromApi || !dpaid) return
@@ -99,13 +116,16 @@ const AccessModal: React.FC<AccessModalProps> = ({
       setCanManageAccess(false)
       return
     }
-    const right = source != null ? cardSourceToAccessRight(source, isPpvApp()) : undefined
+    const right = cardApiSourceToAccessRight(
+      resolveCardAccessApiSource(source, datasourceKindCode),
+      isPpvApp()
+    )
     if (!right) {
       setCanManageAccess(true)
       return
     }
     checkAccessRight(guid, right).then(setCanManageAccess)
-  }, [visible, fromApi, dpaid, source, guid])
+  }, [visible, fromApi, dpaid, source, datasourceKindCode, guid])
 
   useEffect(() => {
     if (visible && fromApi) {
@@ -181,10 +201,11 @@ const AccessModal: React.FC<AccessModalProps> = ({
     onClose()
   }
 
+  const depKindsForAdd = isPpvApp() ? PPV_ADD_DEP_KINDS : ALLOWED_DEP_KINDS
   const addableDeps = fromApi
     ? depOptions.filter(
         (o) =>
-          ALLOWED_DEP_KINDS.includes(o.depKindCode ?? '') &&
+          depKindsForAdd.includes(normalizeDepKind(o.depKindCode)) &&
           !accessList.some((a) => a.id === o.id)
       )
     : depOptions
@@ -192,7 +213,11 @@ const AccessModal: React.FC<AccessModalProps> = ({
   const addContent = fromApi ? (
     <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 8, width: '100%' }}>
       <Select
-        placeholder="Выберите подразделение (районный / областной / республиканский ЦГЭ)"
+        placeholder={
+          isPpvApp()
+            ? 'Выберите подразделение (районный или областной ЦГЭ — dep0601 / dep0602)'
+            : 'Выберите подразделение (районный / областной / республиканский ЦГЭ)'
+        }
         value={selectedDepId}
         onChange={setSelectedDepId}
         options={addableDeps.map((o) => ({
@@ -284,7 +309,10 @@ const AccessModal: React.FC<AccessModalProps> = ({
             <List
               dataSource={filteredList}
               renderItem={(item) => {
-                const showDelete = fromApi && canManageAccess
+                const showDelete =
+                  fromApi &&
+                  canManageAccess &&
+                  (!isPpvApp() || isPpvRemovableAccessDep(item.depKindCode))
                 const levelLabel = getDepLevelLabel(item.depKindCode)
                 const depColor = getDepLevelColor(item.depKindCode)
                 const borderColor =

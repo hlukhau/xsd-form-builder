@@ -10,12 +10,15 @@ import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
 import java.io.IOException;
 import java.io.BufferedReader;
+import java.io.PrintWriter;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Savepoint;
 import java.sql.Types;
+import java.util.HashSet;
+import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -23,7 +26,9 @@ import java.util.regex.Pattern;
  * Смена статуса карты PPV.
  * Входящие: action first_open | complete_processing | close;
  * first_open — Получено→В обработке при открытии карты; права не проверяются (оператор сразу видит «В обработке»).
- * complete_processing | close — право violationDetectedIn:status.
+ * complete_processing | close — право violationDetectedIn:status и пересечение DEPID с PPVDEPPERMIS;
+ * complete_processing — текущий статус PROCESSING (PPVSTATUSCODE), целевой PROCESSED.
+ * GET /api/ppv/status?preview=incoming_complete&dpaid=...&guid=... — { reviewOutcomeSent } для диалога подтверждения.
  * Исходящие: action mark_ready | send | close; mark_ready/close — violationDetectedOut:status, send — violationDetectedOut:send.
  * mark_ready: тело { "dpaid", "action": "mark_ready", "depKindCode": "dep0601"|"dep0602"|"dep0603" }.
  * Обновляется PPV.PPVSTATUSID, PPVSTATUSHIST (и при mark_ready — PPVRESOLUTION).
@@ -82,6 +87,66 @@ public class PpvStatusChangeServlet extends HttpServlet {
     private static final String SQL_EXISTS_DEP = "SELECT 1 FROM TB_DEP WHERE DEPID = ?";
     private static final String SQL_EXISTS_PPVDEPPERMIS_ACTIVE = ""
             + "SELECT 1 FROM PPVDEPPERMIS WHERE PPVID = ? AND DEPID = ? AND REVOKEDATETIME IS NULL";
+
+    /** PPVSTATUSID по коду статуса для входящих (DATASOURCEKINDCODE=1). */
+    private static final String SQL_STATUS_ID_BY_CODE_INCOMING = ""
+            + "SELECT PPVSTATUSID FROM PPVSTATUS "
+            + "WHERE TRIM(UPPER(PPVSTATUSCODE)) = TRIM(UPPER(?)) "
+            + "AND TRIM(TO_CHAR(DATASOURCEKINDCODE)) = ? "
+            + "AND PPVSTATUSACTFL = 1 AND ROWNUM = 1";
+
+    private static final String SQL_PPVDEPPERMIS_DEPIDS = ""
+            + "SELECT DEPID FROM PPVDEPPERMIS WHERE PPVID = ? AND REVOKEDATETIME IS NULL";
+
+    /** Ответ адресата (связанный ЭД): EDOCID заполнен — результат рассмотрения считается отправленным. */
+    private static final String PPV_ACTOR_CODE_REVIEW = "P.SS.08.ACT.005";
+    private static final String SQL_REVIEW_OUTCOME_SENT = ""
+            + "SELECT 1 FROM PPVACTOR a WHERE a.PPVID = ? AND a.PPVACTORACTFL = 1 "
+            + "AND TRIM(a.ACTORCODE) = ? AND a.EDOCID IS NOT NULL "
+            + "AND LENGTH(TRIM(TO_CHAR(a.EDOCID))) > 0 AND ROWNUM = 1";
+
+    private static final String SQL_STATUS_NAME_BY_ID = "SELECT TRIM(PPVSTATUSNAME) FROM PPVSTATUS WHERE PPVSTATUSID = ?";
+
+    @Override
+    protected void doGet(HttpServletRequest request, HttpServletResponse response)
+            throws ServletException, IOException {
+        response.setHeader("Access-Control-Allow-Origin", "*");
+        if (!"incoming_complete".equals(request.getParameter("preview"))) {
+            response.sendError(HttpServletResponse.SC_METHOD_NOT_ALLOWED);
+            return;
+        }
+        String dpaid = request.getParameter("dpaid");
+        String guid = request.getParameter("guid");
+        if (guid != null) guid = guid.trim();
+        if (guid != null && guid.isEmpty()) guid = null;
+        response.setContentType("application/json;charset=UTF-8");
+        response.setCharacterEncoding("UTF-8");
+        if (dpaid == null || dpaid.trim().isEmpty()) {
+            sendJsonError(response, HttpServletResponse.SC_BAD_REQUEST, "Нужен параметр dpaid");
+            return;
+        }
+        long ppvid;
+        try {
+            ppvid = Long.parseLong(dpaid.trim());
+            if (ppvid <= 0) throw new NumberFormatException();
+        } catch (NumberFormatException e) {
+            sendJsonError(response, HttpServletResponse.SC_BAD_REQUEST, "dpaid должен быть положительным числом");
+            return;
+        }
+        Connection conn = null;
+        try {
+            conn = DatabaseUtil.getConnectionForRequest(request, guid);
+            boolean sent = isReviewOutcomeSent(conn, ppvid);
+            PrintWriter out = response.getWriter();
+            out.print("{\"reviewOutcomeSent\":" + sent + "}");
+            out.flush();
+        } catch (SQLException e) {
+            log("PpvStatusChange GET preview: " + e.getMessage());
+            sendJsonError(response, HttpServletResponse.SC_INTERNAL_SERVER_ERROR, "Ошибка БД: " + e.getMessage());
+        } finally {
+            DatabaseUtil.closeConnection(conn);
+        }
+    }
 
     @Override
     protected void doPost(HttpServletRequest request, HttpServletResponse response)
@@ -205,11 +270,30 @@ public class PpvStatusChangeServlet extends HttpServlet {
         }
         String newStatusName = null;
         if ("complete_processing".equals(action)) {
-            if (currentStatusName == null || !currentStatusName.toLowerCase().contains("обработке")) {
-                sendJsonError(response, HttpServletResponse.SC_BAD_REQUEST, "Действие «Завершение обработки» возможно только при статусе «В обработке»");
+            Set<String> statusDepKeys = AccessRightService.violationDetectedInStatusDepKeys(rightsJson);
+            if (statusDepKeys.isEmpty()) {
+                sendJsonError(response, HttpServletResponse.SC_FORBIDDEN,
+                        "В карте прав не заданы подразделения для violationDetectedIn:status");
                 return;
             }
-            newStatusName = "Обработано";
+            if (!hasPpvDepPermisOverlap(conn, dpaid, statusDepKeys)) {
+                sendJsonError(response, HttpServletResponse.SC_FORBIDDEN,
+                        "Нет права на завершение обработки: ни одно подразделение из права status не входит в доступ к карте (PPVDEPPERMIS)");
+                return;
+            }
+            Integer processingStatusId = findIncomingPpvStatusIdByCode(conn, "PROCESSING");
+            if (processingStatusId == null) {
+                sendJsonError(response, HttpServletResponse.SC_INTERNAL_SERVER_ERROR,
+                        "В справочнике PPVSTATUS не найден статус PROCESSING для входящих сведений (DATASOURCEKINDCODE=1)");
+                return;
+            }
+            if (currentStatusId != processingStatusId) {
+                sendJsonError(response, HttpServletResponse.SC_BAD_REQUEST,
+                        "Действие «Завершение обработки» возможно только при статусе «В обработке» (PROCESSING)");
+                return;
+            }
+            applyIncomingCompleteToProcessed(response, conn, dpaid, processingStatusId, userId);
+            return;
         } else if ("close".equals(action)) {
             if (currentStatusName == null || !currentStatusName.toLowerCase().contains("обработано")) {
                 sendJsonError(response, HttpServletResponse.SC_BAD_REQUEST, "Действие «Закрытие карты» возможно только при статусе «Обработано»");
@@ -234,6 +318,106 @@ public class PpvStatusChangeServlet extends HttpServlet {
             return;
         }
         applyNewStatus(response, conn, dpaid, newStatusName, userId, false);
+    }
+
+    private static Integer findIncomingPpvStatusIdByCode(Connection conn, String statusCode) throws SQLException {
+        if (statusCode == null || statusCode.trim().isEmpty()) return null;
+        try (PreparedStatement ps = conn.prepareStatement(SQL_STATUS_ID_BY_CODE_INCOMING)) {
+            ps.setString(1, statusCode.trim());
+            ps.setString(2, "1");
+            try (ResultSet rs = ps.executeQuery()) {
+                if (!rs.next()) return null;
+                return rs.getInt("PPVSTATUSID");
+            }
+        }
+    }
+
+    private static boolean isReviewOutcomeSent(Connection conn, long ppvid) throws SQLException {
+        try (PreparedStatement ps = conn.prepareStatement(SQL_REVIEW_OUTCOME_SENT)) {
+            ps.setLong(1, ppvid);
+            ps.setString(2, PPV_ACTOR_CODE_REVIEW);
+            try (ResultSet rs = ps.executeQuery()) {
+                return rs.next();
+            }
+        }
+    }
+
+    private static String normalizeDepIdKey(String s) {
+        if (s == null) return "";
+        String t = s.trim();
+        if (t.isEmpty()) return "";
+        try {
+            return String.valueOf(Long.parseLong(t));
+        } catch (NumberFormatException e) {
+            return t;
+        }
+    }
+
+    private static boolean hasPpvDepPermisOverlap(Connection conn, long ppvid, Set<String> rightsDepKeys) throws SQLException {
+        Set<String> normalizedRights = new HashSet<>();
+        for (String k : rightsDepKeys) {
+            String n = normalizeDepIdKey(k);
+            if (!n.isEmpty()) normalizedRights.add(n);
+        }
+        if (normalizedRights.isEmpty()) return false;
+        try (PreparedStatement ps = conn.prepareStatement(SQL_PPVDEPPERMIS_DEPIDS)) {
+            ps.setLong(1, ppvid);
+            try (ResultSet rs = ps.executeQuery()) {
+                while (rs.next()) {
+                    Object v = rs.getObject("DEPID");
+                    if (v == null) continue;
+                    String rowKey = normalizeDepIdKey(String.valueOf(v));
+                    if (!rowKey.isEmpty() && normalizedRights.contains(rowKey)) {
+                        return true;
+                    }
+                }
+            }
+        }
+        return false;
+    }
+
+    private void applyIncomingCompleteToProcessed(HttpServletResponse response, Connection conn, long dpaid,
+                                                  int processingStatusId, Integer userId) throws IOException, SQLException {
+        Integer processedId = findIncomingPpvStatusIdByCode(conn, "PROCESSED");
+        if (processedId == null) {
+            sendJsonError(response, HttpServletResponse.SC_INTERNAL_SERVER_ERROR,
+                    "В справочнике PPVSTATUS не найден статус PROCESSED для входящих сведений (DATASOURCEKINDCODE=1)");
+            return;
+        }
+        try (PreparedStatement ps = conn.prepareStatement(
+                "UPDATE PPV SET PPVSTATUSID = ?, MODIFICATIONDATETIME = SYSDATE WHERE PPVID = ? AND PPVSTATUSID = ?")) {
+            ps.setInt(1, processedId);
+            ps.setLong(2, dpaid);
+            ps.setInt(3, processingStatusId);
+            int updated = ps.executeUpdate();
+            if (updated == 0) {
+                sendJsonError(response, HttpServletResponse.SC_BAD_REQUEST,
+                        "Карта не в статусе «В обработке» или уже обновлена другим запросом");
+                return;
+            }
+        }
+        String displayName = "Обработано";
+        try (PreparedStatement ps = conn.prepareStatement(SQL_STATUS_NAME_BY_ID)) {
+            ps.setInt(1, processedId);
+            try (ResultSet rs = ps.executeQuery()) {
+                if (rs.next()) {
+                    String n = rs.getString(1);
+                    if (n != null && !n.trim().isEmpty()) displayName = n.trim();
+                }
+            }
+        }
+        try (PreparedStatement ps = conn.prepareStatement(SQL_INSERT_HIST)) {
+            ps.setLong(1, dpaid);
+            ps.setInt(2, processedId);
+            if (userId != null) {
+                ps.setInt(3, userId);
+            } else {
+                ps.setNull(3, Types.INTEGER);
+            }
+            ps.executeUpdate();
+        }
+        conn.commit();
+        response.getWriter().print("{\"ok\":true,\"newStatus\":\"" + escapeJson(displayName) + "\",\"newStatusId\":" + processedId + "}");
     }
 
     private static boolean isIncomingReceivedStatusName(String currentStatusName) {

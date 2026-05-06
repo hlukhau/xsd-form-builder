@@ -256,6 +256,11 @@ export interface DpaSaveMetadata {
   ppvActorCountryCodes?: string[] | null
   /** PPV: PPVACTORID строк без EDOCID — физическое удаление из PPVACTOR при сохранении */
   ppvActorRemovalIds?: number[] | null
+  /**
+   * PPV: код типа источника в PPV (DATASOURCEKINDCODE): 1 — входящие, 2 — исходящие, 3 — данные ЕЭК.
+   * При первом сохранении определяет набор PPVDEPPERMIS по умолчанию.
+   */
+  dataSourceKindCode?: string | null
 }
 
 /** Ответ успешного сохранения новой карты */
@@ -360,6 +365,16 @@ export async function deleteDpaCard(dpaid: number | string, guid?: string): Prom
   return JSON.parse(text) as DpaDeleteResponse
 }
 
+/** PPV: код источника для БД (1 / 2 / 3) из поля карты или текста source. */
+function inferPpvDataSourceKindCode(data: CardData): string {
+  const raw = data.datasourceKindCode != null ? String(data.datasourceKindCode).trim() : ''
+  if (raw === '1' || raw === '2' || raw === '3') return raw
+  const s = (data.source || '').toLowerCase()
+  if (s.includes('входящ')) return '1'
+  if (s.includes('еэк') || s.includes('ээк')) return '3'
+  return '2'
+}
+
 /**
  * Собрать метаданные для POST /api/dpa/save из данных карты.
  */
@@ -420,6 +435,7 @@ export function buildSaveMetadataFromCardData(data: CardData): DpaSaveMetadata {
     authorityId: authorityId || null,
     ...(isPpvApp()
       ? {
+          dataSourceKindCode: inferPpvDataSourceKindCode(data),
           ppvActorCountryCodes: ppvActorCountryCodes ?? [],
           ...(ppvActorRemovalIds != null && ppvActorRemovalIds.length > 0
             ? { ppvActorRemovalIds: ppvActorRemovalIds }
@@ -985,6 +1001,46 @@ export function cardSourceToApiSource(source: string): 'incoming' | 'outgoing' |
   return undefined
 }
 
+/** Источник для API доступа: по подписи карты или по коду вида источника из БД (DATASOURCEKINDCODE). */
+export function resolveCardAccessApiSource(
+  source: string | undefined,
+  datasourceKindCode: string | null | undefined
+): 'incoming' | 'outgoing' | 'eec' | undefined {
+  const fromText = source != null && source.trim() ? cardSourceToApiSource(source) : undefined
+  if (fromText) return fromText
+  const c = datasourceKindCode != null ? String(datasourceKindCode).trim() : ''
+  if (c === '1') return 'incoming'
+  if (c === '2') return 'outgoing'
+  if (c === '3') return 'eec'
+  return undefined
+}
+
+/** Право для проверки управления доступом по уже разрешённому api-источнику (DPA / PPV). */
+export function cardApiSourceToAccessRight(
+  api: 'incoming' | 'outgoing' | 'eec' | undefined,
+  /** PPV: violationDetectedIn|Out|DB:access для /api/access/check */
+  useViolationDetected?: boolean
+):
+  | 'dangerousProductIn:access'
+  | 'dangerousProductOut:access'
+  | 'dangerousProductDB:access'
+  | 'violationDetectedIn:access'
+  | 'violationDetectedOut:access'
+  | 'violationDetectedDB:access'
+  | undefined {
+  if (!api) return undefined
+  if (useViolationDetected === true) {
+    if (api === 'incoming') return 'violationDetectedIn:access'
+    if (api === 'outgoing') return 'violationDetectedOut:access'
+    if (api === 'eec') return 'violationDetectedDB:access'
+    return undefined
+  }
+  if (api === 'incoming') return 'dangerousProductIn:access'
+  if (api === 'outgoing') return 'dangerousProductOut:access'
+  if (api === 'eec') return 'dangerousProductDB:access'
+  return undefined
+}
+
 /** Право для проверки управления доступом по источнику карты (DPA — dangerousProduct*; PPV — violationDetected*). */
 export function cardSourceToAccessRight(
   source: string,
@@ -998,17 +1054,7 @@ export function cardSourceToAccessRight(
   | 'violationDetectedOut:access'
   | 'violationDetectedDB:access'
   | undefined {
-  const api = cardSourceToApiSource(source)
-  if (useViolationDetected === true) {
-    if (api === 'incoming') return 'violationDetectedIn:access'
-    if (api === 'outgoing') return 'violationDetectedOut:access'
-    if (api === 'eec') return 'violationDetectedDB:access'
-    return undefined
-  }
-  if (api === 'incoming') return 'dangerousProductIn:access'
-  if (api === 'outgoing') return 'dangerousProductOut:access'
-  if (api === 'eec') return 'dangerousProductDB:access'
-  return undefined
+  return cardApiSourceToAccessRight(cardSourceToApiSource(source), useViolationDetected)
 }
 
 /** Источник карты PHA в параметр API (входящие / исходящие / еэк). */
@@ -1030,9 +1076,15 @@ export function phaSourceToViewRight(source: string): 'publicHealthIn:view' | 'p
   return undefined
 }
 
-export async function fetchDpaAccess(dpaid: string, source?: string, creatorDepId?: string | number, guid?: string): Promise<AccessItemDto[]> {
+export async function fetchDpaAccess(
+  dpaid: string,
+  source?: string,
+  creatorDepId?: string | number,
+  guid?: string,
+  datasourceKindCode?: string | null
+): Promise<AccessItemDto[]> {
   const params = withGuidParams(new URLSearchParams({ dpaid }), guid)
-  const apiSource = source != null ? cardSourceToApiSource(source) : undefined
+  const apiSource = resolveCardAccessApiSource(source, datasourceKindCode)
   if (apiSource) params.set('source', apiSource)
   if (creatorDepId != null && String(creatorDepId).trim()) params.set('creatorDepId', String(creatorDepId).trim())
   const response = await fetch(`${BASE_URL}api/${dpaLikeCardApiSegment()}/access?${params.toString()}`)
@@ -1136,6 +1188,31 @@ export async function checkAccessRight(id: string | null, right: string): Promis
   if (!response.ok) return false
   const data = await response.json()
   return data.allowed === true
+}
+
+/**
+ * PPV входящие: признак отправленной связанной карты результата рассмотрения (PPVACTOR с EDOCID).
+ * GET /api/ppv/status?preview=incoming_complete&dpaid=...&guid=...
+ */
+export async function fetchPpvIncomingCompletePreview(
+  dpaid: string,
+  guid?: string
+): Promise<{ reviewOutcomeSent: boolean }> {
+  if (!isPpvApp()) return { reviewOutcomeSent: false }
+  const params = new URLSearchParams({ preview: 'incoming_complete', dpaid })
+  const response = await fetch(withGuidUrl(`${BASE_URL}api/ppv/status?${params.toString()}`, guid))
+  if (!response.ok) {
+    const text = await response.text()
+    let errMsg = response.statusText
+    try {
+      const json = JSON.parse(text)
+      if (json.error) errMsg = json.error
+    } catch {
+      if (text) errMsg = text.slice(0, 200)
+    }
+    throw new Error(errMsg)
+  }
+  return response.json() as Promise<{ reviewOutcomeSent: boolean }>
 }
 
 /** Смена статуса карты. Входящие: first_open (Получено→В обработке при открытии; без проверки прав), complete_processing, close. Исходящие: mark_ready (передайте depKindCode), to_new, send, close. guid — для USERID в истории и depKindCode. POST /api/dpa/status */
