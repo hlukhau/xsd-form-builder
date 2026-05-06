@@ -68,6 +68,13 @@ export const FIELD_HELP = {
   measureInitiationBasis: 'Нормативный правовой акт, устанавливающий права и полномочия государств-членов на введение, изменение, отмену мер и мероприятий',
   measureImplementation: 'Информация об организационных, административных, инженерно-технических, медико-санитарных, ветеринарных и иных мерах, направленных на устранение или уменьшение вредного воздействия на человека факторов среды обитания, предотвращение возникновения и распространения инфекционных заболеваний и массовых неинфекционных заболеваний (отравлений) и их ликвидацию',
 
+  /** smcdo:MeasureImplementationDetails → csdo:UnifiedCountryCode */
+  measureImplementationCountry: 'Страна проведения мероприятия',
+  /** smcdo:MeasureImplementationDetails → csdo:StartDate */
+  measureImplementationStartDate: 'Дата начала мероприятия',
+  /** smcdo:MeasureImplementationDetails → csdo:EndDate */
+  measureImplementationEndDate: 'Дата окончания мероприятия',
+
   // Сведения об исполнителе
   executorCountry: 'Страна регистрации субъекта',
   identityDoc: 'Сведения о документе, удостоверяющем личность физического лица',

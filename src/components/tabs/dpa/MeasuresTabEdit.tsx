@@ -905,7 +905,7 @@ const MeasureImplementationDetailsEdit: React.FC<{
     <div style={{ marginTop: '16px', padding: '12px', border: '1px solid #d9d9d9', borderRadius: '4px' }}>
       <h5>Детализация мероприятия</h5>
       <Form layout="vertical" className="field-tag-form" style={{ marginBottom: '16px' }}>
-        <Form.Item label={labelWithHelp('Код страны', FIELD_HELP.executorCountry)}>
+        <Form.Item label={labelWithHelp('Код страны', FIELD_HELP.measureImplementationCountry)}>
           <CountrySelect
             value={item.country}
             onChange={(value) => onChange('country', value || '')}
@@ -914,7 +914,7 @@ const MeasureImplementationDetailsEdit: React.FC<{
             normalizeCountryCode={normalizeCountryCode}
           />
         </Form.Item>
-        <Form.Item label={labelWithHelp('Начальная дата', FIELD_HELP.measureStartDate)}>
+        <Form.Item label={labelWithHelp('Начальная дата', FIELD_HELP.measureImplementationStartDate)}>
           <DatePicker
             format={DATE_DISPLAY_FORMAT}
             value={item.startDate ? dayjs(item.startDate) : null}
@@ -922,7 +922,7 @@ const MeasureImplementationDetailsEdit: React.FC<{
             style={{ width: '100%' }}
           />
         </Form.Item>
-        <Form.Item label={labelWithHelp('Конечная дата', FIELD_HELP.measureEndDate)}>
+        <Form.Item label={labelWithHelp('Конечная дата', FIELD_HELP.measureImplementationEndDate)}>
           <DatePicker
             format={DATE_DISPLAY_FORMAT}
             value={item.endDate ? dayjs(item.endDate) : null}
