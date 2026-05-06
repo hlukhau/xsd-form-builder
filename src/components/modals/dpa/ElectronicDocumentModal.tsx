@@ -1,5 +1,6 @@
-import { useState } from 'react'
-import { Modal, Descriptions, Button, Select, Spin } from 'antd'
+import { useMemo } from 'react'
+import { Modal, Button, Table, Spin } from 'antd'
+import type { ColumnsType } from 'antd/es/table'
 import { format } from 'date-fns'
 import { ru } from 'date-fns/locale'
 import type { ElectronicDocument } from '@/types/card'
@@ -13,6 +14,13 @@ interface ElectronicDocumentModalProps {
   loading?: boolean
 }
 
+const formatDateTimeUi = (dateTime: string | null | undefined): string => {
+  if (!dateTime) return ''
+  const date = new Date(dateTime)
+  if (isNaN(date.getTime())) return dateTime
+  return format(date, DATE_TIME_DISPLAY_FORMAT_DATEFNS, { locale: ru })
+}
+
 const ElectronicDocumentModal: React.FC<ElectronicDocumentModalProps> = ({
   visible,
   data,
@@ -20,26 +28,86 @@ const ElectronicDocumentModal: React.FC<ElectronicDocumentModalProps> = ({
   loading = false,
 }) => {
   const list = Array.isArray(data) ? data : [data]
-  const [selectedIndex, setSelectedIndex] = useState(0)
-  const current = list[selectedIndex]
 
-  const formatDateTime = (dateTime: string | null | undefined) => {
-    if (!dateTime) return '-'
-    const date = new Date(dateTime)
-    if (isNaN(date.getTime())) return dateTime
-    return format(date, DATE_TIME_DISPLAY_FORMAT_DATEFNS, { locale: ru })
-  }
+  const sortedRows = useMemo(() => {
+    const withKey = list.map((doc, i) => ({ ...doc, _key: `${doc.documentId || i}-${i}` }))
+    return [...withKey].sort((a, b) => {
+      const ta = a.documentDate ? new Date(a.documentDate).getTime() : 0
+      const tb = b.documentDate ? new Date(b.documentDate).getTime() : 0
+      return tb - ta
+    })
+  }, [list])
 
-  const formatDate = (dateTime: string | null | undefined) => {
-    if (!dateTime) return '-'
-    const date = new Date(dateTime)
-    if (isNaN(date.getTime())) return dateTime
-    return format(date, 'dd.MM.yyyy', { locale: ru })
-  }
+  const columns: ColumnsType<ElectronicDocument & { _key: string }> = [
+    {
+      title: 'Дата и время создания электронного документа',
+      key: 'documentDate',
+      width: 200,
+      render: (_, row) => formatDateTimeUi(row.documentDate) || '',
+    },
+    {
+      title: 'Код сообщения ОП',
+      dataIndex: 'messageCode',
+      key: 'messageCode',
+      width: 160,
+      ellipsis: true,
+      render: (t: string) => t || '',
+    },
+    {
+      title: 'Код электронного документа',
+      dataIndex: 'documentCode',
+      key: 'documentCode',
+      width: 160,
+      ellipsis: true,
+      render: (t: string) => t || '',
+    },
+    {
+      title: 'Идентификатор электронного документа',
+      dataIndex: 'documentId',
+      key: 'documentId',
+      width: 280,
+      ellipsis: true,
+      render: (t: string) => t || '',
+    },
+    {
+      title: 'Идентификатор исходного электронного документа',
+      dataIndex: 'sourceDocumentId',
+      key: 'sourceDocumentId',
+      width: 280,
+      ellipsis: true,
+      render: (t: string) => t || '',
+    },
+    {
+      title: 'Язык',
+      dataIndex: 'language',
+      key: 'language',
+      width: 160,
+      ellipsis: true,
+      render: (t: string) => t || '',
+    },
+    {
+      title: 'Действие записи общего ресурса. С',
+      key: 'validityStart',
+      width: 200,
+      render: (_, row) => formatDateTimeUi(row.validityPeriod?.start) || '',
+    },
+    {
+      title: 'Действие записи общего ресурса. По',
+      key: 'validityEnd',
+      width: 200,
+      render: (_, row) => formatDateTimeUi(row.validityPeriod?.end) || '',
+    },
+    {
+      title: 'Дата обновления записи общего ресурса',
+      key: 'updateDateTime',
+      width: 220,
+      render: (_, row) => formatDateTimeUi(row.updateDateTime) || '',
+    },
+  ]
 
   return (
     <Modal
-      title="Просмотр сведений о соответствующем электронном документе и записи общего ресурса"
+      title="Сведения об электронных документах"
       open={visible}
       onCancel={onClose}
       footer={[
@@ -47,57 +115,30 @@ const ElectronicDocumentModal: React.FC<ElectronicDocumentModalProps> = ({
           Закрыть
         </Button>,
       ]}
-      width={800}
+      width="min(1200px, 96vw)"
+      styles={{ body: { maxHeight: '70vh', overflow: 'auto' } }}
     >
       {loading ? (
         <div style={{ textAlign: 'center', padding: 24 }}>
           <Spin tip="Загрузка сведений об электронных документах..." />
         </div>
-      ) : list.length === 0 ? (
-        <div style={{ color: '#8c8c8c' }}>Нет данных об электронных документах (исходящие сведения могут не содержать документ до отправки).</div>
+      ) : sortedRows.length === 0 ? (
+        <div style={{ color: '#8c8c8c' }}>
+          Нет данных об электронных документах (исходящие сведения могут не содержать документ до отправки).
+        </div>
       ) : (
-        <>
-          {list.length > 1 && (
-            <div style={{ marginBottom: 16 }}>
-              <span style={{ marginRight: 8 }}>Электронный документ:</span>
-              <Select
-                value={selectedIndex}
-                onChange={setSelectedIndex}
-                options={list.map((doc, i) => ({
-                  label: `${doc.documentCode || doc.documentId || 'Документ'} ${i + 1}`,
-                  value: i,
-                }))}
-                style={{ minWidth: 280 }}
-              />
-            </div>
-          )}
-          {current && (
-            <Descriptions column={1} bordered>
-              <Descriptions.Item label="Код сообщения ОП">{current.messageCode ?? '-'}</Descriptions.Item>
-              <Descriptions.Item label="Код электронного документа">{current.documentCode ?? '-'}</Descriptions.Item>
-              <Descriptions.Item label="Идентификатор электронного документа">{current.documentId ?? '-'}</Descriptions.Item>
-              <Descriptions.Item label="Дата электронного документа">{formatDate(current.documentDate)}</Descriptions.Item>
-              <Descriptions.Item label="Язык">{current.language ?? '-'}</Descriptions.Item>
-              <Descriptions.Item label="Исходный электронный документ">{current.sourceDocumentId ?? '-'}</Descriptions.Item>
-              {/* ccdo:ValidityPeriodDetails → csdo:StartDateTime */}
-              <Descriptions.Item label="Действие записи общего ресурса. С">
-                {formatDateTime(current.validityPeriod?.start)}
-              </Descriptions.Item>
-              {/* ccdo:ValidityPeriodDetails → csdo:EndDateTime */}
-              <Descriptions.Item label="Действие записи общего ресурса. По">
-                {formatDateTime(current.validityPeriod?.end)}
-              </Descriptions.Item>
-              {/* csdo:UpdateDateTime (ResourceItemStatusDetails) */}
-              <Descriptions.Item label="Дата обновления записи общего ресурса">
-                {formatDateTime(current.updateDateTime)}
-              </Descriptions.Item>
-            </Descriptions>
-          )}
-        </>
+        <Table<ElectronicDocument & { _key: string }>
+          columns={columns}
+          dataSource={sortedRows}
+          rowKey="_key"
+          pagination={false}
+          size="small"
+          bordered
+          scroll={{ x: 'max-content' }}
+        />
       )}
     </Modal>
   )
 }
 
 export default ElectronicDocumentModal
-

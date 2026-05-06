@@ -21,25 +21,54 @@ import java.util.List;
 /**
  * Сведения об электронных документах и записи общего ресурса по DPAID.
  * GET /api/dpa/electronic-docs/{DPAID}
- * Источники: DPA + DPA2EDOCLINK + EDOC, CONTENTBODY из VW_PACKAGEMESSAGE (XML: EDocHeader, ResourceItemStatusDetails).
+ * Источники: DPA + DPA2EDOCLINK + EDOC, LANG (наименование языка), CONTENTBODY из VW_PACKAGEMESSAGE (XML: ResourceItemStatusDetails).
+ * Сортировка: EDOCDATETIME по убыванию.
  */
 public class DpaElectronicDocsServlet extends HttpServlet {
 
+    /** Источник 1 + 2: LANG, VW_PACKAGEMESSAGE. */
     private static final String SQL = ""
-            + "SELECT dc.INFENVELOPECODE, dc.EDOCCODE, dc.EDOCID, dc.EDOCDATETIME, dc.LANGUAGECODE, dc.EDOCREFID, ms.CONTENTBODY "
+            + "SELECT dc.INFENVELOPECODE, dc.EDOCCODE, dc.EDOCID, dc.EDOCDATETIME, dc.EDOCREFID, "
+            + "(dc.LANGUAGECODE || CASE WHEN lg.LANGNAME IS NOT NULL THEN ' - ' || lg.LANGNAME ELSE '' END) AS LNG, "
+            + "ms.CONTENTBODY "
+            + "FROM DPA dp "
+            + "JOIN DPA2EDOCLINK dpe ON dpe.DPAID = dp.DPAID "
+            + "JOIN EDOC dc ON dc.EDOCID = dpe.EDOCID "
+            + "LEFT OUTER JOIN LANG lg ON lg.LANGALPHA2CODE = dc.LANGUAGECODE "
+            + "AND dc.EDOCDATETIME BETWEEN lg.LANGSDATE AND lg.LANGEDATE "
+            + "LEFT JOIN VW_PACKAGEMESSAGE ms ON ms.EDOCID = dpe.EDOCID "
+            + "WHERE dp.DPAID = ? "
+            + "ORDER BY dc.EDOCDATETIME DESC";
+    /** Без VW_PACKAGEMESSAGE (CONTENTBODY пустой). */
+    private static final String SQL_FALLBACK_NO_MESSAGE_VIEW = ""
+            + "SELECT dc.INFENVELOPECODE, dc.EDOCCODE, dc.EDOCID, dc.EDOCDATETIME, dc.EDOCREFID, "
+            + "(dc.LANGUAGECODE || CASE WHEN lg.LANGNAME IS NOT NULL THEN ' - ' || lg.LANGNAME ELSE '' END) AS LNG, "
+            + "CAST(NULL AS CLOB) AS CONTENTBODY "
+            + "FROM DPA dp "
+            + "JOIN DPA2EDOCLINK dpe ON dpe.DPAID = dp.DPAID "
+            + "JOIN EDOC dc ON dc.EDOCID = dpe.EDOCID "
+            + "LEFT OUTER JOIN LANG lg ON lg.LANGALPHA2CODE = dc.LANGUAGECODE "
+            + "AND dc.EDOCDATETIME BETWEEN lg.LANGSDATE AND lg.LANGEDATE "
+            + "WHERE dp.DPAID = ? "
+            + "ORDER BY dc.EDOCDATETIME DESC";
+    /** Таблица LANG недоступна — только код языка. */
+    private static final String SQL_NO_LANG = ""
+            + "SELECT dc.INFENVELOPECODE, dc.EDOCCODE, dc.EDOCID, dc.EDOCDATETIME, dc.EDOCREFID, "
+            + "dc.LANGUAGECODE AS LNG, ms.CONTENTBODY "
             + "FROM DPA dp "
             + "JOIN DPA2EDOCLINK dpe ON dpe.DPAID = dp.DPAID "
             + "JOIN EDOC dc ON dc.EDOCID = dpe.EDOCID "
             + "LEFT JOIN VW_PACKAGEMESSAGE ms ON ms.EDOCID = dpe.EDOCID "
             + "WHERE dp.DPAID = ? "
-            + "ORDER BY dc.EDOCDATETIME";
-    private static final String SQL_FALLBACK_NO_MESSAGE_VIEW = ""
-            + "SELECT dc.INFENVELOPECODE, dc.EDOCCODE, dc.EDOCID, dc.EDOCDATETIME, dc.LANGUAGECODE, dc.EDOCREFID, CAST(NULL AS CLOB) AS CONTENTBODY "
+            + "ORDER BY dc.EDOCDATETIME DESC";
+    private static final String SQL_NO_LANG_NO_MESSAGE_VIEW = ""
+            + "SELECT dc.INFENVELOPECODE, dc.EDOCCODE, dc.EDOCID, dc.EDOCDATETIME, dc.EDOCREFID, "
+            + "dc.LANGUAGECODE AS LNG, CAST(NULL AS CLOB) AS CONTENTBODY "
             + "FROM DPA dp "
             + "JOIN DPA2EDOCLINK dpe ON dpe.DPAID = dp.DPAID "
             + "JOIN EDOC dc ON dc.EDOCID = dpe.EDOCID "
             + "WHERE dp.DPAID = ? "
-            + "ORDER BY dc.EDOCDATETIME";
+            + "ORDER BY dc.EDOCDATETIME DESC";
 
     @Override
     public void init() throws ServletException {
@@ -82,24 +111,41 @@ public class DpaElectronicDocsServlet extends HttpServlet {
                 dpaidIsLong = false;
             }
 
-            try {
-                ps = conn.prepareStatement(SQL);
-                if (dpaidIsLong) ps.setLong(1, dpaidLong);
-                else ps.setString(1, dpaidStr);
-                rs = ps.executeQuery();
-            } catch (SQLException firstEx) {
-                final String msg = firstEx.getMessage() != null ? firstEx.getMessage() : "";
-                if (msg.contains("ORA-00942")) {
-                    if (rs != null) try { rs.close(); } catch (SQLException ignored) { }
-                    if (ps != null) try { ps.close(); } catch (SQLException ignored) { }
-                    System.err.println("[DpaElectronicDocsServlet] VW_PACKAGEMESSAGE недоступна, используем fallback без CONTENTBODY. DPAID=" + dpaidStr);
-                    ps = conn.prepareStatement(SQL_FALLBACK_NO_MESSAGE_VIEW);
-                    if (dpaidIsLong) ps.setLong(1, dpaidLong);
-                    else ps.setString(1, dpaidStr);
+            String[] sqlVariants = new String[] {
+                    SQL,
+                    SQL_FALLBACK_NO_MESSAGE_VIEW,
+                    SQL_NO_LANG,
+                    SQL_NO_LANG_NO_MESSAGE_VIEW,
+            };
+            SQLException last942 = null;
+            for (int si = 0; si < sqlVariants.length; si++) {
+                if (ps != null) try { ps.close(); } catch (SQLException ignored) { }
+                ps = null;
+                if (rs != null) try { rs.close(); } catch (SQLException ignored) { }
+                rs = null;
+                try {
+                    ps = conn.prepareStatement(sqlVariants[si]);
+                    if (dpaidIsLong) {
+                        ps.setLong(1, dpaidLong);
+                    } else {
+                        ps.setString(1, dpaidStr);
+                    }
                     rs = ps.executeQuery();
-                } else {
-                    throw firstEx;
+                    if (si > 0) {
+                        System.err.println("[DpaElectronicDocsServlet] Использован запасной SQL #" + (si + 1) + " для DPAID=" + dpaidStr);
+                    }
+                    break;
+                } catch (SQLException ex) {
+                    final String msg = ex.getMessage() != null ? ex.getMessage() : "";
+                    if (msg.contains("ORA-00942")) {
+                        last942 = ex;
+                        continue;
+                    }
+                    throw ex;
                 }
+            }
+            if (rs == null) {
+                throw last942 != null ? last942 : new SQLException("Не удалось выполнить запрос электронных документов");
             }
             List<String> items = new ArrayList<>();
 
@@ -108,7 +154,7 @@ public class DpaElectronicDocsServlet extends HttpServlet {
                 String documentCode = getString(rs, "EDOCCODE");
                 String documentId = getString(rs, "EDOCID");
                 String documentDate = formatTimestamp(rs, "EDOCDATETIME");
-                String language = getString(rs, "LANGUAGECODE");
+                String language = getString(rs, "LNG");
                 String sourceDocumentId = getString(rs, "EDOCREFID");
                 String contentBody = getClobAsString(rs, "CONTENTBODY");
 

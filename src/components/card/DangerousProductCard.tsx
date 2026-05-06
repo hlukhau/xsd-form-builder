@@ -1358,7 +1358,7 @@ const DangerousProductCard: React.FC<DangerousProductCardProps> = ({
                       documentCode: raw.documentCode ?? '',
                       documentId: raw.documentId ?? '',
                       documentDate: raw.documentDate ?? '',
-                      language: raw.language ?? 'ru',
+                      language: raw.language ?? '',
                       sourceDocumentId: raw.sourceDocumentId ?? '',
                       validityPeriod: resource.validityPeriod,
                       updateDateTime: resource.updateDateTime,

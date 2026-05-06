@@ -3462,28 +3462,25 @@ export function parseElectronicDocContentBody(xmlText: string): {
   const root = xmlDoc.documentElement
   if (!root) return result
 
-  let resourceStatus: Element | null = null
-  const all = root.getElementsByTagName('*')
-  for (let i = 0; i < all.length; i++) {
-    const el = all[i]
-    const local = (el.localName || el.tagName.split(':').pop() || '').toLowerCase()
-    if (local === 'resourceitemstatusdetails') {
-      resourceStatus = el
-      break
+  const findFirstByLocal = (parent: Element, localName: string): Element | null => {
+    const want = localName.toLowerCase()
+    try {
+      const byNs = parent.getElementsByTagNameNS('*', localName)
+      if (byNs.length > 0) return byNs[0]
+    } catch (_) {}
+    const all = parent.getElementsByTagName('*')
+    for (let i = 0; i < all.length; i++) {
+      const el = all[i]
+      const local = (el.localName || el.tagName.split(':').pop() || '').toLowerCase()
+      if (local === want) return el
     }
+    return null
   }
+
+  const resourceStatus = findFirstByLocal(root, 'ResourceItemStatusDetails')
   if (!resourceStatus) return result
 
-  let validityPeriod: Element | null = null
-  const resourceChildren = resourceStatus.getElementsByTagName('*')
-  for (let i = 0; i < resourceChildren.length; i++) {
-    const el = resourceChildren[i]
-    const local = (el.localName || el.tagName.split(':').pop() || '').toLowerCase()
-    if (local === 'validityperioddetails') {
-      validityPeriod = el
-      break
-    }
-  }
+  const validityPeriod = findFirstByLocal(resourceStatus, 'ValidityPeriodDetails')
   result.validityPeriod.start = (getTextContent(validityPeriod, 'StartDateTime') || getTextFromDirectChildByLocalName(validityPeriod, 'StartDateTime') || '').trim()
   result.validityPeriod.end = (getTextContent(validityPeriod, 'EndDateTime') || getTextFromDirectChildByLocalName(validityPeriod, 'EndDateTime') || '').trim()
   result.updateDateTime = (getTextContent(resourceStatus, 'UpdateDateTime') || getTextFromDirectChildByLocalName(resourceStatus, 'UpdateDateTime') || '').trim()
