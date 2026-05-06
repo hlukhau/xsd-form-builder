@@ -339,8 +339,9 @@ const DangerousProductCard: React.FC<DangerousProductCardProps> = ({
       : statusButton
   const effectiveStatusButtonComment =
     effectiveDpaid === '-' && statusButton ? 'Сохраните изменения' : statusButtonComment
-  const CLOSE_BUTTON_DISABLED_HINT =
-    'Закрытие карты доступно при статусе «Новое», «Отправка не удалась», «Ошибка обработки» или «Доставлено».'
+  const CLOSE_BUTTON_DISABLED_HINT = isPpvApp()
+    ? 'Закрытие карты для исходящих: при «Новое» — если есть резолюция областного или республиканского ЦГЭ; иначе — в статусах «Обработано», ожидание ответов, частично или полностью выполнено.'
+    : 'Закрытие карты доступно при статусе «Новое», «Отправка не удалась», «Ошибка обработки» или «Доставлено».'
   const primaryIsClose = (effectiveStatusButton?.action ?? '') === 'close'
   const effectiveCloseButton =
     effectiveDpaid === '-' && closeConfig
@@ -1288,8 +1289,11 @@ const DangerousProductCard: React.FC<DangerousProductCardProps> = ({
                     Object.keys(opts || {}).length ? opts : undefined
                   )
                   const newStatus = res.newStatus ?? currentData.status
-                  const newStatusId =
-                    res.newStatusId ?? (editedData.statusId ?? data.statusId)
+                  const newStatusId = isPpvApp()
+                    ? (res.newStatusId ?? (editedData.statusId ?? data.statusId))
+                    : newStatus === 'Обработано'
+                      ? 3
+                      : (editedData.statusId ?? data.statusId)
                   onUpdate({ ...currentData, status: newStatus, statusId: newStatusId })
                   setEditedData((prev) => ({ ...prev, status: newStatus, statusId: newStatusId }))
                   message.success('Карта переведена в статус «Обработано».')
@@ -1359,7 +1363,14 @@ const DangerousProductCard: React.FC<DangerousProductCardProps> = ({
                   changeDpaStatus(effectiveDpaid, 'close', Object.keys(opts || {}).length ? opts : undefined)
                     .then((res) => {
                       const newStatus = res.newStatus ?? currentData.status
-                      const newStatusId = newStatus === 'Завершено' ? (isOutgoingSource ? 13 : 4) : (editedData.statusId ?? data.statusId)
+                      const newStatusId = isPpvApp()
+                        ? (res.newStatusId ??
+                            (newStatus === 'Завершено' ? (isOutgoingSource ? 13 : 4) : (editedData.statusId ?? data.statusId)))
+                        : newStatus === 'Завершено'
+                          ? isOutgoingSource
+                            ? 13
+                            : 4
+                          : (editedData.statusId ?? data.statusId)
                       onUpdate({ ...currentData, status: newStatus, statusId: newStatusId })
                       setEditedData((prev) => ({ ...prev, status: newStatus, statusId: newStatusId }))
                       message.success('Карта переведена в статус «Завершено».')

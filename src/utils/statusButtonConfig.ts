@@ -2,7 +2,8 @@
  * Конфигурация кнопки смены статуса по источнику карты и текущему статусу.
  * Логика по DPASTATUSID (таблица DPASTATUS). При отсутствии statusId — запасная проверка по названию.
  * Входящие (1–4): PROCESSING→Завершение обработки, PROCESSED→Закрытие карты.
- * Исходящие (5–13): DRAFT/NEW→резолюция, NEW/PENDING/FAILED/ERROR→Направление/Закрытие, DELIVERED→Закрытие; EDITED (12) — устарел, не используется.
+ * Исходящие DPA (5–13): см. `outgoingStatusButtonDpa` — классическая логика по DPASTATUSID.
+ * Исходящие PPV: см. `outgoingStatusButtonPpv` — закрытие по ТЗ (NEW+резолюция DEP0602/DEP0603 или коды PROCESSED|AWAITING|PARTIAL|FULFIELD|FULFILLED).
  */
 export interface StatusButtonConfig {
   label: string
@@ -36,6 +37,18 @@ const OUTGOING_EDITED = 12
 
 function norm(s: string | undefined): string {
   return (s ?? '').trim().toLowerCase()
+}
+
+/** Соответствие допуску закрытия исходящей PPV по ТЗ (по отображаемому названию, если нет надёжного PPVSTATUSCODE на клиенте). */
+function outgoingPpvCloseAllowedByStatusName(status: string | undefined): boolean {
+  const s = norm(status)
+  if (!s) return false
+  if (s.includes('обработан') && !s.includes('заверш')) return true
+  if (s.includes('ожидан') && (s.includes('ответ') || s.includes('ответов'))) return true
+  if (s.includes('частич')) return true
+  if (s.includes('полност') || s.includes('fulfilled') || s.includes('fulfield')) return true
+  if (s.includes('выполнен') && !s.includes('заверш')) return true
+  return false
 }
 
 /** DPASTATUSID из карты/метаданных (иногда строка с JSON) */
@@ -210,7 +223,7 @@ function getResolutionHintForDraft(
   return 'Ожидается резолюция (уровень ЦГЭ определяется по подразделению пользователя в карте прав доступа).'
 }
 
-function outgoingStatusButton(
+function outgoingStatusButtonDpa(
   statusId: number | null | undefined,
   status: string,
   hasStatusRight: boolean,
@@ -603,6 +616,419 @@ function outgoingStatusButton(
     config: null,
     comment: 'Кнопка смены статуса не отображается: для текущего статуса исходящей карты действие не определено.',
   }
+}
+
+function outgoingStatusButtonPpv(
+  statusId: number | null | undefined,
+  status: string,
+  hasStatusRight: boolean,
+  hasSendRight: boolean,
+  hasResolution: boolean,
+  userDepKindCode: string | null | undefined,
+  existingResolutionDepKindCodes: string[] | undefined,
+  userDepKindName: string | null | undefined,
+  _notificationEndDate: string | null | undefined,
+  forPpvRightsHints: boolean
+): StatusButtonResult {
+  const noSt = hintNoStatusRightOut(forPpvRightsHints)
+  const noSn = hintNoSendRightOut(forPpvRightsHints)
+  const noBoth = hintNoStatusAndSendOut(forPpvRightsHints)
+  if (!hasStatusRight && !hasSendRight) {
+    const resolutionLabel = getResolutionButtonLabel(userDepKindCode)
+    return {
+      config: {
+        label: resolutionLabel,
+        action: 'mark_ready',
+        disabled: true,
+        hint: noBoth,
+      },
+      comment: noBoth,
+    }
+  }
+  const resolutionLabel = getResolutionButtonLabel(userDepKindCode)
+  const hasResolutionOfUserLevel =
+    userDepKindCode &&
+    Array.isArray(existingResolutionDepKindCodes) &&
+    existingResolutionDepKindCodes.some((c) => norm(c) === norm(userDepKindCode))
+
+  const hintSend = 'Направление сведений в ЕЭК — переход карты в состояние «Ожидает отправки».'
+  /** Подсказка, когда при статусе «Новое» уже есть резолюция областного/республиканского ЦГЭ — следующий шаг «Ожидает отправки». */
+  const hintNewToPending = 'Новое + резолюция областного ЦГЭ → Ожидает отправки'
+  const hintClose = 'Закрытие карты — переход в состояние «Завершено» (без направления в ЕЭК).'
+  /** «Направление сведений» при статусе Новое разрешено только при резолюции областного или республиканского ЦГЭ. */
+  const hasRegionalOrRepublicanResolution =
+    Array.isArray(existingResolutionDepKindCodes) &&
+    existingResolutionDepKindCodes.some((c) => {
+      const x = norm(c)
+      return x === 'dep0602' || x === 'dep0603'
+    })
+  const NEED_REGIONAL_OR_REPUBLICAN_HINT =
+    'Ожидается резолюция областного или республиканского ЦГЭ.'
+
+  // По DPASTATUSID (исходящие 5–13)
+  if (statusId === OUTGOING_DRAFT) {
+    if (!hasStatusRight) {
+      return {
+        config: {
+          label: resolutionLabel,
+          action: 'mark_ready',
+          disabled: true,
+          hint: noSt,
+        },
+        comment: noSt,
+      }
+    }
+    const draftComment = getResolutionHintForDraft(userDepKindCode, userDepKindName)
+    const draftButtonHint = getResolutionHintFromDraft(userDepKindCode)
+    return {
+      config: { label: resolutionLabel, action: 'mark_ready', hint: draftButtonHint },
+      comment: draftComment,
+    }
+  }
+  if (statusId === OUTGOING_NEW) {
+    // При статусе «Новое» и уже наложенной резолюции областного/республиканского ЦГЭ — следующий шаг «Направление сведений» → «Ожидает отправки»
+    if (hasRegionalOrRepublicanResolution && hasSendRight) {
+      return {
+        config: { label: 'Направление сведений', action: 'send', hint: hintNewToPending },
+        comment: hintNewToPending,
+        closeConfig: hasStatusRight
+          ? { label: 'Закрытие карты', action: 'close', hint: hintClose }
+          : { label: 'Закрытие карты', action: 'close', disabled: true, hint: noSt },
+      }
+    }
+    if (hasRegionalOrRepublicanResolution && !hasSendRight && hasStatusRight) {
+      return {
+        config: {
+          label: 'Направление сведений',
+          action: 'send',
+          disabled: true,
+          hint: noSn,
+        },
+        comment: noSn,
+        closeConfig: { label: 'Закрытие карты', action: 'close', hint: hintClose },
+      }
+    }
+    if (hasStatusRight && !hasResolutionOfUserLevel) {
+      const hintNew = getResolutionHintWhenAlreadyNew(userDepKindCode)
+      return {
+        config: { label: resolutionLabel, action: 'mark_ready', hint: hintNew },
+        comment: hintNew,
+      }
+    }
+    // После резолюции районного ЦГЭ — только ожидание резолюции областного/республиканского (кнопка заблокирована)
+    if (hasResolution && !hasRegionalOrRepublicanResolution) {
+      return {
+        config: {
+          label: 'Направление сведений',
+          action: 'send',
+          hint: NEED_REGIONAL_OR_REPUBLICAN_HINT,
+          disabled: true,
+        },
+        comment: NEED_REGIONAL_OR_REPUBLICAN_HINT,
+      }
+    }
+    if (hasStatusRight && hasResolutionOfUserLevel && hasRegionalOrRepublicanResolution) {
+      if (hasSendRight) {
+        return {
+          config: { label: 'Направление сведений', action: 'send', hint: hintSend },
+          comment: hintSend,
+        }
+      }
+      return {
+        config: {
+          label: 'Направление сведений',
+          action: 'send',
+          disabled: true,
+          hint: noSn,
+        },
+        comment: noSn,
+        closeConfig: { label: 'Закрытие карты', action: 'close', hint: hintClose },
+      }
+    }
+    if (!hasResolution) {
+      return {
+        config: {
+          label: hasSendRight ? 'Направление сведений' : resolutionLabel,
+          action: hasSendRight ? 'send' : 'mark_ready',
+          hint: NO_RESOLUTION_HINT,
+          disabled: true,
+        },
+        comment: NO_RESOLUTION_HINT,
+      }
+    }
+    if (hasSendRight && hasRegionalOrRepublicanResolution) {
+      return {
+        config: { label: 'Направление сведений', action: 'send', hint: hintSend },
+        comment: hintSend,
+        closeConfig: hasStatusRight
+          ? { label: 'Закрытие карты', action: 'close', hint: hintClose }
+          : { label: 'Закрытие карты', action: 'close', disabled: true, hint: noSt },
+      }
+    }
+    if (hasSendRight && !hasRegionalOrRepublicanResolution) {
+      return {
+        config: {
+          label: 'Направление сведений',
+          action: 'send',
+          hint: NEED_REGIONAL_OR_REPUBLICAN_HINT,
+          disabled: true,
+        },
+        comment: NEED_REGIONAL_OR_REPUBLICAN_HINT,
+      }
+    }
+    return {
+      config: {
+        label: resolutionLabel,
+        action: 'mark_ready',
+        disabled: true,
+        hint: NEED_REGIONAL_OR_REPUBLICAN_HINT,
+      },
+      comment: NEED_REGIONAL_OR_REPUBLICAN_HINT,
+    }
+  }
+  if (statusId === OUTGOING_PENDING) {
+    return { config: null, comment: '' }
+  }
+  // Статус «Отредактировано» (12) более не используется: переходы из него отключены; сохраните карту — статус изменится на «Новое».
+  if (statusId === OUTGOING_EDITED) {
+    const obsoleteHint = 'Статус «Отредактировано» более не используется. Сохраните карту — статус изменится на «Новое».'
+    return {
+      config: {
+        label: 'Направление сведений',
+        action: 'send',
+        disabled: true,
+        hint: obsoleteHint,
+      },
+      comment: obsoleteHint,
+      closeConfig: { label: 'Закрытие карты', action: 'close', disabled: true, hint: obsoleteHint },
+    }
+  }
+  if (statusId === OUTGOING_FAILED || statusId === OUTGOING_ERROR) {
+    const toNewHint = 'Перевод карты в статус «Новое»; после этого станет доступно направление сведений при наличии резолюции областного или республиканского ЦГЭ.'
+    if (hasStatusRight) {
+      return {
+        config: { label: 'Перевести в Новое', action: 'to_new', hint: toNewHint },
+        comment: toNewHint,
+      }
+    }
+    return {
+      config: { label: 'Перевести в Новое', action: 'to_new', disabled: true, hint: noSt },
+      comment: noSt,
+    }
+  }
+  if (statusId === OUTGOING_DELIVERED) {
+    return {
+      config: null,
+      comment:
+        'Закрытие карты в статусе «Доставлено» не предусмотрено: закрытие доступно из «Новое» (с резолюцией областного или республиканского ЦГЭ) или из статусов «Обработано», ожидание ответов, частично/полностью выполнено.',
+    }
+  }
+  if (statusId === OUTGOING_SENT || statusId === 13) {
+    return { config: null, comment: '' }
+  }
+
+  // Запасная проверка по названию (карты без statusId, например из XML)
+  const s = norm(status)
+  if (hasStatusRight && outgoingPpvCloseAllowedByStatusName(status)) {
+    return {
+      config: { label: 'Закрытие карты', action: 'close', hint: hintClose },
+      comment: hintClose,
+    }
+  }
+  if (s.includes('черновик') || s.includes('создан')) {
+    if (!hasStatusRight) {
+      return {
+        config: {
+          label: resolutionLabel,
+          action: 'mark_ready',
+          disabled: true,
+          hint: noSt,
+        },
+        comment: noSt,
+      }
+    }
+    const draftComment = getResolutionHintForDraft(userDepKindCode, userDepKindName)
+    const draftButtonHint = getResolutionHintFromDraft(userDepKindCode)
+    return {
+      config: { label: resolutionLabel, action: 'mark_ready', hint: draftButtonHint },
+      comment: draftComment,
+    }
+  }
+  if (s.includes('новое') || s.includes('новая') || s === 'новый') {
+    if (hasRegionalOrRepublicanResolution && hasSendRight) {
+      return {
+        config: { label: 'Направление сведений', action: 'send', hint: hintNewToPending },
+        comment: hintNewToPending,
+        closeConfig: hasStatusRight
+          ? { label: 'Закрытие карты', action: 'close', hint: hintClose }
+          : { label: 'Закрытие карты', action: 'close', disabled: true, hint: noSt },
+      }
+    }
+    if (hasRegionalOrRepublicanResolution && !hasSendRight && hasStatusRight) {
+      return {
+        config: {
+          label: 'Направление сведений',
+          action: 'send',
+          disabled: true,
+          hint: noSn,
+        },
+        comment: noSn,
+        closeConfig: { label: 'Закрытие карты', action: 'close', hint: hintClose },
+      }
+    }
+    if (hasStatusRight && !hasResolutionOfUserLevel) {
+      const hintNew = getResolutionHintWhenAlreadyNew(userDepKindCode)
+      return {
+        config: { label: resolutionLabel, action: 'mark_ready', hint: hintNew },
+        comment: hintNew,
+      }
+    }
+    if (hasResolution && !hasRegionalOrRepublicanResolution) {
+      return {
+        config: {
+          label: 'Направление сведений',
+          action: 'send',
+          hint: NEED_REGIONAL_OR_REPUBLICAN_HINT,
+          disabled: true,
+        },
+        comment: NEED_REGIONAL_OR_REPUBLICAN_HINT,
+      }
+    }
+    if (hasStatusRight && hasResolutionOfUserLevel && hasRegionalOrRepublicanResolution) {
+      if (hasSendRight) {
+        return {
+          config: { label: 'Направление сведений', action: 'send', hint: hintSend },
+          comment: hintSend,
+          closeConfig: { label: 'Закрытие карты', action: 'close', hint: hintClose },
+        }
+      }
+      return {
+        config: {
+          label: 'Направление сведений',
+          action: 'send',
+          disabled: true,
+          hint: noSn,
+        },
+        comment: noSn,
+        closeConfig: { label: 'Закрытие карты', action: 'close', hint: hintClose },
+      }
+    }
+    if (!hasResolution) {
+      return {
+        config: {
+          label: hasSendRight ? 'Направление сведений' : resolutionLabel,
+          action: hasSendRight ? 'send' : 'mark_ready',
+          hint: NO_RESOLUTION_HINT,
+          disabled: true,
+        },
+        comment: NO_RESOLUTION_HINT,
+      }
+    }
+    if (hasSendRight && hasRegionalOrRepublicanResolution) {
+      return {
+        config: { label: 'Направление сведений', action: 'send', hint: hintSend },
+        comment: hintSend,
+        closeConfig: hasStatusRight
+          ? { label: 'Закрытие карты', action: 'close', hint: hintClose }
+          : { label: 'Закрытие карты', action: 'close', disabled: true, hint: noSt },
+      }
+    }
+    return {
+      config: {
+        label: resolutionLabel,
+        action: 'mark_ready',
+        disabled: true,
+        hint: NEED_REGIONAL_OR_REPUBLICAN_HINT,
+      },
+      comment: NEED_REGIONAL_OR_REPUBLICAN_HINT,
+    }
+  }
+  if (s.includes('ожидает отправки')) {
+    return { config: null, comment: '' }
+  }
+  if (s.includes('отредактировано')) {
+    const obsoleteHint = 'Статус «Отредактировано» более не используется. Сохраните карту — статус изменится на «Новое».'
+    return {
+      config: {
+        label: 'Направление сведений',
+        action: 'send',
+        disabled: true,
+        hint: obsoleteHint,
+      },
+      comment: obsoleteHint,
+      closeConfig: { label: 'Закрытие карты', action: 'close', disabled: true, hint: obsoleteHint },
+    }
+  }
+  if (s.includes('отправка не удалась') || s.includes('ошибка обработки')) {
+    const toNewHint = 'Перевод карты в статус «Новое»; после этого станет доступно направление сведений при наличии резолюции областного или республиканского ЦГЭ.'
+    if (hasStatusRight) {
+      return {
+        config: { label: 'Перевести в Новое', action: 'to_new', hint: toNewHint },
+        comment: toNewHint,
+      }
+    }
+    return {
+      config: { label: 'Перевести в Новое', action: 'to_new', disabled: true, hint: noSt },
+      comment: noSt,
+    }
+  }
+  if (s.includes('доставлено')) {
+    return {
+      config: null,
+      comment:
+        'Закрытие карты в статусе «Доставлено» не предусмотрено: закрытие доступно из «Новое» (с резолюцией областного или республиканского ЦГЭ) или из статусов «Обработано», ожидание ответов, частично/полностью выполнено.',
+    }
+  }
+  if (s === 'отправлено') {
+    return { config: null, comment: '' }
+  }
+  if (s === 'завершено') {
+    return { config: null, comment: '' }
+  }
+  return {
+    config: null,
+    comment: 'Кнопка смены статуса не отображается: для текущего статуса исходящей карты действие не определено.',
+  }
+}
+
+function outgoingStatusButton(
+  statusId: number | null | undefined,
+  status: string,
+  hasStatusRight: boolean,
+  hasSendRight: boolean,
+  hasResolution: boolean,
+  userDepKindCode: string | null | undefined,
+  existingResolutionDepKindCodes: string[] | undefined,
+  userDepKindName: string | null | undefined,
+  _notificationEndDate: string | null | undefined,
+  forPpvRightsHints: boolean
+): StatusButtonResult {
+  if (forPpvRightsHints) {
+    return outgoingStatusButtonPpv(
+      statusId,
+      status,
+      hasStatusRight,
+      hasSendRight,
+      hasResolution,
+      userDepKindCode,
+      existingResolutionDepKindCodes,
+      userDepKindName,
+      _notificationEndDate,
+      forPpvRightsHints
+    )
+  }
+  return outgoingStatusButtonDpa(
+    statusId,
+    status,
+    hasStatusRight,
+    hasSendRight,
+    hasResolution,
+    userDepKindCode,
+    existingResolutionDepKindCodes,
+    userDepKindName,
+    _notificationEndDate,
+    forPpvRightsHints
+  )
 }
 
 /**

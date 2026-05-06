@@ -26,17 +26,17 @@ import java.util.regex.Pattern;
  * Смена статуса карты PPV.
  * Входящие: action first_open | complete_processing | close;
  * first_open — Получено→В обработке при открытии карты; права не проверяются (оператор сразу видит «В обработке»).
- * complete_processing | close — право violationDetectedIn:status и пересечение DEPID с PPVDEPPERMIS;
- * complete_processing — текущий статус PROCESSING (PPVSTATUSCODE), целевой PROCESSED.
+ * complete_processing | close — право violationDetectedIn:status, ключи подразделений из JSON и пересечение с PPVDEPPERMIS;
+ * complete_processing — текущий PROCESSING → PROCESSED; close — текущий PROCESSED → COMPLETED (коды справочника, DSC=1).
  * GET /api/ppv/status?preview=incoming_complete&dpaid=...&guid=... — { reviewOutcomeSent } для диалога подтверждения.
- * Исходящие: action mark_ready | send | close; mark_ready/close — violationDetectedOut:status, send — violationDetectedOut:send.
+ * Исходящие: action mark_ready | send | close; mark_ready/close — violationDetectedOut:status и пересечение с PPVDEPPERMIS, send — violationDetectedOut:send.
+ * close — «Новое» + резолюция DEP0602/DEP0603 в PPVRESOLUTION при статусе NEW, либо текущий статус с кодом PROCESSED|AWAITING|PARTIAL|FULFIELD|FULFILLED; целевой COMPLETED (DSC=2).
  * mark_ready: тело { "dpaid", "action": "mark_ready", "depKindCode": "dep0601"|"dep0602"|"dep0603" }.
  * Обновляется PPV.PPVSTATUSID, PPVSTATUSHIST (и при mark_ready — PPVRESOLUTION).
  */
 public class PpvStatusChangeServlet extends HttpServlet {
 
     private static final int INCOMING_RECEIVED = 1;
-    private static final int INCOMING_COMPLETED = 4;
     private static final String DATASOURCEKIND_INCOMING = "1";
     private static final String DATASOURCEKIND_OUTGOING = "2";
     private static final int OUTGOING_DRAFT = 5;
@@ -46,7 +46,6 @@ public class PpvStatusChangeServlet extends HttpServlet {
     private static final int OUTGOING_ERROR = 10;
     private static final int OUTGOING_DELIVERED = 11;
     private static final int OUTGOING_EDITED = 12;
-    private static final int OUTGOING_COMPLETED = 13;
 
     /** Текущее состояние: PPVID, PPVSTATUSID, PPVSTATUSNAME, источник */
     private static final String SQL_CURRENT = ""
@@ -111,6 +110,19 @@ public class PpvStatusChangeServlet extends HttpServlet {
     private static final String SQL_UPDATE_INCOMING_RECEIVED_TO_PROCESSING = ""
             + "UPDATE PPV SET PPVSTATUSID = ?, MODIFICATIONDATETIME = SYSDATE "
             + "WHERE PPVID = ? AND TRIM(TO_CHAR(DATASOURCEKINDCODE)) = '1' AND PPVSTATUSID = ?";
+
+    /** Резолюция при статусе «Новое» (PPVSTATUSID = NEW) — областной или республиканский ЦГЭ. */
+    private static final String SQL_HAS_RESOLUTION_NEW_REGIONAL = ""
+            + "SELECT 1 FROM PPVRESOLUTION r "
+            + "WHERE r.PPVID = ? AND r.PPVSTATUSID = ? "
+            + "AND r.DEPKINDID IN (SELECT dk.DEPKINDID FROM TB_DEPKIND dk "
+            + "WHERE UPPER(TRIM(dk.DEPKINDCODE)) IN ('DEP0602','DEP0603')) AND ROWNUM = 1";
+
+    /** Исходящие: закрытие разрешено при статусах с кодами из ТЗ (ожидание ответов, частично/полностью и т.д.). */
+    private static final String SQL_OUTGOING_STATUS_IN_CLOSE_CODES = ""
+            + "SELECT 1 FROM PPVSTATUS WHERE PPVSTATUSID = ? "
+            + "AND TRIM(TO_CHAR(DATASOURCEKINDCODE)) = '2' AND PPVSTATUSACTFL = 1 "
+            + "AND TRIM(UPPER(PPVSTATUSCODE)) IN ('PROCESSED','AWAITING','PARTIAL','FULFIELD','FULFILLED') AND ROWNUM = 1";
 
     @Override
     protected void doGet(HttpServletRequest request, HttpServletResponse response)
@@ -337,23 +349,35 @@ public class PpvStatusChangeServlet extends HttpServlet {
             applyIncomingCompleteToProcessed(response, conn, dpaid, processingStatusId, userId);
             return;
         } else if ("close".equals(action)) {
-            if (currentStatusName == null || !currentStatusName.toLowerCase().contains("обработано")) {
-                sendJsonError(response, HttpServletResponse.SC_BAD_REQUEST, "Действие «Закрытие карты» возможно только при статусе «Обработано»");
+            Set<String> statusDepKeys = AccessRightService.violationDetectedInStatusDepKeys(rightsJson);
+            if (statusDepKeys.isEmpty()) {
+                sendJsonError(response, HttpServletResponse.SC_FORBIDDEN,
+                        "В карте прав не заданы подразделения для violationDetectedIn:status");
                 return;
             }
-            try (PreparedStatement ps = conn.prepareStatement(SQL_UPDATE)) {
-                ps.setInt(1, INCOMING_COMPLETED);
-                ps.setLong(2, dpaid);
-                ps.executeUpdate();
+            if (!hasPpvDepPermisOverlap(conn, dpaid, statusDepKeys)) {
+                sendJsonError(response, HttpServletResponse.SC_FORBIDDEN,
+                        "Нет права на закрытие карты: ни одно подразделение из права status не входит в доступ к карте (PPVDEPPERMIS)");
+                return;
             }
-            try (PreparedStatement ps = conn.prepareStatement(SQL_INSERT_HIST)) {
-                ps.setLong(1, dpaid);
-                ps.setInt(2, INCOMING_COMPLETED);
-                ps.setInt(3, userId);
-                ps.executeUpdate();
+            Integer processedId = findIncomingPpvStatusIdByCode(conn, "PROCESSED");
+            if (processedId == null) {
+                sendJsonError(response, HttpServletResponse.SC_INTERNAL_SERVER_ERROR,
+                        "В справочнике PPVSTATUS не найден статус PROCESSED для входящих сведений");
+                return;
             }
-            conn.commit();
-            response.getWriter().print("{\"ok\":true,\"newStatus\":\"Завершено\"}");
+            if (currentStatusId != processedId) {
+                sendJsonError(response, HttpServletResponse.SC_BAD_REQUEST,
+                        "Действие «Закрытие карты» возможно только при статусе «Обработано» (PROCESSED)");
+                return;
+            }
+            Integer completedId = findIncomingPpvStatusIdByCode(conn, "COMPLETED");
+            if (completedId == null) {
+                sendJsonError(response, HttpServletResponse.SC_INTERNAL_SERVER_ERROR,
+                        "В справочнике PPVSTATUS не найден статус COMPLETED для входящих сведений");
+                return;
+            }
+            applyPpvCloseToCompleted(response, conn, dpaid, processedId, completedId, userId);
             return;
         } else {
             sendJsonError(response, HttpServletResponse.SC_BAD_REQUEST, "Неизвестное действие: " + action);
@@ -371,6 +395,47 @@ public class PpvStatusChangeServlet extends HttpServlet {
                 return rs.getInt("PPVSTATUSID");
             }
         }
+    }
+
+    private static Integer findOutgoingPpvStatusIdByCode(Connection conn, String statusCode) throws SQLException {
+        if (statusCode == null || statusCode.trim().isEmpty()) return null;
+        try (PreparedStatement ps = conn.prepareStatement(SQL_STATUS_ID_BY_CODE_INCOMING)) {
+            ps.setString(1, statusCode.trim());
+            ps.setString(2, "2");
+            try (ResultSet rs = ps.executeQuery()) {
+                if (!rs.next()) return null;
+                return rs.getInt("PPVSTATUSID");
+            }
+        }
+    }
+
+    private static boolean hasPpvResolutionNewRegional(Connection conn, long ppvid, int outgoingNewStatusId)
+            throws SQLException {
+        try (PreparedStatement ps = conn.prepareStatement(SQL_HAS_RESOLUTION_NEW_REGIONAL)) {
+            ps.setLong(1, ppvid);
+            ps.setInt(2, outgoingNewStatusId);
+            try (ResultSet rs = ps.executeQuery()) {
+                return rs.next();
+            }
+        }
+    }
+
+    private static boolean isOutgoingCurrentStatusInCloseableCodes(Connection conn, int currentStatusId)
+            throws SQLException {
+        try (PreparedStatement ps = conn.prepareStatement(SQL_OUTGOING_STATUS_IN_CLOSE_CODES)) {
+            ps.setInt(1, currentStatusId);
+            try (ResultSet rs = ps.executeQuery()) {
+                return rs.next();
+            }
+        }
+    }
+
+    private static boolean isOutgoingCloseAllowed(Connection conn, long ppvid, int currentStatusId) throws SQLException {
+        Integer newId = findOutgoingPpvStatusIdByCode(conn, "NEW");
+        if (newId != null && currentStatusId == newId) {
+            return hasPpvResolutionNewRegional(conn, ppvid, newId);
+        }
+        return isOutgoingCurrentStatusInCloseableCodes(conn, currentStatusId);
     }
 
     private static String resolvePpvStatusDisplayName(Connection conn, int statusId, String fallback)
@@ -466,6 +531,37 @@ public class PpvStatusChangeServlet extends HttpServlet {
         }
         conn.commit();
         response.getWriter().print("{\"ok\":true,\"newStatus\":\"" + escapeJson(displayName) + "\",\"newStatusId\":" + processedId + "}");
+    }
+
+    private void applyPpvCloseToCompleted(HttpServletResponse response, Connection conn, long dpaid,
+                                          int expectedPreviousStatusId, int completedStatusId, Integer userId)
+            throws IOException, SQLException {
+        try (PreparedStatement ps = conn.prepareStatement(
+                "UPDATE PPV SET PPVSTATUSID = ?, MODIFICATIONDATETIME = SYSDATE WHERE PPVID = ? AND PPVSTATUSID = ?")) {
+            ps.setInt(1, completedStatusId);
+            ps.setLong(2, dpaid);
+            ps.setInt(3, expectedPreviousStatusId);
+            int updated = ps.executeUpdate();
+            if (updated == 0) {
+                sendJsonError(response, HttpServletResponse.SC_BAD_REQUEST,
+                        "Карта не в ожидаемом статусе или уже обновлена другим запросом");
+                return;
+            }
+        }
+        String displayName = resolvePpvStatusDisplayName(conn, completedStatusId, "Завершено");
+        try (PreparedStatement ps = conn.prepareStatement(SQL_INSERT_HIST)) {
+            ps.setLong(1, dpaid);
+            ps.setInt(2, completedStatusId);
+            if (userId != null) {
+                ps.setInt(3, userId);
+            } else {
+                ps.setNull(3, Types.INTEGER);
+            }
+            ps.executeUpdate();
+        }
+        conn.commit();
+        response.getWriter().print("{\"ok\":true,\"newStatus\":\"" + escapeJson(displayName)
+                + "\",\"newStatusId\":" + completedStatusId + "}");
     }
 
     private static boolean isIncomingReceivedStatusName(String currentStatusName) {
@@ -610,23 +706,30 @@ public class PpvStatusChangeServlet extends HttpServlet {
                 sendJsonError(response, HttpServletResponse.SC_FORBIDDEN, "Нет права управления статусом исходящих сведений (violationDetectedOut:status)");
                 return;
             }
-            if (currentStatusId != OUTGOING_NEW && currentStatusId != OUTGOING_FAILED && currentStatusId != OUTGOING_ERROR && currentStatusId != OUTGOING_DELIVERED) {
-                sendJsonError(response, HttpServletResponse.SC_BAD_REQUEST, "Действие «Закрытие карты» возможно только при статусе «Новое», «Отправка не удалась», «Ошибка обработки» или «Доставлено»");
+            Set<String> statusDepKeys = AccessRightService.violationDetectedOutStatusDepKeys(rightsJson);
+            if (statusDepKeys.isEmpty()) {
+                sendJsonError(response, HttpServletResponse.SC_FORBIDDEN,
+                        "В карте прав не заданы подразделения для violationDetectedOut:status");
                 return;
             }
-            try (PreparedStatement ps = conn.prepareStatement(SQL_UPDATE)) {
-                ps.setInt(1, OUTGOING_COMPLETED);
-                ps.setLong(2, dpaid);
-                ps.executeUpdate();
+            if (!hasPpvDepPermisOverlap(conn, dpaid, statusDepKeys)) {
+                sendJsonError(response, HttpServletResponse.SC_FORBIDDEN,
+                        "Нет права на закрытие карты: ни одно подразделение из права status не входит в доступ к карте (PPVDEPPERMIS)");
+                return;
             }
-            try (PreparedStatement ps = conn.prepareStatement(SQL_INSERT_HIST)) {
-                ps.setLong(1, dpaid);
-                ps.setInt(2, OUTGOING_COMPLETED);
-                ps.setInt(3, userId);
-                ps.executeUpdate();
+            if (!isOutgoingCloseAllowed(conn, dpaid, currentStatusId)) {
+                sendJsonError(response, HttpServletResponse.SC_BAD_REQUEST,
+                        "Действие «Закрытие карты» возможно при статусе «Новое» с резолюцией областного или республиканского ЦГЭ, "
+                                + "либо при статусах с кодами PROCESSED, AWAITING, PARTIAL, FULFIELD или FULFILLED");
+                return;
             }
-            conn.commit();
-            response.getWriter().print("{\"ok\":true,\"newStatus\":\"Завершено\"}");
+            Integer completedId = findOutgoingPpvStatusIdByCode(conn, "COMPLETED");
+            if (completedId == null) {
+                sendJsonError(response, HttpServletResponse.SC_INTERNAL_SERVER_ERROR,
+                        "В справочнике PPVSTATUS не найден статус COMPLETED для исходящих сведений");
+                return;
+            }
+            applyPpvCloseToCompleted(response, conn, dpaid, currentStatusId, completedId, userId);
             return;
         }
         sendJsonError(response, HttpServletResponse.SC_BAD_REQUEST, "Неизвестное действие для исходящих: " + action);
