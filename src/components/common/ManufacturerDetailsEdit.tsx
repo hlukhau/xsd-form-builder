@@ -1,57 +1,201 @@
 import { useState, useEffect } from 'react'
-import { Collapse, Form, Input, Button, Space } from 'antd'
+import { Collapse, Form, Input, Button, Space, Select } from 'antd'
 import { PlusOutlined, DeleteOutlined } from '@ant-design/icons'
+import { labelWithHelp } from '@/components/common/FieldHelp'
+import { FIELD_HELP } from '@/constants/fieldDescriptions'
 import type { SupplyChainPartyDetails, AddressDetails, ContactDetails } from '@/types/card'
+import { useCountryOptions } from '@/hooks/shared/useCountryOptions'
+import CountrySelect from '@/components/common/CountrySelect'
+import { useSupplyChainPartyKindOptions } from '@/hooks/shared/useSupplyChainPartyKindOptions'
+import { useLegalFormOptions } from '@/hooks/shared/useLegalFormOptions'
+import { useIdentificationMethodOptions } from '@/hooks/shared/useIdentificationMethodOptions'
+import { checkSupplyChainPartyKindExists } from '@/utils/referenceDataApi'
+import { getAddressListFromParty, getDefaultAddressKindName } from '@/utils/addressFormatUtils'
+import { useCommunicationChannelOptions } from '@/hooks/shared/useCommunicationChannelOptions'
+import { FieldTagBlock } from '@/components/common/FieldTag'
+import { getFormRules, getMaxLength, getFormatHint, validateFieldValue } from '@/constants/xsdFieldConstraints'
+
+/** Идентификатор справочника организационно-правовых форм (LEGALFORM) */
+const LEGAL_FORM_CODE_LIST_ID = '2049'
 
 interface ManufacturerDetailsEditProps {
   data: SupplyChainPartyDetails
   onChange: (data: SupplyChainPartyDetails) => void
   title?: string
+  /** Код вида участника цепи поставки фиксирован (поле нередактируемое, подставляется автоматически). */
+  fixedSupplyChainPartyKindCode?: string
+  /** Скрыть поле «Вид» (для организации в месте обнаружения — вид не указывается). */
+  hideKindField?: boolean
+  /** Встроен в панель Collapse снаружи — не рендерить свой Collapse, только содержимое (избегаем вложенного Collapse без названия). */
+  embeddedInCollapse?: boolean
 }
 
 const ManufacturerDetailsEdit: React.FC<ManufacturerDetailsEditProps> = ({
   data,
   onChange,
   title = 'Изготовитель продукции',
+  fixedSupplyChainPartyKindCode,
+  hideKindField = false,
+  embeddedInCollapse = false,
 }) => {
   const [isOpen, setIsOpen] = useState(false)
   const [form] = Form.useForm()
+  const { countryOptions, loading, normalizeCountryCode } = useCountryOptions()
+  const { loading: loadingSupplyChainPartyKinds, getSelectOptions: getSupplyChainPartyKindSelectOptions, getNameByCode: getSupplyChainPartyKindNameByCode } = useSupplyChainPartyKindOptions()
+  const countryForLegalForm = normalizeCountryCode(data.country)
+  const { options: legalFormOptionsList, getSelectOptions: getLegalFormSelectOptions, getNameByCode: getLegalFormNameByCode, loading: loadingLegalForms } = useLegalFormOptions(countryForLegalForm)
+  /** Значение из справочника (код + codeListId 2049): в Select показывается «код — наименование» */
+  const isLegalFormFromRef = !!(data.businessEntityTypeCode && data.businessEntityTypeCodeListId === LEGAL_FORM_CODE_LIST_ID)
+  const legalFormCodeFromRef = isLegalFormFromRef ? data.businessEntityTypeCode : undefined
+  const legalFormCodeNotInOptions =
+    legalFormCodeFromRef &&
+    countryForLegalForm &&
+    !loadingLegalForms &&
+    legalFormOptionsList.length >= 0 &&
+    !legalFormOptionsList.some((o) => String(o.code) === String(legalFormCodeFromRef))
+  const { getSelectOptions: getIdentificationMethodSelectOptions, loading: loadingIdMethods } = useIdentificationMethodOptions(countryForLegalForm)
+  const { getSelectOptions: getCommunicationChannelSelectOptions, loading: loadingCommunicationChannels } = useCommunicationChannelOptions()
+  const [kindCodeError, setKindCodeError] = useState<boolean>(false)
+  const [addressErrors, setAddressErrors] = useState<Record<string, string>>({})
+
+  // Проверка кода вида участника по справочнику с дебаунсом (не при каждом вводе символа)
+  useEffect(() => {
+    const code = data.supplyChainPartyKindCode?.trim()
+    if (!code) {
+      setKindCodeError(false)
+      return
+    }
+    const t = setTimeout(() => {
+      checkSupplyChainPartyKindExists(code)
+        .then((exists) => setKindCodeError(!exists))
+        .catch(() => setKindCodeError(false))
+    }, 400)
+    return () => clearTimeout(t)
+  }, [data.supplyChainPartyKindCode])
+
+  // При фиксированном коде вида (например 41 для изготовителя) всегда подставляем его в данные
+  const effectiveKindCode = fixedSupplyChainPartyKindCode ?? data.supplyChainPartyKindCode
+  useEffect(() => {
+    if (fixedSupplyChainPartyKindCode && data.supplyChainPartyKindCode !== fixedSupplyChainPartyKindCode) {
+      // Передаём только код вида, чтобы не перезаписать уже введённые поля (наименование и т.д.)
+      onChange({ ...data, supplyChainPartyKindCode: fixedSupplyChainPartyKindCode })
+    }
+  }, [fixedSupplyChainPartyKindCode, data.supplyChainPartyKindCode])
 
   useEffect(() => {
     form.setFieldsValue({
-      country: data.country,
+      country: normalizeCountryCode(data.country),
+      supplyChainPartyKindCode: effectiveKindCode,
       businessEntityName: data.businessEntityName,
       shortName: data.shortName,
-      organizationalForm: data.organizationalForm,
+      organizationalForm: isLegalFormFromRef ? undefined : data.organizationalForm,
+      businessEntityTypeCode: isLegalFormFromRef ? data.businessEntityTypeCode : undefined,
       subjectIdentifier: data.subjectIdentifier,
       identificationMethod: data.identificationMethod,
       customsNumber: data.customsNumber,
       taxpayerId: data.taxpayerId,
     })
-  }, [data, form])
+  }, [data, form, normalizeCountryCode, effectiveKindCode, isLegalFormFromRef])
 
-  const handleValuesChange = (_: any, allValues: any) => {
+  // Подтягивание значения организационно-правовой формы из XML при загрузке опций по стране
+  useEffect(() => {
+    if (!countryForLegalForm || !data.businessEntityTypeCode || !data.businessEntityTypeCodeListId) return
+    if (data.businessEntityTypeCodeListId !== LEGAL_FORM_CODE_LIST_ID) return
+    form.setFieldValue('businessEntityTypeCode', data.businessEntityTypeCode)
+  }, [countryForLegalForm, data.businessEntityTypeCode, data.businessEntityTypeCodeListId, form])
+
+  // Обработчик выбора вида участника цепи поставки
+  const handleSupplyChainPartyKindSelect = (code: string) => {
+    setKindCodeError(false) // Сбрасываем ошибку при выборе из справочника
     onChange({
       ...data,
-      ...allValues,
+      supplyChainPartyKindCode: code,
     })
   }
 
-  const handleAddressChange = (kindCode: string, field: string, value: string) => {
-    const addressField = kindCode === '1' ? 'registrationAddress' :
-                        kindCode === '2' ? 'actualAddress' : 'mailingAddress'
+  const handleLegalFormSelect = (code: string | null) => {
+    if (!code) {
+      onChange({
+        ...data,
+        businessEntityTypeCode: undefined,
+        businessEntityTypeCodeListId: undefined,
+      })
+      return
+    }
     onChange({
       ...data,
-      [addressField]: {
-        ...(data[addressField as keyof SupplyChainPartyDetails] as AddressDetails || {}),
-        addressKindCode: kindCode,
-        [field]: value,
-      },
+      businessEntityTypeCode: code,
+      businessEntityTypeCodeListId: LEGAL_FORM_CODE_LIST_ID,
+      /** При выборе из справочника LEGALFORM в XML только csdo:BusinessEntityTypeCode; свободный текст не храним */
+      organizationalForm: undefined,
     })
+  }
+
+  const handleValuesChange = (changedValues: any, allValues: any) => {
+    if (changedValues?.supplyChainPartyKindCode !== undefined) return
+    if (changedValues?.businessEntityTypeCode !== undefined) {
+      const code = allValues.businessEntityTypeCode
+      handleLegalFormSelect(code || null)
+      return
+    }
+    if (changedValues?.organizationalForm !== undefined) {
+      const manual = String(changedValues.organizationalForm ?? '').trim()
+      if (manual) {
+        onChange({
+          ...data,
+          ...allValues,
+          organizationalForm: allValues.organizationalForm,
+          businessEntityTypeCode: undefined,
+          businessEntityTypeCodeListId: undefined,
+        })
+        return
+      }
+    }
+    onChange({
+      ...data,
+      ...allValues,
+      businessEntityTypeCode: data.businessEntityTypeCode,
+      businessEntityTypeCodeListId: data.businessEntityTypeCodeListId,
+    })
+  }
+
+  const addressList = getAddressListFromParty(data)
+
+  const syncAddressesToParty = (list: AddressDetails[]) => {
+    onChange({
+      ...data,
+      addresses: list,
+      registrationAddress: list.find((a) => (a.addressKindCode || '') === '1'),
+      actualAddress: list.find((a) => (a.addressKindCode || '') === '2'),
+      mailingAddress: list.find((a) => (a.addressKindCode || '') === '3'),
+    })
+  }
+
+  const handleAddressChange = (index: number, field: keyof AddressDetails, value: string | undefined) => {
+    const list = [...addressList]
+    if (!list[index]) return
+    const next = { ...list[index], [field]: value }
+    if (field === 'cityName' && (value ?? '').trim()) next.settlementName = ''
+    if (field === 'settlementName' && (value ?? '').trim()) next.cityName = ''
+    list[index] = next
+    syncAddressesToParty(list)
+  }
+
+  const handleAddressAdd = () => {
+    syncAddressesToParty([...addressList, { addressKindCode: '1' }])
+  }
+
+  const handleAddressRemove = (index: number) => {
+    const list = addressList.filter((_, i) => i !== index)
+    syncAddressesToParty(list)
+    setAddressErrors({})
   }
 
   const handleContactAdd = () => {
     const newContact: ContactDetails = {
+      communicationChannelCode: undefined,
+      communicationChannelName: undefined,
+      communicationChannelId: '',
       contactKind: '',
       contactValue: '',
     }
@@ -72,151 +216,317 @@ const ManufacturerDetailsEdit: React.FC<ManufacturerDetailsEditProps> = ({
 
   const handleContactChange = (index: number, field: string, value: string) => {
     const updatedContacts = [...(data.contacts || [])]
-    updatedContacts[index] = {
-      ...updatedContacts[index],
-      [field]: value,
+    const next = { ...updatedContacts[index], [field]: value }
+    if (field === 'communicationChannelCode') {
+      next.communicationChannelCode = value || ''
+      if (value) next.communicationChannelName = ''
     }
-    onChange({
-      ...data,
-      contacts: updatedContacts,
-    })
+    if (field === 'communicationChannelName') {
+      next.communicationChannelName = value
+      if (value.trim()) next.communicationChannelCode = ''
+    }
+    if (field === 'communicationChannelId' || field === 'contactValue') {
+      next.communicationChannelId = value
+      next.contactValue = value
+    }
+    updatedContacts[index] = next
+    onChange({ ...data, contacts: updatedContacts })
   }
 
-  return (
-    <div style={{ marginTop: '16px' }}>
-      <Collapse
-        activeKey={isOpen ? ['1'] : []}
-        onChange={(keys) => setIsOpen(keys.length > 0)}
-        items={[
-          {
-            key: '1',
-            label: title,
-            children: (
-              <Form
-                form={form}
-                layout="vertical"
-                onValuesChange={handleValuesChange}
-              >
+  const formContent = (
+    <Form
+      form={form}
+      layout="vertical"
+      className="field-tag-form"
+      onValuesChange={handleValuesChange}
+    >
                 <Form.Item label="Страна" name="country">
-                  <Input />
+                  <CountrySelect
+                    loading={loading}
+                    countryOptions={countryOptions}
+                    normalizeCountryCode={normalizeCountryCode}
+                    allowClear={embeddedInCollapse}
+                  />
                 </Form.Item>
-                <Form.Item label="Наименование субъекта" name="businessEntityName">
-                  <Input />
+                {!hideKindField && (fixedSupplyChainPartyKindCode ? (
+                  <Form.Item
+                    label={labelWithHelp('Вид', FIELD_HELP.supplyChainPartyKind)}
+                    validateStatus={kindCodeError ? 'error' : ''}
+                    help={kindCodeError ? 'Код не найден в справочнике' : ''}
+                  >
+                    <Input
+                      readOnly
+                      value={`${fixedSupplyChainPartyKindCode} - ${getSupplyChainPartyKindNameByCode(fixedSupplyChainPartyKindCode) || 'загрузка…'}`}
+                    />
+                  </Form.Item>
+                ) : (
+                  <Form.Item
+                    label={labelWithHelp('Вид', FIELD_HELP.supplyChainPartyKind)}
+                    name="supplyChainPartyKindCode"
+                    validateStatus={kindCodeError ? 'error' : ''}
+                    help={kindCodeError ? 'Код не найден в справочнике' : ''}
+                  >
+                    <Select
+                      showSearch
+                      placeholder="Выберите вид участника"
+                      loading={loadingSupplyChainPartyKinds}
+                      value={data.supplyChainPartyKindCode}
+                      onChange={handleSupplyChainPartyKindSelect}
+                      filterOption={(input, option) =>
+                        (option?.label ?? '').toLowerCase().includes(input.toLowerCase())
+                      }
+                      options={getSupplyChainPartyKindSelectOptions()}
+                      allowClear
+                      status={kindCodeError ? 'error' : undefined}
+                    />
+                  </Form.Item>
+                ))}
+                <Form.Item label="Наименование субъекта" name="businessEntityName" rules={getFormRules('businessEntityName')}>
+                  <Input maxLength={getMaxLength('businessEntityName')} showCount />
                 </Form.Item>
-                <Form.Item label="Краткое наименование" name="shortName">
-                  <Input />
+                <Form.Item label="Краткое наименование" name="shortName" rules={getFormRules('shortName')}>
+                  <Input maxLength={getMaxLength('shortName')} showCount />
                 </Form.Item>
-                <Form.Item label="Организационно-правовая форма" name="organizationalForm">
-                  <Input />
+                <Form.Item
+                  label="Организационно-правовая форма (справочник)"
+                  name="businessEntityTypeCode"
+                  validateStatus={legalFormCodeNotInOptions ? 'warning' : undefined}
+                  help={
+                    legalFormCodeNotInOptions
+                      ? `Значение из документа (${legalFormCodeFromRef}) отсутствует в справочнике для страны ${countryForLegalForm}. Возможные причины: период действия записи в справочнике не включает текущую дату; не совпала страна; запись удалена.`
+                      : undefined
+                  }
+                >
+                  <Select
+                    showSearch
+                    placeholder={countryForLegalForm ? 'Выберите значение' : 'Сначала укажите страну'}
+                    allowClear
+                    loading={loadingLegalForms}
+                    onChange={handleLegalFormSelect}
+                    filterOption={(input, option) =>
+                      (option?.label ?? '').toLowerCase().includes(input.toLowerCase())
+                    }
+                    options={getLegalFormSelectOptions()}
+                    disabled={!countryForLegalForm}
+                    notFoundContent={loadingLegalForms ? 'Загрузка...' : 'Нет данных по выбранной стране. Проверьте период действия записей (LEGALFORMSDATE–LEGALFORMEDATE) и страну.'}
+                  />
                 </Form.Item>
-                <Form.Item label="Идентификатор субъекта" name="subjectIdentifier">
-                  <Input />
+                {!isLegalFormFromRef && (
+                  <Form.Item
+                    label="Организационно-правовая форма (ручной ввод)"
+                    name="organizationalForm"
+                    rules={getFormRules('organizationalForm')}
+                  >
+                    <Input maxLength={getMaxLength('organizationalForm')} showCount />
+                  </Form.Item>
+                )}
+                <Form.Item label="Идентификатор субъекта" name="subjectIdentifier" rules={getFormRules('subjectIdentifier')}>
+                  <Input maxLength={getMaxLength('subjectIdentifier')} showCount />
                 </Form.Item>
                 <Form.Item label="Метод идентификации" name="identificationMethod">
-                  <Input />
+                  <Select
+                    showSearch
+                    placeholder={countryForLegalForm ? 'Выберите из справочника (букв. обозначение — описание)' : 'Сначала укажите страну'}
+                    allowClear
+                    loading={loadingIdMethods}
+                    filterOption={(input, option) =>
+                      (option?.label ?? '').toLowerCase().includes(input.toLowerCase())
+                    }
+                    options={getIdentificationMethodSelectOptions()}
+                    disabled={!countryForLegalForm}
+                    notFoundContent={loadingIdMethods ? 'Загрузка...' : 'Нет данных по выбранной стране'}
+                  />
                 </Form.Item>
-                <Form.Item label="Таможенный номер" name="customsNumber">
-                  <Input />
+                <Form.Item label="Таможенный номер" name="customsNumber" rules={getFormRules('customsNumber')}>
+                  <Input maxLength={getMaxLength('customsNumber')} showCount />
                 </Form.Item>
-                <Form.Item label="Идентификатор налогоплательщика" name="taxpayerId">
-                  <Input />
+                <Form.Item label="Идентификатор налогоплательщика" name="taxpayerId" rules={getFormRules('taxpayerId')}>
+                  <Input maxLength={getMaxLength('taxpayerId')} showCount />
                 </Form.Item>
-
-                {/* Адреса */}
+                {/* Адреса — список с добавлением */}
                 <div style={{ marginTop: '16px' }}>
-                  <h4>Адрес регистрации</h4>
-                  <Space direction="vertical" style={{ width: '100%' }}>
-                    <Input
-                      placeholder="Страна"
-                      value={data.registrationAddress?.country}
-                      onChange={(e) => handleAddressChange('1', 'country', e.target.value)}
-                    />
-                    <Input
-                      placeholder="Город"
-                      value={data.registrationAddress?.cityName}
-                      onChange={(e) => handleAddressChange('1', 'cityName', e.target.value)}
-                    />
-                    <Input
-                      placeholder="Улица"
-                      value={data.registrationAddress?.streetName}
-                      onChange={(e) => handleAddressChange('1', 'streetName', e.target.value)}
-                    />
-                    <Input
-                      placeholder="Номер здания"
-                      value={data.registrationAddress?.buildingNumberId}
-                      onChange={(e) => handleAddressChange('1', 'buildingNumberId', e.target.value)}
-                    />
-                  </Space>
+                  <h4>Адреса</h4>
+                  {addressList.map((addr, index) => (
+                    <div key={index} style={{ marginBottom: '16px', padding: '12px', border: '1px solid #d9d9d9', borderRadius: '4px' }}>
+                      <Space direction="vertical" style={{ width: '100%' }} size="small">
+                        <Space wrap style={{ width: '100%', justifyContent: 'space-between' }}>
+                          <Select
+                            placeholder="Вид адреса"
+                            value={addr.addressKindCode || undefined}
+                            onChange={(value) => handleAddressChange(index, 'addressKindCode', value ?? undefined)}
+                            style={{ minWidth: 200 }}
+                            options={[
+                              { value: '1', label: getDefaultAddressKindName('1') },
+                              { value: '2', label: getDefaultAddressKindName('2') },
+                              { value: '3', label: getDefaultAddressKindName('3') },
+                            ]}
+                            allowClear
+                          />
+                          <Button type="link" danger size="small" icon={<DeleteOutlined />} onClick={() => handleAddressRemove(index)}>
+                            Удалить адрес
+                          </Button>
+                        </Space>
+                        <FieldTagBlock label="Страна">
+                          <div>
+                            <CountrySelect
+                              placeholder="Страна"
+                              loading={loading}
+                              value={addr.country}
+                              onChange={(value) => handleAddressChange(index, 'country', value)}
+                              countryOptions={countryOptions}
+                              normalizeCountryCode={normalizeCountryCode}
+                              allowClear={embeddedInCollapse}
+                            />
+                            {(() => {
+                              const s = (v: string | undefined) => (v ?? '').trim()
+                              const hasContent = !!(s(addr.country) || s(addr.territoryCode) || s(addr.regionName) || s(addr.districtName) || s(addr.cityName) || s(addr.settlementName) || s(addr.streetName) || s(addr.buildingNumberId) || s(addr.roomNumberId) || s(addr.postOfficeBoxId) || s(addr.postCode) || s(addr.fullAddress))
+                              if (embeddedInCollapse) return null
+                              if (!hasContent || s(addr.country)) return null
+                              return <div style={{ fontSize: 12, color: '#ff4d4f', marginTop: 2 }}>При заполнении адреса обязательно укажите Страну</div>
+                            })()}
+                          </div>
+                        </FieldTagBlock>
+                        <FieldTagBlock label="Почтовый индекс">
+                          <div>
+                            <Input
+                              placeholder="Почтовый индекс"
+                              value={addr.postCode}
+                              onChange={(e) => {
+                                const v = e.target.value || undefined
+                                handleAddressChange(index, 'postCode', v)
+                                const msg = validateFieldValue('postCode', v ?? '')
+                                setAddressErrors((prev) => ({ ...prev, [`addr-${index}-postCode`]: msg ?? '' }))
+                              }}
+                              onBlur={(e) => {
+                                const msg = validateFieldValue('postCode', e.target.value?.trim() || undefined)
+                                setAddressErrors((prev) => ({ ...prev, [`addr-${index}-postCode`]: msg ?? '' }))
+                              }}
+                              status={addressErrors[`addr-${index}-postCode`] ? 'error' : undefined}
+                            />
+                            {addressErrors[`addr-${index}-postCode`] && (
+                              <div style={{ fontSize: 12, color: '#ff4d4f', marginTop: 2 }}>
+                                {addressErrors[`addr-${index}-postCode`]}
+                                {getFormatHint('postCode') && ` (${getFormatHint('postCode')})`}
+                              </div>
+                            )}
+                          </div>
+                        </FieldTagBlock>
+                        <FieldTagBlock label="Код территории">
+                          <Input placeholder="Код территории" value={addr.territoryCode} onChange={(e) => handleAddressChange(index, 'territoryCode', e.target.value || undefined)} maxLength={getMaxLength('territoryCode')} showCount />
+                        </FieldTagBlock>
+                        <FieldTagBlock label="Регион">
+                          <Input placeholder="Регион" value={addr.regionName} onChange={(e) => handleAddressChange(index, 'regionName', e.target.value || undefined)} maxLength={getMaxLength('regionName')} showCount />
+                        </FieldTagBlock>
+                        <FieldTagBlock label="Район">
+                          <Input placeholder="Район" value={addr.districtName} onChange={(e) => handleAddressChange(index, 'districtName', e.target.value || undefined)} maxLength={getMaxLength('districtName')} showCount />
+                        </FieldTagBlock>
+                        <FieldTagBlock label="Город">
+                          <div>
+                            <Input placeholder="Город" value={addr.cityName} onChange={(e) => handleAddressChange(index, 'cityName', e.target.value || undefined)} maxLength={getMaxLength('cityName')} showCount status={(() => {
+                              const s = (v: string | undefined) => (v ?? '').trim()
+                              const hasContent = !!(s(addr.country) || s(addr.territoryCode) || s(addr.regionName) || s(addr.districtName) || s(addr.cityName) || s(addr.settlementName) || s(addr.streetName) || s(addr.buildingNumberId) || s(addr.roomNumberId) || s(addr.postOfficeBoxId) || s(addr.postCode) || s(addr.fullAddress))
+                              const hasCity = !!s(addr.cityName)
+                              const hasSettlement = !!s(addr.settlementName)
+                              if (embeddedInCollapse) return undefined
+                              const err = hasContent && (hasCity && hasSettlement ? true : !hasCity && !hasSettlement)
+                              return err ? 'error' : undefined
+                            })()} />
+                            {(() => {
+                              const s = (v: string | undefined) => (v ?? '').trim()
+                              const hasContent = !!(s(addr.country) || s(addr.territoryCode) || s(addr.regionName) || s(addr.districtName) || s(addr.cityName) || s(addr.settlementName) || s(addr.streetName) || s(addr.buildingNumberId) || s(addr.roomNumberId) || s(addr.postOfficeBoxId) || s(addr.postCode) || s(addr.fullAddress))
+                              const hasCity = !!s(addr.cityName)
+                              const hasSettlement = !!s(addr.settlementName)
+                              if (embeddedInCollapse) return null
+                              if (!hasContent) return null
+                              if (hasCity && hasSettlement) return <div style={{ fontSize: 12, color: '#ff4d4f', marginTop: 2 }}>Укажите только один — Город или Населенный пункт</div>
+                              if (!hasCity && !hasSettlement) return <div style={{ fontSize: 12, color: '#ff4d4f', marginTop: 2 }}>При заполнении адреса обязательно укажите Город или Населенный пункт</div>
+                              return null
+                            })()}
+                          </div>
+                        </FieldTagBlock>
+                        <FieldTagBlock label="Населённый пункт">
+                          <Input placeholder="Населённый пункт" value={addr.settlementName} onChange={(e) => handleAddressChange(index, 'settlementName', e.target.value || undefined)} maxLength={getMaxLength('settlementName')} showCount />
+                        </FieldTagBlock>
+                        <FieldTagBlock label="Улица">
+                          <Input placeholder="Улица" value={addr.streetName} onChange={(e) => handleAddressChange(index, 'streetName', e.target.value || undefined)} maxLength={getMaxLength('streetName')} showCount />
+                        </FieldTagBlock>
+                        <Space wrap>
+                          <FieldTagBlock label="Номер дома" style={{ width: 120 }}>
+                            <Input placeholder="Номер дома" value={addr.buildingNumberId} onChange={(e) => handleAddressChange(index, 'buildingNumberId', e.target.value || undefined)} style={{ width: 120 }} maxLength={getMaxLength('buildingNumberId')} showCount />
+                          </FieldTagBlock>
+                          <FieldTagBlock label="Номер помещения" style={{ width: 120 }}>
+                            <Input placeholder="Номер помещения" value={addr.roomNumberId} onChange={(e) => handleAddressChange(index, 'roomNumberId', e.target.value || undefined)} style={{ width: 120 }} maxLength={getMaxLength('roomNumberId')} showCount />
+                          </FieldTagBlock>
+                        </Space>
+                        <FieldTagBlock label="Номер абонентского ящика">
+                          <div>
+                            <Input
+                              placeholder="Номер абонентского ящика"
+                              value={addr.postOfficeBoxId}
+                              onChange={(e) => {
+                                const v = e.target.value || undefined
+                                handleAddressChange(index, 'postOfficeBoxId', v)
+                                const msg = validateFieldValue('postOfficeBoxId', v ?? '')
+                                setAddressErrors((prev) => ({ ...prev, [`addr-${index}-postOfficeBoxId`]: msg ?? '' }))
+                              }}
+                              onBlur={(e) => {
+                                const msg = validateFieldValue('postOfficeBoxId', e.target.value?.trim() || undefined)
+                                setAddressErrors((prev) => ({ ...prev, [`addr-${index}-postOfficeBoxId`]: msg ?? '' }))
+                              }}
+                              maxLength={getMaxLength('postOfficeBoxId')}
+                              showCount
+                              status={addressErrors[`addr-${index}-postOfficeBoxId`] ? 'error' : undefined}
+                            />
+                            {addressErrors[`addr-${index}-postOfficeBoxId`] && (
+                              <div style={{ fontSize: 12, color: '#ff4d4f', marginTop: 2 }}>{addressErrors[`addr-${index}-postOfficeBoxId`]}</div>
+                            )}
+                          </div>
+                        </FieldTagBlock>
+                      </Space>
+                    </div>
+                  ))}
+                  <Button type="dashed" icon={<PlusOutlined />} onClick={handleAddressAdd} style={{ width: '100%' }}>
+                    Добавить адрес
+                  </Button>
                 </div>
 
-                <div style={{ marginTop: '16px' }}>
-                  <h4>Фактический адрес</h4>
-                  <Space direction="vertical" style={{ width: '100%' }}>
-                    <Input
-                      placeholder="Страна"
-                      value={data.actualAddress?.country}
-                      onChange={(e) => handleAddressChange('2', 'country', e.target.value)}
-                    />
-                    <Input
-                      placeholder="Город"
-                      value={data.actualAddress?.cityName}
-                      onChange={(e) => handleAddressChange('2', 'cityName', e.target.value)}
-                    />
-                    <Input
-                      placeholder="Улица"
-                      value={data.actualAddress?.streetName}
-                      onChange={(e) => handleAddressChange('2', 'streetName', e.target.value)}
-                    />
-                    <Input
-                      placeholder="Номер здания"
-                      value={data.actualAddress?.buildingNumberId}
-                      onChange={(e) => handleAddressChange('2', 'buildingNumberId', e.target.value)}
-                    />
-                  </Space>
-                </div>
-
-                <div style={{ marginTop: '16px' }}>
-                  <h4>Почтовый адрес</h4>
-                  <Space direction="vertical" style={{ width: '100%' }}>
-                    <Input
-                      placeholder="Страна"
-                      value={data.mailingAddress?.country}
-                      onChange={(e) => handleAddressChange('3', 'country', e.target.value)}
-                    />
-                    <Input
-                      placeholder="Город"
-                      value={data.mailingAddress?.cityName}
-                      onChange={(e) => handleAddressChange('3', 'cityName', e.target.value)}
-                    />
-                    <Input
-                      placeholder="Улица"
-                      value={data.mailingAddress?.streetName}
-                      onChange={(e) => handleAddressChange('3', 'streetName', e.target.value)}
-                    />
-                    <Input
-                      placeholder="Номер здания"
-                      value={data.mailingAddress?.buildingNumberId}
-                      onChange={(e) => handleAddressChange('3', 'buildingNumberId', e.target.value)}
-                    />
-                  </Space>
-                </div>
-
-                {/* Контакты */}
+                {/* Контакты: вид из справочника (код → CommunicationChannelCode) или наименование (→ CommunicationChannelName), значение → CommunicationChannelId */}
                 <div style={{ marginTop: '16px' }}>
                   <h4>Контактные реквизиты</h4>
                   {data.contacts?.map((contact, index) => (
                     <div key={index} style={{ marginBottom: '8px', padding: '8px', border: '1px solid #d9d9d9', borderRadius: '4px' }}>
                       <Space direction="vertical" style={{ width: '100%' }}>
-                        <Input
-                          placeholder="Вид контакта (телефон, email, факс)"
-                          value={contact.contactKind}
-                          onChange={(e) => handleContactChange(index, 'contactKind', e.target.value)}
-                        />
-                        <Input
-                          placeholder="Значение контакта"
-                          value={contact.contactValue}
-                          onChange={(e) => handleContactChange(index, 'contactValue', e.target.value)}
-                        />
+                        <FieldTagBlock label="Вид контакта">
+                          <Select
+                            placeholder="Вид контакта (код — наименование)"
+                            allowClear
+                            style={{ width: '100%' }}
+                            value={contact.communicationChannelCode || undefined}
+                            onChange={(value) => handleContactChange(index, 'communicationChannelCode', value ?? '')}
+                            loading={loadingCommunicationChannels}
+                            options={getCommunicationChannelSelectOptions()}
+                            disabled={!!contact.communicationChannelName?.trim()}
+                          />
+                        </FieldTagBlock>
+                        <FieldTagBlock label="Наименование вида связи">
+                          <Input
+                            placeholder="Наименование вида связи (если не из справочника)"
+                            value={contact.communicationChannelName ?? ''}
+                            onChange={(e) => handleContactChange(index, 'communicationChannelName', e.target.value)}
+                            disabled={!!contact.communicationChannelCode}
+                            maxLength={getMaxLength('communicationChannelName')}
+                            showCount
+                          />
+                        </FieldTagBlock>
+                        <FieldTagBlock label="Значение">
+                          <Input
+                            placeholder="Значение (номер, адрес и т.д.)"
+                            value={contact.communicationChannelId ?? contact.contactValue ?? ''}
+                            onChange={(e) => handleContactChange(index, 'communicationChannelId', e.target.value)}
+                            maxLength={getMaxLength('communicationChannelId')}
+                            showCount
+                          />
+                        </FieldTagBlock>
                         <Button
                           type="link"
                           danger
@@ -237,14 +547,27 @@ const ManufacturerDetailsEdit: React.FC<ManufacturerDetailsEditProps> = ({
                     Добавить контакт
                   </Button>
                 </div>
-              </Form>
-            ),
-          },
-        ]}
-      />
+    </Form>
+  )
+
+  return (
+    <div style={{ marginTop: embeddedInCollapse ? 0 : '16px' }}>
+      {embeddedInCollapse ? (
+        formContent
+      ) : (
+        <Collapse
+          activeKey={isOpen ? ['1'] : []}
+          onChange={(keys) => setIsOpen(keys.length > 0)}
+          items={[{ key: '1', label: title, children: formContent }]}
+        />
+      )}
     </div>
   )
 }
 
 export default ManufacturerDetailsEdit
+
+
+
+
 

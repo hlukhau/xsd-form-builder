@@ -1,0 +1,74 @@
+import { useState, useEffect } from 'react'
+import { getAuthorityOptions, type AuthorityOption } from '@/utils/referenceDataApi'
+
+/**
+ * Хук для загрузки и работы со справочником уполномоченных органов
+ * @param countryCode - код страны для фильтрации
+ * @param forOutgoingCreation - если true, запрашивать только УО из карты прав create (передаётся authorityIds)
+ * @param allowedAuthorityIds - DEPID из карт прав (create / edit / др.); при forOutgoingCreation передаются как depIds. undefined — права ещё не загружены, запрос не выполняется (не показывать весь справочник).
+ * @param fetchOptions.enabled - если false, запрос к API не выполняется (пустой список). По умолчанию true — поведение как раньше (в т.ч. закладка «Уведомление»).
+ */
+export function useAuthorityOptions(
+  countryCode?: string,
+  forOutgoingCreation?: boolean,
+  allowedAuthorityIds?: string[],
+  fetchOptions?: { enabled?: boolean }
+) {
+  const [options, setOptions] = useState<AuthorityOption[]>([])
+  const [loading, setLoading] = useState(false)
+  const enabled = fetchOptions?.enabled !== false
+
+  useEffect(() => {
+    if (!enabled) {
+      setOptions([])
+      setLoading(false)
+      return
+    }
+    if (forOutgoingCreation && allowedAuthorityIds === undefined) {
+      setOptions([])
+      setLoading(false)
+      return
+    }
+    setLoading(true)
+    const createKeys = forOutgoingCreation ? allowedAuthorityIds : undefined
+    getAuthorityOptions(countryCode, forOutgoingCreation, createKeys)
+      .then((data) => {
+        setOptions(data)
+      })
+      .catch((error) => {
+        console.error('Ошибка загрузки справочника уполномоченных органов:', error)
+        setOptions([])
+      })
+      .finally(() => setLoading(false))
+  }, [countryCode, forOutgoingCreation, allowedAuthorityIds?.join(','), enabled])
+
+  /**
+   * Получить уполномоченный орган по UID
+   */
+  const getAuthorityByUid = (uid: string | undefined): AuthorityOption | undefined => {
+    if (!uid) return undefined
+    return options.find(opt => opt.uid === uid)
+  }
+
+  /**
+   * Преобразует список уполномоченных органов в опции для Select
+   * value - UID, label - "название (краткое наименование)"
+   */
+  const getSelectOptions = () => {
+    return options.map((opt) => ({
+      value: opt.uid, // Используем UID как значение
+      label: opt.briefName 
+        ? `${opt.name} (${opt.briefName})`
+        : opt.name, // Показываем название и краткое наименование
+    }))
+  }
+
+  return {
+    options,
+    loading,
+    getAuthorityByUid,
+    getSelectOptions,
+  }
+}
+
+

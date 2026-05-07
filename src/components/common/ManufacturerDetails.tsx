@@ -1,6 +1,20 @@
 import { useState } from 'react'
 import { Collapse, Descriptions } from 'antd'
-import type { SupplyChainPartyDetails, AddressDetails, ContactDetails } from '@/types/card'
+import type { SupplyChainPartyDetails } from '@/types/card'
+import {
+  getAddressListFromParty,
+  formatAddressList,
+  getDefaultAddressKindName,
+  getDefaultCountryName,
+} from '@/utils/addressFormatUtils'
+import { useLegalFormOptions } from '@/hooks/shared/useLegalFormOptions'
+import { useIdentificationMethodOptions } from '@/hooks/shared/useIdentificationMethodOptions'
+import { useCountryOptions } from '@/hooks/shared/useCountryOptions'
+import { useSupplyChainPartyKindOptions } from '@/hooks/shared/useSupplyChainPartyKindOptions'
+import { useCommunicationChannelOptions } from '@/hooks/shared/useCommunicationChannelOptions'
+import { buildContactDisplayLines } from '@/utils/contactDisplayUtils'
+
+const LEGAL_FORM_CODE_LIST_ID = '2049'
 
 interface ManufacturerDetailsProps {
   data: SupplyChainPartyDetails
@@ -12,6 +26,18 @@ const ManufacturerDetails: React.FC<ManufacturerDetailsProps> = ({
   title = 'Изготовитель продукции',
 }) => {
   const [isOpen, setIsOpen] = useState(false)
+  const { getNameByCode: getLegalFormNameByCode } = useLegalFormOptions(data.country)
+  const { getDisplayLabel: getIdentificationMethodDisplayLabel } = useIdentificationMethodOptions(data.country)
+  const { getDisplayLabel: getCountryDisplayLabel } = useCountryOptions()
+  const { getNameByCode: getSupplyChainPartyKindNameByCode } = useSupplyChainPartyKindOptions()
+  const { getNameByCode: getCommunicationChannelNameByCode } = useCommunicationChannelOptions()
+  const isFromRef = !!(data.businessEntityTypeCode && data.businessEntityTypeCodeListId === LEGAL_FORM_CODE_LIST_ID)
+  const kindDisplay = data.supplyChainPartyKindCode
+    ? `${data.supplyChainPartyKindCode} - ${getSupplyChainPartyKindNameByCode(data.supplyChainPartyKindCode) || data.supplyChainPartyKindCode}`
+    : '-'
+  const organizationalFormDisplay = isFromRef && data.businessEntityTypeCode
+    ? (getLegalFormNameByCode(data.businessEntityTypeCode) ? `${data.businessEntityTypeCode} - ${getLegalFormNameByCode(data.businessEntityTypeCode)}` : (data.organizationalForm || data.businessEntityTypeCode))
+    : (data.organizationalForm || '-')
   
   console.log('ManufacturerDetails получил данные:', data)
   
@@ -34,33 +60,14 @@ const ManufacturerDetails: React.FC<ManufacturerDetailsProps> = ({
     )
   }
 
-  const formatAddress = (address?: AddressDetails): string => {
-    if (!address) return '-'
-    if (address.fullAddress) return address.fullAddress
-    
-    const parts = []
-    if (address.country) parts.push(address.country)
-    if (address.cityName) parts.push(address.cityName)
-    if (address.streetName) parts.push(address.streetName)
-    if (address.buildingNumberId) parts.push(address.buildingNumberId)
-    return parts.length > 0 ? parts.join(', ') : '-'
-  }
+  const addressList = getAddressListFromParty(data)
+  const addressLines = formatAddressList(
+    addressList,
+    getDefaultAddressKindName,
+    (code) => getCountryDisplayLabel(code) || getDefaultCountryName(code) || '-'
+  )
 
-  const formatContact = (contact: ContactDetails): string => {
-    if (!contact) return '-'
-    const kind = contact.contactKind || ''
-    const value = contact.contactValue || ''
-    
-    // Определяем тип контакта по значению или коду
-    let contactType = kind
-    if (!contactType && value) {
-      if (value.includes('@')) contactType = 'электронная почта'
-      else if (value.includes('+') || /^\d/.test(value)) contactType = 'телефон'
-      else if (value.toLowerCase().includes('fax')) contactType = 'факс'
-    }
-    
-    return contactType && value ? `${contactType}: ${value}` : value || contactType || '-'
-  }
+  const contactDisplayLines = buildContactDisplayLines(data.contacts, getCommunicationChannelNameByCode)
 
   return (
     <div style={{ marginTop: '16px' }}>
@@ -73,7 +80,8 @@ const ManufacturerDetails: React.FC<ManufacturerDetailsProps> = ({
             label: title,
             children: (
               <Descriptions column={1} bordered size="small">
-                <Descriptions.Item label="Страна">{data.country || '-'}</Descriptions.Item>
+                <Descriptions.Item label="Страна">{getCountryDisplayLabel(data.country)}</Descriptions.Item>
+                <Descriptions.Item label="Вид">{kindDisplay}</Descriptions.Item>
                 <Descriptions.Item label="Наименование субъекта">
                   {data.businessEntityName || '-'}
                 </Descriptions.Item>
@@ -81,13 +89,13 @@ const ManufacturerDetails: React.FC<ManufacturerDetailsProps> = ({
                   {data.shortName || '-'}
                 </Descriptions.Item>
                 <Descriptions.Item label="Организационно-правовая форма">
-                  {data.organizationalForm || '-'}
+                  {organizationalFormDisplay}
                 </Descriptions.Item>
                 <Descriptions.Item label="Идентификатор субъекта">
                   {data.subjectIdentifier || '-'}
                 </Descriptions.Item>
                 <Descriptions.Item label="Метод идентификации">
-                  {data.identificationMethod || '-'}
+                  {data.identificationMethod ? getIdentificationMethodDisplayLabel(data.identificationMethod) : '-'}
                 </Descriptions.Item>
                 <Descriptions.Item label="Таможенный номер">
                   {data.customsNumber || '-'}
@@ -95,22 +103,20 @@ const ManufacturerDetails: React.FC<ManufacturerDetailsProps> = ({
                 <Descriptions.Item label="Идентификатор налогоплательщика">
                   {data.taxpayerId || '-'}
                 </Descriptions.Item>
-                <Descriptions.Item label="Адрес регистрации">
-                  {formatAddress(data.registrationAddress)}
-                </Descriptions.Item>
-                <Descriptions.Item label="Фактический адрес">
-                  {formatAddress(data.actualAddress)}
-                </Descriptions.Item>
-                <Descriptions.Item label="Почтовый адрес">
-                  {formatAddress(data.mailingAddress)}
-                </Descriptions.Item>
-                {data.contacts && data.contacts.length > 0 && (
+                {addressLines.length > 0 && (
+                  <Descriptions.Item label="Адреса">
+                    <ul style={{ margin: 0, paddingLeft: '20px' }}>
+                      {addressLines.map((line, idx) => (
+                        <li key={idx} style={{ marginBottom: '4px' }}>{line}</li>
+                      ))}
+                    </ul>
+                  </Descriptions.Item>
+                )}
+                {contactDisplayLines.length > 0 && (
                   <Descriptions.Item label="Контактный реквизит">
                     <div>
-                      {data.contacts.map((contact, index) => (
-                        <div key={index} style={{ marginBottom: '4px' }}>
-                          {formatContact(contact)}
-                        </div>
+                      {contactDisplayLines.map((line, index) => (
+                        <div key={index} style={{ marginBottom: '4px' }}>{line}</div>
                       ))}
                     </div>
                   </Descriptions.Item>

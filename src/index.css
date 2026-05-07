@@ -49,7 +49,7 @@ body {
     sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-  background: #f0f2f5;
+  background: #ffffff;
   color: var(--text-primary);
   line-height: 1.6;
 }
@@ -58,10 +58,11 @@ body {
   min-height: 100vh;
 }
 
+/* Без отступов от краёв окна, без серого фона */
 .app {
   min-height: 100vh;
-  padding: var(--spacing-lg);
-  background: var(--bg-primary);
+  padding: 0;
+  background: #ffffff;
 }
 
 /* Стили для таблиц с переносом текста */
@@ -76,33 +77,29 @@ body {
   white-space: normal !important;
 }
 
-/* Промышленный стиль для карточек */
+/* Карточка без рамки, тени и скруглений — на белом фоне */
 .ant-card {
-  border-radius: var(--radius-lg);
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
-  border: 1px solid #e8e8e8;
-  transition: box-shadow 0.2s ease;
+  border-radius: 0;
+  box-shadow: none;
+  border: none;
   background: #ffffff;
-}
-
-.ant-card:hover {
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.2);
 }
 
 .ant-card-head {
   background: #1890ff;
-  border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+  border-radius: 0;
   border-bottom: none;
-  padding: var(--spacing-lg) var(--spacing-xl);
-  min-height: 64px;
+  padding: var(--spacing-sm) var(--spacing-md);
+  min-height: 48px;
 }
 
 .ant-card-head-title {
   color: #ffffff;
   font-weight: 600;
-  font-size: 20px;
+  font-size: 16px;
   letter-spacing: 0.3px;
 }
+
 
 .ant-card-extra {
   color: #ffffff;
@@ -129,23 +126,278 @@ body {
 }
 
 .ant-card-body {
-  padding: var(--spacing-lg);
+  padding: var(--spacing-sm) var(--spacing-md);
   background: var(--bg-secondary);
 }
 
-/* Стили для вкладок - классический дизайн вкладок */
+/* Закреплённая шапка: непрозрачный фон, чтобы контент не просвечивал при скролле */
+.card-sticky-header {
+  background: #ffffff !important;
+}
+.card-sticky-header .card-header-descriptions {
+  background: #e8f1ff;
+  margin: 0 !important;
+  display: block;
+  width: 100%;
+  max-width: 100%;
+  border: 1px solid #a8c4f5;
+  border-radius: 8px;
+  overflow: hidden;
+  box-shadow: 0 1px 2px rgba(24, 73, 161, 0.08);
+}
+/* Только блок метаданных шапки — не все Descriptions на вкладках */
+.card-sticky-header .card-header-descriptions .ant-descriptions-view {
+  background: #e8f1ff;
+  margin: 0 !important;
+  padding: 0 !important;
+}
+.card-sticky-header .card-header-descriptions .ant-descriptions-view table {
+  margin: 0 !important;
+  width: 100% !important;
+}
+.card-sticky-header .ant-descriptions.card-header-descriptions {
+  margin: 4px 0 !important;
+  padding-top: 4px !important;
+  padding-bottom: 4px !important;
+  padding-left: 0 !important;
+  padding-right: 0 !important;
+}
+
+/* Закреплённая шапка: синяя полоса (название + кнопки) как раньше */
+.card-sticky-header-title-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 8px;
+  background: #1890ff;
+  color: #ffffff;
+  padding: 6px 16px;
+  margin: 0 -24px 1px -24px;
+}
+.card-sticky-header-title {
+  font-size: 16px;
+  font-weight: 600;
+  letter-spacing: 0.3px;
+  color: #ffffff;
+}
+.card-sticky-header-mode-label {
+  font-weight: 500;
+  color: #ffffff;
+}
+.card-sticky-header-title-row .ant-btn {
+  border-color: rgba(255, 255, 255, 0.3);
+  color: #ffffff;
+  background: rgba(255, 255, 255, 0.1);
+}
+.card-sticky-header-title-row .ant-btn:hover {
+  background: rgba(255, 255, 255, 0.2);
+  border-color: rgba(255, 255, 255, 0.5);
+  color: #ffffff;
+}
+.card-sticky-header-title-row .ant-btn-primary {
+  background: rgba(255, 255, 255, 0.25);
+  border-color: rgba(255, 255, 255, 0.4);
+  color: #ffffff;
+}
+.card-sticky-header-title-row .ant-btn-primary:hover {
+  background: rgba(255, 255, 255, 0.35);
+  color: #ffffff;
+}
+
+/* Закреплённая шапка карты: компактная метаинформация, без лишних отступов */
+.card-sticky-header .card-header-descriptions.ant-descriptions-small .ant-descriptions-item-label,
+.card-sticky-header .card-header-descriptions.ant-descriptions-small .ant-descriptions-item-content {
+  padding-block: 1px 2px !important;
+  padding-inline: 8px;
+  border-color: #b8d0fa !important;
+}
+.card-sticky-header .card-header-descriptions.ant-descriptions-small .ant-descriptions-item-label {
+  width: 120px;
+  white-space: nowrap;
+  background: #cfe4ff;
+  color: #153a75;
+  font-weight: 600;
+}
+.card-sticky-header .card-header-descriptions.ant-descriptions-small .ant-descriptions-item-content {
+  background: #f2f7ff;
+  color: #1a1a1a;
+}
+/* Убрать отступ после блока метаданных (перед кнопками) */
+.card-sticky-header .card-header-descriptions + div,
+.card-sticky-header .card-actions-row {
+  margin-top: 0 !important;
+}
+
+/* Верхняя часть шапки (название, метаданные, кнопки) не сжимается */
+.card-sticky-header > .card-sticky-header-title-row,
+.card-sticky-header > .ant-descriptions,
+.card-sticky-header > .card-actions-row {
+  flex-shrink: 0;
+}
+
+/* Вкладки внутри фиксированной шапки: скроллится только контент вкладки */
+.card-sticky-header .card-tabs-wrapper {
+  flex: 1 1 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+.card-sticky-header .card-tabs-wrapper .ant-tabs {
+  flex: 1 1 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  background: #ffffff;
+}
+/* Полоска вкладок — как в общем UI, без «цвета метаданных» */
+.card-sticky-header .card-tabs-wrapper .ant-tabs .ant-tabs-nav {
+  background: #f5f5f5 !important;
+}
+.card-sticky-header .card-tabs-wrapper .ant-tabs .ant-tabs-nav-wrap,
+.card-sticky-header .card-tabs-wrapper .ant-tabs .ant-tabs-nav-list {
+  background: transparent;
+}
+.card-sticky-header .card-tabs-wrapper .ant-tabs-content-holder {
+  flex: 1 1 0;
+  min-height: 0;
+  overflow-y: auto;
+}
+.card-sticky-header .card-tabs-wrapper .ant-tabs-content {
+  height: 100%;
+}
+.card-sticky-header .card-tabs-wrapper .ant-tabs-tabpane {
+  height: 100%;
+}
+
+/* Фиксация размера и начертания текста вкладок — без смены font-weight при активации, чтобы не дергалось */
+.card-sticky-header .card-tabs-wrapper .ant-tabs .ant-tabs-nav .ant-tabs-nav-list .ant-tabs-tab .ant-tabs-tab-btn,
+.card-sticky-header .card-tabs-wrapper .ant-tabs .ant-tabs-nav .ant-tabs-nav-list .ant-tabs-tab-active .ant-tabs-tab-btn {
+  font-weight: 500 !important;
+  font-size: 13px !important;
+  line-height: 1.4 !important;
+  letter-spacing: 0 !important;
+  text-shadow: none !important;
+  font-family: inherit !important;
+  min-height: 1.4em;
+}
+.card-sticky-header .card-tabs-wrapper .ant-tabs .ant-tabs-nav .ant-tabs-nav-list .ant-tabs-tab {
+  transition: background-color 0.2s ease, border-color 0.2s ease !important;
+}
+.card-sticky-header .card-tabs-wrapper .ant-tabs .ant-tabs-nav .ant-tabs-nav-list .ant-tabs-tab .ant-tabs-tab-btn {
+  transition: color 0.2s ease !important;
+}
+
+.field-tag-form .ant-form-item {
+  margin-bottom: 12px;
+}
+
+.field-tag-form .ant-form-item-label {
+  padding-bottom: 0 !important;
+}
+
+.field-tag-form .ant-form-item-label > label {
+  display: inline-flex;
+  align-items: center;
+  max-width: 100%;
+  height: auto;
+  min-height: 14px;
+  padding: 0 7px;
+  margin-left: 8px;
+  margin-bottom: -2px;
+  font-size: 10px;
+  line-height: 14px;
+  font-weight: 500;
+  color: #4b5563;
+  background: #f5f7fa;
+  border: 1px solid #d9e1ec;
+  border-bottom: none;
+  border-radius: 7px 7px 0 0;
+  z-index: 1;
+}
+
+.field-tag-form .ant-form-item-label > label::after {
+  display: none !important;
+}
+
+/* Обязательное поле: звезда заметна на «бейдже» метки (field-tag) */
+.field-tag-form .ant-form-item-label > label.ant-form-item-required:not(.ant-form-item-required-mark-hidden)::before {
+  color: #ff4d4f !important;
+  font-size: 12px !important;
+  line-height: 1 !important;
+  margin-inline-end: 4px !important;
+}
+
+/* Одна звезда: своя в label + скрываем дубликат от Ant Design ::before */
+.field-tag-form .ant-form-item-label > label.ant-form-item-required:has(.notification-kind-label-wrap)::before {
+  display: none !important;
+}
+
+.field-tag-form .notification-kind-required-star {
+  display: inline-block;
+  color: #ff4d4f;
+  font-weight: 700;
+  font-size: 12px;
+  line-height: 1;
+  margin-right: 4px;
+  vertical-align: middle;
+}
+
+.field-tag-form .ant-form-item-has-error .notification-incident-kind-select.ant-select .ant-select-selector {
+  border-color: #ff4d4f !important;
+}
+
+.field-tag-form .ant-form-item-has-error .notification-incident-kind-select.ant-select-focused .ant-select-selector,
+.field-tag-form .ant-form-item-has-error .notification-incident-kind-select.ant-select:hover .ant-select-selector {
+  border-color: #ff4d4f !important;
+  box-shadow: 0 0 0 2px rgba(255, 77, 79, 0.15) !important;
+}
+
+/* DPA уведомление: «Вид» — перенос длинного текста в закрытом Select (не одна строка с …) */
+.field-tag-form .notification-incident-kind-select.ant-select.ant-select-single .ant-select-selector {
+  height: auto !important;
+  min-height: 32px;
+  align-items: flex-start;
+  padding-block: 4px;
+}
+.field-tag-form .notification-incident-kind-select.ant-select.ant-select-single .ant-select-selection-item,
+.field-tag-form .notification-incident-kind-select.ant-select.ant-select-single .ant-select-selection-placeholder {
+  white-space: normal !important;
+  word-break: break-word;
+  line-height: 1.45;
+  overflow: visible !important;
+  text-overflow: clip !important;
+}
+.field-tag-form .notification-incident-kind-select.ant-select.ant-select-single .ant-select-selection-search {
+  inset-inline-start: 11px;
+  inset-inline-end: 28px;
+}
+.field-tag-form .notification-incident-kind-select.ant-select.ant-select-single .ant-select-selection-search-input {
+  height: auto !important;
+  min-height: 22px;
+}
+
+.notification-incident-kind-select-dropdown .ant-select-item-option-content {
+  white-space: normal;
+  word-break: break-word;
+  line-height: 1.45;
+}
+
+/* Вкладки: без рамки и тени */
 .ant-tabs {
-  background: var(--bg-secondary);
-  border-radius: var(--radius-lg);
+  background: #ffffff;
+  border-radius: 0;
   padding: 0;
-  box-shadow: var(--shadow-md);
-  border: 1px solid #d9d9d9;
+  box-shadow: none;
+  border: none;
   overflow: visible;
 }
 
 .ant-tabs-nav {
   margin: 0;
-  padding: var(--spacing-md) var(--spacing-md) 0;
+  padding: var(--spacing-xs) var(--spacing-sm) 0;
   background: #f5f5f5;
   border: none !important;
   border-bottom: none !important;
@@ -179,7 +431,7 @@ body {
   right: 0;
   height: 1px;
   background: #d9d9d9;
-  z-index: 1;
+  z-index: 2;
   display: block !important;
 }
 
@@ -196,18 +448,18 @@ body {
 }
 
 .ant-tabs-tab {
-  font-weight: 500;
-  font-size: 14px;
-  padding: 10px 16px !important;
+  font-weight: 500 !important;
+  font-size: 13px !important;
+  padding: 6px 12px !important;
   margin: 0 2px 0 0 !important;
   border-radius: var(--radius-md) var(--radius-md) 0 0;
-  transition: all 0.2s ease;
+  transition: background-color 0.2s ease, border-color 0.2s ease, color 0.2s ease !important;
   color: var(--text-secondary) !important;
   position: relative;
   border: 1px solid #d9d9d9 !important;
-  border-bottom: 1px solid #d9d9d9 !important;
+  border-bottom: none !important;
   background: #fafafa !important;
-  min-height: 40px;
+  min-height: 32px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -218,11 +470,18 @@ body {
   z-index: 3;
 }
 
-.ant-tabs-tab::before {
-  display: none !important;
+.ant-tabs-tab::after {
+  content: '';
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 1px;
+  background: #d9d9d9;
+  z-index: 1;
 }
 
-.ant-tabs-tab::after {
+.ant-tabs-tab::before {
   display: none !important;
 }
 
@@ -234,6 +493,8 @@ body {
   border: none !important;
   box-shadow: none !important;
   outline: none !important;
+  font-weight: 500 !important;
+  font-size: 13px !important;
 }
 
 .ant-tabs-tab:hover {
@@ -252,7 +513,7 @@ body {
   border-bottom: none !important;
   z-index: 20 !important;
   margin-bottom: -1px !important;
-  box-shadow: none !important;
+  box-shadow: 0 2px 0 0 #ffffff, 0 3px 0 0 #ffffff !important;
   position: relative;
   overflow: visible;
 }
@@ -267,8 +528,8 @@ body {
 
 .ant-tabs-tab-active .ant-tabs-tab-btn {
   color: var(--primary-color) !important;
-  font-weight: 600;
-  font-size: 14px;
+  font-weight: 500 !important;
+  font-size: 13px !important;
 }
 
 .ant-tabs-ink-bar {
@@ -276,10 +537,10 @@ body {
 }
 
 .ant-tabs-content-holder {
-  padding: var(--spacing-lg);
+  padding: var(--spacing-sm) var(--spacing-md);
   background: #ffffff;
   border-top: none;
-  border-radius: 0 0 var(--radius-lg) var(--radius-lg);
+  border-radius: 0;
   margin-top: 0;
 }
 
@@ -669,3 +930,154 @@ body {
   }
 }
 
+/* Окно «Определить доступ»: перенос длинных названий по словам в выпадающем списке */
+.access-modal-dep-select-dropdown.ant-select-dropdown .ant-select-item-option-content {
+  white-space: normal;
+  word-break: break-word;
+}
+
+/* История смены статусов: строки резолюций под статусом */
+.status-history-modal-resolution-row {
+  background-color: var(--bg-tertiary, #fafafa);
+}
+.status-history-modal-resolution-row td:first-child {
+  font-style: italic;
+}
+
+/* Документы соответствия: колонка «Вид» 30%, перенос по словам, поле и строка растягиваются по высоте */
+.compliance-docs-edit-table .ant-table-tbody > tr > td {
+  height: auto !important;
+}
+.compliance-docs-edit-table .ant-table-tbody > tr {
+  height: auto !important;
+}
+.compliance-doc-kind-edit-cell {
+  vertical-align: top !important;
+  padding-bottom: 12px;
+}
+.compliance-doc-kind-cell {
+  max-width: 100%;
+  word-wrap: break-word;
+}
+.compliance-doc-kind-cell .ant-select {
+  width: 100%;
+  height: auto !important;
+  min-height: 32px;
+  max-height: none !important;
+}
+.compliance-doc-kind-cell .ant-select-selector {
+  height: auto !important;
+  min-height: 32px !important;
+  max-height: none !important;
+  align-items: flex-start !important;
+  padding: 4px 8px;
+  min-width: 0;
+  overflow: visible;
+}
+.compliance-doc-kind-cell .ant-select-selection-overflow {
+  min-height: 0;
+  flex-wrap: wrap;
+}
+.compliance-doc-kind-cell .ant-select-selection-search,
+.compliance-doc-kind-cell .ant-select-selection-placeholder {
+  min-width: 0;
+}
+.compliance-doc-kind-cell .ant-select-selection-item {
+  white-space: normal !important;
+  word-break: break-word;
+  overflow-wrap: break-word;
+  line-height: 1.4;
+  max-width: 100%;
+  box-sizing: border-box;
+}
+.compliance-doc-kind-cell .ant-select-single .ant-select-selection-item {
+  display: block;
+}
+.compliance-doc-kind-edit-cell .compliance-doc-kind-cell {
+  min-width: 0;
+}
+
+/* Режим просмотра: колонка «Вид» 30% */
+.compliance-doc-kind-view-cell {
+  word-wrap: break-word;
+  white-space: normal;
+}
+
+/* Принятые меры: многострочное отображение "Наименование меры" в Select */
+.measures-edit-table .measure-name-cell .ant-select {
+  width: 100%;
+  height: auto !important;
+  min-height: 32px;
+}
+.measures-edit-table .measure-name-cell .ant-select-selector {
+  height: auto !important;
+  min-height: 32px !important;
+  max-height: none !important;
+  align-items: flex-start !important;
+  padding-top: 4px !important;
+  padding-bottom: 4px !important;
+}
+.measures-edit-table .measure-name-cell .ant-select-selection-item {
+  white-space: normal !important;
+  word-break: break-word;
+  overflow-wrap: anywhere;
+  line-height: 1.35;
+  overflow: visible !important;
+  text-overflow: clip !important;
+}
+
+/* Субъект-исполнитель (меры): метод идентификации — на всю ширину формы, многострочное отображение */
+.subject-executor-id-method-wrap {
+  width: 100%;
+  min-width: 0;
+}
+.subject-executor-id-method-wrap .subject-executor-id-method-select {
+  width: 100%;
+  height: auto !important;
+  min-height: 32px;
+}
+.subject-executor-id-method-wrap .subject-executor-id-method-select .ant-select-selector {
+  height: auto !important;
+  min-height: 32px !important;
+  align-items: flex-start !important;
+  padding-top: 4px !important;
+  padding-bottom: 4px !important;
+}
+.subject-executor-id-method-wrap .subject-executor-id-method-select .ant-select-selection-item {
+  white-space: normal !important;
+  word-break: break-word;
+  line-height: 1.35;
+}
+
+/* Счётчик символов (showCount) у TextArea — внутри поля в правом нижнем углу везде (DPA, PHA) */
+.ant-input-textarea-affix-wrapper.ant-input-textarea-show-count {
+  position: relative !important;
+}
+.ant-input-textarea-affix-wrapper.ant-input-textarea-show-count > textarea.ant-input {
+  padding-bottom: 28px !important;
+}
+.ant-input-textarea-affix-wrapper.ant-input-textarea-show-count .ant-input-data-count,
+.ant-input-textarea-affix-wrapper.ant-input-textarea-show-count .ant-input-textarea-suffix {
+  position: absolute !important;
+  bottom: 8px !important;
+  top: auto !important;
+  inset-inline-end: 12px !important;
+  inset-inline-start: auto !important;
+  margin: 0 !important;
+  line-height: 1 !important;
+  transform: none !important;
+}
+
+/* ТСД: те же правила высоты строк, что у таблицы документов соответствия */
+.tsd-shipping-docs-edit-table .ant-table-tbody > tr > td {
+  height: auto !important;
+}
+.tsd-shipping-docs-edit-table .ant-table-tbody > tr {
+  height: auto !important;
+}
+
+/* ТСД SHIPDOCKIND: перенос подписей в выпадающем списке */
+.tsd-ship-doc-kind-dropdown.ant-select-dropdown .ant-select-item-option-content {
+  white-space: normal;
+  word-break: break-word;
+}

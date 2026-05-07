@@ -5,9 +5,11 @@
   "description": "Frontend application for visualizing Dangerous Product Alert Details card",
   "scripts": {
     "dev": "vite",
-    "dev:safe": "bash scripts/dev.sh",
-    "prebuild": "bash -c 'source ~/.nvm/nvm.sh 2>/dev/null || true; nvm use 2>/dev/null || true'",
-    "build": "tsc && vite build",
+    "build": "vite build",
+    "build:dpa": "vite build",
+    "build:pha": "VITE_APP_BASE=/pha_card/ vite build",
+    "build:ppv": "VITE_APP_BASE=/ppv_card/ vite build",
+    "build:check": "tsc && vite build",
     "preview": "vite preview",
     "lint": "eslint . --ext ts,tsx --report-unused-disable-directives --max-warnings 0"
   },
@@ -35,6 +37,8 @@
     "eslint-plugin-react-hooks": "^4.6.0",
     "eslint-plugin-react-refresh": "^0.4.4",
     "typescript": "^5.2.2",
-    "vite": "^7.3.0"
+    "vite": "^5.0.8"
   }
 }
+
+

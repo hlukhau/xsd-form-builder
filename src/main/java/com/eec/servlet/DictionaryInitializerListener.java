@@ -1,0 +1,1162 @@
+package com.eec.servlet;
+
+import com.eec.util.DatabaseUtil;
+import com.eec.util.DictionaryCache;
+import com.eec.util.DictionaryCache.CountryOption;
+import com.eec.util.DictionaryCache.IncidentAlertKindOption;
+import com.eec.util.DictionaryCache.AuthorityOption;
+import com.eec.util.DictionaryCache.SanitaryProdTypeOption;
+import com.eec.util.DictionaryCache.MeasurementUnitOption;
+import com.eec.util.DictionaryCache.ShipDocKindOption;
+import com.eec.util.DictionaryCache.SupplyChainPartyKindOption;
+import com.eec.util.DictionaryCache.CommunicationChannelOption;
+import com.eec.util.DictionaryCache.TechRegulOption;
+import com.eec.util.DictionaryCache.SanitaryMeasureObjKindOption;
+import com.eec.util.DictionaryCache.SanitaryMeasureOption;
+import com.eec.util.DictionaryCache.MediaTypeOption;
+import com.eec.util.DictionaryCache.DepOption;
+import com.eec.util.DictionaryCache.LegalFormOption;
+import com.eec.util.DictionaryCache.IdentificationMethodOption;
+import com.eec.util.DictionaryCache.ConformityDocKindOption;
+import com.eec.util.DictionaryCache.IdentityDocKindOption;
+import com.eec.util.DictionaryCache.BorderCheckpointOption;
+import com.eec.util.DictionaryCache.DiseaseHealthProblemOption;
+import com.eec.util.DictionaryCache.PathogenKindOption;
+import com.eec.util.DictionaryCache.AgeGroupOption;
+import com.eec.util.DictionaryCache.DiseaseOutcomeOption;
+
+import javax.servlet.ServletContextEvent;
+import javax.servlet.ServletContextListener;
+import java.sql.Connection;
+import java.sql.PreparedStatement;
+import java.sql.ResultSet;
+import java.sql.SQLException;
+import java.util.ArrayList;
+import java.util.List;
+
+/**
+ * Listener для ленивой загрузки справочников при первом запросе.
+ * Предзагрузка при старте отключена: справочники кешируются при первом обращении к API.
+ * Регистрируется в web.xml.
+ */
+public class DictionaryInitializerListener implements ServletContextListener {
+
+    private static volatile DictionaryInitializerListener INSTANCE;
+    private static final Object LOCK_COUNTRIES = new Object();
+    private static final Object LOCK_INCIDENT_ALERT_KINDS = new Object();
+    private static final Object LOCK_AUTHORITIES = new Object();
+    private static final Object LOCK_SANITARY_PROD_TYPES = new Object();
+    private static final Object LOCK_MEASUREMENT_UNITS = new Object();
+    private static final Object LOCK_SHIP_DOC_KINDS = new Object();
+    private static final Object LOCK_SUPPLY_CHAIN_PARTY_KINDS = new Object();
+    private static final Object LOCK_COMMUNICATION_CHANNELS = new Object();
+    private static final Object LOCK_TECH_REGULS = new Object();
+    private static final Object LOCK_SANITARY_MEASURE_OBJ_KINDS = new Object();
+    private static final Object LOCK_SANITARY_MEASURES = new Object();
+    private static final Object LOCK_MEDIA_TYPES = new Object();
+    private static final Object LOCK_DEP_OPTIONS = new Object();
+    private static final Object LOCK_LEGAL_FORMS = new Object();
+    private static final Object LOCK_IDENTIFICATION_METHODS = new Object();
+    private static final Object LOCK_CONFORMITY_DOC_KINDS = new Object();
+    private static final Object LOCK_IDENTITY_DOC_KINDS = new Object();
+    private static final Object LOCK_BORDER_CHECKPOINTS = new Object();
+    private static final Object LOCK_DISEASE_HEALTH_PROBLEM = new Object();
+    private static final Object LOCK_PATHOGEN_KIND = new Object();
+    private static final Object LOCK_AGE_GROUP = new Object();
+    private static final Object LOCK_DISEASE_OUTCOME = new Object();
+
+    public static DictionaryInitializerListener getInstance() {
+        return INSTANCE;
+    }
+
+    @Override
+    public void contextInitialized(ServletContextEvent sce) {
+        INSTANCE = this;
+        System.out.println("[DictionaryInitializer] Lazy loading enabled: dictionaries will load on first request.");
+    }
+
+    public void ensureCountriesLoaded(String guid) {
+        synchronized (LOCK_COUNTRIES) {
+            if (!DictionaryCache.isCountriesLoaded()) loadCountriesDictionary(guid);
+        }
+    }
+    public void ensureIncidentAlertKindsLoaded(String guid) {
+        synchronized (LOCK_INCIDENT_ALERT_KINDS) {
+            if (!DictionaryCache.isIncidentAlertKindsLoaded()) loadIncidentAlertKindsDictionary(guid);
+        }
+    }
+    public void ensureAuthoritiesLoaded(String guid) {
+        synchronized (LOCK_AUTHORITIES) {
+            if (!DictionaryCache.isAuthoritiesLoaded()) loadAuthoritiesDictionary(guid);
+        }
+    }
+    public void ensureSanitaryProdTypesLoaded(String guid) {
+        synchronized (LOCK_SANITARY_PROD_TYPES) {
+            if (!DictionaryCache.isSanitaryProdTypesLoaded()) loadSanitaryProdTypesDictionary(guid);
+        }
+    }
+    public void ensureMeasurementUnitsLoaded(String guid) {
+        synchronized (LOCK_MEASUREMENT_UNITS) {
+            if (!DictionaryCache.isMeasurementUnitsLoaded()) loadMeasurementUnitsDictionary(guid);
+        }
+    }
+    public void ensureShipDocKindsLoaded(String guid) {
+        synchronized (LOCK_SHIP_DOC_KINDS) {
+            if (!DictionaryCache.isShipDocKindsLoaded()) loadShipDocKindsDictionary(guid);
+        }
+    }
+    public void ensureSupplyChainPartyKindsLoaded(String guid) {
+        synchronized (LOCK_SUPPLY_CHAIN_PARTY_KINDS) {
+            if (!DictionaryCache.isSupplyChainPartyKindsLoaded()) loadSupplyChainPartyKindsDictionary(guid);
+        }
+    }
+    public void ensureCommunicationChannelsLoaded(String guid) {
+        synchronized (LOCK_COMMUNICATION_CHANNELS) {
+            if (!DictionaryCache.isCommunicationChannelsLoaded()) loadCommunicationChannelsDictionary(guid);
+        }
+    }
+    public void ensureTechRegulsLoaded(String guid) {
+        synchronized (LOCK_TECH_REGULS) {
+            if (!DictionaryCache.isTechRegulsLoaded()) loadTechRegulsDictionary(guid);
+        }
+    }
+    public void ensureSanitaryMeasureObjKindsLoaded(String guid) {
+        synchronized (LOCK_SANITARY_MEASURE_OBJ_KINDS) {
+            if (!DictionaryCache.isSanitaryMeasureObjKindsLoaded()) loadSanitaryMeasureObjKindsDictionary(guid);
+        }
+    }
+    public void ensureSanitaryMeasuresLoaded(String guid) {
+        synchronized (LOCK_SANITARY_MEASURES) {
+            if (!DictionaryCache.isSanitaryMeasuresLoaded()) loadSanitaryMeasuresDictionary(guid);
+        }
+    }
+    public void ensureMediaTypesLoaded(String guid) {
+        synchronized (LOCK_MEDIA_TYPES) {
+            if (!DictionaryCache.isMediaTypesLoaded()) loadMediaTypesDictionary(guid);
+        }
+    }
+    public void ensureDepOptionsLoaded(String guid) {
+        synchronized (LOCK_DEP_OPTIONS) {
+            if (!DictionaryCache.isDepOptionsLoaded()) loadDepOptionsDictionary(guid);
+        }
+    }
+    public void ensureLegalFormsLoaded(String guid) {
+        synchronized (LOCK_LEGAL_FORMS) {
+            if (!DictionaryCache.isLegalFormsLoaded()) loadLegalFormsDictionary(guid);
+        }
+    }
+    public void ensureIdentificationMethodsLoaded(String guid) {
+        synchronized (LOCK_IDENTIFICATION_METHODS) {
+            if (!DictionaryCache.isIdentificationMethodsLoaded()) loadIdentificationMethodsDictionary(guid);
+        }
+    }
+    public void ensureConformityDocKindsLoaded(String guid) {
+        synchronized (LOCK_CONFORMITY_DOC_KINDS) {
+            if (!DictionaryCache.isConformityDocKindsLoaded()) loadConformityDocKindsDictionary(guid);
+        }
+    }
+    public void ensureIdentityDocKindsLoaded(String guid) {
+        synchronized (LOCK_IDENTITY_DOC_KINDS) {
+            if (!DictionaryCache.isIdentityDocKindsLoaded()) loadIdentityDocKindsDictionary(guid);
+        }
+    }
+    public void ensureBorderCheckpointsLoaded(String guid) {
+        synchronized (LOCK_BORDER_CHECKPOINTS) {
+            if (!DictionaryCache.isBorderCheckpointsLoaded()) loadBorderCheckpointsDictionary(guid);
+        }
+    }
+    public void ensureDiseaseHealthProblemLoaded(String guid) {
+        synchronized (LOCK_DISEASE_HEALTH_PROBLEM) {
+            if (!DictionaryCache.isDiseaseHealthProblemLoaded()) loadDiseaseHealthProblemDictionary(guid);
+        }
+    }
+    public void ensurePathogenKindLoaded(String guid) {
+        synchronized (LOCK_PATHOGEN_KIND) {
+            if (!DictionaryCache.isPathogenKindLoaded()) loadPathogenKindDictionary(guid);
+        }
+    }
+    public void ensureAgeGroupLoaded(String guid) {
+        synchronized (LOCK_AGE_GROUP) {
+            if (!DictionaryCache.isAgeGroupLoaded()) loadAgeGroupDictionary(guid);
+        }
+    }
+    public void ensureDiseaseOutcomeLoaded(String guid) {
+        synchronized (LOCK_DISEASE_OUTCOME) {
+            if (!DictionaryCache.isDiseaseOutcomeLoaded()) loadDiseaseOutcomeDictionary(guid);
+        }
+    }
+    
+    @Override
+    public void contextDestroyed(ServletContextEvent sce) {
+        INSTANCE = null;
+        System.out.println("[DictionaryInitializer] Application context destroyed");
+        // Очищаем кеш при остановке
+        DictionaryCache.clearCountriesCache();
+        DictionaryCache.clearIncidentAlertKindsCache();
+        DictionaryCache.clearAuthoritiesCache();
+        DictionaryCache.clearSanitaryProdTypesCache();
+        DictionaryCache.clearMeasurementUnitsCache();
+        DictionaryCache.clearShipDocKindsCache();
+        DictionaryCache.clearSupplyChainPartyKindsCache();
+        DictionaryCache.clearCommunicationChannelsCache();
+        DictionaryCache.clearTechRegulsCache();
+        DictionaryCache.clearSanitaryMeasureObjKindsCache();
+        DictionaryCache.clearSanitaryMeasuresCache();
+        DictionaryCache.clearMediaTypesCache();
+        DictionaryCache.clearDepOptionsCache();
+        DictionaryCache.clearLegalFormsCache();
+        DictionaryCache.clearIdentificationMethodsCache();
+        DictionaryCache.clearConformityDocKindsCache();
+        DictionaryCache.clearIdentityDocKindsCache();
+        DictionaryCache.clearDiseaseHealthProblemCache();
+        DictionaryCache.clearPathogenKindCache();
+        DictionaryCache.clearAgeGroupCache();
+        DictionaryCache.clearDiseaseOutcomeCache();
+    }
+    
+    /**
+     * Загружает справочник стран из базы данных в кеш
+     */
+    private void loadCountriesDictionary(String guid) {
+        Connection conn = null;
+        
+        try {
+            System.out.println("[DictionaryInitializer] Loading countries dictionary...");
+            conn = DatabaseUtil.getConnectionForGuid(guid);
+            System.out.println("[DictionaryInitializer] Database connection established");
+            
+            String sql = "SELECT COUNTRYCODE, COUNTRYNAME " +
+                        "FROM COUNTRY " +
+                        "WHERE COUNTRYSDATE <= SYSDATE AND COUNTRYEDATE >= SYSDATE " +
+                        "ORDER BY SEQNUM, COUNTRYNAME";
+            
+            PreparedStatement stmt = conn.prepareStatement(sql);
+            ResultSet rs = stmt.executeQuery();
+            
+            List<CountryOption> countries = new ArrayList<>();
+            int count = 0;
+            
+            while (rs.next()) {
+                String code = rs.getString("COUNTRYCODE");
+                String name = rs.getString("COUNTRYNAME");
+                countries.add(new CountryOption(code, name));
+                count++;
+            }
+            
+            DictionaryCache.setCountriesCache(countries);
+            System.out.println("[DictionaryInitializer] Loaded " + count + " countries into cache");
+            
+            rs.close();
+            stmt.close();
+            
+        } catch (SQLException e) {
+            System.err.println("[DictionaryInitializer] ERROR loading countries dictionary: " + e.getMessage());
+            e.printStackTrace();
+        } finally {
+            DatabaseUtil.closeConnection(conn);
+        }
+    }
+    
+    /**
+     * Загружает справочник видов уведомлений из базы данных в кеш
+     */
+    private void loadIncidentAlertKindsDictionary(String guid) {
+        Connection conn = null;
+        
+        try {
+            System.out.println("[DictionaryInitializer] Loading incident alert kinds dictionary...");
+            conn = DatabaseUtil.getConnectionForGuid(guid);
+            
+            String sql = "SELECT INCIDENTALERTKINDCODE, INCIDENTALERTKINDNAME " +
+                        "FROM INCIDENTALERTKIND " +
+                        "WHERE INCIDENTALERTKINDACTFL = 1 " +
+                        "ORDER BY NVL(INCIDENTALERTKINDSEQNUM, 999999), INCIDENTALERTKINDNAME";
+            
+            PreparedStatement stmt = conn.prepareStatement(sql);
+            ResultSet rs = stmt.executeQuery();
+            
+            List<IncidentAlertKindOption> kinds = new ArrayList<>();
+            int count = 0;
+            
+            while (rs.next()) {
+                String code = rs.getString("INCIDENTALERTKINDCODE");
+                String name = rs.getString("INCIDENTALERTKINDNAME");
+                kinds.add(new IncidentAlertKindOption(code, name));
+                count++;
+            }
+            
+            DictionaryCache.setIncidentAlertKindsCache(kinds);
+            System.out.println("[DictionaryInitializer] Loaded " + count + " incident alert kinds into cache");
+            
+            rs.close();
+            stmt.close();
+            
+        } catch (SQLException e) {
+            System.err.println("[DictionaryInitializer] ERROR loading incident alert kinds dictionary: " + e.getMessage());
+            e.printStackTrace();
+            // Fallback: чтобы API был доступен и проверка кода "7" не пропускалась
+            List<IncidentAlertKindOption> fallback = new ArrayList<>();
+            fallback.add(new IncidentAlertKindOption("7", "Вид уведомления 7"));
+            DictionaryCache.setIncidentAlertKindsCache(fallback);
+            System.out.println("[DictionaryInitializer] Using fallback incident alert kinds (code 7) so validation is not skipped");
+        } finally {
+            DatabaseUtil.closeConnection(conn);
+        }
+    }
+    
+    /**
+     * Загружает справочник уполномоченных органов из базы данных в кеш
+     */
+    private void loadAuthoritiesDictionary(String guid) {
+        Connection conn = null;
+        
+        try {
+            System.out.println("[DictionaryInitializer] Loading authorities dictionary...");
+            conn = DatabaseUtil.getConnectionForGuid(guid);
+            
+            String sql = "SELECT AUTHORITYID, AUTHORITYUID, AUTHORITYNAME, AUTHORITYBRIEFNAME, COUNTRYCODE " +
+                        "FROM AUTHORITY " +
+                        "ORDER BY COUNTRYCODE, AUTHORITYNAME";
+            
+            PreparedStatement stmt = conn.prepareStatement(sql);
+            ResultSet rs = stmt.executeQuery();
+            
+            List<AuthorityOption> authorities = new ArrayList<>();
+            int count = 0;
+            
+            while (rs.next()) {
+                int authId = rs.getInt("AUTHORITYID");
+                if (rs.wasNull()) continue;
+                String uid = rs.getString("AUTHORITYUID");
+                String name = rs.getString("AUTHORITYNAME");
+                String briefName = rs.getString("AUTHORITYBRIEFNAME");
+                String countryCode = rs.getString("COUNTRYCODE");
+                
+                authorities.add(new AuthorityOption(
+                    uid != null ? uid : "",
+                    name != null ? name : "",
+                    briefName != null ? briefName : "",
+                    countryCode != null ? countryCode : "",
+                    authId
+                ));
+                count++;
+            }
+            
+            DictionaryCache.loadAllAuthoritiesCache(authorities);
+            System.out.println("[DictionaryInitializer] Loaded " + count + " authorities into cache");
+            
+            rs.close();
+            stmt.close();
+            
+        } catch (SQLException e) {
+            System.err.println("[DictionaryInitializer] ERROR loading authorities dictionary: " + e.getMessage());
+            e.printStackTrace();
+        } finally {
+            DatabaseUtil.closeConnection(conn);
+        }
+    }
+    
+    /**
+     * Загружает справочник типов санитарной продукции из базы данных в кеш
+     */
+    private void loadSanitaryProdTypesDictionary(String guid) {
+        Connection conn = null;
+        try {
+            System.out.println("[DictionaryInitializer] Loading sanitary product types dictionary...");
+            conn = DatabaseUtil.getConnectionForGuid(guid);
+            
+            // Загружаем только активные записи (где SANITARYPRODTYPEEDATE IS NULL или в будущем)
+            String sql = "SELECT SANITARYPRODTYPECODE, SANITARYPRODTYPENAME " +
+                        "FROM SANITARYPRODTYPE " +
+                        "WHERE SANITARYPRODTYPEEDATE IS NULL OR SANITARYPRODTYPEEDATE >= SYSDATE " +
+                        "ORDER BY SANITARYPRODTYPECODE";
+            
+            PreparedStatement stmt = conn.prepareStatement(sql);
+            ResultSet rs = stmt.executeQuery();
+            
+            List<SanitaryProdTypeOption> types = new ArrayList<>();
+            int count = 0;
+            
+            while (rs.next()) {
+                String code = rs.getString("SANITARYPRODTYPECODE");
+                String name = rs.getString("SANITARYPRODTYPENAME");
+                
+                types.add(new SanitaryProdTypeOption(
+                    code != null ? code : "",
+                    name != null ? name : ""
+                ));
+                count++;
+            }
+            
+            DictionaryCache.setSanitaryProdTypesCache(types);
+            System.out.println("[DictionaryInitializer] Loaded " + count + " sanitary product types into cache");
+            
+            rs.close();
+            stmt.close();
+            
+        } catch (SQLException e) {
+            System.err.println("[DictionaryInitializer] ERROR loading sanitary product types dictionary: " + e.getMessage());
+            e.printStackTrace();
+        } finally {
+            DatabaseUtil.closeConnection(conn);
+        }
+    }
+    
+    /**
+     * Загружает справочник единиц измерения из базы данных в кеш
+     */
+    private void loadMeasurementUnitsDictionary(String guid) {
+        Connection conn = null;
+        try {
+            System.out.println("[DictionaryInitializer] Loading measurement units dictionary...");
+            conn = DatabaseUtil.getConnectionForGuid(guid);
+            
+            // Загружаем только активные записи (где MEASUREMENTUNITEDATE >= SYSDATE)
+            String sql = "SELECT MEASUREMENTUNITCODE, MEASUREMENTUNITNAME, MEASUREMENTUNITBRIEFNAME " +
+                        "FROM MEASUREMENTUNIT " +
+                        "WHERE MEASUREMENTUNITEDATE >= SYSDATE " +
+                        "ORDER BY NVL(SEQNUM, 999999), MEASUREMENTUNITCODE";
+            
+            PreparedStatement stmt = conn.prepareStatement(sql);
+            ResultSet rs = stmt.executeQuery();
+            
+            List<MeasurementUnitOption> units = new ArrayList<>();
+            int count = 0;
+            
+            while (rs.next()) {
+                String code = rs.getString("MEASUREMENTUNITCODE");
+                String name = rs.getString("MEASUREMENTUNITNAME");
+                String briefName = rs.getString("MEASUREMENTUNITBRIEFNAME");
+                
+                units.add(new MeasurementUnitOption(
+                    code != null ? code : "",
+                    name != null ? name : "",
+                    briefName != null ? briefName : ""
+                ));
+                count++;
+            }
+            
+            DictionaryCache.setMeasurementUnitsCache(units);
+            System.out.println("[DictionaryInitializer] Loaded " + count + " measurement units into cache");
+            
+            rs.close();
+            stmt.close();
+            
+        } catch (SQLException e) {
+            System.err.println("[DictionaryInitializer] ERROR loading measurement units dictionary: " + e.getMessage());
+            e.printStackTrace();
+        } finally {
+            DatabaseUtil.closeConnection(conn);
+        }
+    }
+    
+    /**
+     * Загружает справочник видов товаросопроводительных документов из базы данных в кеш
+     */
+    private void loadShipDocKindsDictionary(String guid) {
+        Connection conn = null;
+        try {
+            System.out.println("[DictionaryInitializer] Loading ship document kinds dictionary...");
+            conn = DatabaseUtil.getConnectionForGuid(guid);
+            
+            // Загружаем активные записи по периоду действия:
+            // SHIPDOCKINDSDATE <= SYSDATE и (SHIPDOCKINDEDATE IS NULL или SHIPDOCKINDEDATE >= SYSDATE).
+            String sql = "SELECT s.SHIPDOCKINDCODE, s.SHIPDOCKINDNAME, sg.SHIPDOCKINDGRCODE " +
+                        "FROM SHIPDOCKIND s " +
+                        "LEFT JOIN SHIPDOCKINDGR sg ON sg.SHIPDOCKINDGRID = s.SHIPDOCKINDGRID " +
+                        "WHERE (SHIPDOCKINDSDATE IS NULL OR SHIPDOCKINDSDATE <= SYSDATE) " +
+                        "AND (SHIPDOCKINDEDATE IS NULL OR SHIPDOCKINDEDATE >= SYSDATE) " +
+                        "ORDER BY NVL(s.SEQNUM, 999999), s.SHIPDOCKINDCODE";
+            
+            PreparedStatement stmt = conn.prepareStatement(sql);
+            ResultSet rs = stmt.executeQuery();
+            
+            List<ShipDocKindOption> kinds = new ArrayList<>();
+            int count = 0;
+            
+            while (rs.next()) {
+                String code = rs.getString("SHIPDOCKINDCODE");
+                String name = rs.getString("SHIPDOCKINDNAME");
+                String groupCode = rs.getString("SHIPDOCKINDGRCODE");
+                
+                kinds.add(new ShipDocKindOption(
+                    code != null ? code : "",
+                    name != null ? name : "",
+                    groupCode != null ? groupCode : ""
+                ));
+                count++;
+            }
+            
+            DictionaryCache.setShipDocKindsCache(kinds);
+            System.out.println("[DictionaryInitializer] Loaded " + count + " ship document kinds into cache");
+            
+            rs.close();
+            stmt.close();
+            
+        } catch (SQLException e) {
+            System.err.println("[DictionaryInitializer] ERROR loading ship document kinds dictionary: " + e.getMessage());
+            e.printStackTrace();
+        } finally {
+            DatabaseUtil.closeConnection(conn);
+        }
+    }
+    
+    /**
+     * Загружает справочник видов участников цепи поставки из базы данных в кеш
+     */
+    private void loadSupplyChainPartyKindsDictionary(String guid) {
+        Connection conn = null;
+        try {
+            System.out.println("[DictionaryInitializer] Loading supply chain party kinds dictionary...");
+            conn = DatabaseUtil.getConnectionForGuid(guid);
+            
+            // Загружаем только активные записи (где SUPPLYCHAINPARTYKINDACTFL = 1)
+            String sql = "SELECT SUPPLYCHAINPARTYKINDCODE, SUPPLYCHAINPARTYKINDNAME " +
+                        "FROM SUPPLYCHAINPARTYKIND " +
+                        "WHERE SUPPLYCHAINPARTYKINDACTFL = 1 " +
+                        "ORDER BY NVL(SUPPLYCHAINPARTYKINDSEQNUM, 999999), SUPPLYCHAINPARTYKINDCODE";
+            
+            PreparedStatement stmt = conn.prepareStatement(sql);
+            ResultSet rs = stmt.executeQuery();
+            
+            List<SupplyChainPartyKindOption> kinds = new ArrayList<>();
+            int count = 0;
+            
+            while (rs.next()) {
+                String code = rs.getString("SUPPLYCHAINPARTYKINDCODE");
+                String name = rs.getString("SUPPLYCHAINPARTYKINDNAME");
+                
+                kinds.add(new SupplyChainPartyKindOption(
+                    code != null ? code : "",
+                    name != null ? name : ""
+                ));
+                count++;
+            }
+            
+            DictionaryCache.setSupplyChainPartyKindsCache(kinds);
+            System.out.println("[DictionaryInitializer] Loaded " + count + " supply chain party kinds into cache");
+            
+            rs.close();
+            stmt.close();
+            
+        } catch (SQLException e) {
+            System.err.println("[DictionaryInitializer] ERROR loading supply chain party kinds dictionary: " + e.getMessage());
+            e.printStackTrace();
+        } finally {
+            DatabaseUtil.closeConnection(conn);
+        }
+    }
+    
+    /**
+     * Загружает справочник организационно-правовых форм (LEGALFORM, codeListId=2049) в кеш
+     */
+    private void loadLegalFormsDictionary(String guid) {
+        Connection conn = null;
+        try {
+            System.out.println("[DictionaryInitializer] Loading legal forms dictionary...");
+            conn = DatabaseUtil.getConnectionForGuid(guid);
+            String sql = "SELECT LEGALFORMCODE, LEGALFORMNAME, COUNTRYCODE " +
+                        "FROM LEGALFORM " +
+                        "WHERE (LEGALFORMSDATE IS NULL OR LEGALFORMSDATE <= SYSDATE) " +
+                        "AND (LEGALFORMEDATE IS NULL OR LEGALFORMEDATE >= SYSDATE) " +
+                        "ORDER BY COUNTRYCODE, LEGALFORMCODE";
+            PreparedStatement stmt = conn.prepareStatement(sql);
+            ResultSet rs = stmt.executeQuery();
+            List<LegalFormOption> list = new ArrayList<>();
+            int count = 0;
+            while (rs.next()) {
+                list.add(new LegalFormOption(
+                    rs.getString("LEGALFORMCODE"),
+                    rs.getString("LEGALFORMNAME"),
+                    rs.getString("COUNTRYCODE")
+                ));
+                count++;
+            }
+            DictionaryCache.setLegalFormsCache(list);
+            System.out.println("[DictionaryInitializer] Loaded " + count + " legal forms into cache");
+            rs.close();
+            stmt.close();
+        } catch (SQLException e) {
+            System.err.println("[DictionaryInitializer] ERROR loading legal forms dictionary: " + e.getMessage());
+            e.printStackTrace();
+        } finally {
+            DatabaseUtil.closeConnection(conn);
+        }
+    }
+    
+    /**
+     * Загружает справочник методов идентификации (BUSENTKIND, codeListId=1033) в кеш
+     */
+    private void loadIdentificationMethodsDictionary(String guid) {
+        Connection conn = null;
+        try {
+            System.out.println("[DictionaryInitializer] Loading identification methods dictionary...");
+            conn = DatabaseUtil.getConnectionForGuid(guid);
+            String sql = "SELECT BUSENTKINDCODE, BUSENTKINDLETTERCODE, BUSENTKINDDESC, COUNTRYCODE " +
+                        "FROM BUSENTKIND " +
+                        "WHERE (BUSENTKINDSDATE IS NULL OR BUSENTKINDSDATE <= SYSDATE) " +
+                        "AND (BUSENTKINDEDATE IS NULL OR BUSENTKINDEDATE >= SYSDATE) " +
+                        "ORDER BY COUNTRYCODE, BUSENTKINDCODE";
+            PreparedStatement stmt = conn.prepareStatement(sql);
+            ResultSet rs = stmt.executeQuery();
+            List<IdentificationMethodOption> list = new ArrayList<>();
+            int count = 0;
+            while (rs.next()) {
+                list.add(new IdentificationMethodOption(
+                    rs.getString("BUSENTKINDCODE"),
+                    rs.getString("BUSENTKINDLETTERCODE"),
+                    rs.getString("BUSENTKINDDESC"),
+                    rs.getString("COUNTRYCODE")
+                ));
+                count++;
+            }
+            DictionaryCache.setIdentificationMethodsCache(list);
+            System.out.println("[DictionaryInitializer] Loaded " + count + " identification methods into cache");
+            rs.close();
+            stmt.close();
+        } catch (SQLException e) {
+            System.err.println("[DictionaryInitializer] ERROR loading identification methods dictionary: " + e.getMessage());
+            e.printStackTrace();
+        } finally {
+            DatabaseUtil.closeConnection(conn);
+        }
+    }
+    
+    /**
+     * Загружает справочник видов документов об оценке соответствия (CONFDOCKIND, codeListId=2001) в кеш
+     */
+    private void loadConformityDocKindsDictionary(String guid) {
+        Connection conn = null;
+        try {
+            System.out.println("[DictionaryInitializer] Loading conformity doc kinds dictionary...");
+            conn = DatabaseUtil.getConnectionForGuid(guid);
+            String sql = "SELECT CONFDOCKINDCODE, CONFDOCKINDNAME, CONFDOCKINDBRIEFNAME " +
+                        "FROM CONFDOCKIND " +
+                        "WHERE (CONFDOCKINDSDATE IS NULL OR CONFDOCKINDSDATE <= SYSDATE) " +
+                        "AND CONFDOCKINDEDATE >= SYSDATE " +
+                        "ORDER BY CONFDOCKINDCODE";
+            PreparedStatement stmt = conn.prepareStatement(sql);
+            ResultSet rs = stmt.executeQuery();
+            List<ConformityDocKindOption> list = new ArrayList<>();
+            int count = 0;
+            while (rs.next()) {
+                list.add(new ConformityDocKindOption(
+                    rs.getString("CONFDOCKINDCODE"),
+                    rs.getString("CONFDOCKINDNAME"),
+                    rs.getString("CONFDOCKINDBRIEFNAME")
+                ));
+                count++;
+            }
+            DictionaryCache.setConformityDocKindsCache(list);
+            System.out.println("[DictionaryInitializer] Loaded " + count + " conformity doc kinds into cache");
+            rs.close();
+            stmt.close();
+        } catch (SQLException e) {
+            System.err.println("[DictionaryInitializer] ERROR loading conformity doc kinds dictionary: " + e.getMessage());
+            e.printStackTrace();
+        } finally {
+            DatabaseUtil.closeConnection(conn);
+        }
+    }
+
+    /**
+     * Загружает справочник видов каналов связи из базы данных в кеш
+     */
+    private void loadCommunicationChannelsDictionary(String guid) {
+        Connection conn = null;
+        try {
+            System.out.println("[DictionaryInitializer] Loading communication channels dictionary...");
+            conn = DatabaseUtil.getConnectionForGuid(guid);
+
+            String sql = "SELECT COMMUNICATIONCHANNELCODE, COMMUNICATIONCHANNELNAME " +
+                    "FROM COMMUNICATIONCHANNEL " +
+                    "WHERE COMMUNICATIONCHANNELACTFL = 1 " +
+                    "ORDER BY NVL(COMMUNICATIONCHANNELSEQNUM, 999999), COMMUNICATIONCHANNELCODE";
+
+            PreparedStatement stmt = conn.prepareStatement(sql);
+            ResultSet rs = stmt.executeQuery();
+
+            List<CommunicationChannelOption> list = new ArrayList<>();
+            int count = 0;
+            while (rs.next()) {
+                list.add(new CommunicationChannelOption(
+                        rs.getString("COMMUNICATIONCHANNELCODE"),
+                        rs.getString("COMMUNICATIONCHANNELNAME")
+                ));
+                count++;
+            }
+
+            DictionaryCache.setCommunicationChannelsCache(list);
+            System.out.println("[DictionaryInitializer] Loaded " + count + " communication channels into cache");
+
+            rs.close();
+            stmt.close();
+        } catch (SQLException e) {
+            System.err.println("[DictionaryInitializer] ERROR loading communication channels dictionary: " + e.getMessage());
+            e.printStackTrace();
+        } finally {
+            DatabaseUtil.closeConnection(conn);
+        }
+    }
+    
+    /**
+     * Загружает справочник видов документов, удостоверяющих личность (IDENTITYDOCKIND, codeListId=2053) в кеш.
+     * Читает IDENTITYDOCSECTIONCODE (как в отборе {@code WHERE IDENTITYDOCSECTIONCODE = 'BY'});
+     * при отсутствии колонки — повтор без неё.
+     */
+    private void loadIdentityDocKindsDictionary(String guid) {
+        Connection conn = null;
+        try {
+            System.out.println("[DictionaryInitializer] Loading identity doc kinds dictionary...");
+            conn = DatabaseUtil.getConnectionForGuid(guid);
+            if (!loadIdentityDocKindsIntoCache(conn, true)) {
+                System.out.println("[DictionaryInitializer] Retrying identity doc kinds without IDENTITYDOCSECTIONCODE...");
+                if (!loadIdentityDocKindsIntoCache(conn, false)) {
+                    System.err.println("[DictionaryInitializer] Failed to load identity doc kinds dictionary");
+                }
+            }
+        } catch (SQLException e) {
+            System.err.println("[DictionaryInitializer] ERROR loading identity doc kinds dictionary: " + e.getMessage());
+            e.printStackTrace();
+        } finally {
+            DatabaseUtil.closeConnection(conn);
+        }
+    }
+
+    /**
+     * @return false если запрос с IDENTITYDOCSECTIONCODE невозможен (нет колонки и т.п.)
+     */
+    private boolean loadIdentityDocKindsIntoCache(Connection conn, boolean withSection) {
+        PreparedStatement stmt = null;
+        ResultSet rs = null;
+        try {
+            String sql;
+            /* Активность записи: как у других справочников — учитываем бессрочные (NULL в датах). */
+            final String activePeriod =
+                    "WHERE (IDENTITYDOCKINDSDATE IS NULL OR IDENTITYDOCKINDSDATE <= SYSDATE) " +
+                    "AND (IDENTITYDOCKINDEDATE IS NULL OR IDENTITYDOCKINDEDATE >= SYSDATE) ";
+            if (withSection) {
+                sql = "SELECT IDENTITYDOCKINDCODE, IDENTITYDOCKINDNAME, IDENTITYDOCSECTIONCODE " +
+                        "FROM IDENTITYDOCKIND " +
+                        activePeriod +
+                        "ORDER BY IDENTITYDOCSECTIONCODE, IDENTITYDOCKINDCODE";
+            } else {
+                sql = "SELECT IDENTITYDOCKINDCODE, IDENTITYDOCKINDNAME " +
+                        "FROM IDENTITYDOCKIND " +
+                        activePeriod +
+                        "ORDER BY IDENTITYDOCKINDCODE";
+            }
+            stmt = conn.prepareStatement(sql);
+            rs = stmt.executeQuery();
+            List<IdentityDocKindOption> list = new ArrayList<>();
+            int count = 0;
+            while (rs.next()) {
+                String section = withSection ? rs.getString("IDENTITYDOCSECTIONCODE") : null;
+                list.add(new IdentityDocKindOption(
+                    rs.getString("IDENTITYDOCKINDCODE"),
+                    rs.getString("IDENTITYDOCKINDNAME"),
+                    section
+                ));
+                count++;
+            }
+            DictionaryCache.setIdentityDocKindsCache(list);
+            System.out.println("[DictionaryInitializer] Loaded " + count + " identity doc kinds (withSection=" + withSection + ")");
+            return true;
+        } catch (SQLException e) {
+            System.err.println("[DictionaryInitializer] identity doc kinds query failed (withSection=" + withSection + "): " + e.getMessage());
+            return false;
+        } finally {
+            try {
+                if (rs != null) rs.close();
+            } catch (SQLException ignored) {
+            }
+            try {
+                if (stmt != null) stmt.close();
+            } catch (SQLException ignored) {
+            }
+        }
+    }
+
+    /**
+     * Загружает справочник пунктов пропуска (BORDERCHECKPOINT) в кеш.
+     */
+    private void loadBorderCheckpointsDictionary(String guid) {
+        Connection conn = null;
+        try {
+            System.out.println("[DictionaryInitializer] Loading border checkpoints dictionary...");
+            conn = DatabaseUtil.getConnectionForGuid(guid);
+            String sql = "SELECT BORDERCHECKPOINTCODE, BORDERCHECKPOINTNAME " +
+                        "FROM BORDERCHECKPOINT " +
+                        "WHERE BORDERCHECKPOINTSDATE <= SYSDATE " +
+                        "AND (BORDERCHECKPOINTEDATE IS NULL OR BORDERCHECKPOINTEDATE >= SYSDATE) " +
+                        "ORDER BY BORDERCHECKPOINTNAME";
+            PreparedStatement stmt = conn.prepareStatement(sql);
+            ResultSet rs = stmt.executeQuery();
+            List<BorderCheckpointOption> list = new ArrayList<>();
+            int count = 0;
+            while (rs.next()) {
+                list.add(new BorderCheckpointOption(
+                    rs.getString("BORDERCHECKPOINTCODE"),
+                    rs.getString("BORDERCHECKPOINTNAME")
+                ));
+                count++;
+            }
+            DictionaryCache.setBorderCheckpointCache(list);
+            System.out.println("[DictionaryInitializer] Loaded " + count + " border checkpoints into cache");
+            rs.close();
+            stmt.close();
+        } catch (SQLException e) {
+            System.err.println("[DictionaryInitializer] ERROR loading border checkpoints dictionary: " + e.getMessage());
+            e.printStackTrace();
+        } finally {
+            DatabaseUtil.closeConnection(conn);
+        }
+    }
+    
+    /**
+     * Загружает справочник болезней (DISEASEHEALTHPROBLEM) в кеш.
+     */
+    private void loadDiseaseHealthProblemDictionary(String guid) {
+        Connection conn = null;
+        try {
+            System.out.println("[DictionaryInitializer] Loading disease health problem dictionary...");
+            conn = DatabaseUtil.getConnectionForGuid(guid);
+            String sql = "SELECT NVL(DISEASEHEALTHPROBLEMICDCODE, TO_CHAR(DISEASEHEALTHPROBLEMID)) AS CCODE, DISEASEHEALTHPROBLEMNAME AS CNAME, DISEASEHEALTHPROBLEMINFECTFL AS CINFECT " +
+                        "FROM DISEASEHEALTHPROBLEM ORDER BY DISEASEHEALTHPROBLEMNAME";
+            PreparedStatement stmt = conn.prepareStatement(sql);
+            ResultSet rs = stmt.executeQuery();
+            List<DiseaseHealthProblemOption> list = new ArrayList<>();
+            while (rs.next()) {
+                Object infectObj = rs.getObject("CINFECT");
+                Integer infect = infectObj != null ? rs.getInt("CINFECT") : null;
+                list.add(new DiseaseHealthProblemOption(rs.getString("CCODE"), rs.getString("CNAME"), infect));
+            }
+            DictionaryCache.setDiseaseHealthProblemCache(list);
+            System.out.println("[DictionaryInitializer] Loaded " + list.size() + " disease health problems into cache");
+            rs.close();
+            stmt.close();
+        } catch (SQLException e) {
+            System.err.println("[DictionaryInitializer] ERROR loading disease health problem dictionary: " + e.getMessage());
+            e.printStackTrace();
+        } finally {
+            DatabaseUtil.closeConnection(conn);
+        }
+    }
+    
+    /**
+     * Загружает справочник видов возбудителей (PATHOGENKIND) в кеш.
+     */
+    private void loadPathogenKindDictionary(String guid) {
+        Connection conn = null;
+        try {
+            System.out.println("[DictionaryInitializer] Loading pathogen kind dictionary...");
+            conn = DatabaseUtil.getConnectionForGuid(guid);
+            String sql = "SELECT PATHOGENKINDCODE, PATHOGENKINDNAME FROM PATHOGENKIND " +
+                        "WHERE PATHOGENKINDACTFL = 1 ORDER BY NVL(PATHOGENKINDSEQNUM, 999999), PATHOGENKINDNAME";
+            PreparedStatement stmt = conn.prepareStatement(sql);
+            ResultSet rs = stmt.executeQuery();
+            List<PathogenKindOption> list = new ArrayList<>();
+            while (rs.next()) {
+                list.add(new PathogenKindOption(rs.getString("PATHOGENKINDCODE"), rs.getString("PATHOGENKINDNAME")));
+            }
+            DictionaryCache.setPathogenKindCache(list);
+            System.out.println("[DictionaryInitializer] Loaded " + list.size() + " pathogen kinds into cache");
+            rs.close();
+            stmt.close();
+        } catch (SQLException e) {
+            System.err.println("[DictionaryInitializer] ERROR loading pathogen kind dictionary: " + e.getMessage());
+            e.printStackTrace();
+        } finally {
+            DatabaseUtil.closeConnection(conn);
+        }
+    }
+    
+    /**
+     * Загружает справочник возрастных групп (AGEGR) в кеш.
+     */
+    private void loadAgeGroupDictionary(String guid) {
+        Connection conn = null;
+        try {
+            System.out.println("[DictionaryInitializer] Loading age group dictionary...");
+            conn = DatabaseUtil.getConnectionForGuid(guid);
+            String sql = "SELECT AGEGRCODE, AGEGRNAME FROM AGEGR " +
+                        "WHERE AGEGRACTFL = 1 ORDER BY NVL(AGEGRSEQNUM, 999999), AGEGRNAME";
+            PreparedStatement stmt = conn.prepareStatement(sql);
+            ResultSet rs = stmt.executeQuery();
+            List<AgeGroupOption> list = new ArrayList<>();
+            while (rs.next()) {
+                list.add(new AgeGroupOption(rs.getString("AGEGRCODE"), rs.getString("AGEGRNAME")));
+            }
+            DictionaryCache.setAgeGroupCache(list);
+            System.out.println("[DictionaryInitializer] Loaded " + list.size() + " age groups into cache");
+            rs.close();
+            stmt.close();
+        } catch (SQLException e) {
+            System.err.println("[DictionaryInitializer] ERROR loading age group dictionary: " + e.getMessage());
+            e.printStackTrace();
+        } finally {
+            DatabaseUtil.closeConnection(conn);
+        }
+    }
+    
+    /**
+     * Загружает справочник исходов болезни (DISEASEOUTCOME) в кеш.
+     */
+    private void loadDiseaseOutcomeDictionary(String guid) {
+        Connection conn = null;
+        try {
+            System.out.println("[DictionaryInitializer] Loading disease outcome dictionary...");
+            conn = DatabaseUtil.getConnectionForGuid(guid);
+            String sql = "SELECT DISEASEOUTCOMECODE, DISEASEOUTCOMENAME FROM DISEASEOUTCOME " +
+                        "WHERE DISEASEOUTCOMEACTFL = 1 ORDER BY NVL(DISEASEOUTCOMESEQNUM, 999999), DISEASEOUTCOMENAME";
+            PreparedStatement stmt = conn.prepareStatement(sql);
+            ResultSet rs = stmt.executeQuery();
+            List<DiseaseOutcomeOption> list = new ArrayList<>();
+            while (rs.next()) {
+                list.add(new DiseaseOutcomeOption(rs.getString("DISEASEOUTCOMECODE"), rs.getString("DISEASEOUTCOMENAME")));
+            }
+            DictionaryCache.setDiseaseOutcomeCache(list);
+            System.out.println("[DictionaryInitializer] Loaded " + list.size() + " disease outcomes into cache");
+            rs.close();
+            stmt.close();
+        } catch (SQLException e) {
+            System.err.println("[DictionaryInitializer] ERROR loading disease outcome dictionary: " + e.getMessage());
+            e.printStackTrace();
+        } finally {
+            DatabaseUtil.closeConnection(conn);
+        }
+    }
+    
+    /**
+     * Загружает справочник технических регламентов из базы данных в кеш
+     */
+    private void loadTechRegulsDictionary(String guid) {
+        Connection conn = null;
+        try {
+            System.out.println("[DictionaryInitializer] Loading technical regulations dictionary...");
+            conn = DatabaseUtil.getConnectionForGuid(guid);
+            
+            // Загружаем только активные записи (где TECHREGULEDATE либо NULL, либо больше текущей даты)
+            String sql = "SELECT TECHREGULCODE, TECHREGULNAME, TECHREGULREGNUM " +
+                        "FROM TECHREGUL " +
+                        "WHERE TECHREGULSDATE <= SYSDATE " +
+                        "AND (TECHREGULEDATE IS NULL OR TECHREGULEDATE >= SYSDATE) " +
+                        "ORDER BY TECHREGULCODE";
+            
+            PreparedStatement stmt = conn.prepareStatement(sql);
+            ResultSet rs = stmt.executeQuery();
+            
+            List<TechRegulOption> reguls = new ArrayList<>();
+            int count = 0;
+            
+            while (rs.next()) {
+                String code = rs.getString("TECHREGULCODE");
+                String name = rs.getString("TECHREGULNAME");
+                String regNum = rs.getString("TECHREGULREGNUM");
+                
+                reguls.add(new TechRegulOption(
+                    code != null ? code : "",
+                    name != null ? name : "",
+                    regNum != null ? regNum : ""
+                ));
+                count++;
+            }
+            
+            DictionaryCache.setTechRegulsCache(reguls);
+            System.out.println("[DictionaryInitializer] Loaded " + count + " technical regulations into cache");
+            
+            rs.close();
+            stmt.close();
+            
+        } catch (SQLException e) {
+            System.err.println("[DictionaryInitializer] ERROR loading technical regulations dictionary: " + e.getMessage());
+            e.printStackTrace();
+        } finally {
+            DatabaseUtil.closeConnection(conn);
+        }
+    }
+    
+    /**
+     * Загружает справочник видов объектов действия мер из базы данных в кеш
+     */
+    private void loadSanitaryMeasureObjKindsDictionary(String guid) {
+        Connection conn = null;
+        try {
+            System.out.println("[DictionaryInitializer] Loading sanitary measure object kinds dictionary...");
+            conn = DatabaseUtil.getConnectionForGuid(guid);
+            
+            // Загружаем только активные записи (где SANITARYMEASUREOBJKINDACTFL = 1)
+            String sql = "SELECT SANITARYMEASUREOBJKINDCODE, SANITARYMEASUREOBJKINDNAME " +
+                        "FROM SANITARYMEASUREOBJKIND " +
+                        "WHERE SANITARYMEASUREOBJKINDACTFL = 1 " +
+                        "ORDER BY NVL(SANITARYMEASUREOBJKINDSEQNUM, 999999), SANITARYMEASUREOBJKINDNAME";
+            
+            PreparedStatement stmt = conn.prepareStatement(sql);
+            ResultSet rs = stmt.executeQuery();
+            
+            List<SanitaryMeasureObjKindOption> kinds = new ArrayList<>();
+            int count = 0;
+            
+            while (rs.next()) {
+                String code = rs.getString("SANITARYMEASUREOBJKINDCODE");
+                String name = rs.getString("SANITARYMEASUREOBJKINDNAME");
+                
+                kinds.add(new SanitaryMeasureObjKindOption(
+                    code != null ? code : "",
+                    name != null ? name : ""
+                ));
+                count++;
+            }
+            
+            DictionaryCache.setSanitaryMeasureObjKindsCache(kinds);
+            System.out.println("[DictionaryInitializer] Loaded " + count + " sanitary measure object kinds into cache");
+            
+            rs.close();
+            stmt.close();
+            
+        } catch (SQLException e) {
+            System.err.println("[DictionaryInitializer] ERROR loading sanitary measure object kinds dictionary: " + e.getMessage());
+            e.printStackTrace();
+        } finally {
+            DatabaseUtil.closeConnection(conn);
+        }
+    }
+    
+    /**
+     * Загружает справочник санитарных мер из базы данных в кеш
+     */
+    private void loadSanitaryMeasuresDictionary(String guid) {
+        Connection conn = null;
+        try {
+            System.out.println("[DictionaryInitializer] Loading sanitary measures dictionary...");
+            conn = DatabaseUtil.getConnectionForGuid(guid);
+            
+            // Загружаем только активные записи (где SANITARYMEASURESDATE <= SYSDATE и (SANITARYMEASUREEDATE IS NULL или SANITARYMEASUREEDATE >= SYSDATE))
+            String sql = "SELECT SANITARYMEASURECODE, SANITARYMEASURENAME " +
+                        "FROM SANITARYMEASURE " +
+                        "WHERE SANITARYMEASURESDATE <= SYSDATE " +
+                        "AND (SANITARYMEASUREEDATE IS NULL OR SANITARYMEASUREEDATE >= SYSDATE) " +
+                        "ORDER BY SANITARYMEASURECODE";
+            
+            PreparedStatement stmt = conn.prepareStatement(sql);
+            ResultSet rs = stmt.executeQuery();
+            
+            List<SanitaryMeasureOption> measures = new ArrayList<>();
+            int count = 0;
+            
+            while (rs.next()) {
+                String code = rs.getString("SANITARYMEASURECODE");
+                String name = rs.getString("SANITARYMEASURENAME");
+                
+                measures.add(new SanitaryMeasureOption(
+                    code != null ? code : "",
+                    name != null ? name : ""
+                ));
+                count++;
+            }
+            
+            DictionaryCache.setSanitaryMeasuresCache(measures);
+            System.out.println("[DictionaryInitializer] Loaded " + count + " sanitary measures into cache");
+            
+            rs.close();
+            stmt.close();
+            
+        } catch (SQLException e) {
+            System.err.println("[DictionaryInitializer] ERROR loading sanitary measures dictionary: " + e.getMessage());
+            e.printStackTrace();
+        } finally {
+            DatabaseUtil.closeConnection(conn);
+        }
+    }
+    
+    /**
+     * Загружает справочник форматов данных (MEDIATYPE) из базы данных в кеш
+     */
+    private void loadMediaTypesDictionary(String guid) {
+        Connection conn = null;
+        try {
+            System.out.println("[DictionaryInitializer] Loading media types dictionary...");
+            conn = DatabaseUtil.getConnectionForGuid(guid);
+            
+            // Загружаем только активные записи (где MEDIATYPEACTFL = 1)
+            String sql = "SELECT MEDIATYPECODE, MEDIATYPENAME " +
+                        "FROM MEDIATYPE " +
+                        "WHERE MEDIATYPEACTFL = 1 " +
+                        "ORDER BY NVL(MEDIATYPESEQNUM, 999999), MEDIATYPENAME";
+            
+            PreparedStatement stmt = conn.prepareStatement(sql);
+            ResultSet rs = stmt.executeQuery();
+            
+            List<MediaTypeOption> mediaTypes = new ArrayList<>();
+            int count = 0;
+            
+            while (rs.next()) {
+                String code = rs.getString("MEDIATYPECODE");
+                String name = rs.getString("MEDIATYPENAME");
+                
+                mediaTypes.add(new MediaTypeOption(
+                    code != null ? code : "",
+                    name != null ? name : ""
+                ));
+                count++;
+            }
+            
+            DictionaryCache.setMediaTypesCache(mediaTypes);
+            System.out.println("[DictionaryInitializer] Loaded " + count + " media types into cache");
+            
+            rs.close();
+            stmt.close();
+            
+        } catch (SQLException e) {
+            System.err.println("[DictionaryInitializer] ERROR loading media types dictionary: " + e.getMessage());
+            e.printStackTrace();
+        } finally {
+            DatabaseUtil.closeConnection(conn);
+        }
+    }
+    
+    /**
+     * Загружает справочник подразделений (TB_DEP + TB_DEPKIND) для «Определить доступ»
+     */
+    private void loadDepOptionsDictionary(String guid) {
+        Connection conn = null;
+        try {
+            System.out.println("[DictionaryInitializer] Loading dep options dictionary...");
+            conn = DatabaseUtil.getConnectionForGuid(guid);
+            
+            String sql = "SELECT d.DEPID, d.DEPNAME, dk.DEPKINDCODE "
+                    + "FROM TB_DEP d "
+                    + "LEFT JOIN TB_DEPKIND dk ON d.DEPKINDID = dk.DEPKINDID "
+                    + "ORDER BY d.DEPNAME";
+            
+            PreparedStatement stmt = conn.prepareStatement(sql);
+            ResultSet rs = stmt.executeQuery();
+            
+            List<DepOption> options = new ArrayList<>();
+            int count = 0;
+            
+            while (rs.next()) {
+                String id = rs.getString(1);
+                String name = rs.getString(2);
+                String depKindCode = rs.getString(3);
+                options.add(new DepOption(id, name, depKindCode));
+                count++;
+            }
+            
+            DictionaryCache.setDepOptionsCache(options);
+            System.out.println("[DictionaryInitializer] Loaded " + count + " dep options into cache");
+            
+            rs.close();
+            stmt.close();
+            
+        } catch (SQLException e) {
+            System.err.println("[DictionaryInitializer] ERROR loading dep options dictionary: " + e.getMessage());
+            e.printStackTrace();
+        } finally {
+            DatabaseUtil.closeConnection(conn);
+        }
+    }
+}
+
+
+

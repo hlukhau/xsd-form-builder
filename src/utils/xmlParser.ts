@@ -33,13 +33,16 @@ import type {
   DocumentReferenceDetails,
   MeasurePlaceDetails,
 } from '@/types/card'
+import { getIncidentAlertKindNameByCode, checkIncidentAlertKindExists, getIncidentAlertKindOptions, checkSanitaryProdTypeExists, getSanitaryProdTypeOptions, checkShipDocKindExists, checkSupplyChainPartyKindExists, checkSanitaryMeasureObjKindExists } from '@/utils/referenceDataApi'
+import { DPA_CANONICAL_XML_NAMESPACES, normalizeXmlNamespaces } from '@/utils/xmlNamespaceNormalizer'
 
 /**
  * Парсит XML документ и преобразует его в структуру CardData
  */
 export function parseXMLToCardData(xmlText: string): CardData {
+  const xmlTextNormalized = normalizeXmlNamespaces(xmlText, DPA_CANONICAL_XML_NAMESPACES)
   const parser = new DOMParser()
-  const xmlDoc = parser.parseFromString(xmlText, 'text/xml')
+  const xmlDoc = parser.parseFromString(xmlTextNormalized, 'text/xml')
 
   // Проверка на ошибки парсинга
   const parserError = xmlDoc.querySelector('parsererror')
@@ -146,96 +149,124 @@ export function parseXMLToCardData(xmlText: string): CardData {
   
   console.log('Извлеченные данные:', { country, registrationNumber, incidentKindCode, docCreationDate })
 
-  // Уполномоченный орган - ищем по локальному имени
+  // Уполномоченный орган - ищем по namespace и локальному имени
   let authority: Element | null = null
-  const allElements = alertDetails.getElementsByTagName('*')
-  for (let i = 0; i < allElements.length; i++) {
-    const el = allElements[i]
-    const localName = el.localName || el.tagName.split(':').pop()?.toLowerCase()
-    if (localName === 'unifiedauthoritydetails') {
-      authority = el
-      break
+  try {
+    const authorityElements = alertDetails.getElementsByTagName('ccdo:UnifiedAuthorityDetails')
+    if (authorityElements.length > 0) {
+      authority = authorityElements[0]
+      console.log('[parseXMLToCardData] Найден UnifiedAuthorityDetails через namespace')
     }
+  } catch (e) {
+    console.log('[parseXMLToCardData] Ошибка при поиске через namespace:', e)
   }
   
-  const authorizedBody = {
-    country: getTextContent(authority, 'UnifiedCountryCode') || '',
-    identifier: getTextContent(authority, 'AuthorityId') || '',
-    name: getTextContent(authority, 'AuthorityName') || '',
-    shortName: getTextContent(authority, 'AuthorityShortName') || '',
-  }
-
-  // ResourceItemStatusDetails - ищем по локальному имени
-  let resourceStatus: Element | null = null
-  for (let i = 0; i < allElements.length; i++) {
-    const el = allElements[i]
-    const localName = el.localName || el.tagName.split(':').pop()?.toLowerCase()
-    if (localName === 'resourceitemstatusdetails') {
-      resourceStatus = el
-      break
-    }
-  }
-  
-  // ValidityPeriodDetails
-  let validityPeriod: Element | null = null
-  if (resourceStatus) {
-    const resourceChildren = resourceStatus.getElementsByTagName('*')
-    for (let i = 0; i < resourceChildren.length; i++) {
-      const el = resourceChildren[i]
+  // Если не нашли через namespace, ищем по локальному имени
+  if (!authority) {
+    const allElements = alertDetails.getElementsByTagName('*')
+    for (let i = 0; i < allElements.length; i++) {
+      const el = allElements[i]
       const localName = el.localName || el.tagName.split(':').pop()?.toLowerCase()
-      if (localName === 'validityperioddetails') {
-        validityPeriod = el
+      if (localName === 'unifiedauthoritydetails') {
+        authority = el
+        console.log('[parseXMLToCardData] Найден UnifiedAuthorityDetails по локальному имени')
         break
       }
     }
   }
-  const startDateTime = getTextContent(validityPeriod, 'StartDateTime') || ''
-  const endDateTime = getTextContent(validityPeriod, 'EndDateTime') || ''
-  const updateDateTime = getTextContent(resourceStatus, 'UpdateDateTime') || ''
+  
+  if (!authority) {
+    console.warn('[parseXMLToCardData] UnifiedAuthorityDetails не найден!')
+  }
+  
+  const authorizedBody = {
+    country: authority ? (getTextContent(authority, 'UnifiedCountryCode') || '') : '',
+    identifier: authority ? (getTextContent(authority, 'AuthorityId') || '') : '',
+    name: authority ? (getTextContent(authority, 'AuthorityName') || '') : '',
+    shortName: authority ? (getTextContent(authority, 'AuthorityBriefName') || getTextContent(authority, 'AuthorityShortName') || '') : '',
+  }
+  
+  console.log('[parseXMLToCardData] authorizedBody:', authorizedBody)
 
-  // Устанавливаем даты только если они не пустые
-  if (startDateTime && startDateTime.trim()) {
-    electronicDocument.validityPeriod.start = startDateTime.trim()
+  // ResourceItemStatusDetails → ValidityPeriodDetails (StartDateTime, EndDateTime), UpdateDateTime
+  const findByName = (parent: Element, localNameAnyCase: string): Element | null => {
+    const wantLower = localNameAnyCase.toLowerCase()
+    try {
+      const byNs = parent.getElementsByTagNameNS('*', localNameAnyCase)
+      if (byNs.length > 0) return byNs[0]
+    } catch (_) {}
+    const all = parent.getElementsByTagName('*')
+    for (let i = 0; i < all.length; i++) {
+      const el = all[i]
+      const localName = (el.localName || el.tagName.split(':').pop() || '').toLowerCase()
+      if (localName === wantLower) return el
+    }
+    return null
   }
-  if (endDateTime && endDateTime.trim()) {
-    electronicDocument.validityPeriod.end = endDateTime.trim()
+  const tryFind = (parent: Element | null, name: string): Element | null => parent ? findByName(parent, name) : null
+  let resourceStatus = tryFind(alertDetails, 'ResourceItemStatusDetails') ?? tryFind(alertDetails, 'resourceitemstatusdetails')
+  if (!resourceStatus) {
+    resourceStatus = tryFind(xmlDoc.documentElement, 'ResourceItemStatusDetails') ?? tryFind(xmlDoc.documentElement, 'resourceitemstatusdetails')
   }
-  if (updateDateTime && updateDateTime.trim()) {
-    electronicDocument.updateDateTime = updateDateTime.trim()
+  let validityPeriod: Element | null = null
+  if (resourceStatus) {
+    validityPeriod = tryFind(resourceStatus, 'ValidityPeriodDetails') ?? tryFind(resourceStatus, 'validityperioddetails')
   }
+  const startDateTime = (getTextContent(validityPeriod, 'StartDateTime') || getTextFromDirectChildByLocalName(validityPeriod, 'StartDateTime') || '').trim()
+  const endDateTime = (getTextContent(validityPeriod, 'EndDateTime') || getTextFromDirectChildByLocalName(validityPeriod, 'EndDateTime') || '').trim()
+  const updateDateTime = (getTextContent(resourceStatus, 'UpdateDateTime') || getTextFromDirectChildByLocalName(resourceStatus, 'UpdateDateTime') || '').trim()
 
-  // EndDate
-  const endDate = getTextContent(alertDetails, 'EndDate')
+  if (startDateTime) electronicDocument.validityPeriod.start = startDateTime
+  if (endDateTime) electronicDocument.validityPeriod.end = endDateTime
+  if (updateDateTime) electronicDocument.updateDateTime = updateDateTime
+
+  // EndDate уведомления: только прямой дочерний csdo:EndDate у smcdo:DangerousProductAlertDetails.
+  // getTextContent обходит всех потомков и мог бы взять csdo:EndDate из smcdo:SanitaryMeasureBaseDetails.
+  const endDate = getTextFromDirectChildByLocalName(alertDetails, 'EndDate')
 
   // Парсинг данных о продукции
   // Передаем и alertDetails, и корневой элемент для поиска
   const productData = parseProductData(alertDetails, xmlDoc.documentElement)
   
-  // Парсинг данных о партиях (ТСД)
+  // Парсинг данных о партиях (ТСД); в каждой партии также парсятся документы соответствия и нарушения
   const tsdData = parseTSDData(alertDetails, xmlDoc.documentElement)
   
-  // Парсинг документов соответствия
-  const complianceDocumentsData = parseComplianceDocuments(alertDetails, xmlDoc.documentElement)
-  
-  // Парсинг нарушений
-  const violationsData = parseViolations(alertDetails, xmlDoc.documentElement)
-  
+  // По XSD документы соответствия и нарушения только внутри партий; при разборе из корня (старый XML) кладём в партию
+  let finalTsd = tsdData
+  const mergedCompliance = mergeComplianceDocumentsFromBatches(tsdData)
+  const mergedViolations = mergeViolationsFromBatches(tsdData)
+  if (!mergedCompliance?.documents?.length) {
+    const fallbackCompliance = parseComplianceDocuments(alertDetails, xmlDoc.documentElement)
+    if (fallbackCompliance?.documents?.length) {
+      const batches = finalTsd?.batches?.length ? [...finalTsd.batches] : [{ shippingDocuments: [] }]
+      const first = batches[0]
+      batches[0] = { ...first, complianceDocuments: fallbackCompliance.documents }
+      finalTsd = { batches }
+    }
+  }
+  if (!mergedViolations || ((mergedViolations.violatedRequirements?.length ?? 0) === 0 && (mergedViolations.violatedIndicators?.length ?? 0) === 0 && !mergedViolations.generalDescription)) {
+    const fallbackViolationsList = parseViolations(alertDetails, xmlDoc.documentElement)
+    if (fallbackViolationsList?.length) {
+      const batches = finalTsd?.batches?.length ? [...finalTsd.batches] : [{ shippingDocuments: [] }]
+      const first = batches[0]
+      batches[0] = { ...first, violations: fallbackViolationsList }
+      finalTsd = { batches }
+    }
+  }
+
   // Парсинг места обнаружения
   const detectionPlaceData = parseDetectionPlace(alertDetails, xmlDoc.documentElement)
   
   // Парсинг принятых мер
   const measuresData = parseMeasures(alertDetails, xmlDoc.documentElement)
 
-  // Определение типа уведомления по коду
-  const incidentKindMap: Record<string, string> = {
-    '7': 'обнаружение продукции, опасной для жизни, здоровья человека и среды его обитания',
-  }
-
+  // Сохраняем код вида уведомления в notification.type. Дата формирования — только дата (yyyy-MM-dd), без времени.
+  const formationDateOnly = docCreationDate?.trim().slice(0, 10) || ''
   const notification: Notification = {
     country,
     registrationNumber,
-    type: incidentKindMap[incidentKindCode] || `Вид уведомления (код: ${incidentKindCode})`,
-    formationDate: docCreationDate,
+    type: incidentKindCode || '', // Сохраняем код
+    formationDate: formationDateOnly,
     endDate: endDate || null,
     authorizedBody,
   }
@@ -268,11 +299,11 @@ export function parseXMLToCardData(xmlText: string): CardData {
       ...notification,
       country: notification.country || 'RU',
       registrationNumber: notification.registrationNumber || 'N/A',
-      type: notification.type || 'Не указано',
+      type: notification.type || '', // Код вида уведомления
       formationDate: notification.formationDate || new Date().toISOString().split('T')[0],
       endDate: notification.endDate,
       authorizedBody: {
-        country: notification.authorizedBody.country || 'RU',
+        country: notification.authorizedBody.country || notification.country || 'BY',
         identifier: notification.authorizedBody.identifier || '',
         name: notification.authorizedBody.name || '',
         shortName: notification.authorizedBody.shortName || '',
@@ -289,9 +320,7 @@ export function parseXMLToCardData(xmlText: string): CardData {
       { id: '1', name: 'РЦГЭИОЗ' },
     ],
     product: productData,
-    tsd: tsdData,
-    complianceDocuments: complianceDocumentsData,
-    violations: violationsData,
+    tsd: finalTsd,
     detectionPlace: detectionPlaceData,
     measures: measuresData,
   }
@@ -313,59 +342,189 @@ export function parseXMLToCardData(xmlText: string): CardData {
  * Извлекает текстовое содержимое элемента по имени тега
  * Поддерживает поиск с учетом namespace
  */
-function getTextContent(
+/** URI пространств имён из XSD (для поиска по NS без зависимости от префикса) */
+const NS_CSDO = 'urn:EEC:M:SimpleDataObjects:v0.4.12'
+const NS_CCDO = 'urn:EEC:M:ComplexDataObjects:v0.4.12'
+const NS_SMSDO = 'urn:EEC:M:SM:SimpleDataObjects:v0.3.9'
+const NS_SMCDO = 'urn:EEC:M:SM:ComplexDataObjects:v0.3.9'
+
+export function getTextContent(
   parent: Element | null,
   tagName: string
 ): string | null {
   if (!parent) return null
 
-  // Сначала пробуем найти с namespace (более точный поиск)
-  const namespaces = [
-    'ccdo',
-    'csdo',
-    'smsdo',
-    'smcdo',
-    'doc',
-  ]
+  // 1) Поиск по известным namespace URI (csdo и др.) — надёжно для XML из XSD
+  const nsUris = [NS_CSDO, NS_SMSDO, NS_CCDO, NS_SMCDO]
+  for (const ns of nsUris) {
+    try {
+      const elements = parent.getElementsByTagNameNS(ns, tagName)
+      if (elements.length > 0) {
+        const text = elements[0].textContent?.trim() || null
+        if (text) return text
+      }
+    } catch (_) {}
+  }
 
+  // 2) getElementsByTagNameNS('*', localName) во многих браузерах возвращает 0 для элементов с namespace (напр. csdo:UniqueCustomsNumberId)
+  try {
+    const byLocal = parent.getElementsByTagNameNS('*', tagName)
+    if (byLocal.length > 0) {
+      const text = byLocal[0].textContent?.trim() || null
+      if (text) return text
+    }
+  } catch (_) {}
+
+  // 3) Поиск по префиксу (csdo:TagName и т.д.)
+  const namespaces = ['ccdo', 'csdo', 'smsdo', 'smcdo', 'doc']
   for (const ns of namespaces) {
     try {
-      // Пробуем через getElementsByTagName с namespace
       const elements = parent.getElementsByTagName(`${ns}:${tagName}`)
       if (elements.length > 0) {
         const text = elements[0].textContent?.trim() || null
-        if (text) {
-          console.log(`getTextContent: найдено ${ns}:${tagName} = "${text}"`)
-        }
-        return text
+        if (text) return text
       }
-    } catch (e) {
-      // Игнорируем ошибку и продолжаем
-    }
+    } catch (_) {}
   }
 
-  // Ищем по локальному имени (без namespace) - самый надежный способ
+  // 4) По локальному имени среди всех потомков (без учёта регистра)
+  const tagNameLower = tagName.toLowerCase()
   const allElements = parent.getElementsByTagName('*')
   for (let i = 0; i < allElements.length; i++) {
     const element = allElements[i]
-    const localName = element.localName || element.tagName.split(':').pop()?.toLowerCase()
-    const tagNameLower = tagName.toLowerCase()
-    if (localName === tagNameLower) {
-      return element.textContent?.trim() || null
+    const rawLocal = element.localName || element.tagName.split(':').pop() || ''
+    if (rawLocal.toLowerCase() === tagNameLower) {
+      const text = element.textContent?.trim() || null
+      if (text) return text
     }
   }
 
-  // Последняя попытка - ищем элемент без учета namespace
+  // 5) Элемент без префикса (тег как есть)
   try {
     const elements = parent.getElementsByTagName(tagName)
     if (elements.length > 0) {
-      return elements[0].textContent?.trim() || null
+      const text = elements[0].textContent?.trim() || null
+      if (text) return text
     }
-  } catch (e) {
-    // Игнорируем ошибку
-  }
+  } catch (_) {}
 
   return null
+}
+
+/**
+ * Текст первого прямого дочернего элемента с заданным локальным именем (без учёта префикса).
+ * Исключает подмешивание значений из вложенных блоков (адрес субъекта, мероприятие, DescriptionText документа и т.д.).
+ */
+function getDirectChildTextByLocalName(parent: Element, localName: string): string | null {
+  const want = localName.toLowerCase()
+  for (let i = 0; i < parent.children.length; i++) {
+    const n = parent.children[i]
+    if (n.nodeType !== Node.ELEMENT_NODE) continue
+    const el = n as Element
+    const ln = (el.localName || el.tagName.split(':').pop() || '').toLowerCase()
+    if (ln === want) {
+      const t = el.textContent?.trim()
+      return t || null
+    }
+  }
+  return null
+}
+
+/**
+ * Извлекает внутренний XML первого элемента с заданным именем (все дочерние узлы сериализованы в строку).
+ * Используется для ccdo:AnyDetails -> ccdo:DocDetails и вложенной структуры (сохраняются теги).
+ */
+function getInnerXmlContent(parent: Element | null, tagName: string): string | undefined {
+  if (!parent) return undefined
+  let element: Element | null = null
+  const tagNameLower = tagName.toLowerCase()
+  const nsUris = [NS_CSDO, NS_SMSDO, NS_CCDO, NS_SMCDO]
+  for (const ns of nsUris) {
+    try {
+      const elements = parent.getElementsByTagNameNS(ns, tagName)
+      if (elements.length > 0) {
+        element = elements[0]
+        break
+      }
+    } catch (_) {}
+  }
+  if (!element) {
+    const namespaces = ['ccdo', 'csdo', 'smsdo', 'smcdo', 'doc']
+    for (const ns of namespaces) {
+      try {
+        const elements = parent.getElementsByTagName(`${ns}:${tagName}`)
+        if (elements.length > 0) {
+          element = elements[0]
+          break
+        }
+      } catch (_) {}
+    }
+  }
+  if (!element) {
+    const allElements = parent.getElementsByTagName('*')
+    for (let i = 0; i < allElements.length; i++) {
+      const el = allElements[i]
+      const rawLocal = (el.localName || el.tagName.split(':').pop() || '').toLowerCase()
+      if (rawLocal === tagNameLower) {
+        element = el
+        break
+      }
+    }
+  }
+  if (!element || !element.childNodes || element.childNodes.length === 0) return undefined
+  try {
+    const serializer = new XMLSerializer()
+    const parts: string[] = []
+    for (let i = 0; i < element.childNodes.length; i++) {
+      const node = element.childNodes[i]
+      if (node.nodeType === 1) parts.push(serializer.serializeToString(node))
+    }
+    const inner = parts.join('').trim()
+    return inner || undefined
+  } catch (_) {
+    return undefined
+  }
+}
+
+/**
+ * Извлекает текст из первого прямого дочернего элемента с заданным локальным именем (без учёта регистра).
+ * Используется как запасной способ, когда getTextContent не срабатывает (например, в части браузеров).
+ */
+function getTextFromDirectChildByLocalName(parent: Element | null, tagLocalName: string): string | null {
+  if (!parent || !parent.childNodes) return null
+  const want = tagLocalName.toLowerCase()
+  for (let i = 0; i < parent.childNodes.length; i++) {
+    const node = parent.childNodes[i]
+    if (node.nodeType !== 1) continue
+    const el = node as Element
+    const local = (el.localName || (el.tagName || '').split(':').pop() || '').toLowerCase()
+    if (local === want) {
+      const text = (el.textContent || '').trim()
+      return text || null
+    }
+  }
+  return null
+}
+
+/**
+ * Извлекает текстовое содержимое всех прямых дочерних элементов с заданным именем тега (для maxOccurs="unbounded").
+ * Сравнение по локальному имени тега (без namespace). Возвращает массив в порядке появления в XML.
+ */
+export function getAllTextContents(parent: Element | null, tagName: string): string[] {
+  if (!parent) return []
+  const result: string[] = []
+  const tagNameLower = tagName.toLowerCase()
+  const childNodes = parent.childNodes
+  for (let i = 0; i < childNodes.length; i++) {
+    const node = childNodes[i]
+    if (node.nodeType !== 1) continue // 1 = ELEMENT_NODE
+    const el = node as Element
+    const localName = (el.localName || (el.tagName || '').split(':').pop() || '').toLowerCase()
+    if (localName !== tagNameLower) continue
+    const text = (el.textContent || '').trim()
+    if (text) result.push(text)
+  }
+  return result
 }
 
 /**
@@ -482,16 +641,9 @@ function parseProductData(alertDetails: Element, rootElement?: Element): Product
   
   console.log('Найден NonCompliantSanitaryProductDetails:', productDetailsElement.tagName)
 
-  // Извлекаем данные о типе продукции
+  // Извлекаем данные о типе продукции: либо код (→ SANITARYPRODTYPEID), либо наименование (→ SANITARYPRODTYPENAME)
   const typeCode = getTextContent(productDetailsElement, 'SanitaryProductTypeCode') || ''
-  let typeName = getTextContent(productDetailsElement, 'SanitaryProductTypeName') || ''
-  
-  // Если название не указано, но есть код, можно использовать код
-  // В реальном приложении здесь можно обратиться к справочнику
-  if (!typeName && typeCode) {
-    // Заглушка - в реальном приложении нужно обращаться к справочнику
-    typeName = `Вид продукции (код: ${typeCode})`
-  }
+  const typeName = getTextContent(productDetailsElement, 'SanitaryProductTypeName') || ''
 
   // Извлекаем ProductDetails
   let productDetailsEl: Element | null = null
@@ -536,10 +688,12 @@ function parseProductData(alertDetails: Element, rootElement?: Element): Product
     console.log('ProductDetails найден:', productDetailsEl.tagName)
   }
 
+  const tradeNamesArr = getAllTextContents(productDetailsEl, 'ProductTradeName')
   const productDetails: ProductDetails = {
     productId: getTextContent(productDetailsEl, 'ProductId') || undefined,
     productName: getTextContent(productDetailsEl, 'ProductName') || undefined,
-    tradeName: getTextContent(productDetailsEl, 'ProductTradeName') || undefined,
+    tradeName: tradeNamesArr.length > 0 ? tradeNamesArr[0] : undefined,
+    tradeNames: tradeNamesArr.length > 0 ? tradeNamesArr : undefined,
     description: getTextContent(productDetailsEl, 'DescriptionText') || undefined,
     commodityCode: getTextContent(productDetailsEl, 'CommodityCode') || undefined,
     productPurpose: getTextContent(productDetailsEl, 'ProductPurposeText') || undefined,
@@ -572,20 +726,12 @@ function parseTechnicalDocs(parent: Element | null): TechnicalDocument[] {
   if (!parent) return []
 
   const docs: TechnicalDocument[] = []
-  const allElements = parent.getElementsByTagName('*')
-
-  for (let i = 0; i < allElements.length; i++) {
-    const el = allElements[i]
-    const localName = el.localName || el.tagName.split(':').pop()?.toLowerCase()
-    
-    // Ищем элементы, которые могут быть документами
-    // DocReferenceDetails, DocContentDetailsType, TechnicalDocDetails, DocDetails и т.д.
-    if (
-      localName === 'docreferencedetails' ||
-      localName?.includes('docdetails') ||
-      localName === 'technicaldocdetails' ||
-      localName === 'doccontentdetails'
-    ) {
+  
+  // Сначала пробуем найти через namespace
+  try {
+    const docRefElements = parent.getElementsByTagName('ccdo:DocReferenceDetails')
+    for (let i = 0; i < docRefElements.length; i++) {
+      const el = docRefElements[i]
       const doc: TechnicalDocument = {
         docKindCode: getTextContent(el, 'DocKindCode') || undefined,
         docKindName: getTextContent(el, 'DocKindName') || undefined,
@@ -600,8 +746,43 @@ function parseTechnicalDocs(parent: Element | null): TechnicalDocument[] {
         docs.push(doc)
       }
     }
+  } catch (e) {
+    console.log('[parseTechnicalDocs] Ошибка при поиске через namespace:', e)
+  }
+  
+  // Если не нашли через namespace, ищем по локальному имени
+  if (docs.length === 0) {
+    const allElements = parent.getElementsByTagName('*')
+    for (let i = 0; i < allElements.length; i++) {
+      const el = allElements[i]
+      const localName = el.localName || el.tagName.split(':').pop()?.toLowerCase()
+      
+      // Ищем элементы, которые могут быть документами
+      // DocReferenceDetails, DocContentDetailsType, TechnicalDocDetails, DocDetails и т.д.
+      if (
+        localName === 'docreferencedetails' ||
+        localName?.includes('docdetails') ||
+        localName === 'technicaldocdetails' ||
+        localName === 'doccontentdetails'
+      ) {
+        const doc: TechnicalDocument = {
+          docKindCode: getTextContent(el, 'DocKindCode') || undefined,
+          docKindName: getTextContent(el, 'DocKindName') || undefined,
+          docName: getTextContent(el, 'DocName') || undefined,
+          docId: getTextContent(el, 'DocId') || undefined,
+          docCreationDate: getTextContent(el, 'DocCreationDate') || undefined,
+          docStartDate: getTextContent(el, 'DocStartDate') || undefined,
+        }
+        
+        // Добавляем только если есть хотя бы одно поле
+        if (doc.docName || doc.docId || doc.docKindCode) {
+          docs.push(doc)
+        }
+      }
+    }
   }
 
+  console.log('[parseTechnicalDocs] Найдено документов:', docs.length)
   return docs
 }
 
@@ -734,40 +915,80 @@ function parseSupplyChainPartyDetails(supplyChainEl: Element): SupplyChainPartyD
   // В XML может быть BusinessEntityBriefName
   const shortName = getTextContent(supplyChainEl, 'BusinessEntityBriefName') || 
                     getTextContent(supplyChainEl, 'BusinessEntityShortName') || undefined
-  // В XML может быть BusinessEntityTypeCode, нужно получить название из справочника
+  // BusinessEntityTypeCode может иметь атрибут codeListId (2049 — справочник организационно-правовых форм)
   const businessEntityTypeCode = getTextContent(supplyChainEl, 'BusinessEntityTypeCode') || undefined
-  const organizationalForm = getTextContent(supplyChainEl, 'BusinessEntityTypeName') || undefined
+  let businessEntityTypeCodeListId: string | undefined = undefined
+  const businessEntityTypeCodeEl = Array.from(supplyChainEl.getElementsByTagName('*')).find((el) => {
+    const localName = (el.localName || el.tagName.split(':').pop() || '').toLowerCase()
+    return localName === 'businessentitytypecode'
+  })
+  if (businessEntityTypeCodeEl) {
+    businessEntityTypeCodeListId = businessEntityTypeCodeEl.getAttribute('codeListId') ?? businessEntityTypeCodeEl.getAttributeNS(null, 'codeListId') ?? undefined
+  }
+  let organizationalForm = getTextContent(supplyChainEl, 'BusinessEntityTypeName') || undefined
+  if (businessEntityTypeCode && businessEntityTypeCodeListId === '2049') {
+    organizationalForm = undefined
+  }
   const subjectIdentifier = getTextContent(supplyChainEl, 'BusinessEntityId') || undefined
   
   // Метод идентификации может быть в kindId атрибуте BusinessEntityId
   let identificationMethod = getTextContent(supplyChainEl, 'IdentificationMethodText') || undefined
-  if (!identificationMethod && subjectIdentifier) {
+  if (!identificationMethod) {
     // Пробуем найти BusinessEntityId элемент и получить kindId
-    const businessEntityIdEl = supplyChainEl.querySelector('BusinessEntityId') || 
-      Array.from(supplyChainEl.getElementsByTagName('*')).find(el => {
+    // Ищем с учетом пространств имен
+    const namespaces = ['ccdo', 'csdo', 'smsdo', 'smcdo', 'doc']
+    let businessEntityIdEl: Element | null = null
+    
+    for (const ns of namespaces) {
+      try {
+        const elements = supplyChainEl.getElementsByTagName(`${ns}:BusinessEntityId`)
+        if (elements.length > 0) {
+          businessEntityIdEl = elements[0]
+          break
+        }
+      } catch (e) {
+        // Игнорируем ошибки
+      }
+    }
+    
+    // Если не нашли через namespace, ищем по локальному имени
+    if (!businessEntityIdEl) {
+      const allElements = supplyChainEl.getElementsByTagName('*')
+      for (let i = 0; i < allElements.length; i++) {
+        const el = allElements[i]
         const localName = el.localName || el.tagName.split(':').pop()?.toLowerCase()
-        return localName === 'businessentityid'
-      })
+        if (localName === 'businessentityid') {
+          businessEntityIdEl = el
+          break
+        }
+      }
+    }
+    
     if (businessEntityIdEl) {
       const kindId = businessEntityIdEl.getAttribute('kindId')
       if (kindId) {
         // В реальном приложении здесь обращение к справочнику
-        const kindIdMap: Record<string, string> = {
-          'RU01': 'ОГРН - основной государственный регистрационный номер юридического лица, указанный в Едином государственном реестре юридических лиц',
-        }
-        identificationMethod = kindIdMap[kindId] || `Метод идентификации (код: ${kindId})`
+        // Сохраняем код kindId, а не описание, чтобы можно было экспортировать обратно
+        identificationMethod = kindId
+        console.log('[parseSupplyChainPartyDetails] Найден identificationMethod (kindId):', kindId)
       }
     }
   }
   
-  const customsNumber = getTextContent(supplyChainEl, 'CustomsNumber') || undefined
+  let customsNumber = getTextContent(supplyChainEl, 'UniqueCustomsNumberId') || getTextContent(supplyChainEl, 'CustomsNumber') || undefined
+  if (!customsNumber) {
+    const raw = getTextFromDirectChildByLocalName(supplyChainEl, 'UniqueCustomsNumberId')
+    if (raw) customsNumber = raw
+  }
   const taxpayerId = getTextContent(supplyChainEl, 'TaxpayerId') || undefined
+  const taxRegistrationReasonCode = getTextContent(supplyChainEl, 'TaxRegistrationReasonCode') || undefined
   const supplyChainPartyKindCode = getTextContent(supplyChainEl, 'SupplyChainPartyKindCode') || undefined
 
-  // Парсим адреса - находим все адреса
-  const registrationAddress = parseAddress(supplyChainEl, '1') // AddressKindCode = 1
-  const actualAddress = parseAddress(supplyChainEl, '2') // AddressKindCode = 2
-  const mailingAddress = parseAddress(supplyChainEl, '3') // AddressKindCode = 3
+  // Парсим все адреса (SubjectAddressDetails может быть несколько)
+  const addresses = parseAllAddresses(supplyChainEl)
+  const registrationAddress = addresses.find((a) => (a.addressKindCode || '').trim() === '1')
+  const actualAddress = addresses.find((a) => (a.addressKindCode || '').trim() === '2')
+  const mailingAddress = addresses.find((a) => (a.addressKindCode || '').trim() === '3')
 
   // Парсим контакты
   const contacts = parseContacts(supplyChainEl)
@@ -777,10 +998,14 @@ function parseSupplyChainPartyDetails(supplyChainEl: Element): SupplyChainPartyD
     businessEntityName,
     shortName,
     organizationalForm,
+    businessEntityTypeCode,
+    businessEntityTypeCodeListId,
     subjectIdentifier,
     identificationMethod,
     customsNumber,
     taxpayerId,
+    taxRegistrationReasonCode,
+    addresses: addresses.length > 0 ? addresses : undefined,
     registrationAddress,
     actualAddress,
     mailingAddress,
@@ -790,71 +1015,116 @@ function parseSupplyChainPartyDetails(supplyChainEl: Element): SupplyChainPartyD
 }
 
 /**
- * Парсит адрес по коду вида адреса
+ * Собирает все элементы SubjectAddressDetails в массив (порядок сохранён).
  */
-function parseAddress(parent: Element, addressKindCode: string): AddressDetails | undefined {
-  // Пробуем найти через getElementsByTagName
+function parseAllAddresses(parent: Element): AddressDetails[] {
+  const result: AddressDetails[] = []
   try {
     const addressElements = parent.getElementsByTagName('ccdo:SubjectAddressDetails')
     for (let i = 0; i < addressElements.length; i++) {
-      const el = addressElements[i]
-      const kindCode = getTextContent(el, 'AddressKindCode')
-      if (kindCode === addressKindCode) {
-        return parseAddressDetails(el)
-      }
+      result.push(parseAddressDetails(addressElements[i]))
     }
-  } catch (e) {
-    // Игнорируем ошибку
+  } catch {
+    // ignore
   }
-  
-  // Если не нашли, ищем по локальному имени
+  if (result.length > 0) return result
   const allElements = parent.getElementsByTagName('*')
-  
   for (let i = 0; i < allElements.length; i++) {
     const el = allElements[i]
-    const localName = el.localName || el.tagName.split(':').pop()?.toLowerCase()
-    
+    const localName = (el.localName || el.tagName.split(':').pop() || '').toLowerCase()
     if (localName === 'subjectaddressdetails' || localName === 'objectaddressdetails') {
-      const kindCode = getTextContent(el, 'AddressKindCode')
-      if (kindCode === addressKindCode) {
-        return parseAddressDetails(el)
-      }
+      result.push(parseAddressDetails(el))
     }
   }
-  
-  return undefined
+  return result
+}
+
+/**
+ * Парсит адрес по коду вида адреса (первый с таким кодом)
+ */
+function parseAddress(parent: Element, addressKindCode: string): AddressDetails | undefined {
+  const all = parseAllAddresses(parent)
+  return all.find((a) => (a.addressKindCode || '').trim() === addressKindCode)
+}
+
+/**
+ * Читает текст дочернего элемента адреса (getTextContent + запасной вариант по прямому потомку)
+ */
+function getAddressChildText(el: Element, localName: string): string {
+  return (
+    getTextContent(el, localName) ||
+    getTextFromDirectChildByLocalName(el, localName) ||
+    ''
+  ).trim()
 }
 
 /**
  * Парсит детали адреса из элемента
  */
 function parseAddressDetails(addressEl: Element): AddressDetails {
-  const country = getTextContent(addressEl, 'UnifiedCountryCode') || ''
-  const regionName = getTextContent(addressEl, 'RegionName') || ''
-  const districtName = getTextContent(addressEl, 'DistrictName') || ''
-  const cityName = getTextContent(addressEl, 'CityName') || ''
-  const streetName = getTextContent(addressEl, 'StreetName') || ''
-  const buildingNumberId = getTextContent(addressEl, 'BuildingNumberId') || ''
-  const roomNumberId = getTextContent(addressEl, 'RoomNumberId') || ''
-  const postCode = getTextContent(addressEl, 'PostCode') || ''
-  
-  const parts = []
-  if (country) parts.push(country)
-  if (regionName) parts.push(regionName)
-  if (districtName) parts.push(districtName)
-  if (cityName) parts.push(cityName)
-  if (streetName) parts.push(streetName)
-  if (buildingNumberId) parts.push(buildingNumberId)
-  if (roomNumberId) parts.push(roomNumberId)
-  if (postCode) parts.push(postCode)
-  
+  const country = getAddressChildText(addressEl, 'UnifiedCountryCode') || getAddressChildText(addressEl, 'CountryCode') || ''
+  const territoryCode = getAddressChildText(addressEl, 'TerritoryCode') || ''
+  const regionName = getAddressChildText(addressEl, 'RegionName') || ''
+  const districtName = getAddressChildText(addressEl, 'DistrictName') || ''
+  const cityName = getAddressChildText(addressEl, 'CityName') || ''
+  const settlementName = getAddressChildText(addressEl, 'SettlementName') || ''
+  const streetName = getAddressChildText(addressEl, 'StreetName') || ''
+  const buildingNumberId = getAddressChildText(addressEl, 'BuildingNumberId') || ''
+  const roomNumberId = getAddressChildText(addressEl, 'RoomNumberId') || ''
+  const postOfficeBoxId = getAddressChildText(addressEl, 'PostOfficeBoxId') || ''
+  const postCode = getAddressChildText(addressEl, 'PostCode') || ''
+  const fullAddress = getAddressChildText(addressEl, 'FullAddress') || getTextContent(addressEl, 'FullAddress') || undefined
+  const addressKindCode = getAddressChildText(addressEl, 'AddressKindCode') || getTextContent(addressEl, 'AddressKindCode') || undefined
+
   return {
-    addressKindCode: getTextContent(addressEl, 'AddressKindCode') || undefined,
+    addressKindCode: addressKindCode || undefined,
     country: country || undefined,
+    territoryCode: territoryCode || undefined,
+    regionName: regionName || undefined,
+    districtName: districtName || undefined,
     cityName: cityName || undefined,
+    settlementName: settlementName || undefined,
     streetName: streetName || undefined,
     buildingNumberId: buildingNumberId || undefined,
-    fullAddress: parts.length > 0 ? parts.join(', ') : undefined,
+    roomNumberId: roomNumberId || undefined,
+    postOfficeBoxId: postOfficeBoxId || undefined,
+    postCode: postCode || undefined,
+    fullAddress: fullAddress || undefined,
+  }
+}
+
+/**
+ * Один блок ccdo:CommunicationDetails: по XSD — несколько прямых дочерних csdo:CommunicationChannelId;
+ * старый XML мог содержать ContactValue / Communication (в форме — contactValue).
+ */
+function parseOneCommunicationDetails(el: Element): ContactDetails | null {
+  const channelCode = getTextContent(el, 'CommunicationChannelCode') || undefined
+  const channelName = getTextContent(el, 'CommunicationChannelName') || undefined
+  const channelIds = getAllTextContents(el, 'CommunicationChannelId')
+  const contactKind = getTextContent(el, 'ContactKind') || undefined
+  const contactValueLegacy =
+    (getTextContent(el, 'ContactValue') || getTextContent(el, 'Communication') || '').trim() || undefined
+
+  let communicationChannelId: string | undefined
+  let contactValue: string | undefined
+  if (channelIds.length >= 2) {
+    communicationChannelId = channelIds[0]
+    contactValue = channelIds[1]
+  } else if (channelIds.length === 1) {
+    communicationChannelId = channelIds[0]
+    contactValue = contactValueLegacy
+  } else {
+    communicationChannelId = undefined
+    contactValue = contactValueLegacy
+  }
+
+  if (!channelCode && !channelName && !communicationChannelId && !contactKind && !contactValue) return null
+  return {
+    contactKind,
+    contactValue,
+    communicationChannelCode: channelCode,
+    communicationChannelName: channelName,
+    communicationChannelId,
   }
 }
 
@@ -867,26 +1137,10 @@ function parseContacts(parent: Element): ContactDetails[] {
   // Пробуем найти через getElementsByTagName
   try {
     const commElements = parent.getElementsByTagName('ccdo:CommunicationDetails')
-    console.log('Найдено CommunicationDetails через getElementsByTagName:', commElements.length)
+    console.log('[parseContacts] Найдено CommunicationDetails через getElementsByTagName:', commElements.length)
     for (let i = 0; i < commElements.length; i++) {
-      const el = commElements[i]
-      const channelCode = getTextContent(el, 'CommunicationChannelCode') || undefined
-      const channelId = getTextContent(el, 'CommunicationChannelId') || undefined
-      
-      if (channelCode || channelId) {
-        // Определяем тип контакта по коду
-        const channelNameMap: Record<string, string> = {
-          'TE': 'телефон',
-          'EM': 'электронная почта',
-          'FX': 'факс',
-        }
-        const contactKind = channelCode ? (channelNameMap[channelCode] || channelCode) : undefined
-        
-        contacts.push({
-          contactKind,
-          contactValue: channelId,
-        })
-      }
+      const parsed = parseOneCommunicationDetails(commElements[i])
+      if (parsed) contacts.push(parsed)
     }
   } catch (e) {
     console.log('Ошибка при поиске контактов через getElementsByTagName:', e)
@@ -898,29 +1152,11 @@ function parseContacts(parent: Element): ContactDetails[] {
     
     for (let i = 0; i < allElements.length; i++) {
       const el = allElements[i]
-      const localName = el.localName || el.tagName.split(':').pop()?.toLowerCase()
+      const localName = (el.localName || el.tagName.split(':').pop() || '').toLowerCase()
       
-      if (localName === 'communicationdetails' || 
-          localName?.includes('contact') || 
-          localName === 'contactdetails') {
-        const channelCode = getTextContent(el, 'CommunicationChannelCode') || undefined
-        const channelId = getTextContent(el, 'CommunicationChannelId') || undefined
-        const contactKind = getTextContent(el, 'ContactKindCode') || getTextContent(el, 'ContactKindName') || undefined
-        const contactValue = getTextContent(el, 'ContactValue') || getTextContent(el, 'ContactText') || channelId || undefined
-        
-        if (contactKind || contactValue) {
-          const channelNameMap: Record<string, string> = {
-            'TE': 'телефон',
-            'EM': 'электронная почта',
-            'FX': 'факс',
-          }
-          const finalContactKind = contactKind || (channelCode ? (channelNameMap[channelCode] || channelCode) : undefined)
-          
-          contacts.push({
-            contactKind: finalContactKind,
-            contactValue,
-          })
-        }
+      if (localName === 'communicationdetails') {
+        const parsed = parseOneCommunicationDetails(el)
+        if (parsed) contacts.push(parsed)
       }
     }
   }
@@ -1138,6 +1374,9 @@ function parseBatchesDirectly(alertDetails: Element, rootElement?: Element): TSD
 function parseBatchDetails(batchElement: Element): ProductBatchDetails | null {
   console.log('Парсим детали партии:', batchElement.tagName)
   
+  // Дочерние элементы — используются для поиска BatchDetails и ShippingDocumentDetails по локальному имени (по XSD все опциональны)
+  const children = batchElement.getElementsByTagName('*')
+  
   // BatchDetails
   let batchDetailsEl: Element | null = null
   
@@ -1154,7 +1393,6 @@ function parseBatchDetails(batchElement: Element): ProductBatchDetails | null {
   
   // Если не нашли, ищем по локальному имени
   if (!batchDetailsEl) {
-    const children = batchElement.getElementsByTagName('*')
     console.log('Дочерние элементы партии:', children.length)
     
     for (let i = 0; i < children.length; i++) {
@@ -1179,18 +1417,20 @@ function parseBatchDetails(batchElement: Element): ProductBatchDetails | null {
   const batchId = batchDetailsEl ? getTextContent(batchDetailsEl, 'BatchId') : undefined
   const manufactureDate = batchDetailsEl ? getTextContent(batchDetailsEl, 'ManufactureDate') : undefined
   const productShelfLifeEndDate = batchDetailsEl ? getTextContent(batchDetailsEl, 'ProductShelfLifeEndDate') : undefined
-  const note = getTextContent(batchElement, 'NoteText') || undefined
+  const note = batchDetailsEl ? getTextContent(batchDetailsEl, 'NoteText') : (getTextContent(batchElement, 'NoteText') || undefined)
   const consignmentId = getTextContent(batchElement, 'ConsignmentId') || undefined
   
   console.log('Извлеченные данные партии:', { batchId, manufactureDate, productShelfLifeEndDate, consignmentId })
+  console.log('[parseBatchDetails] batchDetailsEl:', batchDetailsEl ? 'найден' : 'не найден')
+  console.log('[parseBatchDetails] batchElement:', batchElement.tagName)
   
   // UnifiedCommodityMeasure
   const commodityMeasure = parseMeasure(batchDetailsEl, 'UnifiedCommodityMeasure')
-  console.log('CommodityMeasure:', commodityMeasure)
+  console.log('[parseBatchDetails] commodityMeasure:', commodityMeasure)
   
   // CommodityMeasure
   const batchCommodityMeasure = parseMeasure(batchElement, 'CommodityMeasure')
-  console.log('BatchCommodityMeasure:', batchCommodityMeasure)
+  console.log('[parseBatchDetails] batchCommodityMeasure:', batchCommodityMeasure)
   
   // ShippingDocumentDetails
   const shippingDocuments: ShippingDocument[] = []
@@ -1243,8 +1483,12 @@ function parseBatchDetails(batchElement: Element): ProductBatchDetails | null {
   }
   
   console.log('Найдено документов:', shippingDocuments.length)
+
+  // Документы соответствия и нарушения в составе данного кортежа (smcdo:ConformityDocDetails, smcdo:RequirementViolationDetails внутри NonCompliantSanitaryProductBatchDetails)
+  const complianceData = parseComplianceDocuments(batchElement)
+  const violationsList = parseViolations(batchElement)
   
-  const result = {
+  const result: ProductBatchDetails = {
     batchId,
     manufactureDate,
     productShelfLifeEndDate,
@@ -1253,6 +1497,8 @@ function parseBatchDetails(batchElement: Element): ProductBatchDetails | null {
     consignmentId,
     batchCommodityMeasure,
     shippingDocuments,
+    ...(complianceData?.documents?.length ? { complianceDocuments: complianceData.documents } : {}),
+    ...(violationsList?.length ? { violations: violationsList } : {}),
   }
   
   console.log('Результат парсинга партии:', result)
@@ -1272,10 +1518,12 @@ function parseProductsFromElement(parent: Element): ProductDetails[] {
     for (let i = 0; i < productElements.length; i++) {
       const el = productElements[i]
       console.log('Найден ProductDetails в документе:', el.tagName)
+      const tradeNamesArr = getAllTextContents(el, 'ProductTradeName')
       const product: ProductDetails = {
         productId: getTextContent(el, 'ProductId') || undefined,
         productName: getTextContent(el, 'ProductName') || undefined,
-        tradeName: getTextContent(el, 'ProductTradeName') || undefined,
+        tradeName: tradeNamesArr.length > 0 ? tradeNamesArr[0] : undefined,
+        tradeNames: tradeNamesArr.length > 0 ? tradeNamesArr : undefined,
         description: getTextContent(el, 'DescriptionText') || undefined,
         commodityCode: getTextContent(el, 'CommodityCode') || undefined,
         productPurpose: getTextContent(el, 'ProductPurposeText') || undefined,
@@ -1306,10 +1554,12 @@ function parseProductsFromElement(parent: Element): ProductDetails[] {
           tagName.toLowerCase().includes('productdetails') ||
           tagName === 'smcdo:ProductDetails') {
         console.log('Найден ProductDetails по локальному имени:', tagName)
+        const tradeNamesArr = getAllTextContents(el, 'ProductTradeName')
         const product: ProductDetails = {
           productId: getTextContent(el, 'ProductId') || undefined,
           productName: getTextContent(el, 'ProductName') || undefined,
-          tradeName: getTextContent(el, 'ProductTradeName') || undefined,
+          tradeName: tradeNamesArr.length > 0 ? tradeNamesArr[0] : undefined,
+          tradeNames: tradeNamesArr.length > 0 ? tradeNamesArr : undefined,
           description: getTextContent(el, 'DescriptionText') || undefined,
           commodityCode: getTextContent(el, 'CommodityCode') || undefined,
           productPurpose: getTextContent(el, 'ProductPurposeText') || undefined,
@@ -1424,28 +1674,56 @@ function parseSupplyChainPartiesFromElement(parent: Element): SupplyChainPartyDe
  * Парсит меру с единицей измерения
  */
 function parseMeasure(parent: Element | null, tagName: string): MeasureWithUnit | undefined {
-  if (!parent) return undefined
+  if (!parent) {
+    console.log(`[parseMeasure] parent is null for tagName: ${tagName}`)
+    return undefined
+  }
   
-  // Ищем элемент по локальному имени
+  // Сначала пробуем найти через namespace (csdo: для CommodityMeasure и UnifiedCommodityMeasure)
   let measureEl: Element | null = null
-  const allElements = parent.getElementsByTagName('*')
+  try {
+    const namespaceTagName = `csdo:${tagName}`
+    const elements = parent.getElementsByTagName(namespaceTagName)
+    if (elements.length > 0) {
+      measureEl = elements[0]
+      console.log(`[parseMeasure] Найден ${tagName} через namespace: ${namespaceTagName}`)
+    }
+  } catch (e) {
+    console.log(`[parseMeasure] Ошибка при поиске через namespace для ${tagName}:`, e)
+  }
   
-  for (let i = 0; i < allElements.length; i++) {
-    const el = allElements[i]
-    const localName = el.localName || el.tagName.split(':').pop()?.toLowerCase()
-    if (localName === tagName.toLowerCase()) {
-      measureEl = el
-      break
+  // Если не нашли через namespace, ищем по локальному имени
+  if (!measureEl) {
+    const allElements = parent.getElementsByTagName('*')
+    for (let i = 0; i < allElements.length; i++) {
+      const el = allElements[i]
+      const localName = el.localName || el.tagName.split(':').pop()?.toLowerCase()
+      if (localName === tagName.toLowerCase()) {
+        // Проверяем, что это прямой потомок или вложенный элемент
+        if (el.parentElement === parent || parent.contains(el)) {
+          measureEl = el
+          console.log(`[parseMeasure] Найден ${tagName} по локальному имени: ${el.tagName}`)
+          break
+        }
+      }
     }
   }
   
-  if (!measureEl) return undefined
+  if (!measureEl) {
+    console.log(`[parseMeasure] ${tagName} не найден в parent: ${parent.tagName}`)
+    return undefined
+  }
   
   const value = measureEl.textContent?.trim() || ''
-  if (!value) return undefined
+  if (!value) {
+    console.log(`[parseMeasure] ${tagName} найден, но значение пустое`)
+    return undefined
+  }
   
   const unitCode = measureEl.getAttribute('measurementUnitCode') || undefined
   const unitCodeListId = measureEl.getAttribute('measurementUnitCodeListId') || undefined
+  
+  console.log(`[parseMeasure] ${tagName}: value=${value}, unitCode=${unitCode}, unitCodeListId=${unitCodeListId}`)
   
   // В реальном приложении здесь обращение к справочнику единиц измерения
   const unitNameMap: Record<string, string> = {
@@ -1458,8 +1736,38 @@ function parseMeasure(parent: Element | null, tagName: string): MeasureWithUnit 
     value,
     unitCode,
     unitCodeListId,
-    unitName: unitCode ? (unitNameMap[unitCode] || unitCode) : undefined,
+    // Не подставлять unitCode в unitName: в measurementUnitCode должен быть только код (например 212), наименование — только из справочника
+    unitName: unitCode ? (unitNameMap[unitCode] ?? undefined) : undefined,
   }
+}
+
+/**
+ * Объединяет документы соответствия из всех партий (для валидации и т.п.).
+ */
+export function mergeComplianceDocumentsFromBatches(tsdData: TSDData | undefined): ComplianceDocumentsData | undefined {
+  const documents = tsdData?.batches?.flatMap((b) => b.complianceDocuments ?? []) ?? []
+  if (documents.length === 0) return undefined
+  return { documents }
+}
+
+/**
+ * Объединяет нарушения из всех партий (для валидации и т.п.).
+ */
+export function mergeViolationsFromBatches(tsdData: TSDData | undefined): ViolationsData | undefined {
+  const batches = tsdData?.batches ?? []
+  const allReqs: ViolatedRequirement[] = []
+  const allInds: ViolatedIndicator[] = []
+  let generalDescription: string | undefined
+  for (const b of batches) {
+    const list = Array.isArray(b.violations) ? b.violations : (b.violations ? [b.violations as ViolationsData] : [])
+    for (const v of list) {
+      if (v.violatedRequirements?.length) allReqs.push(...v.violatedRequirements)
+      if (v.violatedIndicators?.length) allInds.push(...v.violatedIndicators)
+      if (v.generalDescription && !generalDescription) generalDescription = v.generalDescription
+    }
+  }
+  if (allReqs.length === 0 && allInds.length === 0 && !generalDescription) return undefined
+  return { generalDescription, violatedRequirements: allReqs, violatedIndicators: allInds }
 }
 
 /**
@@ -1470,38 +1778,54 @@ function parseComplianceDocuments(alertDetails: Element, rootElement?: Element):
   
   const documents: ComplianceDocument[] = []
   
-  // Ищем все ConformityDocDetails внутри NonCompliantSanitaryProductBatchDetails
-  const searchElements = rootElement ? [alertDetails, rootElement] : [alertDetails]
+  // Используем Set для отслеживания уже обработанных элементов, чтобы избежать дублирования
+  const processedElements = new Set<Element>()
   
-  for (const searchElement of searchElements) {
-    // Пробуем найти через getElementsByTagName
-    try {
-      const docElements = searchElement.getElementsByTagName('smcdo:ConformityDocDetails')
-      console.log('Найдено документов соответствия через getElementsByTagName:', docElements.length)
+  // Ищем только в alertDetails, так как rootElement может содержать весь документ и дублировать элементы
+  const searchElement = alertDetails
+  
+  // Пробуем найти через getElementsByTagName
+  try {
+    const docElements = searchElement.getElementsByTagName('smcdo:ConformityDocDetails')
+    console.log('Найдено документов соответствия через getElementsByTagName:', docElements.length)
+    
+    for (let i = 0; i < docElements.length; i++) {
+      const el = docElements[i]
       
-      for (let i = 0; i < docElements.length; i++) {
-        const el = docElements[i]
+      // Пропускаем уже обработанные элементы
+      if (processedElements.has(el)) {
+        console.log('[parseComplianceDocuments] Пропускаем уже обработанный элемент')
+        continue
+      }
+      processedElements.add(el)
+      
+      const doc = parseComplianceDocument(el)
+      if (doc) {
+        documents.push(doc)
+      }
+    }
+  } catch (e) {
+    console.log('Ошибка при поиске документов соответствия:', e)
+  }
+  
+  // Если не нашли, ищем по локальному имени
+  if (documents.length === 0) {
+    const allElements = searchElement.getElementsByTagName('*')
+    for (let i = 0; i < allElements.length; i++) {
+      const el = allElements[i]
+      
+      // Пропускаем уже обработанные элементы
+      if (processedElements.has(el)) {
+        continue
+      }
+      
+      const localName = el.localName || el.tagName.split(':').pop()?.toLowerCase()
+      
+      if (localName === 'conformitydocdetails') {
+        processedElements.add(el)
         const doc = parseComplianceDocument(el)
         if (doc) {
           documents.push(doc)
-        }
-      }
-    } catch (e) {
-      console.log('Ошибка при поиске документов соответствия:', e)
-    }
-    
-    // Если не нашли, ищем по локальному имени
-    if (documents.length === 0) {
-      const allElements = searchElement.getElementsByTagName('*')
-      for (let i = 0; i < allElements.length; i++) {
-        const el = allElements[i]
-        const localName = el.localName || el.tagName.split(':').pop()?.toLowerCase()
-        
-        if (localName === 'conformitydocdetails') {
-          const doc = parseComplianceDocument(el)
-          if (doc) {
-            documents.push(doc)
-          }
         }
       }
     }
@@ -1534,11 +1858,11 @@ function parseComplianceDocument(docElement: Element): ComplianceDocument | null
   try {
     const authorityEl = docElement.getElementsByTagName('ccdo:UnifiedAuthorityDetails')[0]
     if (authorityEl) {
+      // csdo:AuthorityId в документе соответствия в карточку не переносим (в XML не экспортируется)
       authority = {
         country: getTextContent(authorityEl, 'UnifiedCountryCode') || undefined,
         authorityName: getTextContent(authorityEl, 'AuthorityName') || undefined,
         authorityBriefName: getTextContent(authorityEl, 'AuthorityBriefName') || undefined,
-        authorityId: getTextContent(authorityEl, 'AuthorityId') || undefined,
       }
     }
   } catch (e) {
@@ -1557,7 +1881,6 @@ function parseComplianceDocument(docElement: Element): ComplianceDocument | null
           country: getTextContent(el, 'UnifiedCountryCode') || undefined,
           authorityName: getTextContent(el, 'AuthorityName') || undefined,
           authorityBriefName: getTextContent(el, 'AuthorityBriefName') || undefined,
-          authorityId: getTextContent(el, 'AuthorityId') || undefined,
         }
         break
       }
@@ -1584,125 +1907,72 @@ function parseComplianceDocument(docElement: Element): ComplianceDocument | null
 }
 
 /**
- * Парсит нарушения
+ * Парсит один элемент RequirementViolationDetails в одно ViolationsData.
  */
-function parseViolations(alertDetails: Element, rootElement?: Element): ViolationsData | undefined {
-  console.log('Начинаем парсинг нарушений')
-  
-  const violatedRequirements: ViolatedRequirement[] = []
-  const violatedIndicators: ViolatedIndicator[] = []
-  let generalDescription: string | undefined = undefined
-  
-  const searchElements = rootElement ? [alertDetails, rootElement] : [alertDetails]
-  
-  for (const searchElement of searchElements) {
-    // Пробуем найти через getElementsByTagName
-    try {
-      const violationElements = searchElement.getElementsByTagName('smcdo:RequirementViolationDetails')
-      console.log('Найдено нарушений через getElementsByTagName:', violationElements.length)
-      
-      for (let i = 0; i < violationElements.length; i++) {
-        const el = violationElements[i]
-        
-        // Описание на уровне RequirementViolationDetails (может быть несколько)
-        // Собираем все DescriptionText на этом уровне
-        const descs: string[] = []
-        const allDescElements = el.getElementsByTagName('*')
-        for (let j = 0; j < allDescElements.length; j++) {
-          const descEl = allDescElements[j]
-          const localName = descEl.localName || descEl.tagName.split(':').pop()?.toLowerCase()
-          // Проверяем, что это DescriptionText и он не внутри RequirementsDocDetails
-          if (localName === 'descriptiontext') {
-            const parentLocalName = descEl.parentElement?.localName || descEl.parentElement?.tagName.split(':').pop()?.toLowerCase()
-            // Если DescriptionText на уровне RequirementViolationDetails (не внутри RequirementsDocDetails)
-            if (parentLocalName === 'requirementviolationdetails') {
-              const text = descEl.textContent?.trim()
-              if (text) {
-                descs.push(text)
-              }
-            }
-          }
-        }
-        
-        // Объединяем все описания
-        if (descs.length > 0) {
-          const combinedDesc = descs.join(' ')
-          if (!generalDescription) {
-            generalDescription = combinedDesc
-          } else {
-            generalDescription += ' ' + combinedDesc
-          }
-        }
-        
-        // RequirementsDocDetails
-        const requirementsDocs = parseRequirementsDocDetails(el)
-        violatedRequirements.push(...requirementsDocs)
-        
-        // DiscrepancyOfQualityIndexDetails (нарушенные показатели)
-        const indicators = parseViolatedIndicators(el)
-        violatedIndicators.push(...indicators)
-      }
-    } catch (e) {
-      console.log('Ошибка при поиске нарушений:', e)
-    }
-    
-    // Если не нашли, ищем по локальному имени
-    if (violatedRequirements.length === 0) {
-      const allElements = searchElement.getElementsByTagName('*')
-      for (let i = 0; i < allElements.length; i++) {
-        const el = allElements[i]
-        const localName = el.localName || el.tagName.split(':').pop()?.toLowerCase()
-        
-        if (localName === 'requirementviolationdetails') {
-          // Описание на уровне RequirementViolationDetails
-          const descs: string[] = []
-          const allDescElements = el.getElementsByTagName('*')
-          for (let j = 0; j < allDescElements.length; j++) {
-            const descEl = allDescElements[j]
-            const descLocalName = descEl.localName || descEl.tagName.split(':').pop()?.toLowerCase()
-            if (descLocalName === 'descriptiontext') {
-              const parentLocalName = descEl.parentElement?.localName || descEl.parentElement?.tagName.split(':').pop()?.toLowerCase()
-              if (parentLocalName === 'requirementviolationdetails') {
-                const text = descEl.textContent?.trim()
-                if (text) {
-                  descs.push(text)
-                }
-              }
-            }
-          }
-          
-          if (descs.length > 0) {
-            const combinedDesc = descs.join(' ')
-            if (!generalDescription) {
-              generalDescription = combinedDesc
-            } else {
-              generalDescription += ' ' + combinedDesc
-            }
-          }
-          
-          const requirementsDocs = parseRequirementsDocDetails(el)
-          violatedRequirements.push(...requirementsDocs)
-          
-          const indicators = parseViolatedIndicators(el)
-          violatedIndicators.push(...indicators)
-        }
-      }
+function parseOneRequirementViolationDetails(el: Element): ViolationsData {
+  // По XSD: csdo:DescriptionText на уровне RequirementViolationDetails — прямой потомок, после требований и показателей
+  const descs: string[] = []
+  for (let i = 0; i < el.children.length; i++) {
+    const child = el.children[i] as Element
+    const localName = (child.localName || child.tagName.split(':').pop() || '').toLowerCase()
+    if (localName === 'descriptiontext') {
+      const text = child.textContent?.trim()
+      if (text) descs.push(text)
     }
   }
-  
-  if (violatedRequirements.length === 0 && violatedIndicators.length === 0 && !generalDescription) {
-    console.log('Нарушения не найдены')
-    return undefined
-  }
-  
-  console.log('Найдено нарушенных требований:', violatedRequirements.length)
-  console.log('Найдено нарушенных показателей:', violatedIndicators.length)
-  
+  const generalDescription = descs.length > 0 ? descs.join(' ') : undefined
+
+  const requirementsDocs = parseRequirementsDocDetails(el)
+
+  const violatedIndicators = parseViolatedIndicators(el)
   return {
     generalDescription,
-    violatedRequirements,
+    violatedRequirements: requirementsDocs,
     violatedIndicators,
   }
+}
+
+/**
+ * Парсит нарушения: возвращает массив — по одному ViolationsData на каждый smcdo:RequirementViolationDetails.
+ */
+function parseViolations(alertDetails: Element, _rootElement?: Element): ViolationsData[] | undefined {
+  const result: ViolationsData[] = []
+  const processedElements = new Set<Element>()
+  const searchElement = alertDetails
+
+  try {
+    const violationElements = searchElement.getElementsByTagName('smcdo:RequirementViolationDetails')
+    for (let i = 0; i < violationElements.length; i++) {
+      const el = violationElements[i]
+      if (processedElements.has(el)) continue
+      processedElements.add(el)
+      const one = parseOneRequirementViolationDetails(el)
+      if ((one.violatedRequirements?.length ?? 0) > 0 || (one.violatedIndicators?.length ?? 0) > 0 || !!one.generalDescription) {
+        result.push(one)
+      }
+    }
+  } catch (e) {
+    console.log('Ошибка при поиске нарушений:', e)
+  }
+
+  if (result.length === 0) {
+    const allElements = searchElement.getElementsByTagName('*')
+    for (let i = 0; i < allElements.length; i++) {
+      const el = allElements[i]
+      if (processedElements.has(el)) continue
+      const localName = el.localName || el.tagName.split(':').pop()?.toLowerCase()
+      if (localName === 'requirementviolationdetails') {
+        processedElements.add(el)
+        const one = parseOneRequirementViolationDetails(el)
+        if ((one.violatedRequirements?.length ?? 0) > 0 || (one.violatedIndicators?.length ?? 0) > 0 || !!one.generalDescription) {
+          result.push(one)
+        }
+      }
+    }
+  }
+
+  if (result.length === 0) return undefined
+  return result
 }
 
 /**
@@ -1890,19 +2160,28 @@ function parseViolatedIndicator(indicatorElement: Element): ViolatedIndicator | 
   const indicatorValue = getTextContent(indicatorElement, 'DiscrepancyOfQualityIndexValue') || undefined
   const note = getTextContent(indicatorElement, 'NoteText') || undefined
   
-  // Единица измерения из атрибутов
-  const valueElement = indicatorElement.querySelector('DiscrepancyOfQualityIndexValue') ||
-    Array.from(indicatorElement.getElementsByTagName('*')).find(el => {
-      const localName = el.localName || el.tagName.split(':').pop()?.toLowerCase()
-      return localName === 'discrepancyofqualityindexvalue'
-    })
-  
+  // Единица измерения: элемент csdo:UnifiedMeasurementUnitCode (codeListId="2064") или атрибуты у DiscrepancyOfQualityIndexValue (старый формат)
   let unitCode: string | undefined = undefined
   let unitCodeListId: string | undefined = undefined
-  
-  if (valueElement) {
-    unitCode = valueElement.getAttribute('measurementUnitCode') || undefined
-    unitCodeListId = valueElement.getAttribute('measurementUnitCodeListId') || undefined
+  const unitEl = indicatorElement.querySelector('UnifiedMeasurementUnitCode') ||
+    Array.from(indicatorElement.getElementsByTagName('*')).find(el => {
+      const localName = el.localName || el.tagName.split(':').pop()?.toLowerCase()
+      return localName === 'unifiedmeasurementunitcode'
+    })
+  if (unitEl) {
+    unitCode = (unitEl.textContent ?? '').trim() || undefined
+    unitCodeListId = unitEl.getAttribute('codeListId') || undefined
+  }
+  if (!unitCode) {
+    const valueElement = indicatorElement.querySelector('DiscrepancyOfQualityIndexValue') ||
+      Array.from(indicatorElement.getElementsByTagName('*')).find(el => {
+        const localName = el.localName || el.tagName.split(':').pop()?.toLowerCase()
+        return localName === 'discrepancyofqualityindexvalue'
+      })
+    if (valueElement) {
+      unitCode = valueElement.getAttribute('measurementUnitCode') || undefined
+      unitCodeListId = valueElement.getAttribute('measurementUnitCodeListId') || undefined
+    }
   }
   
   // В реальном приложении здесь обращение к справочнику единиц измерения
@@ -1913,7 +2192,7 @@ function parseViolatedIndicator(indicatorElement: Element): ViolatedIndicator | 
     'C62': 'мг/кг',
     'M1': '%',
   }
-  const unitName = unitCode ? (unitNameMap[unitCode] || unitCode) : undefined
+  const unitName = unitCode ? (unitNameMap[unitCode] ?? undefined) : undefined
   
   if (!indicatorCode && !indicatorName && !indicatorValue) {
     return null
@@ -1971,9 +2250,10 @@ function parseDetectionPlace(alertDetails: Element, rootElement?: Element): Dete
 }
 
 /**
- * Парсит детали места обнаружения
+ * Парсит детали места обнаружения (smcdo:DetectionPlaceDetails / LocationDetailsType).
+ * Экспортируется для использования в PHA-парсере.
  */
-function parseDetectionPlaceDetails(placeElement: Element): DetectionPlaceData {
+export function parseDetectionPlaceDetails(placeElement: Element): DetectionPlaceData {
   // OrganizationDetails (может быть UnifiedAuthorityDetails или BusinessEntityDetailsType)
   const organization = parseOrganizationDetails(placeElement)
   
@@ -2032,31 +2312,68 @@ function parseOrganizationDetails(placeElement: Element): BusinessEntityDetails 
     return undefined
   }
   
-  const country = getTextContent(orgElement, 'UnifiedCountryCode') || undefined
+  const country = getDirectChildTextByLocalName(orgElement, 'UnifiedCountryCode') || undefined
   const businessEntityName = getTextContent(orgElement, 'BusinessEntityName') || undefined
   const businessEntityBriefName = getTextContent(orgElement, 'BusinessEntityBriefName') || undefined
-  const businessEntityTypeName = getTextContent(orgElement, 'BusinessEntityTypeName') || undefined
+  let businessEntityTypeCode: string | undefined
+  let businessEntityTypeCodeListId: string | undefined
+  const businessEntityTypeCodeElOrg = Array.from(orgElement.getElementsByTagName('*')).find((el) => {
+    const localName = (el.localName || el.tagName.split(':').pop() || '').toLowerCase()
+    return localName === 'businessentitytypecode'
+  })
+  if (businessEntityTypeCodeElOrg) {
+    businessEntityTypeCode = businessEntityTypeCodeElOrg.textContent?.trim() || undefined
+    businessEntityTypeCodeListId =
+      businessEntityTypeCodeElOrg.getAttribute('codeListId') ?? businessEntityTypeCodeElOrg.getAttributeNS(null, 'codeListId') ?? undefined
+  }
+  let businessEntityTypeName = getTextContent(orgElement, 'BusinessEntityTypeName') || undefined
+  if (businessEntityTypeCode && businessEntityTypeCodeListId === '2049') {
+    businessEntityTypeName = undefined
+  }
+  const customsNumber = getTextContent(orgElement, 'UniqueCustomsNumberId') || getTextContent(orgElement, 'CustomsNumber') || undefined
+  const taxRegistrationReasonCode = getTextContent(orgElement, 'TaxRegistrationReasonCode') || undefined
   const taxpayerId = getTextContent(orgElement, 'TaxpayerId') || undefined
   
   // BusinessEntityId с методом идентификации
   let businessEntityId: string | undefined = undefined
   let identificationMethod: string | undefined = undefined
   
-  const businessEntityIdEl = orgElement.querySelector('BusinessEntityId') ||
-    Array.from(orgElement.getElementsByTagName('*')).find(el => {
+  // Ищем BusinessEntityId с учетом пространств имен
+  const namespaces = ['ccdo', 'csdo', 'smsdo', 'smcdo', 'doc']
+  let businessEntityIdEl: Element | null = null
+  
+  for (const ns of namespaces) {
+    try {
+      const elements = orgElement.getElementsByTagName(`${ns}:BusinessEntityId`)
+      if (elements.length > 0) {
+        businessEntityIdEl = elements[0]
+        break
+      }
+    } catch (e) {
+      // Игнорируем ошибки
+    }
+  }
+  
+  // Если не нашли через namespace, ищем по локальному имени
+  if (!businessEntityIdEl) {
+    const allElements = orgElement.getElementsByTagName('*')
+    for (let i = 0; i < allElements.length; i++) {
+      const el = allElements[i]
       const localName = el.localName || el.tagName.split(':').pop()?.toLowerCase()
-      return localName === 'businessentityid'
-    })
+      if (localName === 'businessentityid') {
+        businessEntityIdEl = el
+        break
+      }
+    }
+  }
   
   if (businessEntityIdEl) {
     businessEntityId = businessEntityIdEl.textContent?.trim() || undefined
     const kindId = businessEntityIdEl.getAttribute('kindId')
     if (kindId) {
-      const kindIdMap: Record<string, string> = {
-        'BY01': 'УНП - учетный номер плательщика',
-        'RU01': 'ОГРН - основной государственный регистрационный номер юридического лица',
-      }
-      identificationMethod = kindIdMap[kindId] || `Метод идентификации (код: ${kindId})`
+      // Сохраняем код kindId, а не описание, чтобы можно было экспортировать обратно
+      identificationMethod = kindId
+      console.log('[parseOrganizationDetails] Найден identificationMethod (kindId):', kindId)
     }
   }
   
@@ -2093,7 +2410,20 @@ function parseOrganizationDetails(placeElement: Element): BusinessEntityDetails 
   // Контакты (CommunicationDetails)
   const contacts = parseContacts(orgElement)
   
-  if (!country && !businessEntityName) {
+  const hasOrgContent =
+    !!country?.trim() ||
+    !!businessEntityName?.trim() ||
+    !!businessEntityBriefName?.trim() ||
+    !!businessEntityTypeCode?.trim() ||
+    !!businessEntityTypeName?.trim() ||
+    !!businessEntityId?.trim() ||
+    !!identificationMethod?.trim() ||
+    !!customsNumber?.trim() ||
+    !!taxRegistrationReasonCode?.trim() ||
+    !!taxpayerId?.trim() ||
+    addresses.length > 0 ||
+    contacts.length > 0
+  if (!hasOrgContent) {
     return undefined
   }
   
@@ -2101,9 +2431,13 @@ function parseOrganizationDetails(placeElement: Element): BusinessEntityDetails 
     country,
     businessEntityName,
     businessEntityBriefName,
+    businessEntityTypeCode,
+    businessEntityTypeCodeListId,
     businessEntityTypeName,
     businessEntityId,
     identificationMethod,
+    customsNumber,
+    taxRegistrationReasonCode,
     taxpayerId,
     addresses: addresses.length > 0 ? addresses : undefined,
     contacts: contacts.length > 0 ? contacts : undefined,
@@ -2184,14 +2518,13 @@ function parseObjectAddress(placeElement: Element): AddressDetails | undefined {
     console.log('Ошибка при поиске ObjectAddressDetails:', e)
   }
   
-  // Если не нашли, ищем по локальному имени
+  // Если не нашли, ищем по локальному имени (регистр может отличаться в XML DOM)
   if (!addressElement) {
     const allElements = placeElement.getElementsByTagName('*')
     console.log('Ищем ObjectAddressDetails среди', allElements.length, 'элементов')
     for (let i = 0; i < allElements.length; i++) {
       const el = allElements[i]
-      const localName = el.localName || el.tagName.split(':').pop()?.toLowerCase()
-      
+      const localName = (el.localName || el.tagName.split(':').pop() || '').toLowerCase()
       if (localName === 'objectaddressdetails') {
         console.log('Найден ObjectAddressDetails по локальному имени:', el.tagName)
         addressElement = el
@@ -2211,58 +2544,39 @@ function parseObjectAddress(placeElement: Element): AddressDetails | undefined {
 }
 
 /**
- * Парсит GeoCoordinateDetails
+ * Парсит все GeoCoordinateDetails в массив (может быть несколько координат).
  */
-function parseGeoCoordinates(placeElement: Element): GeoCoordinateDetails | undefined {
-  let geoElement: Element | null = null
-  
-  console.log('Ищем GeoCoordinateDetails в:', placeElement.tagName)
-  
-  // Пробуем найти через getElementsByTagName
+function parseGeoCoordinates(placeElement: Element): GeoCoordinateDetails[] {
+  const result: GeoCoordinateDetails[] = []
+  let elements: HTMLCollectionOf<Element> | Element[] = []
+
   try {
-    const elements = placeElement.getElementsByTagName('ccdo:GeoCoordinateDetails')
-    console.log('Найдено GeoCoordinateDetails через getElementsByTagName:', elements.length)
-    if (elements.length > 0) {
-      geoElement = elements[0]
-    }
+    elements = placeElement.getElementsByTagName('ccdo:GeoCoordinateDetails')
   } catch (e) {
-    console.log('Ошибка при поиске GeoCoordinateDetails:', e)
+    // ignore
   }
-  
-  // Если не нашли, ищем по локальному имени
-  if (!geoElement) {
+
+  if (elements.length === 0) {
     const allElements = placeElement.getElementsByTagName('*')
-    console.log('Ищем GeoCoordinateDetails среди', allElements.length, 'элементов')
     for (let i = 0; i < allElements.length; i++) {
       const el = allElements[i]
-      const localName = el.localName || el.tagName.split(':').pop()?.toLowerCase()
-      
+      const localName = (el.localName || el.tagName.split(':').pop() || '').toLowerCase()
       if (localName === 'geocoordinatedetails') {
-        console.log('Найден GeoCoordinateDetails по локальному имени:', el.tagName)
-        geoElement = el
-        break
+        const longitude = getTextContent(el, 'LongitudeMeasure') || undefined
+        const latitude = getTextContent(el, 'LatitudeMeasure') || undefined
+        if (longitude || latitude) result.push({ longitude, latitude })
       }
     }
+    return result
   }
-  
-  if (!geoElement) {
-    console.log('GeoCoordinateDetails не найден')
-    return undefined
+
+  for (let i = 0; i < elements.length; i++) {
+    const geoElement = elements[i]
+    const longitude = getTextContent(geoElement, 'LongitudeMeasure') || undefined
+    const latitude = getTextContent(geoElement, 'LatitudeMeasure') || undefined
+    if (longitude || latitude) result.push({ longitude, latitude })
   }
-  
-  const longitude = getTextContent(geoElement, 'LongitudeMeasure') || undefined
-  const latitude = getTextContent(geoElement, 'LatitudeMeasure') || undefined
-  
-  console.log('Распарсен GeoCoordinateDetails:', { longitude, latitude })
-  
-  if (!longitude && !latitude) {
-    return undefined
-  }
-  
-  return {
-    longitude,
-    latitude,
-  }
+  return result
 }
 
 /**
@@ -2272,37 +2586,55 @@ function parseMeasures(alertDetails: Element, rootElement?: Element): MeasuresDa
   console.log('Начинаем парсинг принятых мер')
   
   const measures: SanitaryMeasure[] = []
-  const searchElements = rootElement ? [alertDetails, rootElement] : [alertDetails]
   
-  for (const searchElement of searchElements) {
-    // Пробуем найти через getElementsByTagName
-    try {
-      const measureElements = searchElement.getElementsByTagName('smcdo:SanitaryMeasureBaseDetails')
-      console.log('Найдено мер через getElementsByTagName:', measureElements.length)
+  // Используем Set для отслеживания уже обработанных элементов, чтобы избежать дублирования
+  const processedElements = new Set<Element>()
+  
+  // Ищем только в alertDetails, так как rootElement может содержать весь документ и дублировать элементы
+  const searchElement = alertDetails
+  
+  // Пробуем найти через getElementsByTagName
+  try {
+    const measureElements = searchElement.getElementsByTagName('smcdo:SanitaryMeasureBaseDetails')
+    console.log('Найдено мер через getElementsByTagName:', measureElements.length)
+    
+    for (let i = 0; i < measureElements.length; i++) {
+      const el = measureElements[i]
       
-      for (let i = 0; i < measureElements.length; i++) {
-        const el = measureElements[i]
+      // Пропускаем уже обработанные элементы
+      if (processedElements.has(el)) {
+        console.log('[parseMeasures] Пропускаем уже обработанный элемент')
+        continue
+      }
+      processedElements.add(el)
+      
+      const measure = parseSanitaryMeasure(el)
+      if (measure) {
+        measures.push(measure)
+      }
+    }
+  } catch (e) {
+    console.log('Ошибка при поиске мер:', e)
+  }
+  
+  // Если не нашли, ищем по локальному имени
+  if (measures.length === 0) {
+    const allElements = searchElement.getElementsByTagName('*')
+    for (let i = 0; i < allElements.length; i++) {
+      const el = allElements[i]
+      
+      // Пропускаем уже обработанные элементы
+      if (processedElements.has(el)) {
+        continue
+      }
+      
+      const localName = el.localName || el.tagName.split(':').pop()?.toLowerCase()
+      
+      if (localName === 'sanitarymeasurebasedetails') {
+        processedElements.add(el)
         const measure = parseSanitaryMeasure(el)
         if (measure) {
           measures.push(measure)
-        }
-      }
-    } catch (e) {
-      console.log('Ошибка при поиске мер:', e)
-    }
-    
-    // Если не нашли, ищем по локальному имени
-    if (measures.length === 0) {
-      const allElements = searchElement.getElementsByTagName('*')
-      for (let i = 0; i < allElements.length; i++) {
-        const el = allElements[i]
-        const localName = el.localName || el.tagName.split(':').pop()?.toLowerCase()
-        
-        if (localName === 'sanitarymeasurebasedetails') {
-          const measure = parseSanitaryMeasure(el)
-          if (measure) {
-            measures.push(measure)
-          }
         }
       }
     }
@@ -2324,10 +2656,11 @@ function parseSanitaryMeasure(measureElement: Element): SanitaryMeasure | null {
   const languageCode = getTextContent(measureElement, 'LanguageCode') || undefined
   const measureName = getTextContent(measureElement, 'MeasureName') || undefined
   const measureJustificationText = getTextContent(measureElement, 'MeasureJustificationText') || undefined
-  const description = getTextContent(measureElement, 'DescriptionText') || undefined
-  const startDate = getTextContent(measureElement, 'StartDate') || undefined
-  const endDate = getTextContent(measureElement, 'EndDate') || undefined
-  const measureAffectedObjectKindCode = getTextContent(measureElement, 'MeasureAffectedObjectKindCode') || undefined
+  const description = getDirectChildTextByLocalName(measureElement, 'DescriptionText') || undefined
+  const startDate = getDirectChildTextByLocalName(measureElement, 'StartDate') || undefined
+  const endDate = getDirectChildTextByLocalName(measureElement, 'EndDate') || undefined
+  const measureAffectedObjectKindCodes = getAllTextContents(measureElement, 'MeasureAffectedObjectKindCode')
+  const measureAffectedObjectKindCode = measureAffectedObjectKindCodes.length > 0 ? measureAffectedObjectKindCodes.join(';') : undefined
   
   // MeasureCode с атрибутом codeListId
   let measureCode: string | undefined = undefined
@@ -2490,9 +2823,9 @@ function parseMeasureDocDetailsContent(docElement: Element): MeasureDocDetails {
     }
   }
   
-  // AnyDetails (XML)
-  const xmlDocument = getTextContent(docElement, 'AnyDetails') || undefined
-  
+  // AnyDetails: внутренний XML (ccdo:DocDetails и вложенная структура) — сохраняем теги
+  const xmlDocument = getInnerXmlContent(docElement, 'AnyDetails') ?? getTextContent(docElement, 'AnyDetails') ?? undefined
+
   return {
     country,
     languageCode,
@@ -2595,17 +2928,33 @@ function parseMeasureImplementationDetails(measureElement: Element): MeasureImpl
  * Парсит один MeasureImplementationItem
  */
 function parseMeasureImplementationItem(implElement: Element): MeasureImplementationItem | null {
-  const country = getTextContent(implElement, 'UnifiedCountryCode') || undefined
-  const startDate = getTextContent(implElement, 'StartDate') || undefined
-  const endDate = getTextContent(implElement, 'EndDate') || undefined
-  const description = getTextContent(implElement, 'DescriptionText') || undefined
-  const measureAffectedObjectKindCode = getTextContent(implElement, 'MeasureAffectedObjectKindCode') || undefined
-  
-  // UnifiedAuthorityDetails
-  const authority = parseUnifiedAuthorityDetails(implElement)
-  
-  // SubjectDetails
-  const subjectDetails = parseSubjectDetails(implElement)
+  const country = getDirectChildTextByLocalName(implElement, 'UnifiedCountryCode') || undefined
+  const startDate = getDirectChildTextByLocalName(implElement, 'StartDate') || undefined
+  const endDate = getDirectChildTextByLocalName(implElement, 'EndDate') || undefined
+  const description = getDirectChildTextByLocalName(implElement, 'DescriptionText') || undefined
+  const measureAffectedObjectKindCodesImpl = getAllTextContents(implElement, 'MeasureAffectedObjectKindCode')
+  const measureAffectedObjectKindCode = measureAffectedObjectKindCodesImpl.length > 0 ? measureAffectedObjectKindCodesImpl.join(';') : undefined
+
+  const implEntities = findChildElementsByLocalName(implElement, 'implementingentitydetails')
+  const authorities: UnifiedAuthorityDetails[] = []
+  const subjectDetailsList: SubjectDetails[] = []
+  if (implEntities.length > 0) {
+    implEntities.forEach((entityEl) => {
+      // По XSD внутри одного ImplementingEntityDetails допускается не более 1 УО и 1 Субъекта.
+      const entityAuthority = parseUnifiedAuthorityDetails(entityEl)
+      if (entityAuthority) authorities.push(entityAuthority)
+      const entitySubject = parseSubjectDetails(entityEl)
+      if (entitySubject) subjectDetailsList.push(entitySubject)
+    })
+  } else {
+    // Обратная совместимость: старые XML без обертки ImplementingEntityDetails.
+    const fallbackAuthorities = parseUnifiedAuthorityDetailsList(implElement)
+    const fallbackSubjects = parseSubjectDetailsList(implElement)
+    authorities.push(...fallbackAuthorities)
+    subjectDetailsList.push(...fallbackSubjects)
+  }
+  const authority = authorities[0]
+  const subjectDetails = subjectDetailsList[0]
   
   // DocReferenceDetails
   const documentDetails = parseDocumentReferenceDetails(implElement)
@@ -2619,11 +2968,61 @@ function parseMeasureImplementationItem(implElement: Element): MeasureImplementa
     endDate,
     description,
     measureAffectedObjectKindCode,
+    authorities: authorities.length > 0 ? authorities : undefined,
+    subjectDetailsList: subjectDetailsList.length > 0 ? subjectDetailsList : undefined,
     authority,
     subjectDetails,
     documentDetails,
     placeDetails,
   }
+}
+
+function parseUnifiedAuthorityDetailsList(parent: Element): UnifiedAuthorityDetails[] {
+  const result: UnifiedAuthorityDetails[] = []
+  try {
+    const direct = parent.getElementsByTagName('ccdo:UnifiedAuthorityDetails')
+    for (let i = 0; i < direct.length; i++) {
+      const parsed = parseUnifiedAuthorityDetails(direct[i] as unknown as Element)
+      if (parsed) result.push(parsed)
+    }
+  } catch {
+    // ignore
+  }
+  if (result.length > 0) return result
+  const all = parent.getElementsByTagName('*')
+  for (let i = 0; i < all.length; i++) {
+    const el = all[i]
+    const localName = (el.localName || el.tagName.split(':').pop() || '').toLowerCase()
+    if (localName === 'unifiedauthoritydetails') {
+      const parsed = parseUnifiedAuthorityDetails(el as unknown as Element)
+      if (parsed) result.push(parsed)
+    }
+  }
+  return result
+}
+
+function parseSubjectDetailsList(parent: Element): SubjectDetails[] {
+  const result: SubjectDetails[] = []
+  try {
+    const direct = parent.getElementsByTagName('smcdo:SubjectDetails')
+    for (let i = 0; i < direct.length; i++) {
+      const parsed = parseSubjectDetails(direct[i] as unknown as Element)
+      if (parsed) result.push(parsed)
+    }
+  } catch {
+    // ignore
+  }
+  if (result.length > 0) return result
+  const all = parent.getElementsByTagName('*')
+  for (let i = 0; i < all.length; i++) {
+    const el = all[i]
+    const localName = (el.localName || el.tagName.split(':').pop() || '').toLowerCase()
+    if (localName === 'subjectdetails') {
+      const parsed = parseSubjectDetails(el as unknown as Element)
+      if (parsed) result.push(parsed)
+    }
+  }
+  return result
 }
 
 /**
@@ -2657,11 +3056,126 @@ function parseUnifiedAuthorityDetails(parent: Element): UnifiedAuthorityDetails 
     return undefined
   }
   
+  // csdo:AuthorityId для мероприятия в мерах в карточку не переносим (в XML не экспортируется)
   return {
     country: getTextContent(authorityElement, 'UnifiedCountryCode') || undefined,
-    authorityId: getTextContent(authorityElement, 'AuthorityId') || undefined,
     authorityName: getTextContent(authorityElement, 'AuthorityName') || undefined,
     authorityBriefName: getTextContent(authorityElement, 'AuthorityBriefName') || undefined,
+  }
+}
+
+/**
+ * Парсит BusinessEntityId и атрибут kindId из родительского элемента
+ */
+function parseBusinessEntityIdAndKindId(parent: Element): { businessEntityId?: string; identificationMethod?: string } {
+  let businessEntityIdEl: Element | null = null
+  const namespaces = ['ccdo', 'csdo', 'smsdo', 'smcdo', 'doc']
+  for (const ns of namespaces) {
+    try {
+      const elements = parent.getElementsByTagName(`${ns}:BusinessEntityId`)
+      if (elements.length > 0) {
+        businessEntityIdEl = elements[0]
+        break
+      }
+    } catch (e) {
+      // ignore
+    }
+  }
+  if (!businessEntityIdEl) {
+    const allElements = parent.getElementsByTagName('*')
+    for (let i = 0; i < allElements.length; i++) {
+      const el = allElements[i]
+      const localName = (el.localName || el.tagName.split(':').pop() || '').toLowerCase()
+      if (localName === 'businessentityid') {
+        businessEntityIdEl = el
+        break
+      }
+    }
+  }
+  if (!businessEntityIdEl) return {}
+  const businessEntityId = businessEntityIdEl.textContent?.trim() || undefined
+  const kindId = businessEntityIdEl.getAttribute('kindId') || undefined
+  return { businessEntityId, identificationMethod: kindId }
+}
+
+/**
+ * Парсит SubjectDetails, когда поля юрлица заданы прямыми дочерними элементами (без вложенного OrganizationDetails).
+ * В XML: SubjectBriefName, BusinessEntityTypeCode, BusinessEntityId (kindId), UniqueCustomsNumberId, TaxpayerId и т.д.
+ */
+function parseSubjectDetailsDirect(subjectElement: Element): BusinessEntityDetails | undefined {
+  const country = getDirectChildTextByLocalName(subjectElement, 'UnifiedCountryCode') || undefined
+  const subjectName = getTextContent(subjectElement, 'SubjectName') || undefined
+  const businessEntityName = getTextContent(subjectElement, 'BusinessEntityName') || subjectName || undefined
+  const subjectBriefName = getTextContent(subjectElement, 'SubjectBriefName') || undefined
+  const businessEntityBriefName = getTextContent(subjectElement, 'BusinessEntityBriefName') || subjectBriefName || undefined
+  let businessEntityTypeCode: string | undefined
+  let businessEntityTypeCodeListId: string | undefined
+  const businessEntityTypeCodeEl = Array.from(subjectElement.getElementsByTagName('*')).find((el) => {
+    const localName = (el.localName || el.tagName.split(':').pop() || '').toLowerCase()
+    return localName === 'businessentitytypecode'
+  })
+  if (businessEntityTypeCodeEl) {
+    businessEntityTypeCode = businessEntityTypeCodeEl.textContent?.trim() || undefined
+    businessEntityTypeCodeListId = businessEntityTypeCodeEl.getAttribute('codeListId') || undefined
+  }
+  let businessEntityTypeName = getTextContent(subjectElement, 'BusinessEntityTypeName') || undefined
+  if (businessEntityTypeCode && businessEntityTypeCodeListId === '2049') {
+    businessEntityTypeName = undefined
+  }
+  const { businessEntityId, identificationMethod } = parseBusinessEntityIdAndKindId(subjectElement)
+  const customsNumber = getTextContent(subjectElement, 'UniqueCustomsNumberId') || getTextContent(subjectElement, 'CustomsNumber') || undefined
+  const taxpayerId = getTextContent(subjectElement, 'TaxpayerId') || undefined
+
+  const addresses: AddressDetails[] = []
+  try {
+    const addressElements = subjectElement.getElementsByTagName('ccdo:SubjectAddressDetails')
+    for (let i = 0; i < addressElements.length; i++) {
+      const addr = parseAddressDetails(addressElements[i])
+      if (addr.fullAddress || addr.country) addresses.push(addr)
+    }
+  } catch (e) {
+    // ignore
+  }
+  if (addresses.length === 0) {
+    const allElements = subjectElement.getElementsByTagName('*')
+    for (let i = 0; i < allElements.length; i++) {
+      const el = allElements[i]
+      const localName = (el.localName || el.tagName.split(':').pop() || '').toLowerCase()
+      if (localName === 'subjectaddressdetails') {
+        const addr = parseAddressDetails(el)
+        if (addr.fullAddress || addr.country) addresses.push(addr)
+      }
+    }
+  }
+
+  const contacts = parseContacts(subjectElement)
+
+  const hasAny =
+    country ||
+    businessEntityName ||
+    businessEntityBriefName ||
+    businessEntityTypeCode ||
+    businessEntityTypeName ||
+    businessEntityId ||
+    customsNumber ||
+    taxpayerId ||
+    addresses.length > 0 ||
+    (contacts && contacts.length > 0)
+  if (!hasAny) return undefined
+
+  return {
+    country,
+    businessEntityName,
+    businessEntityBriefName,
+    businessEntityTypeCode: businessEntityTypeCode || undefined,
+    businessEntityTypeCodeListId: businessEntityTypeCodeListId || undefined,
+    businessEntityTypeName: businessEntityTypeName || undefined,
+    businessEntityId,
+    identificationMethod,
+    customsNumber,
+    taxpayerId,
+    addresses: addresses.length > 0 ? addresses : undefined,
+    contacts: contacts && contacts.length > 0 ? contacts : undefined,
   }
 }
 
@@ -2684,7 +3198,7 @@ function parseSubjectDetails(parent: Element): SubjectDetails | undefined {
     const allElements = parent.getElementsByTagName('*')
     for (let i = 0; i < allElements.length; i++) {
       const el = allElements[i]
-      const localName = el.localName || el.tagName.split(':').pop()?.toLowerCase()
+      const localName = (el.localName || el.tagName.split(':').pop() || '').toLowerCase()
       if (localName === 'subjectdetails') {
         subjectElement = el
         break
@@ -2695,43 +3209,61 @@ function parseSubjectDetails(parent: Element): SubjectDetails | undefined {
   if (!subjectElement) {
     return undefined
   }
-  
-  // Проверяем, есть ли BusinessEntityName - если есть, то это юрлицо/ИП
-  const businessEntityName = getTextContent(subjectElement, 'BusinessEntityName')
-  if (businessEntityName) {
-    // Это юрлицо/ИП - используем parseOrganizationDetails
-    const businessEntity = parseOrganizationDetails(subjectElement)
-    if (businessEntity) {
-      return { businessEntity }
-    }
-  } else {
-    // Это физлицо
-    const country = getTextContent(subjectElement, 'UnifiedCountryCode') || undefined
+ 
+  // Физлицо должно иметь приоритет, иначе SubjectName может ошибочно
+  // интерпретироваться как BusinessEntityName и identityDoc потеряется.
+  const identityDoc = parseIdentityDocDetails(subjectElement)
+  if (identityDoc) {
+    const country = getDirectChildTextByLocalName(subjectElement, 'UnifiedCountryCode') || undefined
     const subjectName = getTextContent(subjectElement, 'SubjectName') || undefined
-    
-    // IdentityDocV3Details
-    const identityDoc = parseIdentityDocDetails(subjectElement)
-    
-    // Адреса
-    const registrationAddress = parseAddress(subjectElement, '1')
-    const actualAddress = parseAddress(subjectElement, '2')
-    const mailingAddress = parseAddress(subjectElement, '3')
-    
-    // Контакты
+    const addresses = parseAllAddresses(subjectElement)
+    const registrationAddress = addresses.find((a) => (a.addressKindCode || '').trim() === '1')
+    const actualAddress = addresses.find((a) => (a.addressKindCode || '').trim() === '2')
+    const mailingAddress = addresses.find((a) => (a.addressKindCode || '').trim() === '3')
     const contacts = parseContacts(subjectElement)
-    
     return {
       country,
       subjectName,
       identityDoc,
+      addresses: addresses.length > 0 ? addresses : undefined,
       registrationAddress,
       actualAddress,
       mailingAddress,
       contacts,
     }
   }
+
+  // Юрлицо/ИП: сначала пробуем вложенный OrganizationDetails
+  let businessEntity = parseOrganizationDetails(subjectElement)
+  if (businessEntity) {
+    return { businessEntity }
+  }
+
+  // Юрлицо/ИП: поля заданы прямыми дочерними элементами (SubjectBriefName, BusinessEntityTypeCode и т.д.)
+  businessEntity = parseSubjectDetailsDirect(subjectElement)
+  if (businessEntity) {
+    return { businessEntity }
+  }
   
-  return undefined
+  // Физлицо
+  const country = getDirectChildTextByLocalName(subjectElement, 'UnifiedCountryCode') || undefined
+  const subjectName = getTextContent(subjectElement, 'SubjectName') || undefined
+  const addresses = parseAllAddresses(subjectElement)
+  const registrationAddress = addresses.find((a) => (a.addressKindCode || '').trim() === '1')
+  const actualAddress = addresses.find((a) => (a.addressKindCode || '').trim() === '2')
+  const mailingAddress = addresses.find((a) => (a.addressKindCode || '').trim() === '3')
+  const contacts = parseContacts(subjectElement)
+
+  return {
+    country,
+    subjectName,
+    identityDoc,
+    addresses: addresses.length > 0 ? addresses : undefined,
+    registrationAddress,
+    actualAddress,
+    mailingAddress,
+    contacts,
+  }
 }
 
 /**
@@ -2849,10 +3381,13 @@ function parseDocumentReferenceDetails(parent: Element): DocumentReferenceDetail
     docKindCode = docKindCodeEl.textContent?.trim() || undefined
     docKindCodeListId = docKindCodeEl.getAttribute('codeListId') || undefined
   }
-  
+
+  const docKindName = docKindCode ? undefined : getTextContent(docElement, 'DocKindName') || undefined
+
   return {
     docKindCode,
     docKindCodeListId,
+    docKindName,
     docName,
     docId,
     docCreationDate,
@@ -2863,20 +3398,93 @@ function parseDocumentReferenceDetails(parent: Element): DocumentReferenceDetail
 /**
  * Парсит MeasurePlaceDetails
  */
+function findFirstChildElementByLocalName(parent: Element, localLower: string): Element | null {
+  for (let i = 0; i < parent.children.length; i++) {
+    const el = parent.children[i] as Element
+    const ln = (el.localName || el.tagName.split(':').pop() || '').toLowerCase()
+    if (ln === localLower) return el
+  }
+  return null
+}
+
+function findChildElementsByLocalName(parent: Element, localLower: string): Element[] {
+  const result: Element[] = []
+  for (let i = 0; i < parent.children.length; i++) {
+    const el = parent.children[i] as Element
+    const ln = (el.localName || el.tagName.split(':').pop() || '').toLowerCase()
+    if (ln === localLower) result.push(el)
+  }
+  return result
+}
+
 function parseMeasurePlaceDetails(parent: Element): MeasurePlaceDetails | undefined {
-  const regionName = getTextContent(parent, 'RegionName') || undefined
-  const borderCheckpointCode = getTextContent(parent, 'BorderCheckpointCode') || undefined
-  const borderCheckpointName = getTextContent(parent, 'BorderCheckpointName') || undefined
-  
-  if (!regionName && !borderCheckpointCode && !borderCheckpointName) {
-    return undefined
+  const legacy = findFirstChildElementByLocalName(parent, 'measureplacedetails')
+  if (legacy) {
+    const regionName = getTextContent(legacy, 'RegionName') || undefined
+    const borderCheckpointCode = getTextContent(legacy, 'BorderCheckpointCode') || undefined
+    const borderCheckpointName = getTextContent(legacy, 'BorderCheckpointName') || undefined
+    if (!regionName && !borderCheckpointCode && !borderCheckpointName) return undefined
+    return { regionName, borderCheckpointCode, borderCheckpointName }
   }
-  
-  return {
-    regionName,
-    borderCheckpointCode,
-    borderCheckpointName,
+  // По XSD: csdo:RegionName и smcdo:BorderCheckpointDetails — прямые дочерние MeasureImplementationDetails
+  let regionName: string | undefined
+  let borderCheckpointCode: string | undefined
+  let borderCheckpointName: string | undefined
+  for (let i = 0; i < parent.children.length; i++) {
+    const el = parent.children[i] as Element
+    const ln = (el.localName || el.tagName.split(':').pop() || '').toLowerCase()
+    if (ln === 'regionname') {
+      const t = el.textContent?.trim()
+      if (t) regionName = t
+    } else if (ln === 'bordercheckpointdetails') {
+      const c = getTextContent(el, 'BorderCheckpointCode')
+      const n = getTextContent(el, 'BorderCheckpointName')
+      if (c) borderCheckpointCode = c
+      if (n) borderCheckpointName = n
+    }
   }
+  if (!regionName && !borderCheckpointCode && !borderCheckpointName) return undefined
+  return { regionName, borderCheckpointCode, borderCheckpointName }
+}
+
+/**
+ * Парсит CONTENTBODY XML (VW_PACKAGEMESSAGE): извлекает запись общего ресурса
+ * (ResourceItemStatusDetails: ValidityPeriodDetails StartDateTime/EndDateTime, UpdateDateTime).
+ */
+export function parseElectronicDocContentBody(xmlText: string): {
+  validityPeriod: { start: string; end: string }
+  updateDateTime: string
+} {
+  const result = { validityPeriod: { start: '', end: '' }, updateDateTime: '' }
+  if (!xmlText || !xmlText.trim()) return result
+  const parser = new DOMParser()
+  const xmlDoc = parser.parseFromString(xmlText, 'text/xml')
+  const root = xmlDoc.documentElement
+  if (!root) return result
+
+  const findFirstByLocal = (parent: Element, localName: string): Element | null => {
+    const want = localName.toLowerCase()
+    try {
+      const byNs = parent.getElementsByTagNameNS('*', localName)
+      if (byNs.length > 0) return byNs[0]
+    } catch (_) {}
+    const all = parent.getElementsByTagName('*')
+    for (let i = 0; i < all.length; i++) {
+      const el = all[i]
+      const local = (el.localName || el.tagName.split(':').pop() || '').toLowerCase()
+      if (local === want) return el
+    }
+    return null
+  }
+
+  const resourceStatus = findFirstByLocal(root, 'ResourceItemStatusDetails')
+  if (!resourceStatus) return result
+
+  const validityPeriod = findFirstByLocal(resourceStatus, 'ValidityPeriodDetails')
+  result.validityPeriod.start = (getTextContent(validityPeriod, 'StartDateTime') || getTextFromDirectChildByLocalName(validityPeriod, 'StartDateTime') || '').trim()
+  result.validityPeriod.end = (getTextContent(validityPeriod, 'EndDateTime') || getTextFromDirectChildByLocalName(validityPeriod, 'EndDateTime') || '').trim()
+  result.updateDateTime = (getTextContent(resourceStatus, 'UpdateDateTime') || getTextFromDirectChildByLocalName(resourceStatus, 'UpdateDateTime') || '').trim()
+  return result
 }
 
 /**
@@ -2891,6 +3499,184 @@ export async function loadXMLFile(filePath: string): Promise<string> {
     return await response.text()
   } catch (error) {
     throw new Error(`Не удалось загрузить файл: ${error}`)
+  }
+}
+
+const BASE_URL = typeof import.meta !== 'undefined' && import.meta.env?.BASE_URL != null
+  ? (import.meta.env.BASE_URL as string)
+  : '/dpa_card/'
+
+/**
+ * Загружает XML по DPAID через API (таблица DPAXML)
+ */
+export async function loadXMLByDpaid(dpaid: string): Promise<string> {
+  const url = `${BASE_URL.replace(/\/$/, '')}/api/dpa-xml/${encodeURIComponent(dpaid)}`
+  const response = await fetch(url)
+  if (!response.ok) {
+    const text = await response.text().catch(() => '')
+    throw new Error(response.status === 404 ? `Запись с DPAID ${dpaid} не найдена` : (text || response.statusText))
+  }
+  return response.text()
+}
+
+/**
+ * Валидирует и обновляет данные карточки, используя справочники
+ * Проверяет код вида уведомления (INCIDENTALERTKINDCODE) на присутствие в справочнике
+ */
+export async function validateAndEnrichCardData(cardData: CardData, incidentKindCode?: string): Promise<{
+  cardData: CardData
+  validationErrors: string[]
+  validationWarnings: string[]
+}> {
+  const errors: string[] = []
+  const warnings: string[] = []
+
+  // Валидация вида уведомления - проверяем код на присутствие в справочнике
+  const codeToValidate = incidentKindCode || cardData.notification.type
+  if (codeToValidate) {
+    try {
+      const exists = await checkIncidentAlertKindExists(codeToValidate)
+      if (exists === false) {
+        // Проверяем, не была ли ошибка загрузки справочника
+        // Если справочник не загрузился, не показываем предупреждение о коде
+        try {
+          // Пробуем загрузить справочник еще раз, чтобы понять, доступен ли он
+          const options = await getIncidentAlertKindOptions()
+          // Если справочник загрузился, но кода нет - показываем предупреждение
+          warnings.push(`Код вида уведомления "${codeToValidate}" не найден в справочнике INCIDENTALERTKIND`)
+        } catch (loadError) {
+          // Справочник недоступен — проверка не выполняется, фиксируем как ошибку валидации
+          console.warn(`Справочник видов уведомлений недоступен, проверка кода "${codeToValidate}" не выполнена`)
+          errors.push(`Справочник видов уведомлений недоступен. Проверка кода "${codeToValidate}" невозможна.`)
+        }
+      } else {
+        console.log(`Код вида уведомления "${codeToValidate}" успешно найден в справочнике`)
+      }
+    } catch (error) {
+      console.error('Ошибка при валидации вида уведомления:', error)
+      errors.push(`Не удалось проверить код вида уведомления "${codeToValidate}" в справочнике (справочник может быть недоступен).`)
+    }
+  } else {
+    warnings.push('Код вида уведомления (INCIDENTALERTKINDCODE) не указан в XML')
+  }
+
+  // Валидация типа санитарной продукции - проверяем код на присутствие в справочнике
+  // Визуальная индикация будет показана в форме редактирования
+  if (cardData.product?.typeCode) {
+    try {
+      const exists = await checkSanitaryProdTypeExists(cardData.product.typeCode)
+      if (exists === false) {
+        console.warn(`Код типа санитарной продукции "${cardData.product.typeCode}" не найден в справочнике SANITARYPRODTYPE`)
+        // Не добавляем предупреждение - визуальная индикация будет в форме
+      } else {
+        console.log(`Код типа санитарной продукции "${cardData.product.typeCode}" успешно найден в справочнике`)
+      }
+    } catch (error) {
+      console.error('Ошибка при валидации типа санитарной продукции:', error)
+      // Не добавляем предупреждение - визуальная индикация будет в форме
+    }
+  }
+
+  // Валидация видов товаросопроводительных документов в ТСД
+  if (cardData.tsd?.batches) {
+    for (const batch of cardData.tsd.batches) {
+      if (batch.shippingDocuments) {
+        for (const doc of batch.shippingDocuments) {
+          if (doc.docKindCode) {
+            try {
+              const exists = await checkShipDocKindExists(doc.docKindCode)
+              if (exists === false) {
+                console.warn(`Код вида товаросопроводительного документа "${doc.docKindCode}" не найден в справочнике SHIPDOCKIND`)
+                // Не добавляем предупреждение - визуальная индикация будет в форме
+              } else {
+                console.log(`Код вида товаросопроводительного документа "${doc.docKindCode}" успешно найден в справочнике`)
+              }
+            } catch (error) {
+              console.error('Ошибка при валидации вида товаросопроводительного документа:', error)
+              // Не добавляем предупреждение - визуальная индикация будет в форме
+            }
+          }
+        }
+      }
+    }
+  }
+
+  // Валидация видов участников цепи поставки
+  // Проверяем в товаросопроводительных документах ТСД
+  if (cardData.tsd?.batches) {
+    for (const batch of cardData.tsd.batches) {
+      if (batch.shippingDocuments) {
+        for (const doc of batch.shippingDocuments) {
+          if (doc.supplyChainParties) {
+            for (const party of doc.supplyChainParties) {
+              if (party.supplyChainPartyKindCode) {
+                try {
+                  const exists = await checkSupplyChainPartyKindExists(party.supplyChainPartyKindCode)
+                  if (exists === false) {
+                    console.warn(`Код вида участника цепи поставки "${party.supplyChainPartyKindCode}" не найден в справочнике SUPPLYCHAINPARTYKIND`)
+                    // Не добавляем предупреждение - визуальная индикация будет в форме
+                  } else {
+                    console.log(`Код вида участника цепи поставки "${party.supplyChainPartyKindCode}" успешно найден в справочнике`)
+                  }
+                } catch (error) {
+                  console.error('Ошибка при валидации вида участника цепи поставки:', error)
+                  // Не добавляем предупреждение - визуальная индикация будет в форме
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+
+  // Валидация видов объектов действия мер в мероприятиях
+  if (cardData.measures?.measures) {
+    for (const measure of cardData.measures.measures) {
+      // Валидация для основного measureAffectedObjectKindCode (может быть несколько через ";")
+      if (measure.measureAffectedObjectKindCode) {
+        const codes = measure.measureAffectedObjectKindCode.split(';').map((c) => c.trim()).filter(Boolean)
+        for (const code of codes) {
+          try {
+            const exists = await checkSanitaryMeasureObjKindExists(code)
+            if (exists === false) {
+              console.warn(`Код вида объекта действия мер "${code}" не найден в справочнике SANITARYMEASUREOBJKIND`)
+            } else {
+              console.log(`Код вида объекта действия мер "${code}" успешно найден в справочнике`)
+            }
+          } catch (error) {
+            console.error('Ошибка при валидации вида объекта действия мер:', error)
+          }
+        }
+      }
+
+      // Валидация для measureAffectedObjectKindCode в мероприятиях (может быть несколько через ";")
+      if (measure.measureImplementationDetails) {
+        for (const impl of measure.measureImplementationDetails) {
+          if (impl.measureAffectedObjectKindCode) {
+            const codes = impl.measureAffectedObjectKindCode.split(';').map((c) => c.trim()).filter(Boolean)
+            for (const code of codes) {
+              try {
+                const exists = await checkSanitaryMeasureObjKindExists(code)
+                if (exists === false) {
+                  console.warn(`Код вида объекта действия мер "${code}" не найден в справочнике SANITARYMEASUREOBJKIND`)
+                } else {
+                  console.log(`Код вида объекта действия мер "${code}" успешно найден в справочнике`)
+                }
+              } catch (error) {
+                console.error('Ошибка при валидации вида объекта действия мер:', error)
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+
+  return {
+    cardData,
+    validationErrors: errors,
+    validationWarnings: warnings,
   }
 }
 

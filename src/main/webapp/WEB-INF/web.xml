@@ -1,0 +1,679 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<web-app xmlns="http://xmlns.jcp.org/xml/ns/javaee"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://xmlns.jcp.org/xml/ns/javaee
+         http://xmlns.jcp.org/xml/ns/javaee/web-app_3_1.xsd"
+         version="3.1"
+         metadata-complete="false">
+
+    <display-name>XSD Form Builder</display-name>
+    <description>Frontend application for visualizing Dangerous Product Alert Details card</description>
+
+    <!-- eec-rights: тот же Tomcat, что и pha/dpa/ppv. Порт = HTTP Connector (conf/server.xml) или EEC_RIGHTS_SERVICE_BASE_URL -->
+    <context-param>
+        <param-name>eec.rights.service.baseUrl</param-name>
+        <param-value>http://127.0.0.1:8083/card_rigths</param-value>
+    </context-param>
+    <context-param>
+        <param-name>eec.rights.service.apiKey</param-name>
+        <param-value></param-value>
+    </context-param>
+
+    <!-- Кодировка по умолчанию -->
+    <request-character-encoding>UTF-8</request-character-encoding>
+    <response-character-encoding>UTF-8</response-character-encoding>
+
+    <!-- Welcome file -->
+    <welcome-file-list>
+        <welcome-file>index.html</welcome-file>
+    </welcome-file-list>
+
+    <!-- MIME типы для статических ресурсов -->
+    <mime-mapping>
+        <extension>js</extension>
+        <mime-type>application/javascript</mime-type>
+    </mime-mapping>
+    <mime-mapping>
+        <extension>css</extension>
+        <mime-type>text/css</mime-type>
+    </mime-mapping>
+    <mime-mapping>
+        <extension>json</extension>
+        <mime-type>application/json</mime-type>
+    </mime-mapping>
+    <mime-mapping>
+        <extension>xml</extension>
+        <mime-type>application/xml</mime-type>
+    </mime-mapping>
+    <mime-mapping>
+        <extension>svg</extension>
+        <mime-type>image/svg+xml</mime-type>
+    </mime-mapping>
+
+    <!-- Настройки сессии -->
+    <session-config>
+        <session-timeout>30</session-timeout>
+    </session-config>
+
+    <!-- Обработка ошибок -->
+    <!-- Убираем error-page для 404, чтобы не вызывать рекурсию через SpaServlet -->
+    <error-page>
+        <error-code>500</error-code>
+        <location>/index.html</location>
+    </error-page>
+
+    <!-- Реестр JSON-прав (in-memory WAR или HTTP) — раньше справочников -->
+    <listener>
+        <listener-class>com.eec.rights.RightsRegistryContextListener</listener-class>
+    </listener>
+
+    <!-- Listener для инициализации справочников при старте -->
+    <listener>
+        <listener-class>com.eec.servlet.DictionaryInitializerListener</listener-class>
+    </listener>
+
+    <!-- Тестовый сервлет для проверки деплоя -->
+    <servlet>
+        <servlet-name>TestServlet</servlet-name>
+        <servlet-class>com.eec.servlet.TestServlet</servlet-class>
+    </servlet>
+    <servlet-mapping>
+        <servlet-name>TestServlet</servlet-name>
+        <url-pattern>/test</url-pattern>
+    </servlet-mapping>
+
+    <!-- Регистрация сервлетов для API -->
+    <servlet>
+        <servlet-name>CountriesOptionsServlet</servlet-name>
+        <servlet-class>com.eec.servlet.CountriesOptionsServlet</servlet-class>
+    </servlet>
+    <servlet-mapping>
+        <servlet-name>CountriesOptionsServlet</servlet-name>
+        <url-pattern>/api/countries/options</url-pattern>
+    </servlet-mapping>
+
+    <servlet>
+        <servlet-name>BorderCheckpointOptionsServlet</servlet-name>
+        <servlet-class>com.eec.servlet.BorderCheckpointOptionsServlet</servlet-class>
+    </servlet>
+    <servlet-mapping>
+        <servlet-name>BorderCheckpointOptionsServlet</servlet-name>
+        <url-pattern>/api/border-checkpoints/options</url-pattern>
+    </servlet-mapping>
+
+    <servlet>
+        <servlet-name>CountryExistsServlet</servlet-name>
+        <servlet-class>com.eec.servlet.CountryExistsServlet</servlet-class>
+    </servlet>
+    <servlet-mapping>
+        <servlet-name>CountryExistsServlet</servlet-name>
+        <!-- Используем паттерн /api/countries/* чтобы перехватить все запросы к /api/countries/... -->
+        <!-- Сервлет сам определит, заканчивается ли путь на /exists -->
+        <url-pattern>/api/countries/*</url-pattern>
+    </servlet-mapping>
+
+    <servlet>
+        <servlet-name>IncidentAlertKindOptionsServlet</servlet-name>
+        <servlet-class>com.eec.servlet.IncidentAlertKindOptionsServlet</servlet-class>
+    </servlet>
+    <servlet-mapping>
+        <servlet-name>IncidentAlertKindOptionsServlet</servlet-name>
+        <url-pattern>/api/incident-alert-kinds/options</url-pattern>
+    </servlet-mapping>
+
+    <servlet>
+        <servlet-name>AuthorityOptionsServlet</servlet-name>
+        <servlet-class>com.eec.servlet.AuthorityOptionsServlet</servlet-class>
+    </servlet>
+    <servlet-mapping>
+        <servlet-name>AuthorityOptionsServlet</servlet-name>
+        <url-pattern>/api/authorities/options</url-pattern>
+    </servlet-mapping>
+
+    <servlet>
+        <servlet-name>SanitaryProdTypeOptionsServlet</servlet-name>
+        <servlet-class>com.eec.servlet.SanitaryProdTypeOptionsServlet</servlet-class>
+    </servlet>
+    <servlet-mapping>
+        <servlet-name>SanitaryProdTypeOptionsServlet</servlet-name>
+        <url-pattern>/api/sanitary-prod-types/options</url-pattern>
+    </servlet-mapping>
+
+    <servlet>
+        <servlet-name>MeasurementUnitOptionsServlet</servlet-name>
+        <servlet-class>com.eec.servlet.MeasurementUnitOptionsServlet</servlet-class>
+    </servlet>
+    <servlet-mapping>
+        <servlet-name>MeasurementUnitOptionsServlet</servlet-name>
+        <url-pattern>/api/measurement-units/options</url-pattern>
+    </servlet-mapping>
+
+    <servlet>
+        <servlet-name>ShipDocKindOptionsServlet</servlet-name>
+        <servlet-class>com.eec.servlet.ShipDocKindOptionsServlet</servlet-class>
+    </servlet>
+    <servlet-mapping>
+        <servlet-name>ShipDocKindOptionsServlet</servlet-name>
+        <url-pattern>/api/ship-doc-kinds/options</url-pattern>
+    </servlet-mapping>
+
+    <servlet>
+        <servlet-name>LegalFormOptionsServlet</servlet-name>
+        <servlet-class>com.eec.servlet.LegalFormOptionsServlet</servlet-class>
+    </servlet>
+    <servlet-mapping>
+        <servlet-name>LegalFormOptionsServlet</servlet-name>
+        <url-pattern>/api/legal-forms/options</url-pattern>
+    </servlet-mapping>
+
+    <servlet>
+        <servlet-name>IdentificationMethodOptionsServlet</servlet-name>
+        <servlet-class>com.eec.servlet.IdentificationMethodOptionsServlet</servlet-class>
+    </servlet>
+    <servlet-mapping>
+        <servlet-name>IdentificationMethodOptionsServlet</servlet-name>
+        <url-pattern>/api/identification-methods/options</url-pattern>
+    </servlet-mapping>
+
+    <servlet>
+        <servlet-name>ConformityDocKindOptionsServlet</servlet-name>
+        <servlet-class>com.eec.servlet.ConformityDocKindOptionsServlet</servlet-class>
+    </servlet>
+    <servlet-mapping>
+        <servlet-name>ConformityDocKindOptionsServlet</servlet-name>
+        <url-pattern>/api/conformity-doc-kinds/options</url-pattern>
+    </servlet-mapping>
+
+    <!-- Протоколы лабораторных исследований по документу соответствия (DocKindCode=25) -->
+    <servlet>
+        <servlet-name>LabProtocolsServlet</servlet-name>
+        <servlet-class>com.eec.servlet.LabProtocolsServlet</servlet-class>
+    </servlet>
+    <servlet-mapping>
+        <servlet-name>LabProtocolsServlet</servlet-name>
+        <url-pattern>/api/lab-protocols/request</url-pattern>
+    </servlet-mapping>
+
+    <servlet>
+        <servlet-name>IdentityDocKindOptionsServlet</servlet-name>
+        <servlet-class>com.eec.servlet.IdentityDocKindOptionsServlet</servlet-class>
+    </servlet>
+    <servlet-mapping>
+        <servlet-name>IdentityDocKindOptionsServlet</servlet-name>
+        <url-pattern>/api/identity-doc-kinds/options</url-pattern>
+    </servlet-mapping>
+
+    <servlet>
+        <servlet-name>SupplyChainPartyKindOptionsServlet</servlet-name>
+        <servlet-class>com.eec.servlet.SupplyChainPartyKindOptionsServlet</servlet-class>
+    </servlet>
+    <servlet-mapping>
+        <servlet-name>SupplyChainPartyKindOptionsServlet</servlet-name>
+        <url-pattern>/api/supply-chain-party-kinds/options</url-pattern>
+    </servlet-mapping>
+
+    <servlet>
+        <servlet-name>CommunicationChannelOptionsServlet</servlet-name>
+        <servlet-class>com.eec.servlet.CommunicationChannelOptionsServlet</servlet-class>
+    </servlet>
+    <servlet-mapping>
+        <servlet-name>CommunicationChannelOptionsServlet</servlet-name>
+        <url-pattern>/api/communication-channels/options</url-pattern>
+    </servlet-mapping>
+
+    <servlet>
+        <servlet-name>TechRegulOptionsServlet</servlet-name>
+        <servlet-class>com.eec.servlet.TechRegulOptionsServlet</servlet-class>
+    </servlet>
+    <servlet-mapping>
+        <servlet-name>TechRegulOptionsServlet</servlet-name>
+        <url-pattern>/api/tech-reguls/options</url-pattern>
+    </servlet-mapping>
+
+    <servlet>
+        <servlet-name>SanitaryMeasureObjKindOptionsServlet</servlet-name>
+        <servlet-class>com.eec.servlet.SanitaryMeasureObjKindOptionsServlet</servlet-class>
+    </servlet>
+    <servlet-mapping>
+        <servlet-name>SanitaryMeasureObjKindOptionsServlet</servlet-name>
+        <url-pattern>/api/sanitary-measure-obj-kinds/options</url-pattern>
+    </servlet-mapping>
+
+    <servlet>
+        <servlet-name>SanitaryMeasureOptionsServlet</servlet-name>
+        <servlet-class>com.eec.servlet.SanitaryMeasureOptionsServlet</servlet-class>
+    </servlet>
+    <servlet-mapping>
+        <servlet-name>SanitaryMeasureOptionsServlet</servlet-name>
+        <url-pattern>/api/sanitary-measures/options</url-pattern>
+    </servlet-mapping>
+
+    <servlet>
+        <servlet-name>MediaTypeOptionsServlet</servlet-name>
+        <servlet-class>com.eec.servlet.MediaTypeOptionsServlet</servlet-class>
+    </servlet>
+    <servlet-mapping>
+        <servlet-name>MediaTypeOptionsServlet</servlet-name>
+        <url-pattern>/api/media-types/options</url-pattern>
+    </servlet-mapping>
+
+    <!-- Справочники PHA: болезни, возбудители, возрастные группы, исходы болезни -->
+    <servlet>
+        <servlet-name>DiseaseHealthProblemOptionsServlet</servlet-name>
+        <servlet-class>com.eec.servlet.DiseaseHealthProblemOptionsServlet</servlet-class>
+    </servlet>
+    <servlet-mapping>
+        <servlet-name>DiseaseHealthProblemOptionsServlet</servlet-name>
+        <url-pattern>/api/disease-health-problem/options</url-pattern>
+    </servlet-mapping>
+    <servlet>
+        <servlet-name>PathogenKindOptionsServlet</servlet-name>
+        <servlet-class>com.eec.servlet.PathogenKindOptionsServlet</servlet-class>
+    </servlet>
+    <servlet-mapping>
+        <servlet-name>PathogenKindOptionsServlet</servlet-name>
+        <url-pattern>/api/pathogen-kind/options</url-pattern>
+    </servlet-mapping>
+    <servlet>
+        <servlet-name>AgeGroupOptionsServlet</servlet-name>
+        <servlet-class>com.eec.servlet.AgeGroupOptionsServlet</servlet-class>
+    </servlet>
+    <servlet-mapping>
+        <servlet-name>AgeGroupOptionsServlet</servlet-name>
+        <url-pattern>/api/age-group/options</url-pattern>
+    </servlet-mapping>
+    <servlet>
+        <servlet-name>DiseaseOutcomeOptionsServlet</servlet-name>
+        <servlet-class>com.eec.servlet.DiseaseOutcomeOptionsServlet</servlet-class>
+    </servlet>
+    <servlet-mapping>
+        <servlet-name>DiseaseOutcomeOptionsServlet</servlet-name>
+        <url-pattern>/api/disease-outcome/options</url-pattern>
+    </servlet-mapping>
+
+    <!-- Проверка прав доступа (id — опциональный параметр запроса) -->
+    <servlet>
+        <servlet-name>AccessCheckServlet</servlet-name>
+        <servlet-class>com.eec.servlet.AccessCheckServlet</servlet-class>
+    </servlet>
+    <servlet-mapping>
+        <servlet-name>AccessCheckServlet</servlet-name>
+        <url-pattern>/api/access/check</url-pattern>
+    </servlet-mapping>
+
+    <!-- Валидация XML по XSD ЕЭК (POST тело XML, заголовок X-Document-Type: dpa|pha|ppv) -->
+    <servlet>
+        <servlet-name>XmlSchemaValidateServlet</servlet-name>
+        <servlet-class>com.eec.servlet.XmlSchemaValidateServlet</servlet-class>
+    </servlet>
+    <servlet-mapping>
+        <servlet-name>XmlSchemaValidateServlet</servlet-name>
+        <url-pattern>/api/xml/validate-schema</url-pattern>
+    </servlet-mapping>
+
+    <!-- XML по DPAID из таблицы DPAXML -->
+    <servlet>
+        <servlet-name>DpaXmlServlet</servlet-name>
+        <servlet-class>com.eec.servlet.dpa.DpaXmlServlet</servlet-class>
+    </servlet>
+    <servlet-mapping>
+        <servlet-name>DpaXmlServlet</servlet-name>
+        <url-pattern>/api/dpa/xml/*</url-pattern>
+    </servlet-mapping>
+
+    <!-- Метаданные карты из VW_DPA (GET /api/dpa/metadata/{DPAID}) -->
+    <servlet>
+        <servlet-name>DpaMetadataServlet</servlet-name>
+        <servlet-class>com.eec.servlet.dpa.DpaMetadataServlet</servlet-class>
+    </servlet>
+    <servlet-mapping>
+        <servlet-name>DpaMetadataServlet</servlet-name>
+        <url-pattern>/api/dpa/metadata/*</url-pattern>
+    </servlet-mapping>
+
+    <!-- Карта PHA: XML по PHAID из PHAXML -->
+    <servlet>
+        <servlet-name>PhaXmlServlet</servlet-name>
+        <servlet-class>com.eec.servlet.pha.PhaXmlServlet</servlet-class>
+    </servlet>
+    <servlet-mapping>
+        <servlet-name>PhaXmlServlet</servlet-name>
+        <url-pattern>/api/pha/xml/*</url-pattern>
+    </servlet-mapping>
+
+    <!-- Метаданные карты PHA из таблицы PHA -->
+    <servlet>
+        <servlet-name>PhaMetadataServlet</servlet-name>
+        <servlet-class>com.eec.servlet.pha.PhaMetadataServlet</servlet-class>
+    </servlet>
+    <servlet-mapping>
+        <servlet-name>PhaMetadataServlet</servlet-name>
+        <url-pattern>/api/pha/metadata/*</url-pattern>
+    </servlet-mapping>
+
+    <!-- История смены статусов PHA из PHASTATUSHIST -->
+    <servlet>
+        <servlet-name>PhaStatusHistoryServlet</servlet-name>
+        <servlet-class>com.eec.servlet.pha.PhaStatusHistoryServlet</servlet-class>
+    </servlet>
+    <servlet-mapping>
+        <servlet-name>PhaStatusHistoryServlet</servlet-name>
+        <url-pattern>/api/pha/status-history/*</url-pattern>
+    </servlet-mapping>
+
+    <!-- Смена статуса PHA: первичное открытие (Получено→В обработке), завершение обработки, закрытие карты -->
+    <servlet>
+        <servlet-name>PhaStatusChangeServlet</servlet-name>
+        <servlet-class>com.eec.servlet.pha.PhaStatusChangeServlet</servlet-class>
+    </servlet>
+    <servlet-mapping>
+        <servlet-name>PhaStatusChangeServlet</servlet-name>
+        <url-pattern>/api/pha/status</url-pattern>
+    </servlet-mapping>
+
+    <!-- Сохранение / обновление карты PHA (PHA, PHAXML, PHASTATUSHIST, PHADEPPERMIS при создании) -->
+    <servlet>
+        <servlet-name>PhaSaveServlet</servlet-name>
+        <servlet-class>com.eec.servlet.pha.PhaSaveServlet</servlet-class>
+    </servlet>
+    <servlet-mapping>
+        <servlet-name>PhaSaveServlet</servlet-name>
+        <url-pattern>/api/pha/save</url-pattern>
+    </servlet-mapping>
+
+    <!-- Удаление исходящей карты PHA (статус «Новое», publicHealthOut:edit ∩ PHADEPPERMIS) -->
+    <servlet>
+        <servlet-name>PhaDeleteServlet</servlet-name>
+        <servlet-class>com.eec.servlet.pha.PhaDeleteServlet</servlet-class>
+    </servlet>
+    <servlet-mapping>
+        <servlet-name>PhaDeleteServlet</servlet-name>
+        <url-pattern>/api/pha/delete</url-pattern>
+    </servlet-mapping>
+
+    <!-- Следующий регистрационный номер PHA (XX-PHNNNNN-YY) -->
+    <servlet>
+        <servlet-name>PhaNextRegNumberServlet</servlet-name>
+        <servlet-class>com.eec.servlet.pha.PhaNextRegNumberServlet</servlet-class>
+    </servlet>
+    <servlet-mapping>
+        <servlet-name>PhaNextRegNumberServlet</servlet-name>
+        <url-pattern>/api/pha/next-registration-number</url-pattern>
+    </servlet-mapping>
+
+    <!-- Проверка возможности создания новой версии PHA -->
+    <servlet>
+        <servlet-name>PhaCanCreateNewVersionServlet</servlet-name>
+        <servlet-class>com.eec.servlet.pha.PhaCanCreateNewVersionServlet</servlet-class>
+    </servlet>
+    <servlet-mapping>
+        <servlet-name>PhaCanCreateNewVersionServlet</servlet-name>
+        <url-pattern>/api/pha/can-create-new-version</url-pattern>
+    </servlet-mapping>
+
+    <!-- История смены статусов из DPASTATUSHIST -->
+    <servlet>
+        <servlet-name>DpaStatusHistoryServlet</servlet-name>
+        <servlet-class>com.eec.servlet.dpa.DpaStatusHistoryServlet</servlet-class>
+    </servlet>
+    <servlet-mapping>
+        <servlet-name>DpaStatusHistoryServlet</servlet-name>
+        <url-pattern>/api/dpa/status-history/*</url-pattern>
+    </servlet-mapping>
+
+    <!-- Электронные документы и запись общего ресурса по DPAID (EDOC + VW_PACKAGEMESSAGE) -->
+    <servlet>
+        <servlet-name>DpaElectronicDocsServlet</servlet-name>
+        <servlet-class>com.eec.servlet.dpa.DpaElectronicDocsServlet</servlet-class>
+    </servlet>
+    <servlet-mapping>
+        <servlet-name>DpaElectronicDocsServlet</servlet-name>
+        <url-pattern>/api/dpa/electronic-docs/*</url-pattern>
+    </servlet-mapping>
+
+    <!-- Подразделения (TB_DEP) для выбора в «Определить доступ» -->
+    <servlet>
+        <servlet-name>DepOptionsServlet</servlet-name>
+        <servlet-class>com.eec.servlet.DepOptionsServlet</servlet-class>
+    </servlet>
+    <servlet-mapping>
+        <servlet-name>DepOptionsServlet</servlet-name>
+        <url-pattern>/api/dep/options</url-pattern>
+    </servlet-mapping>
+
+    <!-- Уровень ЦГЭ по DEPID (из карты прав) — для подсказки в черновике -->
+    <servlet>
+        <servlet-name>DepInfoServlet</servlet-name>
+        <servlet-class>com.eec.servlet.DepInfoServlet</servlet-class>
+    </servlet>
+    <servlet-mapping>
+        <servlet-name>DepInfoServlet</servlet-name>
+        <url-pattern>/api/dep/info</url-pattern>
+    </servlet-mapping>
+
+    <!-- Доступ по DPAID: подразделения, связь DPADEPPERMIS(DPAID, DEPID) -->
+    <servlet>
+        <servlet-name>DpaAccessServlet</servlet-name>
+        <servlet-class>com.eec.servlet.dpa.DpaAccessServlet</servlet-class>
+    </servlet>
+    <servlet-mapping>
+        <servlet-name>DpaAccessServlet</servlet-name>
+        <url-pattern>/api/dpa/access</url-pattern>
+    </servlet-mapping>
+
+    <!-- Смена статуса карты (входящие: Завершение обработки, Закрытие карты) -->
+    <servlet>
+        <servlet-name>DpaStatusChangeServlet</servlet-name>
+        <servlet-class>com.eec.servlet.dpa.DpaStatusChangeServlet</servlet-class>
+    </servlet>
+    <servlet-mapping>
+        <servlet-name>DpaStatusChangeServlet</servlet-name>
+        <url-pattern>/api/dpa/status</url-pattern>
+    </servlet-mapping>
+
+    <!-- Следующий уникальный регистрационный номер для страны (при создании карты) -->
+    <servlet>
+        <servlet-name>DpaNextRegNumberServlet</servlet-name>
+        <servlet-class>com.eec.servlet.dpa.DpaNextRegNumberServlet</servlet-class>
+    </servlet>
+    <servlet-mapping>
+        <servlet-name>DpaNextRegNumberServlet</servlet-name>
+        <url-pattern>/api/dpa/next-registration-number</url-pattern>
+    </servlet-mapping>
+
+    <!-- Сохранение новой карты в DPA и DPAXML (исходящий, статус Черновик) -->
+    <servlet>
+        <servlet-name>DpaSaveServlet</servlet-name>
+        <servlet-class>com.eec.servlet.dpa.DpaSaveServlet</servlet-class>
+    </servlet>
+    <servlet-mapping>
+        <servlet-name>DpaSaveServlet</servlet-name>
+        <url-pattern>/api/dpa/save</url-pattern>
+    </servlet-mapping>
+
+    <!-- Удаление карты исходящих (только черновик, с проверкой права dangerousProductOut:edit по подразделениям DPADEPPERMIS) -->
+    <servlet>
+        <servlet-name>DpaDeleteServlet</servlet-name>
+        <servlet-class>com.eec.servlet.dpa.DpaDeleteServlet</servlet-class>
+    </servlet>
+    <servlet-mapping>
+        <servlet-name>DpaDeleteServlet</servlet-name>
+        <url-pattern>/api/dpa/delete</url-pattern>
+    </servlet-mapping>
+
+    <!-- Проверка возможности создания новой версии карты (кнопка «Сделать копию») -->
+    <servlet>
+        <servlet-name>DpaCanCreateNewVersionServlet</servlet-name>
+        <servlet-class>com.eec.servlet.dpa.DpaCanCreateNewVersionServlet</servlet-class>
+    </servlet>
+    <servlet-mapping>
+        <servlet-name>DpaCanCreateNewVersionServlet</servlet-name>
+        <url-pattern>/api/dpa/can-create-new-version</url-pattern>
+    </servlet-mapping>
+
+    <!-- Текущий пользователь: уровень ЦГЭ (DEPKINDCODE, DEPKINDNAME) -->
+    <servlet>
+        <servlet-name>CurrentUserServlet</servlet-name>
+        <servlet-class>com.eec.servlet.CurrentUserServlet</servlet-class>
+    </servlet>
+    <servlet-mapping>
+        <servlet-name>CurrentUserServlet</servlet-name>
+        <url-pattern>/api/current-user</url-pattern>
+    </servlet-mapping>
+
+    <!-- Список резолюций по карте (какие уровни уже наложили резолюцию) -->
+    <servlet>
+        <servlet-name>DpaResolutionsServlet</servlet-name>
+        <servlet-class>com.eec.servlet.dpa.DpaResolutionsServlet</servlet-class>
+    </servlet>
+    <servlet-mapping>
+        <servlet-name>DpaResolutionsServlet</servlet-name>
+        <url-pattern>/api/dpa/resolutions</url-pattern>
+    </servlet-mapping>
+
+    <!-- Карта PPV: копия DPA с префиксом PPV в БД и URL /api/ppv/... -->
+
+    <servlet>
+        <servlet-name>PpvXmlServlet</servlet-name>
+        <servlet-class>com.eec.servlet.ppv.PpvXmlServlet</servlet-class>
+    </servlet>
+    <servlet-mapping>
+        <servlet-name>PpvXmlServlet</servlet-name>
+        <url-pattern>/api/ppv/xml/*</url-pattern>
+    </servlet-mapping>
+
+    <servlet>
+        <servlet-name>PpvMetadataServlet</servlet-name>
+        <servlet-class>com.eec.servlet.ppv.PpvMetadataServlet</servlet-class>
+    </servlet>
+    <servlet-mapping>
+        <servlet-name>PpvMetadataServlet</servlet-name>
+        <url-pattern>/api/ppv/metadata/*</url-pattern>
+    </servlet-mapping>
+
+    <servlet>
+        <servlet-name>PpvStatusHistoryServlet</servlet-name>
+        <servlet-class>com.eec.servlet.ppv.PpvStatusHistoryServlet</servlet-class>
+    </servlet>
+    <servlet-mapping>
+        <servlet-name>PpvStatusHistoryServlet</servlet-name>
+        <url-pattern>/api/ppv/status-history/*</url-pattern>
+    </servlet-mapping>
+
+    <servlet>
+        <servlet-name>PpvElectronicDocsServlet</servlet-name>
+        <servlet-class>com.eec.servlet.ppv.PpvElectronicDocsServlet</servlet-class>
+    </servlet>
+    <servlet-mapping>
+        <servlet-name>PpvElectronicDocsServlet</servlet-name>
+        <url-pattern>/api/ppv/electronic-docs/*</url-pattern>
+    </servlet-mapping>
+
+    <servlet>
+        <servlet-name>PpvActorsServlet</servlet-name>
+        <servlet-class>com.eec.servlet.ppv.PpvActorsServlet</servlet-class>
+    </servlet>
+    <servlet-mapping>
+        <servlet-name>PpvActorsServlet</servlet-name>
+        <url-pattern>/api/ppv/actors/*</url-pattern>
+    </servlet-mapping>
+
+    <servlet>
+        <servlet-name>PpvAccessServlet</servlet-name>
+        <servlet-class>com.eec.servlet.ppv.PpvAccessServlet</servlet-class>
+    </servlet>
+    <servlet-mapping>
+        <servlet-name>PpvAccessServlet</servlet-name>
+        <url-pattern>/api/ppv/access</url-pattern>
+    </servlet-mapping>
+
+    <servlet>
+        <servlet-name>PpvStatusChangeServlet</servlet-name>
+        <servlet-class>com.eec.servlet.ppv.PpvStatusChangeServlet</servlet-class>
+    </servlet>
+    <servlet-mapping>
+        <servlet-name>PpvStatusChangeServlet</servlet-name>
+        <url-pattern>/api/ppv/status</url-pattern>
+    </servlet-mapping>
+
+    <servlet>
+        <servlet-name>PpvNextRegNumberServlet</servlet-name>
+        <servlet-class>com.eec.servlet.ppv.PpvNextRegNumberServlet</servlet-class>
+    </servlet>
+    <servlet-mapping>
+        <servlet-name>PpvNextRegNumberServlet</servlet-name>
+        <url-pattern>/api/ppv/next-registration-number</url-pattern>
+    </servlet-mapping>
+
+    <servlet>
+        <servlet-name>PpvSaveServlet</servlet-name>
+        <servlet-class>com.eec.servlet.ppv.PpvSaveServlet</servlet-class>
+    </servlet>
+    <servlet-mapping>
+        <servlet-name>PpvSaveServlet</servlet-name>
+        <url-pattern>/api/ppv/save</url-pattern>
+    </servlet-mapping>
+
+    <servlet>
+        <servlet-name>PpvDeleteServlet</servlet-name>
+        <servlet-class>com.eec.servlet.ppv.PpvDeleteServlet</servlet-class>
+    </servlet>
+    <servlet-mapping>
+        <servlet-name>PpvDeleteServlet</servlet-name>
+        <url-pattern>/api/ppv/delete</url-pattern>
+    </servlet-mapping>
+
+    <servlet>
+        <servlet-name>PpvCanCreateNewVersionServlet</servlet-name>
+        <servlet-class>com.eec.servlet.ppv.PpvCanCreateNewVersionServlet</servlet-class>
+    </servlet>
+    <servlet-mapping>
+        <servlet-name>PpvCanCreateNewVersionServlet</servlet-name>
+        <url-pattern>/api/ppv/can-create-new-version</url-pattern>
+    </servlet-mapping>
+
+    <servlet>
+        <servlet-name>PpvResolutionsServlet</servlet-name>
+        <servlet-class>com.eec.servlet.ppv.PpvResolutionsServlet</servlet-class>
+    </servlet>
+    <servlet-mapping>
+        <servlet-name>PpvResolutionsServlet</servlet-name>
+        <url-pattern>/api/ppv/resolutions</url-pattern>
+    </servlet-mapping>
+
+    <!-- JSON прав по GUID (department.depid для «Определить доступ» по умолчанию) -->
+    <servlet>
+        <servlet-name>RightsServlet</servlet-name>
+        <servlet-class>com.eec.servlet.RightsServlet</servlet-class>
+    </servlet>
+    <servlet-mapping>
+        <servlet-name>RightsServlet</servlet-name>
+        <url-pattern>/api/rights</url-pattern>
+    </servlet-mapping>
+
+    <!-- XSD Form Builder Servlet для работы с GUID и DPAID -->
+    <!-- Обрабатывает только запросы формата /{DPAID}/{GUID} внутри контекста приложения -->
+    <!-- Должен быть ПЕРЕД SpaServlet, чтобы обрабатывать API запросы первым -->
+    <servlet>
+        <servlet-name>XsdFormBuilderServlet</servlet-name>
+        <servlet-class>com.eec.servlet.XsdFormBuilderServlet</servlet-class>
+        <load-on-startup>1</load-on-startup>
+    </servlet>
+    <servlet-mapping>
+        <servlet-name>XsdFormBuilderServlet</servlet-name>
+        <url-pattern>/*</url-pattern>
+    </servlet-mapping>
+
+    <!-- SPA Servlet для обработки маршрутизации -->
+    <!-- Обрабатывает только явные запросы к index.html -->
+    <!-- Остальные запросы обрабатываются XsdFormBuilderServlet, который передает их в SPA при необходимости -->
+    <servlet>
+        <servlet-name>SpaServlet</servlet-name>
+        <servlet-class>com.eec.servlet.SpaServlet</servlet-class>
+    </servlet>
+    <servlet-mapping>
+        <servlet-name>SpaServlet</servlet-name>
+        <url-pattern>/index.html</url-pattern>
+    </servlet-mapping>
+
+</web-app>
