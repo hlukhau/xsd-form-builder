@@ -4,9 +4,9 @@ REM Manual WAR build without Maven (using javac)
 setlocal enabledelayedexpansion
 
 set "PROJECT_DIR=%~dp0"
-set "TOMCAT_HOME=C:\tomcat\win\Tomcat8"
-set "JAVA_HOME=C:\tomcat\win\Tomcat8\java"
-set "APP_NAME=dpa_card"
+if not defined TOMCAT_HOME set "TOMCAT_HOME=C:\tomcat\win\Tomcat8"
+if not defined JAVA_HOME set "JAVA_HOME=C:\tomcat\win\Tomcat8\java"
+if not defined APP_NAME set "APP_NAME=dpa_card"
 set "WAR_FILE=%PROJECT_DIR%target\%APP_NAME%.war"
 set "WEBAPPS_PATH=%TOMCAT_HOME%\webapps"
 set "APP_PATH=%WEBAPPS_PATH%\%APP_NAME%"
@@ -106,7 +106,16 @@ REM Compile Java classes
 echo [4/6] Compiling Java classes...
 set "SRC_DIR=src\main\java"
 set "CLASS_DIR=target\%APP_NAME%\WEB-INF\classes"
-set "CLASSPATH=%TOMCAT_HOME%\lib\servlet-api.jar"
+if defined SERVLET_API_JAR (
+    set "CLASSPATH=%SERVLET_API_JAR%"
+) else (
+    set "CLASSPATH=%TOMCAT_HOME%\lib\servlet-api.jar"
+)
+if not exist "%CLASSPATH%" (
+    echo [ERROR] servlet-api.jar not found: %CLASSPATH%
+    echo [INFO] Set SERVLET_API_JAR or TOMCAT_HOME to a valid Tomcat lib path.
+    exit /b 1
+)
 
 REM Create package structure (создаем все необходимые директории)
 for /r "%SRC_DIR%" %%d in (.) do (
@@ -205,6 +214,11 @@ if exist "target\%APP_NAME%.war" (
     exit /b 1
 )
 echo.
+
+if "%SKIP_LOCAL_DEPLOY%"=="1" (
+    echo [INFO] SKIP_LOCAL_DEPLOY=1 - local Tomcat stop/deploy/start skipped
+    exit /b 0
+)
 
 REM Stop Tomcat
 echo [6/6] Stopping Tomcat...

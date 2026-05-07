@@ -371,8 +371,6 @@ const DetectionPlaceTabEdit: React.FC<DetectionPlaceTabEditProps> = ({ data, onC
             label: 'Географические координаты',
             children: (
               <Form layout="vertical" className="field-tag-form">
-                <p style={{ marginBottom: 8, color: '#666' }}>{getFormatHint('geoCoordinate')}</p>
-                <p style={{ marginBottom: 8, color: '#666' }}>Укажите обе координаты (широту и долготу) для каждой записи.</p>
                 {geoList.map((coord, idx) => {
                   const hasLon = (coord.longitude ?? '').trim() !== ''
                   const hasLat = (coord.latitude ?? '').trim() !== ''
