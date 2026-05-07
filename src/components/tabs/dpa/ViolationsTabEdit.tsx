@@ -270,7 +270,7 @@ const ViolationsTabEdit: React.FC<ViolationsTabEditProps> = ({ tsd, onTsdChange 
       {
         title: labelWithHelp(
           'Техрегламент',
-          `${FIELD_HELP.technicalRegulationId} ${FIELD_HELP.technicalRegulationName}`
+          FIELD_HELP.technicalRegulationId
         ),
         key: 'technicalRegulation',
         width: 520,
@@ -556,9 +556,6 @@ const ViolationsTabEdit: React.FC<ViolationsTabEditProps> = ({ tsd, onTsdChange 
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
             <h3>Перечень нарушенных требований</h3>
             <Button type="dashed" icon={<PlusOutlined />} onClick={handleAddRequirement}>Добавить требование</Button>
-          </div>
-          <div style={{ fontSize: 12, color: 'rgba(0,0,0,0.45)', marginBottom: 8, maxWidth: 960 }}>
-            Справочник техрегламентов: в списке — строки «номер — наименование», поиск по номеру и названию; после выбора список скрывается, под ним номер (и «×» для сброса) и в поле наименования — строка «номер — наименование». Регистрационный номер — в отдельной колонке. Вручную: очистите список (× в поле выбора), введите номер по шаблону; наименование — по желанию.
           </div>
           <Table dataSource={vData.violatedRequirements || []} columns={requirementsColumns} rowKey={(record, index) => `requirement-${index}`} pagination={false} scroll={{ x: 'max-content' }} />
         </div>

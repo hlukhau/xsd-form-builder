@@ -126,7 +126,7 @@ export const XSD_FIELD_CONSTRAINTS: Record<string, FieldConstraint> = {
     messageMaxLength: 'Не более 4 цифр',
   },
   docId: { maxLength: 50, messageMaxLength: 'Не более 50 символов (csdo:Id50Type)' },
-  docSeriesId: { maxLength: 50, messageMaxLength: 'Не более 50 символов (csdo:Id50Type)' },
+  docSeriesId: { maxLength: 20, messageMaxLength: 'Не более 20 символов (csdo:DocSeriesId)' },
   authorityName: { maxLength: 300, messageMaxLength: 'Не более 300 символов (csdo:Name300Type)' },
   authorityBriefName: { maxLength: 120, messageMaxLength: 'Не более 120 символов (csdo:Name120Type)' },
   authorityId: { maxLength: 50, messageMaxLength: 'Не более 50 символов (csdo:Id50Type)' },

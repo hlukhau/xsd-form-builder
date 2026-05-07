@@ -189,6 +189,29 @@ if !COMPILE_ERROR! NEQ 0 (
 )
 echo.
 
+REM [4b/6] EEC XSD in classpath for XmlSchemaValidateServlet
+echo [4b/6] Copying EEC XSD into WEB-INF/classes/eec-xsd/...
+set "XSD_SRC=xsd"
+set "XSD_DST=target\%APP_NAME%\WEB-INF\classes\eec-xsd"
+if exist "%XSD_SRC%\" (
+    if not exist "%XSD_DST%" mkdir "%XSD_DST%" 2>nul
+    set "XSD_COUNT=0"
+    for %%f in ("%XSD_SRC%\*.xsd") do (
+        if exist "%%~f" (
+            copy /Y "%%~f" "%XSD_DST%\" >nul
+            set /a XSD_COUNT+=1
+        )
+    )
+    if !XSD_COUNT! EQU 0 (
+        echo [WARN] No *.xsd in %XSD_SRC% - XSD validation on server will not work
+    ) else (
+        echo [OK] Copied !XSD_COUNT! schema file^(s^) to eec-xsd/
+    )
+) else (
+    echo [WARN] Directory xsd/ not found - XSD validation servlet will fail at init
+)
+echo.
+
 REM Create WAR
 echo [5/6] Creating WAR file...
 REM Delete old WAR

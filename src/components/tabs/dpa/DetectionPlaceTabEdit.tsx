@@ -314,9 +314,6 @@ const DetectionPlaceTabEdit: React.FC<DetectionPlaceTabEditProps> = ({ data, onC
             label: 'Пункт пропуска',
             children: (
               <Form layout="vertical" className="field-tag-form">
-                <p style={{ marginBottom: 12, color: '#666', fontSize: 13 }}>
-                  Укажите оба атрибута (код вида пункта пропуска и наименование пункта пропуска) или оставьте оба пустыми.
-                </p>
                 <Form.Item
                   label="Код вида пункта пропуска"
                   validateStatus={checkpointValidationError ? 'error' : undefined}
