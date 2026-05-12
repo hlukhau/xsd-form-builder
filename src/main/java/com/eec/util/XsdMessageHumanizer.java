@@ -483,6 +483,22 @@ public final class XsdMessageHumanizer {
         if (s == null || s.isEmpty()) {
             return "";
         }
+        // Значения простых типов (xs:date и др.) — Xerces почти всегда на английском
+        Matcher dt121 = Pattern.compile(
+                "cvc-datatype-valid\\.1\\.2\\.1:\\s*'([^']*)'\\s+is\\s+not\\s+a\\s+valid\\s+value\\s+for\\s+'([^']*)'\\.?",
+                Pattern.CASE_INSENSITIVE | Pattern.DOTALL)
+                .matcher(s);
+        if (dt121.find()) {
+            return humanizeSimpleTypeValueMessage(dt121.group(1), dt121.group(2));
+        }
+        Matcher type313 = Pattern.compile(
+                "cvc-type\\.3\\.1\\.3:\\s*The value '([^']*)' of element '([^']*)' is not a valid value for(?: nullable)? type '([^']*)'\\.?",
+                Pattern.CASE_INSENSITIVE | Pattern.DOTALL)
+                .matcher(s);
+        if (type313.find()) {
+            return "Значение «" + type313.group(1) + "» в поле «" + label(type313.group(2)) + "» недопустимо для типа «"
+                    + type313.group(3) + "» по схеме XSD.";
+        }
         Matcher attrRequired = Pattern.compile(
                 "cvc-complex-type\\.4:\\s*Attribute\\s+'([^']+)'\\s+must\\s+appear\\s+on\\s+element\\s+'([^']+)'\\.",
                 Pattern.CASE_INSENSITIVE | Pattern.DOTALL)
@@ -543,7 +559,105 @@ public final class XsdMessageHumanizer {
         String t = s.replaceAll("(?i)cvc-[a-z0-9.-]+:\\s*", "");
         t = t.replaceAll("(?i)However, the attribute[^.]+\\.", "");
         t = replaceQuotedElements(t);
+        t = polishEnglishValidationFragments(t);
         return t.trim();
+    }
+
+    /**
+     * Сообщения cvc-datatype-valid.1.2.1 / аналогичные после удаления префикса cvc-*.
+     */
+    private static String humanizeSimpleTypeValueMessage(String literal, String xsdType) {
+        String v = literal == null ? "" : literal;
+        String type = xsdType == null ? "" : xsdType.trim();
+        if ("date".equalsIgnoreCase(type)) {
+            if (v.isEmpty()) {
+                return "Пустое значение недопустимо для типа «дата» (xs:date): укажите дату в формате ГГГГ-ММ-ДД или удалите элемент, если он необязателен.";
+            }
+            return "Значение «" + v + "» не является допустимой датой: укажите дату по григорианскому календарю в формате ГГГГ-ММ-ДД (xs:date).";
+        }
+        if ("dateTime".equalsIgnoreCase(type)) {
+            return "Значение «" + v + "» не является допустимой датой и временем в формате ISO 8601 (xs:dateTime).";
+        }
+        if ("time".equalsIgnoreCase(type)) {
+            return "Значение «" + v + "» не является допустимым временем (xs:time).";
+        }
+        if ("gYearMonth".equalsIgnoreCase(type) || "gYear".equalsIgnoreCase(type) || "gMonthDay".equalsIgnoreCase(type)) {
+            return "Значение «" + v + "» не соответствует типу «" + type + "» по схеме XSD.";
+        }
+        if ("decimal".equalsIgnoreCase(type) || "integer".equalsIgnoreCase(type) || "int".equalsIgnoreCase(type)
+                || "long".equalsIgnoreCase(type) || "double".equalsIgnoreCase(type) || "float".equalsIgnoreCase(type)) {
+            return "Значение «" + v + "» не является допустимым числом для типа «" + type + "» по схеме XSD.";
+        }
+        if ("boolean".equalsIgnoreCase(type)) {
+            return "Значение «" + v + "» должно быть ровно «true» или «false» (xs:boolean, латиницей, нижний регистр).";
+        }
+        if ("anyURI".equalsIgnoreCase(type)) {
+            return "Значение «" + v + "» не является допустимым URI (xs:anyURI).";
+        }
+        return "Значение «" + v + "» не соответствует типу данных «" + type + "» по схеме XSD.";
+    }
+
+    /**
+     * Остатки английского текста после частичной обработки (replaceQuotedElements и т.д.).
+     */
+    private static String polishEnglishValidationFragments(String t) {
+        if (t == null || t.isEmpty()) {
+            return t;
+        }
+        String r = t;
+        // The value '…' of блок «…» is not valid.
+        r = replaceAllQuoted(
+                r,
+                Pattern.compile("The value '([^']*)' of (блок «[^»]+»)\\s+is\\s+not\\s+valid\\.?", Pattern.CASE_INSENSITIVE | Pattern.DOTALL),
+                (m) -> "Недопустимое значение «" + m.group(1) + "» в " + m.group(2) + " по схеме XSD.");
+        // '…' is not a valid value for 'date'. (после снятия префикса cvc-datatype-valid)
+        r = replaceAllQuoted(
+                r,
+                Pattern.compile("'([^']*)'\\s+is\\s+not\\s+a\\s+valid\\s+value\\s+for\\s+'date'\\.?", Pattern.CASE_INSENSITIVE),
+                (m) -> humanizeSimpleTypeValueMessage(m.group(1), "date"));
+        r = replaceAllQuoted(
+                r,
+                Pattern.compile("'([^']*)'\\s+is\\s+not\\s+a\\s+valid\\s+value\\s+for\\s+'dateTime'\\.?", Pattern.CASE_INSENSITIVE),
+                (m) -> humanizeSimpleTypeValueMessage(m.group(1), "dateTime"));
+        r = replaceAllQuoted(
+                r,
+                Pattern.compile("'([^']*)'\\s+is\\s+not\\s+a\\s+valid\\s+value\\s+for\\s+'([^']+)'\\.?", Pattern.CASE_INSENSITIVE),
+                (m) -> humanizeSimpleTypeValueMessage(m.group(1), m.group(2)));
+        // The value '…' of element 'LocalName' … (если до replaceQuoted не дошло)
+        r = replaceAllQuoted(
+                r,
+                Pattern.compile(
+                        "The value '([^']*)' of element '([^']+)'\\s+is not a valid value for(?: nullable)? type '([^']*)'\\.?",
+                        Pattern.CASE_INSENSITIVE | Pattern.DOTALL),
+                (m) -> "Значение «" + m.group(1) + "» в поле «" + label(m.group(2)) + "» недопустимо для типа «" + m.group(3) + "» по схеме XSD.");
+        // Общие обрывки
+        r = r.replaceAll("(?i)\\bis not valid\\.?", "недопустимо по схеме XSD.");
+        r = r.replaceAll("(?i)\\bis not allowed\\.?", "не допускается по схеме XSD.");
+        r = r.replaceAll("(?i)\\bmust appear on element\\b", "должно быть задано для элемента");
+        r = r.replaceAll("(?i)\\bInvalid content was found\\b", "Обнаружено недопустимое содержимое");
+        r = r.replaceAll("(?i)\\bNo child element is expected at this point\\.?", "дочерние элементы на этой позиции не предусмотрены.");
+        r = r.replaceAll("(?i)\\bis expected\\.?", "ожидается.");
+        r = r.replaceAll("(?i)\\bOne of\\b", "один из");
+        r = r.replaceAll("(?i)\\bstarting with element\\b", "начиная с элемента");
+        r = r.replaceAll("(?i)\\bThe content of element\\b", "Содержимое элемента");
+        r = r.replaceAll("(?i)\\bis not complete\\.?", "неполно.");
+        r = r.replaceAll("(?i)\\bAttribute\\b", "Атрибут");
+        r = r.replaceAll("(?i)\\bon element\\b", "у элемента");
+        return r;
+    }
+
+    private interface ReplacementFn {
+        String replace(Matcher m);
+    }
+
+    private static String replaceAllQuoted(String input, Pattern p, ReplacementFn fn) {
+        Matcher m = p.matcher(input);
+        StringBuffer sb = new StringBuffer();
+        while (m.find()) {
+            m.appendReplacement(sb, Matcher.quoteReplacement(fn.replace(m)));
+        }
+        m.appendTail(sb);
+        return sb.toString();
     }
 
     private static String humanizeChoiceList(String rawChoices) {
