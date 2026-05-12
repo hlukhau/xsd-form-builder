@@ -138,6 +138,12 @@ export const XSD_FIELD_CONSTRAINTS: Record<string, FieldConstraint> = {
 
   // Меры: обоснование, описания
   measureJustification: { maxLength: 4000, messageMaxLength: 'Не более 4000 символов (csdo:Text4000Type)' },
+  /** DPA «Принятые меры»: ручной ввод → smsdo:MeasureName (csdo:Name300Type) */
+  measureName: {
+    maxLength: 300,
+    messageMaxLength: 'Не более 300 символов (csdo:Name300Type, smsdo:MeasureName)',
+    formatHint: 'Не более 300 символов',
+  },
   noteText: { maxLength: 4000, messageMaxLength: 'Не более 4000 символов (csdo:NoteText/Text4000Type)' },
 
   // Нарушения

@@ -607,6 +607,8 @@ const MeasuresTabEdit: React.FC<MeasuresTabEditProps> = ({ data, onChange }) => 
                 }
                 onChange({ ...data, measures: updatedMeasures })
               }}
+              maxLength={getMaxLength('measureName')}
+              showCount
               placeholder="Или введите наименование меры текстом"
               size="small"
             />

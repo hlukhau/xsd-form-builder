@@ -1096,6 +1096,7 @@ export function collectFormatValidationErrors(data: CardData): FormatValidationE
   if (measures?.measures?.length) {
     measures.measures.forEach((m, mi) => {
       const mPath = `Принятые меры → Мера ${mi + 1}`
+      pushFormatError(errors, `${mPath} → Наименование меры`, 'measureName', m.measureName)
       pushFormatError(errors, `${mPath} → Обоснование`, 'measureJustification', m.measureJustificationText)
       pushFormatError(errors, `${mPath} → Описание`, 'description', m.description)
       if (m.measureDocDetails) {
