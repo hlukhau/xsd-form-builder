@@ -432,7 +432,13 @@ const DangerousProductCard: React.FC<DangerousProductCardProps> = ({
         : undefined
 
   const handleDelete = () => {
-    const regNumber = editedData.registrationNumber ?? data.registrationNumber ?? effectiveDpaid ?? ''
+    const regNumber =
+      editedData.notification?.registrationNumber ??
+      editedData.registrationNumber ??
+      data.notification?.registrationNumber ??
+      data.registrationNumber ??
+      effectiveDpaid ??
+      ''
     Modal.confirm({
       title: 'Подтверждение удаления',
       content: `Карта ${regNumber} будет удалена безвозвратно. Продолжить?`,
@@ -442,11 +448,33 @@ const DangerousProductCard: React.FC<DangerousProductCardProps> = ({
       onOk: async () => {
         try {
           await deleteDpaCard(Number(effectiveDpaid), guid!)
-          message.success('Карта удалена')
-          postMessageFromCardToParent({ code: 'exit' }, 'DPA: выход после удаления карты')
+          if (isPpvApp()) {
+            message.open({
+              type: 'success',
+              content: 'Черновик карты успешно удален',
+              duration: 3,
+              style: { marginTop: '38vh' },
+            })
+            postMessageFromCardToParent(
+              { code: 'exit', ppvDraftDeleted: true, registryTab: 'outgoing' },
+              'PPV: выход после удаления черновика на реестр «Исходящие»'
+            )
+          } else {
+            message.success('Карта удалена')
+            postMessageFromCardToParent({ code: 'exit' }, 'DPA: выход после удаления карты')
+          }
           onCardDeleted?.()
         } catch (e) {
-          message.error(e instanceof Error ? e.message : 'Ошибка удаления')
+          const reason = e instanceof Error ? e.message : String(e)
+          if (isPpvApp()) {
+            Modal.error({
+              title: 'Ошибка',
+              content: `Не удалось выполнить удаление черновика. Причина: ${reason}`,
+              okText: 'Ок',
+            })
+          } else {
+            message.error(reason || 'Ошибка удаления')
+          }
         }
       },
     })

@@ -130,6 +130,19 @@ public final class AccessRightService {
         return keys;
     }
 
+    /** Ключи объекта up.violationDetectedOut.edit (DEPID в JSON прав). */
+    public static Set<String> violationDetectedOutEditDepKeys(String rightsJson) {
+        Set<String> keys = new HashSet<>();
+        String block = extractUpRightObjectBlock(rightsJson, "violationDetectedOut", "edit");
+        if (block == null || block.isEmpty()) return keys;
+        Pattern keyP = Pattern.compile("\"([^\"]+)\"\\s*:");
+        Matcher keyM = keyP.matcher(block);
+        while (keyM.find()) {
+            keys.add(keyM.group(1).trim());
+        }
+        return keys;
+    }
+
     /**
      * Проверить, есть ли доступ для данной сущности/действия.
      *
