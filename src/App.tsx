@@ -1,10 +1,12 @@
 import { useState, useEffect, useRef } from 'react'
 import { Routes, Route, useParams, useSearchParams, useNavigate, useLocation } from 'react-router-dom'
 import { message, Spin } from 'antd'
-import { isPhaApp, isPpvApp, getDpaLikeCardSessionKeys } from './cards/config'
+import { isPhaApp, isPpvApp, isDprApp, getDpaLikeCardSessionKeys } from './cards/config'
 import { DangerousProductCard } from './cards/dpa'
 import { PhaCard } from './cards/pha'
+import { DprCard } from './cards/dpr'
 import type { CardData } from './types/card'
+import type { DprMetadataView } from './types/dprCard'
 import {
   fetchDpaXml,
   fetchDpaMetadata,
@@ -15,11 +17,14 @@ import {
   setReferenceGuidContext,
   getPersistedReferenceGuid,
   changeDpaStatus,
+  fetchDprXml,
+  fetchDprMetadata,
 } from './utils/referenceDataApi'
 import { fetchPhaXml, fetchPhaMetadata, fetchPhaStatusHistory, postPhaStatus } from './cards/pha/phaApi'
 import { isPhaIncomingSource } from './utils/phaStatusButtonConfig'
 import { parsePhaXmlToCardData } from './cards/pha/phaXmlParser'
 import { parseXMLToCardData, validateAndEnrichCardData, getTextContent } from './utils/xmlParser'
+import { parseDprXmlToBundle } from './utils/dprXmlParser'
 import { createNewCardData } from './utils/newCardData'
 
 /** После удаления карты: родитель может перегрузить iframe на базовый URL без React state — сохраняем флаг для экрана «Карта успешно удалена». */
@@ -634,13 +639,132 @@ function PhaAppContent() {
   )
 }
 
+/** Карта DPR: /dpr_card/{DPRID}/{GUID} — только просмотр, XML EEC_R_SM_SS_08_DangerousProductAlertResponse. */
+function DprAppContent() {
+  const { dpaid: dpridParam, guid: guidFromRoute } = useParams<{ dpaid: string; guid?: string }>()
+  const [searchParams] = useSearchParams()
+  const dprid = (dpridParam ?? '').trim()
+  const guid =
+    guidFromRoute?.trim() ||
+    searchParams.get('guid')?.trim() ||
+    getPersistedReferenceGuid() ||
+    undefined
+
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const [meta, setMeta] = useState<DprMetadataView | null>(null)
+  const [parsed, setParsed] = useState<ReturnType<typeof parseDprXmlToBundle> | null>(null)
+
+  useEffect(() => {
+    setReferenceGuidContext(guid)
+  }, [guid])
+
+  useEffect(() => {
+    document.title = 'Карта сведений о результатах рассмотрения'
+  }, [])
+
+  useEffect(() => {
+    if (!dprid) {
+      setLoading(false)
+      setError(null)
+      setMeta(null)
+      setParsed(null)
+      return
+    }
+    if (!/^\d+$/.test(dprid)) {
+      setLoading(false)
+      setError('Некорректный идентификатор карты DPR')
+      setMeta(null)
+      setParsed(null)
+      return
+    }
+    if (!guid?.trim()) {
+      setLoading(false)
+      setError('Для просмотра карты DPR укажите GUID в URL: /dpr_card/{DPRID}/{GUID}')
+      setMeta(null)
+      setParsed(null)
+      return
+    }
+    let cancelled = false
+    setLoading(true)
+    setError(null)
+    setMeta(null)
+    setParsed(null)
+    ;(async () => {
+      try {
+        const [xmlText, m] = await Promise.all([fetchDprXml(dprid, guid), fetchDprMetadata(dprid, guid)])
+        if (cancelled) return
+        setMeta(m)
+        setParsed(parseDprXmlToBundle(xmlText))
+      } catch (err) {
+        if (!cancelled) {
+          setError(err instanceof Error ? err.message : 'Ошибка загрузки карты DPR')
+        }
+      } finally {
+        if (!cancelled) setLoading(false)
+      }
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [dprid, guid])
+
+  if (!dprid) {
+    return (
+      <div className="empty-state">
+        <div style={{ fontSize: '48px', marginBottom: '16px', opacity: 0.3 }}>📄</div>
+        <div style={{ fontSize: '18px', fontWeight: 500, color: '#595959' }}>Откройте карту по DPRID</div>
+      </div>
+    )
+  }
+
+  if (loading) {
+    return (
+      <div style={{ textAlign: 'center', padding: 24 }}>
+        <Spin size="large" tip="Загрузка карты DPR..." />
+      </div>
+    )
+  }
+
+  if (error) {
+    return (
+      <div className="empty-state" style={{ padding: 24 }}>
+        <div style={{ color: '#ff4d4f', maxWidth: 560, margin: '0 auto', textAlign: 'center' }}>{error}</div>
+      </div>
+    )
+  }
+
+  if (meta && parsed) {
+    return <DprCard dprid={dprid} guid={guid} meta={meta} parsed={parsed} />
+  }
+
+  return null
+}
+
 function App() {
-  const isPHA = isPhaApp()
+  if (isPhaApp()) {
+    return (
+      <Routes>
+        <Route path="/" element={<PhaAppContent />} />
+        <Route path="/:dpaid" element={<PhaAppContent />} />
+        <Route path="/:dpaid/:guid" element={<PhaAppContent />} />
+      </Routes>
+    )
+  }
+  if (isDprApp()) {
+    return (
+      <Routes>
+        <Route path="/" element={<DprAppContent />} />
+        <Route path="/:dpaid" element={<DprAppContent />} />
+        <Route path="/:dpaid/:guid" element={<DprAppContent />} />
+      </Routes>
+    )
+  }
   return (
     <Routes>
-      <Route path="/" element={isPHA ? <PhaAppContent /> : <AppContent />} />
-      <Route path="/:dpaid" element={isPHA ? <PhaAppContent /> : <AppContent />} />
-      <Route path="/:dpaid/:guid" element={isPHA ? <PhaAppContent /> : <AppContent />} />
+      <Route path="/" element={<AppContent />} />
+      <Route path="/:dpaid" element={<AppContent />} />
+      <Route path="/:dpaid/:guid" element={<AppContent />} />
     </Routes>
   )
 }

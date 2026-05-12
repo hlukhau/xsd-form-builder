@@ -5,6 +5,7 @@
 #   ./build-manual.sh              — DPA: frontend из dist/, WAR dpa_card.war
 #   ./build-manual.sh pha_card   — PHA: frontend из dist/ (сборка build:pha), WAR pha_card.war
 #   ./build-manual.sh ppv_card   — PPV: frontend из dist/ (сборка build:ppv), WAR ppv_card.war
+#   ./build-manual.sh dpr_card   — DPR: frontend из dist/ (сборка build:dpr), WAR dpr_card.war
 # Переменная DEPLOY=0 — только собрать WAR, не останавливать/разворачивать Tomcat.
 # HOT_DEPLOY=1 — скопировать WAR в webapps без остановки/запуска Tomcat (развёртывание подхватит работающий экземпляр).
 # Полный рестарт Tomcat как раньше: HOT_DEPLOY=0 (по умолчанию) при DEPLOY=1 — shutdown, удаление, копия WAR, startup.

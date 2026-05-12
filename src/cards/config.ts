@@ -3,6 +3,7 @@
  * - /dpa_card/  → DPA (карта сведений об опасной продукции)
  * - /ppv_card/  → PPV (карта сведений о выявленных нарушениях; тот же UI и справочники, другой API-префикс)
  * - /pha_card/ → PHA (карта сведений об обнаружении болезней)
+ * - /dpr_card/ → DPR (карта сведений о результатах рассмотрения)
  */
 const BASE = (typeof import.meta !== 'undefined' && import.meta.env?.BASE_URL)
   ? import.meta.env.BASE_URL
@@ -18,16 +19,21 @@ export function isPpvApp(): boolean {
   return CARD_APP_BASE.includes('ppv_card')
 }
 
-/** Только приложение DPA (не PHA и не PPV). */
-export function isDpaApp(): boolean {
-  return !isPhaApp() && !isPpvApp()
+export function isDprApp(): boolean {
+  return CARD_APP_BASE.includes('dpr_card')
 }
 
-export type CardAppType = 'dpa' | 'pha' | 'ppv'
+/** Только приложение DPA (не PHA, не PPV и не DPR). */
+export function isDpaApp(): boolean {
+  return !isPhaApp() && !isPpvApp() && !isDprApp()
+}
+
+export type CardAppType = 'dpa' | 'pha' | 'ppv' | 'dpr'
 
 export function getCardAppType(): CardAppType {
   if (isPhaApp()) return 'pha'
   if (isPpvApp()) return 'ppv'
+  if (isDprApp()) return 'dpr'
   return 'dpa'
 }
 

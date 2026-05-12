@@ -9,7 +9,7 @@
     <version>1.0.0</version>
     <packaging>war</packaging>
     <name>EEC Rights JSON registry (servlet WAR)</name>
-    <description>HTTP registry GUID → JSON (креды БД) — Java 8, сервлеты, тот же Tomcat что и dpa_card / pha_card / ppv_card</description>
+    <description>HTTP registry GUID → JSON (креды БД) — Java 8, сервлеты, тот же Tomcat что и dpa_card / pha_card / ppv_card / dpr_card</description>
 
     <properties>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>

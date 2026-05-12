@@ -1081,3 +1081,48 @@ body {
   white-space: normal;
   word-break: break-word;
 }
+
+/* DPR: закреплённая шапка (≤20vh) и прокрутка только области вкладок */
+.dpr-card-root {
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  background: #fff;
+}
+.dpr-card-root .dpr-card-header {
+  max-height: 20vh;
+  flex-shrink: 0;
+  overflow-y: auto;
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  background: #fff;
+  border-bottom: 1px solid #f0f0f0;
+  padding: 8px 16px 4px;
+}
+.dpr-card-root .dpr-card-tabs-wrap {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  padding: 0 8px 8px;
+}
+.dpr-card-root .dpr-card-tabs-wrap > .ant-tabs {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+.dpr-card-root .dpr-card-tabs-wrap .ant-tabs-nav {
+  flex-shrink: 0;
+  margin-bottom: 0 !important;
+}
+.dpr-card-root .dpr-card-tabs-wrap .ant-tabs-content-holder {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+}
+.dpr-card-root .dpr-card-tabs-wrap .ant-tabs-tabpane {
+  height: 100%;
+}

@@ -1,0 +1,49 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema" xmlns:ccdo="urn:EEC:M:ComplexDataObjects:v0.4.12" xmlns:csdo="urn:EEC:M:SimpleDataObjects:v0.4.12" xmlns:doc="urn:EEC:R:SM:SS:08:DangerousProductAlertResponse:v1.0.0" xmlns:smcdo="urn:EEC:M:SM:ComplexDataObjects:v0.3.9" xmlns:smsdo="urn:EEC:M:SM:SimpleDataObjects:v0.3.9" elementFormDefault="qualified" targetNamespace="urn:EEC:R:SM:SS:08:DangerousProductAlertResponse:v1.0.0" version="1.0.0">
+    <xs:import namespace="urn:EEC:M:SimpleDataObjects:v0.4.12" schemaLocation="EEC_M_SimpleDataObjects_v0.4.12.xsd"/>
+    <xs:import namespace="urn:EEC:M:ComplexDataObjects:v0.4.12" schemaLocation="EEC_M_ComplexDataObjects_v0.4.12.xsd"/>
+    <xs:import namespace="urn:EEC:M:SM:SimpleDataObjects:v0.3.9" schemaLocation="EEC_M_SM_SimpleDataObjects_v0.3.9.xsd"/>
+    <xs:import namespace="urn:EEC:M:SM:ComplexDataObjects:v0.3.9" schemaLocation="EEC_M_SM_ComplexDataObjects_v0.3.9.xsd"/>
+    <!--содержит сведения о результатах рассмотрения информации об опасной продукции уполномоченным органом государства-члена, в котором зарегистрирован производитель указанной продукции-->
+    <!-- R.SM.SS.08.003.NSP: Сведения о результатах рассмотрения информации о нарушениях (Сведения о результатах рассмотрения информации о нарушениях) -->
+    <!-- R.SM.SS.08.003: Сведения о результатах рассмотрения информации о нарушениях (Сведения о результатах рассмотрения информации о нарушениях. Детали) -->
+    <xs:element name="DangerousProductAlertResponseDetails" type="doc:DangerousProductAlertResponseDetailsType">
+        <xs:annotation>
+            <xs:documentation>Содержит сведения о результатах рассмотрения информации о нарушениях, связанных с процессом производства продукции, уполномоченным органом государства – члена Союза, в котором зарегистрирован производитель указанной продукции</xs:documentation>
+        </xs:annotation>
+    </xs:element>
+    <!-- R.SM.SS.08.003.CDT: Сведения о результатах рассмотрения информации о нарушениях (Сведения о результатах рассмотрения информации о нарушениях_ Детали. Тип) -->
+    <xs:complexType name="DangerousProductAlertResponseDetailsType">
+        <xs:annotation>
+            <xs:documentation>Содержит сведения о результатах рассмотрения информации о нарушениях, связанных с процессом производства продукции, уполномоченным органом государства – члена Союза, в котором зарегистрирован производитель указанной продукции</xs:documentation>
+        </xs:annotation>
+        <xs:sequence>
+            <xs:element ref="ccdo:EDocHeader"/>
+            <xs:element ref="ccdo:UnifiedAuthorityDetails">
+                <xs:annotation>
+                    <xs:documentation>сведения об уполномоченном органе государства-члена, представившем результат рассмотрения</xs:documentation>
+                </xs:annotation>
+            </xs:element>
+            <xs:element ref="smcdo:IncidentAlertIdDetails">
+                <xs:annotation>
+                    <xs:documentation>сведения, идентифицирующие исходное уведомление</xs:documentation>
+                </xs:annotation>
+            </xs:element>
+            <xs:element maxOccurs="unbounded" minOccurs="0" ref="smcdo:SanitaryMeasureBaseDetails">
+                <xs:annotation>
+                    <xs:documentation>Информация о принятых мерах</xs:documentation>
+                </xs:annotation>
+            </xs:element>
+            <xs:element minOccurs="0" ref="csdo:DescriptionText">
+                <xs:annotation>
+                    <xs:documentation>описание результатов рассмотрения обращения о нарушениях, связанных с процессом производства продукции</xs:documentation>
+                </xs:annotation>
+            </xs:element>
+            <xs:element maxOccurs="unbounded" minOccurs="0" ref="ccdo:DocContentDetails">
+                <xs:annotation>
+                    <xs:documentation>информация о приложенном документе</xs:documentation>
+                </xs:annotation>
+            </xs:element>
+        </xs:sequence>
+    </xs:complexType>
+</xs:schema>

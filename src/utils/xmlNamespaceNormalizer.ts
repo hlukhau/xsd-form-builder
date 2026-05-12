@@ -8,6 +8,17 @@ export const DPA_CANONICAL_XML_NAMESPACES: Record<string, string> = {
   xsi: 'http://www.w3.org/2001/XMLSchema-instance',
 }
 
+/** Карта DPR (ответ на уведомление): корень DangerousProductAlertResponseDetails */
+export const DPR_CANONICAL_XML_NAMESPACES: Record<string, string> = {
+  ccdo: 'urn:EEC:M:ComplexDataObjects:v0.4.12',
+  csdo: 'urn:EEC:M:SimpleDataObjects:v0.4.12',
+  bdt: 'urn:EEC:M:BaseDataTypes:v0.4.12',
+  smcdo: 'urn:EEC:M:SM:ComplexDataObjects:v0.3.9',
+  smsdo: 'urn:EEC:M:SM:SimpleDataObjects:v0.3.9',
+  doc: 'urn:EEC:R:SM:SS:08:DangerousProductAlertResponse:v1.0.0',
+  xsi: 'http://www.w3.org/2001/XMLSchema-instance',
+}
+
 export const PHA_CANONICAL_XML_NAMESPACES: Record<string, string> = {
   ccdo: 'urn:EEC:M:ComplexDataObjects:v0.4.12',
   csdo: 'urn:EEC:M:SimpleDataObjects:v0.4.12',

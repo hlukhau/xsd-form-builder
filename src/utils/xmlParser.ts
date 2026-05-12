@@ -2582,7 +2582,7 @@ function parseGeoCoordinates(placeElement: Element): GeoCoordinateDetails[] {
 /**
  * Парсит принятые меры
  */
-function parseMeasures(alertDetails: Element, rootElement?: Element): MeasuresData | undefined {
+export function parseMeasures(alertDetails: Element, rootElement?: Element): MeasuresData | undefined {
   console.log('Начинаем парсинг принятых мер')
   
   const measures: SanitaryMeasure[] = []

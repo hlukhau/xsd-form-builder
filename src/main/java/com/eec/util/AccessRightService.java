@@ -222,6 +222,33 @@ public final class AccessRightService {
         return hasAccessRightInJson(rightsJson, "violationDetectedDB", "access");
     }
 
+    /** Ключи (DEPID) объекта up.violationDetectedIn.access. */
+    public static Set<String> violationDetectedInAccessDepKeys(String rightsJson) {
+        return depKeysFromUpRightBlock(rightsJson, "violationDetectedIn", "access");
+    }
+
+    /** Ключи (DEPID) объекта up.violationDetectedOut.access. */
+    public static Set<String> violationDetectedOutAccessDepKeys(String rightsJson) {
+        return depKeysFromUpRightBlock(rightsJson, "violationDetectedOut", "access");
+    }
+
+    /** Ключи (DEPID) объекта up.violationDetectedDB.access. */
+    public static Set<String> violationDetectedDBAccessDepKeys(String rightsJson) {
+        return depKeysFromUpRightBlock(rightsJson, "violationDetectedDB", "access");
+    }
+
+    private static Set<String> depKeysFromUpRightBlock(String rightsJson, String section, String rightKey) {
+        Set<String> keys = new HashSet<>();
+        String block = extractUpRightObjectBlock(rightsJson, section, rightKey);
+        if (block == null || block.isEmpty()) return keys;
+        Pattern keyP = Pattern.compile("\"([^\"]+)\"\\s*:");
+        Matcher keyM = keyP.matcher(block);
+        while (keyM.find()) {
+            keys.add(keyM.group(1).trim());
+        }
+        return keys;
+    }
+
     public static boolean hasViolationDetectedInStatus(String rightsJson) {
         return hasAccessRightInJson(rightsJson, "violationDetectedIn", "status");
     }

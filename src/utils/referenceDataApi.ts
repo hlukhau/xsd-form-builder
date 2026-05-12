@@ -4,6 +4,7 @@
 
 import { message } from 'antd'
 import type { CardData } from '@/types/card'
+import type { DprMetadataView } from '@/types/dprCard'
 import { isPpvApp } from '@/cards/config'
 
 const BASE_URL = import.meta.env.BASE_URL || '/'
@@ -18,7 +19,7 @@ function dpaLikeCardApiSegment(): 'dpa' | 'ppv' {
  * При сборке PHA или PPV используем эндпоинты DPA (/dpa_card/), чтобы не дублировать код и данные.
  */
 function getReferenceDataBaseUrl(): string {
-  if (BASE_URL.includes('pha_card') || BASE_URL.includes('ppv_card')) return '/dpa_card/'
+  if (BASE_URL.includes('pha_card') || BASE_URL.includes('ppv_card') || BASE_URL.includes('dpr_card')) return '/dpa_card/'
   return BASE_URL
 }
 
@@ -503,6 +504,57 @@ export async function fetchDpaXml(dpaid: string, guid?: string): Promise<string>
     throw new Error(errMsg)
   }
   return response.text()
+}
+
+/** XML карты DPR (GET /api/dpr/xml/{DPRID}). */
+export async function fetchDprXml(dprid: string, guid?: string): Promise<string> {
+  const response = await fetch(withGuidUrl(`${BASE_URL}api/dpr/xml/${encodeURIComponent(dprid)}`, guid))
+  if (!response.ok) {
+    const text = await response.text()
+    let errMsg = response.statusText
+    try {
+      const json = JSON.parse(text)
+      if (json.error) errMsg = json.error
+    } catch {
+      if (text) errMsg = text.slice(0, 200)
+    }
+    throw new Error(errMsg)
+  }
+  return response.text()
+}
+
+/** Метаданные шапки DPR из VW_DPR (GET /api/dpr/metadata/{DPRID}). */
+export async function fetchDprMetadata(dprid: string, guid?: string): Promise<DprMetadataView> {
+  const response = await fetch(withGuidUrl(`${BASE_URL}api/dpr/metadata/${encodeURIComponent(dprid)}`, guid))
+  if (!response.ok) {
+    const text = await response.text()
+    let errMsg = response.statusText
+    try {
+      const json = JSON.parse(text)
+      if (json.error) errMsg = json.error
+    } catch {
+      if (text) errMsg = text.slice(0, 200)
+    }
+    throw new Error(errMsg)
+  }
+  return response.json() as Promise<DprMetadataView>
+}
+
+/** История статусов DPR (GET /api/dpr/status-history/{DPRID}). */
+export async function fetchDprStatusHistory(dprid: string, guid?: string): Promise<DpaStatusHistoryItem[]> {
+  const response = await fetch(withGuidUrl(`${BASE_URL}api/dpr/status-history/${encodeURIComponent(dprid)}`, guid))
+  if (!response.ok) {
+    const text = await response.text()
+    let errMsg = response.statusText
+    try {
+      const json = JSON.parse(text)
+      if (json.error) errMsg = json.error
+    } catch {
+      if (text) errMsg = text.slice(0, 200)
+    }
+    throw new Error(errMsg)
+  }
+  return response.json()
 }
 
 /** Метаданные шапки карты из VW_DPA (GET /api/dpa/metadata/{DPAID}). УО — из БД (DPA.AUTHORITYID → AUTHORITY). */

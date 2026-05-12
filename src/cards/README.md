@@ -61,6 +61,7 @@ VITE_APP_BASE=/pha_card/ npm run build
 - **DPA:** `http://localhost:8083/dpa_card/`
 - **PHA:** `http://localhost:8083/pha_card/`
 - **PPV:** `http://localhost:8083/ppv_card/`
+- **DPR:** `http://localhost:8083/dpr_card/`
 
 Соберите и разверните каждое приложение отдельно (в любом порядке):
 
@@ -68,9 +69,10 @@ VITE_APP_BASE=/pha_card/ npm run build
 ./build-and-deploy-dpa.sh    # DPA → http://localhost:PORT/dpa_card/
 ./build-and-deploy-pha.sh    # PHA → http://localhost:PORT/pha_card/
 ./build-and-deploy-ppv.sh    # PPV → http://localhost:PORT/ppv_card/
+./build-and-deploy-dpr.sh    # DPR → http://localhost:PORT/dpr_card/
 ```
 
-WAR попадают в `webapps`; Tomcat поднимает контексты. Удалённо: `./deploy-dpa-to-remote.sh`, `./deploy-pha-to-remote.sh`, `./deploy-ppv-to-remote.sh` (опция `--build` при необходимости). В Cursor: **Terminal → Run Task…** — задачи сборки/деплоя DPA, PHA, PPV.
+WAR попадают в `webapps`; Tomcat поднимает контексты. Удалённо: `./deploy-dpa-to-remote.sh`, `./deploy-pha-to-remote.sh`, `./deploy-ppv-to-remote.sh`, `./deploy-dpr-to-remote.sh` (опция `--build` при необходимости). В Cursor: **Terminal → Run Task…** — задачи сборки/деплоя DPA, PHA, PPV, DPR.
 
 ## Общие ресурсы (CSS и др.)
 
