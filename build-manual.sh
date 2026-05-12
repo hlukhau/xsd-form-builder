@@ -1,4 +1,5 @@
 #!/bin/bash
+#!/bin/bash
 # Manual WAR build without Maven (using javac) — Linux
 # Использование:
 #   ./build-manual.sh              — DPA: frontend из dist/, WAR dpa_card.war

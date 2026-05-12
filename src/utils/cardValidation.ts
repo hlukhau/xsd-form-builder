@@ -568,9 +568,6 @@ export function validateOutgoingCard(data: CardData): ValidationResult {
   // —— Принятые меры ——
   const measuresList = data.measures?.measures ?? []
   for (const m of measuresList) {
-    if (empty(m?.startDate)) {
-      add(sectionMeasures, 'В составе каждого набора сведений о принятой мере должна быть указана Начальная дата')
-    }
     const basisList = m?.measureInitiationBasisDetails
     if (basisList && basisList.length > 0) {
       const anyBasisIncomplete = basisList.some(

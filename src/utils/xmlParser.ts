@@ -3124,6 +3124,7 @@ function parseSubjectDetailsDirect(subjectElement: Element): BusinessEntityDetai
   }
   const { businessEntityId, identificationMethod } = parseBusinessEntityIdAndKindId(subjectElement)
   const customsNumber = getTextContent(subjectElement, 'UniqueCustomsNumberId') || getTextContent(subjectElement, 'CustomsNumber') || undefined
+  const taxRegistrationReasonCode = getTextContent(subjectElement, 'TaxRegistrationReasonCode') || undefined
   const taxpayerId = getTextContent(subjectElement, 'TaxpayerId') || undefined
 
   const addresses: AddressDetails[] = []
@@ -3158,6 +3159,7 @@ function parseSubjectDetailsDirect(subjectElement: Element): BusinessEntityDetai
     businessEntityTypeName ||
     businessEntityId ||
     customsNumber ||
+    taxRegistrationReasonCode ||
     taxpayerId ||
     addresses.length > 0 ||
     (contacts && contacts.length > 0)
@@ -3173,6 +3175,7 @@ function parseSubjectDetailsDirect(subjectElement: Element): BusinessEntityDetai
     businessEntityId,
     identificationMethod,
     customsNumber,
+    taxRegistrationReasonCode,
     taxpayerId,
     addresses: addresses.length > 0 ? addresses : undefined,
     contacts: contacts && contacts.length > 0 ? contacts : undefined,
@@ -3210,11 +3213,12 @@ function parseSubjectDetails(parent: Element): SubjectDetails | undefined {
     return undefined
   }
  
-  // Физлицо должно иметь приоритет, иначе SubjectName может ошибочно
-  // интерпретироваться как BusinessEntityName и identityDoc потеряется.
+  // Удостоверение и реквизиты юрлица могут идти в одном SubjectDetails (XSD: … TaxpayerId, TaxRegistrationReasonCode?, IdentityDocV3Details).
+  // Нельзя терять parseSubjectDetailsDirect при наличии IdentityDocV3Details — иначе после загрузки теряются SubjectBriefName, BusinessEntityId и т.д.
   const identityDoc = parseIdentityDocDetails(subjectElement)
   if (identityDoc) {
-    const country = getDirectChildTextByLocalName(subjectElement, 'UnifiedCountryCode') || undefined
+    const businessEntityFlat = parseSubjectDetailsDirect(subjectElement)
+    const countryRoot = getDirectChildTextByLocalName(subjectElement, 'UnifiedCountryCode') || undefined
     const subjectName = getTextContent(subjectElement, 'SubjectName') || undefined
     const addresses = parseAllAddresses(subjectElement)
     const registrationAddress = addresses.find((a) => (a.addressKindCode || '').trim() === '1')
@@ -3222,8 +3226,9 @@ function parseSubjectDetails(parent: Element): SubjectDetails | undefined {
     const mailingAddress = addresses.find((a) => (a.addressKindCode || '').trim() === '3')
     const contacts = parseContacts(subjectElement)
     return {
-      country,
-      subjectName,
+      country: countryRoot || identityDoc.country,
+      subjectName: subjectName || businessEntityFlat?.businessEntityName,
+      ...(businessEntityFlat ? { businessEntity: businessEntityFlat } : {}),
       identityDoc,
       addresses: addresses.length > 0 ? addresses : undefined,
       registrationAddress,
@@ -3318,8 +3323,8 @@ function parseIdentityDocDetails(parent: Element): IdentityDocDetails | undefine
     docKindCode = docKindCodeEl.textContent?.trim() || undefined
     docKindCodeListId = docKindCodeEl.getAttribute('codeListId') || undefined
   }
-  
-  return {
+
+  const result: IdentityDocDetails = {
     country,
     docKindCode,
     docKindCodeListId,
@@ -3331,6 +3336,20 @@ function parseIdentityDocDetails(parent: Element): IdentityDocDetails | undefine
     authorityId,
     authorityName,
   }
+  const t = (v: string | undefined) => (v ?? '').trim()
+  if (
+    !t(result.country) &&
+    !t(result.docKindCode) &&
+    !t(result.docKindName) &&
+    !t(result.docSeriesId) &&
+    !t(result.docId) &&
+    !t(result.docCreationDate) &&
+    !t(result.docValidityDate) &&
+    !t(result.authorityName)
+  ) {
+    return undefined
+  }
+  return result
 }
 
 /**

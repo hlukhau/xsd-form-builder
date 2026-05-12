@@ -505,6 +505,7 @@ const SubjectDetailsUnifiedView: React.FC<{ subject: SubjectDetails }> = ({ subj
         {identificationMethod ? getIdentificationMethodLabel(identificationMethod) || identificationMethod : '-'}
       </Descriptions.Item>
       <Descriptions.Item label="Таможенный номер">{customsNumber || '-'}</Descriptions.Item>
+      <Descriptions.Item label="Код причины постановки на налоговый учёт">{be?.taxRegistrationReasonCode?.trim() || '-'}</Descriptions.Item>
       <Descriptions.Item label="Идентификатор налогоплательщика">{taxpayerId || '-'}</Descriptions.Item>
       {subject.identityDoc && (
         <>

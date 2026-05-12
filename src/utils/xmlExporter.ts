@@ -783,6 +783,11 @@ function exportMeasureSubjectDetails(xmlParts: string[], subject: SubjectDetails
     }
     if (entity.customsNumber) xmlParts.push(`${subIndent}<csdo:UniqueCustomsNumberId>${escapeXML(entity.customsNumber)}</csdo:UniqueCustomsNumberId>`)
     if (entity.taxpayerId) xmlParts.push(`${subIndent}<csdo:TaxpayerId>${escapeXML(entity.taxpayerId)}</csdo:TaxpayerId>`)
+    if (entity.taxRegistrationReasonCode?.trim()) {
+      xmlParts.push(
+        `${subIndent}<csdo:TaxRegistrationReasonCode>${escapeXML(entity.taxRegistrationReasonCode.trim())}</csdo:TaxRegistrationReasonCode>`
+      )
+    }
     // SubjectDetailsType: после TaxpayerId — IdentityDocV3Details, затем SubjectAddressDetails, затем CommunicationDetails (EEC_M_ComplexDataObjects SubjectDetailsType).
     if (subject.identityDoc) exportIdentityDocV3Details(xmlParts, subject.identityDoc, subIndent)
     /** Адреса: при юрлице обычно в businessEntity.addresses; если массив пуст, форма может держать строки в subject (регистрационный/фактический/почтовый или addresses) — как в getAddressListFromSubject. */
@@ -814,13 +819,13 @@ function exportMeasureSubjectDetails(xmlParts: string[], subject: SubjectDetails
 function hasMeasureContent(measure: SanitaryMeasure | undefined): boolean {
   if (!measure) return false
   const s = (v: string | undefined) => (v ?? '').trim()
-  // StartDate обязателен в XSD для SanitaryMeasureBaseDetails — без него блок в XML не формируем
-  if (!s(measure.startDate)) return false
+  // Даты начала/окончания по XSD не обязаны для черновика в UI; мера экспортируется при заполненных прочих реквизитах.
   if (
     s(measure.languageCode) ||
     s(measure.measureCode) ||
     s(measure.measureName) ||
     s(measure.measureAffectedObjectKindCode) ||
+    s(measure.startDate) ||
     s(measure.endDate) ||
     s(measure.measureJustificationText) ||
     s(measure.description)
@@ -833,8 +838,7 @@ function hasMeasureContent(measure: SanitaryMeasure | undefined): boolean {
   if (basisWithContent.length > 0) return true
   const implWithContent = (measure.measureImplementationDetails ?? []).filter(hasMeasureImplementationEntryContent)
   if (implWithContent.length > 0) return true
-  // Есть только дата начала — всё равно выводим блок (MeasureDocDetails пустой, остальное по умолчанию)
-  return true
+  return false
 }
 
 function exportShippingDocument(xmlParts: string[], doc: ShippingDocument, indent: string) {
