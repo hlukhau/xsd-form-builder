@@ -74,9 +74,7 @@ const ComplianceDocumentsTabEdit: React.FC<ComplianceDocumentsTabEditProps> = ({
       return (
         <div style={{ border: '1px solid #d9d9d9', borderRadius: 4, padding: 12, margin: '8px 0', background: '#fafafa' }}>
           {(options?.showTitle !== false) && <div style={{ fontWeight: 600, marginBottom: 8 }}>Лаборатория</div>}
-          <Descriptions column={1} bordered size="small">
-            <Descriptions.Item label="Документ в бинарном виде">—</Descriptions.Item>
-          </Descriptions>
+          <div style={{ color: '#999' }}>Нет данных по лаборатории</div>
         </div>
       )
     }
@@ -328,16 +326,31 @@ const ComplianceDocumentsTabEdit: React.FC<ComplianceDocumentsTabEditProps> = ({
                 <h3>Набор атрибутов по продукции</h3>
                 <Descriptions column={1} bordered size="small">
                   <Descriptions.Item label="Идентификатор продукции">{protocolsData.product.productId || '—'}</Descriptions.Item>
-                  <Descriptions.Item label="Наименование продукции">{protocolsData.product.productName || '—'}</Descriptions.Item>
+                  <Descriptions.Item label="Наименование">{protocolsData.product.productName || '—'}</Descriptions.Item>
+                  <Descriptions.Item label="Название продукции">
+                    {(() => {
+                      const names = protocolsData.product.tradeNames?.length
+                        ? protocolsData.product.tradeNames
+                        : protocolsData.product.tradeName
+                          ? [protocolsData.product.tradeName]
+                          : []
+                      const s = names.map((n) => (n ?? '').trim()).filter(Boolean).join('; ')
+                      return s || '—'
+                    })()}
+                  </Descriptions.Item>
                   <Descriptions.Item label="Описание">{protocolsData.product.description || '—'}</Descriptions.Item>
                   <Descriptions.Item label="Код ТН ВЭД ЕАЭС">{protocolsData.product.commodityCode || '—'}</Descriptions.Item>
-                  {protocolsData.product.technicalDocs?.length ? (
-                    <Descriptions.Item label="Техническая документация">
-                      {protocolsData.product.technicalDocs.map((doc, idx) => (
-                        <div key={idx}>{[doc.docName, doc.docId, doc.docCreationDate].filter(Boolean).join(', ') || '—'}</div>
-                      ))}
-                    </Descriptions.Item>
-                  ) : null}
+                  <Descriptions.Item label="Техническая документация">
+                    {protocolsData.product.technicalDocs && protocolsData.product.technicalDocs.length > 0 ? (
+                      protocolsData.product.technicalDocs.map((doc, idx) => (
+                        <div key={idx}>
+                          {[doc.docKindName, doc.docName, doc.docId, doc.docCreationDate].filter(Boolean).join(', ') || '—'}
+                        </div>
+                      ))
+                    ) : (
+                      '—'
+                    )}
+                  </Descriptions.Item>
                   <Descriptions.Item label="Назначение">{protocolsData.product.productPurpose || '—'}</Descriptions.Item>
                   <Descriptions.Item label="Способ применения">{protocolsData.product.applicationMethod || '—'}</Descriptions.Item>
                   <Descriptions.Item label="Форма выпуска">{protocolsData.product.releaseForm || '—'}</Descriptions.Item>
@@ -399,10 +412,7 @@ const ComplianceDocumentsTabEdit: React.FC<ComplianceDocumentsTabEditProps> = ({
                       : (
                         <div style={{ border: '1px solid #d9d9d9', borderRadius: 4, padding: 12, margin: '8px 0', background: '#fafafa' }}>
                           <div style={{ fontWeight: 600, marginBottom: 8 }}>Лаборатория</div>
-                          <div style={{ color: '#999', marginBottom: 12 }}>Нет данных по лаборатории</div>
-                          <Descriptions column={1} bordered size="small">
-                            <Descriptions.Item label="Документ в бинарном виде">—</Descriptions.Item>
-                          </Descriptions>
+                          <div style={{ color: '#999' }}>Нет данных по лаборатории</div>
                         </div>
                       ),
                 }}

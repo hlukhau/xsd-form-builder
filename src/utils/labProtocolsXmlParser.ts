@@ -58,19 +58,48 @@ function getDirectChildText(parent: Element, localName: string): string | undefi
   return undefined
 }
 
+/** Техдокументация в ProductDetailsType — ccdo:DocReferenceDetails (как в xmlParser.parseTechnicalDocs), не TechnicalDocumentDetails. */
+function parseTechnicalDocsFromProductDetails(el: Element): TechnicalDocument[] {
+  const pushFromRefEl = (docEl: Element) => {
+    const doc: TechnicalDocument = {
+      docKindCode: getTextContent(docEl, 'DocKindCode') || undefined,
+      docKindName: getTextContent(docEl, 'DocKindName') || undefined,
+      docName: getTextContent(docEl, 'DocName') || undefined,
+      docId: getTextContent(docEl, 'DocId') || undefined,
+      docCreationDate: getTextContent(docEl, 'DocCreationDate') || undefined,
+      docStartDate: getTextContent(docEl, 'DocStartDate') || undefined,
+    }
+    return doc.docName || doc.docId || doc.docKindCode || doc.docKindName ? doc : null
+  }
+  const fromDirect: TechnicalDocument[] = []
+  for (let i = 0; i < el.childNodes.length; i++) {
+    const node = el.childNodes[i]
+    if (node.nodeType !== 1) continue
+    const child = node as Element
+    const local = (child.localName || child.tagName.split(':').pop() || '').toLowerCase()
+    if (local === 'docreferencedetails') {
+      const d = pushFromRefEl(child)
+      if (d) fromDirect.push(d)
+    }
+  }
+  if (fromDirect.length > 0) return fromDirect
+  const fromTree = findAllByLocalName(el, 'DocReferenceDetails')
+    .map((docEl) => pushFromRefEl(docEl))
+    .filter((d): d is TechnicalDocument => d != null)
+  if (fromTree.length > 0) return fromTree
+  return findAllByLocalName(el, 'TechnicalDocumentDetails')
+    .map((docEl) => pushFromRefEl(docEl))
+    .filter((d): d is TechnicalDocument => d != null)
+}
+
 function parseProductDetailsFromElement(el: Element): ProductDetails {
   const tradeNames = findAllByLocalName(el, 'ProductTradeName').map((n) => n.textContent?.trim() ?? '').filter(Boolean)
-  const technicalDocs: TechnicalDocument[] = findAllByLocalName(el, 'TechnicalDocumentDetails').map((docEl) => ({
-    docKindCode: getTextContent(docEl, 'DocKindCode') || undefined,
-    docKindName: getTextContent(docEl, 'DocKindName') || undefined,
-    docName: getTextContent(docEl, 'DocName') || undefined,
-    docId: getTextContent(docEl, 'DocId') || undefined,
-    docCreationDate: getTextContent(docEl, 'DocCreationDate') || undefined,
-    docStartDate: getTextContent(docEl, 'DocStartDate') || undefined,
-  }))
+  const technicalDocs = parseTechnicalDocsFromProductDetails(el)
+  const productNameRaw = getDirectChildText(el, 'ProductName') ?? getTextContent(el, 'ProductName')
+  const productName = (productNameRaw && productNameRaw.trim()) || undefined
   return {
     productId: getTextContent(el, 'ProductId') || undefined,
-    productName: getTextContent(el, 'ProductName') || undefined,
+    productName: productName || undefined,
     tradeName: tradeNames[0],
     tradeNames: tradeNames.length ? tradeNames : undefined,
     description: getTextContent(el, 'DescriptionText') || undefined,
