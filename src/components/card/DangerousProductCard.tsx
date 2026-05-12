@@ -48,6 +48,7 @@ import {
   canCreateNewVersion,
   type DpaSaveMetadata,
   type RightsJson,
+  fetchDprCreateEligibility,
 } from '@/utils/referenceDataApi'
 import { getStatusButtonConfig } from '@/utils/statusButtonConfig'
 import { parseElectronicDocContentBody } from '@/utils/xmlParser'
@@ -153,6 +154,8 @@ const DangerousProductCard: React.FC<DangerousProductCardProps> = ({
   const [copyCanCreateLoading, setCopyCanCreateLoading] = useState(false)
   const [copyCanCreateAllowed, setCopyCanCreateAllowed] = useState<boolean | null>(null)
   const [copyCanCreateReason, setCopyCanCreateReason] = useState<string | null>(null)
+  /** GET /api/dpr/create-eligibility — кнопка «Подготовить ответ» на входящей PPV */
+  const [dprPrepareAnswer, setDprPrepareAnswer] = useState<{ allowed: boolean; reason?: string } | null>(null)
   const { countryOptions } = useCountryOptions()
   useParentActivityPing()
 
@@ -205,6 +208,38 @@ const DangerousProductCard: React.FC<DangerousProductCardProps> = ({
   useEffect(() => {
     if (dpaid !== '-') setSavedDpaid(null)
   }, [dpaid])
+
+  useEffect(() => {
+    if (!isPpvApp() || !hasPersistedDpaid || !guid?.trim()) {
+      setDprPrepareAnswer(null)
+      return
+    }
+    const dsc =
+      editedData.datasourceKindCode != null ? String(editedData.datasourceKindCode) : datasourceKindCode
+    if (dsc !== '1') {
+      setDprPrepareAnswer(null)
+      return
+    }
+    let cancelled = false
+    fetchDprCreateEligibility(effectiveDpaid, guid.trim())
+      .then((r) => {
+        if (!cancelled) setDprPrepareAnswer({ allowed: r.allowed, reason: r.reason })
+      })
+      .catch(() => {
+        if (!cancelled) setDprPrepareAnswer({ allowed: false })
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [
+    hasPersistedDpaid,
+    effectiveDpaid,
+    guid,
+    datasourceKindCode,
+    editedData.datasourceKindCode,
+    editedData.statusId,
+    data?.statusId,
+  ])
 
   // Права и уровень пользователя / резолюции по карте (исходящие)
   // Важно: для новой исходящей карты (dpaid '-') hasPersistedDpaid = false, но JSON прав и depIds для УО всё равно нужны — иначе список УО остаётся пустым.
@@ -1055,6 +1090,21 @@ const DangerousProductCard: React.FC<DangerousProductCardProps> = ({
                     }}
                   >
                     Валидация карты
+                  </Button>
+                )}
+                {isPpvApp() && dprPrepareAnswer?.allowed && (
+                  <Button
+                    type="primary"
+                    onClick={() => {
+                      const base =
+                        (import.meta.env.VITE_DPR_CARD_BASE as string | undefined)?.replace(/\/$/, '') ||
+                        '/dpr_card'
+                      window.location.assign(
+                        `${base}/create/${encodeURIComponent(effectiveDpaid)}/${encodeURIComponent(guid!.trim())}`
+                      )
+                    }}
+                  >
+                    Подготовить ответ
                   </Button>
                 )}
                 <Button

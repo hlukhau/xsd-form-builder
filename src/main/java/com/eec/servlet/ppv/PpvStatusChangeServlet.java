@@ -3,6 +3,7 @@ package com.eec.servlet.ppv;
 import com.eec.rights.RightsRegistryProvider;
 import com.eec.util.AccessRightService;
 import com.eec.util.DatabaseUtil;
+import com.eec.util.PpvDepPermisUtil;
 import com.eec.util.PpvIncomingDefaultDepPermis;
 
 import javax.servlet.ServletException;
@@ -18,7 +19,6 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Savepoint;
 import java.sql.Types;
-import java.util.HashSet;
 import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -94,9 +94,6 @@ public class PpvStatusChangeServlet extends HttpServlet {
             + "WHERE TRIM(UPPER(PPVSTATUSCODE)) = TRIM(UPPER(?)) "
             + "AND TRIM(TO_CHAR(DATASOURCEKINDCODE)) = ? "
             + "AND PPVSTATUSACTFL = 1 AND ROWNUM = 1";
-
-    private static final String SQL_PPVDEPPERMIS_DEPIDS = ""
-            + "SELECT DEPID FROM PPVDEPPERMIS WHERE PPVID = ? AND REVOKEDATETIME IS NULL";
 
     /** Ответ адресата (связанный ЭД): EDOCID заполнен — результат рассмотрения считается отправленным. */
     private static final String PPV_ACTOR_CODE_REVIEW = "P.SS.08.ACT.005";
@@ -332,7 +329,7 @@ public class PpvStatusChangeServlet extends HttpServlet {
                         "В карте прав не заданы подразделения для violationDetectedIn:status");
                 return;
             }
-            if (!hasPpvDepPermisOverlap(conn, dpaid, statusDepKeys)) {
+            if (!PpvDepPermisUtil.hasOverlap(conn, dpaid, statusDepKeys)) {
                 sendJsonError(response, HttpServletResponse.SC_FORBIDDEN,
                         "Нет права на завершение обработки: ни одно подразделение из права status не входит в доступ к карте (PPVDEPPERMIS)");
                 return;
@@ -357,7 +354,7 @@ public class PpvStatusChangeServlet extends HttpServlet {
                         "В карте прав не заданы подразделения для violationDetectedIn:status");
                 return;
             }
-            if (!hasPpvDepPermisOverlap(conn, dpaid, statusDepKeys)) {
+            if (!PpvDepPermisUtil.hasOverlap(conn, dpaid, statusDepKeys)) {
                 sendJsonError(response, HttpServletResponse.SC_FORBIDDEN,
                         "Нет права на закрытие карты: ни одно подразделение из права status не входит в доступ к карте (PPVDEPPERMIS)");
                 return;
@@ -464,40 +461,6 @@ public class PpvStatusChangeServlet extends HttpServlet {
                 return rs.next();
             }
         }
-    }
-
-    private static String normalizeDepIdKey(String s) {
-        if (s == null) return "";
-        String t = s.trim();
-        if (t.isEmpty()) return "";
-        try {
-            return String.valueOf(Long.parseLong(t));
-        } catch (NumberFormatException e) {
-            return t;
-        }
-    }
-
-    private static boolean hasPpvDepPermisOverlap(Connection conn, long ppvid, Set<String> rightsDepKeys) throws SQLException {
-        Set<String> normalizedRights = new HashSet<>();
-        for (String k : rightsDepKeys) {
-            String n = normalizeDepIdKey(k);
-            if (!n.isEmpty()) normalizedRights.add(n);
-        }
-        if (normalizedRights.isEmpty()) return false;
-        try (PreparedStatement ps = conn.prepareStatement(SQL_PPVDEPPERMIS_DEPIDS)) {
-            ps.setLong(1, ppvid);
-            try (ResultSet rs = ps.executeQuery()) {
-                while (rs.next()) {
-                    Object v = rs.getObject("DEPID");
-                    if (v == null) continue;
-                    String rowKey = normalizeDepIdKey(String.valueOf(v));
-                    if (!rowKey.isEmpty() && normalizedRights.contains(rowKey)) {
-                        return true;
-                    }
-                }
-            }
-        }
-        return false;
     }
 
     private void applyIncomingCompleteToProcessed(HttpServletResponse response, Connection conn, long dpaid,
@@ -714,7 +677,7 @@ public class PpvStatusChangeServlet extends HttpServlet {
                         "В карте прав не заданы подразделения для violationDetectedOut:status");
                 return;
             }
-            if (!hasPpvDepPermisOverlap(conn, dpaid, statusDepKeys)) {
+            if (!PpvDepPermisUtil.hasOverlap(conn, dpaid, statusDepKeys)) {
                 sendJsonError(response, HttpServletResponse.SC_FORBIDDEN,
                         "Нет права на закрытие карты: ни одно подразделение из права status не входит в доступ к карте (PPVDEPPERMIS)");
                 return;

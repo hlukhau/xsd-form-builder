@@ -356,6 +356,22 @@
         <servlet-name>DprStatusHistoryServlet</servlet-name>
         <url-pattern>/api/dpr/status-history/*</url-pattern>
     </servlet-mapping>
+    <servlet>
+        <servlet-name>DprCreateEligibilityServlet</servlet-name>
+        <servlet-class>com.eec.servlet.dpr.DprCreateEligibilityServlet</servlet-class>
+    </servlet>
+    <servlet-mapping>
+        <servlet-name>DprCreateEligibilityServlet</servlet-name>
+        <url-pattern>/api/dpr/create-eligibility/*</url-pattern>
+    </servlet-mapping>
+    <servlet>
+        <servlet-name>DprCreateSaveServlet</servlet-name>
+        <servlet-class>com.eec.servlet.dpr.DprCreateSaveServlet</servlet-class>
+    </servlet>
+    <servlet-mapping>
+        <servlet-name>DprCreateSaveServlet</servlet-name>
+        <url-pattern>/api/dpr/create-save</url-pattern>
+    </servlet-mapping>
 
     <!-- Карта PHA: XML по PHAID из PHAXML -->
     <servlet>

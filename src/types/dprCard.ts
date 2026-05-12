@@ -12,6 +12,32 @@ export interface DprMetadataView {
   linkedPpvid: number
 }
 
+/** Ответ GET /api/dpr/create-eligibility/{PPVID} — возможность создать DPR по входящей PPV. */
+export interface DprCreateEligibilityResponse {
+  allowed: boolean
+  reason?: string
+  ppvid?: number
+  incidentId?: string | null
+  alertCountryCode?: string | null
+  incidentKindCode?: string | null
+  docCreationDate?: string | null
+  responseCountryId?: number
+  responseCountryCode?: string | null
+  responseCountryName?: string | null
+  draftDprStatusId?: number
+  draftDprStatusName?: string | null
+}
+
+/** Тело POST /api/dpr/create-save */
+export interface DprCreateSaveRequest {
+  guid: string
+  ppvid: string
+  authorityId?: string
+  authorityName?: string
+  authorityBriefName?: string
+  descriptionText?: string
+}
+
 /** Строка документа на вкладке «Описание результатов». */
 export interface DprResultDocRow {
   countryCode: string

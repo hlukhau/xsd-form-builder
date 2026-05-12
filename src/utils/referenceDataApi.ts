@@ -4,7 +4,7 @@
 
 import { message } from 'antd'
 import type { CardData } from '@/types/card'
-import type { DprMetadataView } from '@/types/dprCard'
+import type { DprCreateEligibilityResponse, DprCreateSaveRequest, DprMetadataView } from '@/types/dprCard'
 import { isPpvApp } from '@/cards/config'
 
 const BASE_URL = import.meta.env.BASE_URL || '/'
@@ -538,6 +538,54 @@ export async function fetchDprMetadata(dprid: string, guid?: string): Promise<Dp
     throw new Error(errMsg)
   }
   return response.json() as Promise<DprMetadataView>
+}
+
+/** Возможность создать карту DPR (ответ) по входящей PPV. GET /api/dpr/create-eligibility/{PPVID}?guid= */
+export async function fetchDprCreateEligibility(
+  ppvid: string,
+  guid?: string
+): Promise<DprCreateEligibilityResponse> {
+  const response = await fetch(
+    withGuidUrl(`${BASE_URL}api/dpr/create-eligibility/${encodeURIComponent(ppvid)}`, guid)
+  )
+  if (!response.ok) {
+    const text = await response.text()
+    let errMsg = response.statusText
+    try {
+      const json = JSON.parse(text)
+      if (json.error) errMsg = json.error
+    } catch {
+      if (text) errMsg = text.slice(0, 200)
+    }
+    throw new Error(errMsg)
+  }
+  return response.json() as Promise<DprCreateEligibilityResponse>
+}
+
+/** Первое сохранение черновика DPR. POST /api/dpr/create-save */
+export async function postDprCreateSave(body: DprCreateSaveRequest): Promise<{ dprid: string }> {
+  const response = await fetch(`${BASE_URL}api/dpr/create-save`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json;charset=UTF-8' },
+    body: JSON.stringify(body),
+  })
+  const text = await response.text()
+  if (!response.ok) {
+    let errMsg = response.statusText
+    try {
+      const json = JSON.parse(text)
+      if (json.error) errMsg = json.error
+    } catch {
+      if (text) errMsg = text.slice(0, 200)
+    }
+    throw new Error(errMsg)
+  }
+  try {
+    const json = JSON.parse(text) as { dprid?: number | string }
+    return { dprid: String(json.dprid ?? '') }
+  } catch {
+    throw new Error('Некорректный ответ сервера при сохранении DPR')
+  }
 }
 
 /** История статусов DPR (GET /api/dpr/status-history/{DPRID}). */

@@ -4,9 +4,9 @@ import { message, Spin } from 'antd'
 import { isPhaApp, isPpvApp, isDprApp, getDpaLikeCardSessionKeys } from './cards/config'
 import { DangerousProductCard } from './cards/dpa'
 import { PhaCard } from './cards/pha'
-import { DprCard } from './cards/dpr'
+import { DprCard, DprCreateCard } from './cards/dpr'
 import type { CardData } from './types/card'
-import type { DprMetadataView } from './types/dprCard'
+import type { DprCreateEligibilityResponse, DprMetadataView } from './types/dprCard'
 import {
   fetchDpaXml,
   fetchDpaMetadata,
@@ -19,6 +19,7 @@ import {
   changeDpaStatus,
   fetchDprXml,
   fetchDprMetadata,
+  fetchDprCreateEligibility,
 } from './utils/referenceDataApi'
 import { fetchPhaXml, fetchPhaMetadata, fetchPhaStatusHistory, postPhaStatus } from './cards/pha/phaApi'
 import { isPhaIncomingSource } from './utils/phaStatusButtonConfig'
@@ -639,6 +640,78 @@ function PhaAppContent() {
   )
 }
 
+/** Создание DPR по входящей PPV: /dpr_card/create/{PPVID}/{GUID} */
+function DprCreateFromPpvContent() {
+  const { ppvid, guid: guidParam } = useParams<{ ppvid: string; guid: string }>()
+  const guid = guidParam ? decodeURIComponent(guidParam.trim()) : ''
+  const id = (ppvid ?? '').trim()
+  const [loading, setLoading] = useState(false)
+  const [err, setErr] = useState<string | null>(null)
+  const [elig, setElig] = useState<DprCreateEligibilityResponse | null>(null)
+
+  useEffect(() => {
+    document.title = 'Создание карты сведений о результатах рассмотрения'
+  }, [])
+
+  useEffect(() => {
+    setReferenceGuidContext(guid || undefined)
+  }, [guid])
+
+  useEffect(() => {
+    if (!id || !guid) {
+      setErr('Укажите PPVID и GUID в URL: /dpr_card/create/{PPVID}/{GUID}')
+      setElig(null)
+      return
+    }
+    let cancelled = false
+    setLoading(true)
+    setErr(null)
+    setElig(null)
+    ;(async () => {
+      try {
+        const r = await fetchDprCreateEligibility(id, guid)
+        if (cancelled) return
+        if (!r.allowed) {
+          setErr(r.reason || 'Создание карты недоступно')
+          setElig(null)
+        } else {
+          setElig(r)
+        }
+      } catch (e) {
+        if (!cancelled) {
+          setErr(e instanceof Error ? e.message : 'Ошибка проверки условий создания')
+          setElig(null)
+        }
+      } finally {
+        if (!cancelled) setLoading(false)
+      }
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [id, guid])
+
+  if (loading) {
+    return (
+      <div style={{ textAlign: 'center', padding: 24 }}>
+        <Spin size="large" tip="Проверка условий создания карты DPR..." />
+      </div>
+    )
+  }
+
+  if (err || !elig) {
+    return (
+      <div className="empty-state" style={{ padding: 24 }}>
+        <div style={{ color: '#ff4d4f', maxWidth: 640, margin: '0 auto', textAlign: 'center' }}>
+          {err || 'Нет данных'}
+        </div>
+      </div>
+    )
+  }
+
+  return <DprCreateCard eligibility={elig} ppvid={id} guid={guid} />
+}
+
 /** Карта DPR: /dpr_card/{DPRID}/{GUID} — только просмотр, XML EEC_R_SM_SS_08_DangerousProductAlertResponse. */
 function DprAppContent() {
   const { dpaid: dpridParam, guid: guidFromRoute } = useParams<{ dpaid: string; guid?: string }>()
@@ -754,6 +827,7 @@ function App() {
   if (isDprApp()) {
     return (
       <Routes>
+        <Route path="/create/:ppvid/:guid" element={<DprCreateFromPpvContent />} />
         <Route path="/" element={<DprAppContent />} />
         <Route path="/:dpaid" element={<DprAppContent />} />
         <Route path="/:dpaid/:guid" element={<DprAppContent />} />

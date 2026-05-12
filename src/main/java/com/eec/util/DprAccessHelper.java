@@ -6,10 +6,12 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 
 /**
- * Карта DPR связана с PPV по {@code INCIDENTID} → та же проверка доступа, что и при просмотре связанной PPV:
- * {@link PpvViewAccessHelper#canViewPpv(Connection, long, String)}.
+ * Доступ к карте DPR: по связи {@code DPR.PPVID} (предпочтительно) или по {@code INCIDENTID} → PPV,
+ * далее {@link PpvViewAccessHelper#canViewPpv(Connection, long, String)}.
  */
 public final class DprAccessHelper {
+
+    private static final String SQL_PPVID_BY_DPR = "SELECT PPVID FROM DPR WHERE DPRID = ?";
 
     private static final String SQL_INCIDENT = "SELECT TRIM(vw.INCIDENTID) AS INCIDENTID FROM VW_DPR vw WHERE vw.DPRID = ?";
 
@@ -30,6 +32,29 @@ public final class DprAccessHelper {
         }
         guid = guid.trim();
 
+        long ppvid = 0L;
+        try (PreparedStatement ps = conn.prepareStatement(SQL_PPVID_BY_DPR)) {
+            ps.setLong(1, dprId);
+            try (ResultSet rs = ps.executeQuery()) {
+                if (rs.next()) {
+                    long v = rs.getLong("PPVID");
+                    if (!rs.wasNull() && v > 0) {
+                        ppvid = v;
+                    }
+                }
+            }
+        } catch (SQLException e) {
+            String m = e.getMessage() != null ? e.getMessage() : "";
+            if (!m.contains("ORA-00904") && !m.contains("invalid identifier")) {
+                throw e;
+            }
+            ppvid = 0L;
+        }
+
+        if (ppvid > 0) {
+            return PpvViewAccessHelper.canViewPpv(conn, ppvid, guid);
+        }
+
         String incidentId = null;
         try (PreparedStatement ps = conn.prepareStatement(SQL_INCIDENT)) {
             ps.setLong(1, dprId);
@@ -42,18 +67,18 @@ public final class DprAccessHelper {
             return false;
         }
 
-        long ppvid = 0L;
+        long ppvidByInc = 0L;
         try (PreparedStatement ps = conn.prepareStatement(SQL_PPV_BY_INCIDENT)) {
             ps.setString(1, incidentId);
             ResultSet rs = ps.executeQuery();
             if (rs.next()) {
-                ppvid = rs.getLong("PPVID");
+                ppvidByInc = rs.getLong("PPVID");
             }
         }
-        if (ppvid <= 0) {
+        if (ppvidByInc <= 0) {
             return false;
         }
 
-        return PpvViewAccessHelper.canViewPpv(conn, ppvid, guid);
+        return PpvViewAccessHelper.canViewPpv(conn, ppvidByInc, guid);
     }
 }
