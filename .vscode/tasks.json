@@ -1,0 +1,167 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "DPA: build and deploy to local Tomcat",
+      "type": "shell",
+      "command": "./build-and-deploy-dpa.sh",
+      "options": { "cwd": "${workspaceFolder}" },
+      "problemMatcher": [],
+      "group": { "kind": "build", "isDefault": false },
+      "presentation": { "reveal": "always", "panel": "shared", "focus": true }
+    },
+    {
+      "label": "DPA: deploy WAR to remote Tomcat (scp)",
+      "type": "shell",
+      "command": "./deploy-dpa-to-remote.sh",
+      "options": { "cwd": "${workspaceFolder}" },
+      "problemMatcher": [],
+      "group": "none",
+      "presentation": { "reveal": "always", "panel": "shared", "focus": true }
+    },
+    {
+      "label": "DPA: build then deploy WAR to remote Tomcat",
+      "type": "shell",
+      "command": "./deploy-dpa-to-remote.sh --build",
+      "options": { "cwd": "${workspaceFolder}" },
+      "problemMatcher": [],
+      "group": "none",
+      "presentation": { "reveal": "always", "panel": "shared", "focus": true }
+    },
+    {
+      "label": "PHA: build and deploy to local Tomcat",
+      "type": "shell",
+      "command": "./build-and-deploy-pha.sh",
+      "options": { "cwd": "${workspaceFolder}" },
+      "problemMatcher": [],
+      "group": { "kind": "build", "isDefault": false },
+      "presentation": { "reveal": "always", "panel": "shared", "focus": true }
+    },
+    {
+      "label": "PHA: deploy WAR to remote Tomcat (scp)",
+      "type": "shell",
+      "command": "./deploy-pha-to-remote.sh",
+      "options": { "cwd": "${workspaceFolder}" },
+      "problemMatcher": [],
+      "group": "none",
+      "presentation": { "reveal": "always", "panel": "shared", "focus": true }
+    },
+    {
+      "label": "PHA: build then deploy WAR to remote Tomcat",
+      "type": "shell",
+      "command": "./deploy-pha-to-remote.sh --build",
+      "options": { "cwd": "${workspaceFolder}" },
+      "problemMatcher": [],
+      "group": "none",
+      "presentation": { "reveal": "always", "panel": "shared", "focus": true }
+    },
+    {
+      "label": "PPV: build and deploy to local Tomcat",
+      "type": "shell",
+      "command": "./build-and-deploy-ppv.sh",
+      "options": { "cwd": "${workspaceFolder}" },
+      "problemMatcher": [],
+      "group": { "kind": "build", "isDefault": false },
+      "presentation": { "reveal": "always", "panel": "shared", "focus": true }
+    },
+    {
+      "label": "PPV: deploy WAR to remote Tomcat (scp)",
+      "type": "shell",
+      "command": "./deploy-ppv-to-remote.sh",
+      "options": { "cwd": "${workspaceFolder}" },
+      "problemMatcher": [],
+      "group": "none",
+      "presentation": { "reveal": "always", "panel": "shared", "focus": true }
+    },
+    {
+      "label": "PPV: build then deploy WAR to remote Tomcat",
+      "type": "shell",
+      "command": "./deploy-ppv-to-remote.sh --build",
+      "options": { "cwd": "${workspaceFolder}" },
+      "problemMatcher": [],
+      "group": "none",
+      "presentation": { "reveal": "always", "panel": "shared", "focus": true }
+    },
+    {
+      "label": "DPR: build and deploy to local Tomcat",
+      "type": "shell",
+      "command": "./build-and-deploy-dpr.sh",
+      "options": { "cwd": "${workspaceFolder}" },
+      "problemMatcher": [],
+      "group": { "kind": "build", "isDefault": false },
+      "presentation": { "reveal": "always", "panel": "shared", "focus": true }
+    },
+    {
+      "label": "DPR: deploy WAR to remote Tomcat (scp)",
+      "type": "shell",
+      "command": "./deploy-dpr-to-remote.sh",
+      "options": { "cwd": "${workspaceFolder}" },
+      "problemMatcher": [],
+      "group": "none",
+      "presentation": { "reveal": "always", "panel": "shared", "focus": true }
+    },
+    {
+      "label": "DPR: build then deploy WAR to remote Tomcat",
+      "type": "shell",
+      "command": "./deploy-dpr-to-remote.sh --build",
+      "options": { "cwd": "${workspaceFolder}" },
+      "problemMatcher": [],
+      "group": "none",
+      "presentation": { "reveal": "always", "panel": "shared", "focus": true }
+    },
+    {
+      "label": "EEC-Rights: build (WAR only)",
+      "type": "shell",
+      "command": "./build-rights-service.sh",
+      "options": { "cwd": "${workspaceFolder}" },
+      "problemMatcher": [],
+      "group": "none",
+      "presentation": { "reveal": "always", "panel": "shared", "focus": true }
+    },
+    {
+      "label": "EEC-Rights: deploy WAR to local Tomcat",
+      "type": "shell",
+      "command": "./deploy-rights-service-local.sh",
+      "options": { "cwd": "${workspaceFolder}" },
+      "problemMatcher": [],
+      "group": "none",
+      "presentation": { "reveal": "always", "panel": "shared", "focus": true }
+    },
+    {
+      "label": "EEC-Rights: build and deploy to local Tomcat",
+      "type": "shell",
+      "command": "./build-and-deploy-rights-service-local.sh",
+      "options": { "cwd": "${workspaceFolder}" },
+      "problemMatcher": [],
+      "group": "none",
+      "presentation": { "reveal": "always", "panel": "shared", "focus": true }
+    },
+    {
+      "label": "EEC-Rights: deploy WAR to remote Tomcat (scp)",
+      "type": "shell",
+      "command": "./deploy-rights-service-to-remote.sh",
+      "options": { "cwd": "${workspaceFolder}" },
+      "problemMatcher": [],
+      "group": "none",
+      "presentation": { "reveal": "always", "panel": "shared", "focus": true }
+    },
+    {
+      "label": "EEC-Rights: build then deploy WAR to remote Tomcat",
+      "type": "shell",
+      "command": "./deploy-rights-service-to-remote.sh --build",
+      "options": { "cwd": "${workspaceFolder}" },
+      "problemMatcher": [],
+      "group": "none",
+      "presentation": { "reveal": "always", "panel": "shared", "focus": true }
+    },
+    {
+      "label": "EEC-Rights: build and deploy to remote (full script)",
+      "type": "shell",
+      "command": "./build-and-deploy-rights-service.sh",
+      "options": { "cwd": "${workspaceFolder}" },
+      "problemMatcher": [],
+      "group": "none",
+      "presentation": { "reveal": "always", "panel": "shared", "focus": true }
+    }
+  ]
+}

@@ -10,7 +10,8 @@ target/
 
 # IDE
 .idea/
-.vscode/
+.vscode/*
+!.vscode/tasks.json
 *.iml
 *.swp
 *.swo
