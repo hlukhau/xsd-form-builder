@@ -89,4 +89,43 @@ public final class PpvViewAccessHelper {
         }
         return false;
     }
+
+    /**
+     * Просмотр карты DPR, связанной с входящей PPV: обычный {@link #canViewPpv} или
+     * {@code violationDetectedIn:view} с пересечением DEPID с {@code PPVDEPPERMIS}.
+     */
+    public static boolean canViewIncomingPpvForLinkedDpr(Connection conn, long ppvid, String guid) throws SQLException {
+        if (canViewPpv(conn, ppvid, guid)) {
+            return true;
+        }
+        if (guid == null || guid.trim().isEmpty() || ppvid <= 0) {
+            return false;
+        }
+        guid = guid.trim();
+        String dsc = null;
+        try (PreparedStatement ps = conn.prepareStatement(SQL_PPV_DSC)) {
+            ps.setLong(1, ppvid);
+            try (ResultSet rs = ps.executeQuery()) {
+                if (!rs.next()) {
+                    return false;
+                }
+                dsc = rs.getString("DSC");
+            }
+        }
+        if (!"1".equals(dsc != null ? dsc.trim() : "")) {
+            return false;
+        }
+        String rightsJson = RightsRegistryProvider.get().getRightsJson(guid);
+        if (rightsJson == null || rightsJson.isEmpty()) {
+            return false;
+        }
+        if (!AccessRightService.hasViolationDetectedInView(rightsJson)) {
+            return false;
+        }
+        Set<String> viewKeys = AccessRightService.violationDetectedInViewDepKeys(rightsJson);
+        if (viewKeys.isEmpty()) {
+            return false;
+        }
+        return PpvDepPermisUtil.hasOverlap(conn, ppvid, viewKeys);
+    }
 }

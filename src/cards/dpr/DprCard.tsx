@@ -1,5 +1,5 @@
-import { useState, useCallback, useEffect } from 'react'
-import { Typography, Tabs, Descriptions, Button, Input, Collapse } from 'antd'
+import { useState, useCallback, useEffect, type CSSProperties } from 'react'
+import { Typography, Tabs, Descriptions, Button, Input, Collapse, Space, message, Tooltip } from 'antd'
 import { LinkOutlined, DownloadOutlined } from '@ant-design/icons'
 import { format, parseISO } from 'date-fns'
 import { ru } from 'date-fns/locale'
@@ -8,14 +8,39 @@ import StatusHistoryModal from '@/components/modals/dpa/StatusHistoryModal'
 import ElectronicDocumentModal from '@/components/modals/dpa/ElectronicDocumentModal'
 import type { DprMetadataView, DprParsedBundle, DprResultDocRow } from '@/types/dprCard'
 import type { StatusHistoryItem } from '@/types/card'
-import { fetchDprStatusHistory, getIncidentAlertKindNameByCode } from '@/utils/referenceDataApi'
+import {
+  fetchDprStatusHistory,
+  getIncidentAlertKindNameByCode,
+  checkAccessRight,
+  fetchCurrentUser,
+  fetchDprResolutions,
+  postDprSave,
+  changeDprStatus,
+} from '@/utils/referenceDataApi'
 import { useCountryOptions } from '@/hooks/shared/useCountryOptions'
 import { useLanguageOptions } from '@/hooks/shared/useLanguageOptions'
 import { useShipDocKindOptions } from '@/hooks/shared/useShipDocKindOptions'
 import { binaryDownloadFileName, blobMimeTypeFromDocBinaryMediaTypeCode } from '@/utils/docBinaryDownload'
 import { DATE_TIME_DISPLAY_FORMAT_DATEFNS } from '@/constants/dateFormat'
+import { postMessageFromCardToParent } from '@/utils/parentPostMessage'
+import { outgoingDprStatusButton } from '@/utils/dprStatusButtonConfig'
 
-const { Title, Text } = Typography
+const { Text } = Typography
+
+const CARD_STICKY_HEADER_STYLE: CSSProperties = {
+  position: 'sticky',
+  top: 0,
+  zIndex: 100,
+  background: '#ffffff',
+  boxShadow: '0 1px 2px rgba(0,0,0,0.06)',
+  padding: '0 24px 2px 24px',
+  isolation: 'isolate',
+  display: 'flex',
+  flexDirection: 'column',
+  height: '100vh',
+  maxHeight: '100vh',
+  overflow: 'hidden',
+}
 
 function formatDt(iso: string | null | undefined): string {
   if (!iso) return '—'
@@ -49,9 +74,11 @@ export interface DprCardProps {
   guid?: string
   meta: DprMetadataView
   parsed: DprParsedBundle
+  /** После сохранения или смены статуса — перезагрузить XML и метаданные в родителе */
+  onDataRefresh?: () => Promise<void>
 }
 
-export function DprCard({ dprid, guid, meta, parsed }: DprCardProps) {
+export function DprCard({ dprid, guid, meta, parsed, onDataRefresh }: DprCardProps) {
   const { getDisplayLabel: countryLabel } = useCountryOptions()
   const { getLangCatalogSelectOptions } = useLanguageOptions()
   const { getNameByCode: shipDocKindName } = useShipDocKindOptions()
@@ -60,6 +87,17 @@ export function DprCard({ dprid, guid, meta, parsed }: DprCardProps) {
   const [statusRows, setStatusRows] = useState<StatusHistoryItem[]>([])
   const [edocOpen, setEdocOpen] = useState(false)
   const [incidentKindLabel, setIncidentKindLabel] = useState<string>('')
+  const [isEditMode, setIsEditMode] = useState(false)
+  const [saving, setSaving] = useState(false)
+  const [statusActionLoading, setStatusActionLoading] = useState(false)
+  const [authId, setAuthId] = useState('')
+  const [authName, setAuthName] = useState('')
+  const [authBrief, setAuthBrief] = useState('')
+  const [descText, setDescText] = useState('')
+  const [hasStatusRight, setHasStatusRight] = useState(false)
+  const [resolutionCodes, setResolutionCodes] = useState<string[]>([])
+  const [userDepKindCode, setUserDepKindCode] = useState<string | null>(null)
+  const [userDepKindName, setUserDepKindName] = useState<string | null>(null)
 
   const ppvBase = (import.meta.env.VITE_PPV_CARD_BASE as string | undefined)?.replace(/\/$/, '') || '/ppv_card'
   const ppvHref =
@@ -67,9 +105,114 @@ export function DprCard({ dprid, guid, meta, parsed }: DprCardProps) {
       ? `${ppvBase}/${meta.linkedPpvid}/${encodeURIComponent(guid.trim())}`
       : null
 
+  const outgoing = String(meta.datasourceKindCode ?? '').trim() === '2'
+  const canEditCard = meta.canEdit === true
+  const statusId = meta.dprStatusId ?? null
+
   const openPpv = useCallback(() => {
     if (ppvHref) window.open(ppvHref, '_blank', 'noopener,noreferrer')
   }, [ppvHref])
+
+  const reloadResolutions = useCallback(async () => {
+    if (!guid?.trim()) {
+      setResolutionCodes([])
+      return
+    }
+    try {
+      const list = await fetchDprResolutions(dprid, guid)
+      setResolutionCodes(list.map((r) => String(r.depKindCode ?? '').trim()).filter(Boolean))
+    } catch {
+      setResolutionCodes([])
+    }
+  }, [dprid, guid])
+
+  useEffect(() => {
+    if (!guid?.trim()) {
+      setHasStatusRight(false)
+      setUserDepKindCode(null)
+      setUserDepKindName(null)
+      return
+    }
+    let cancelled = false
+    ;(async () => {
+      const [st, u] = await Promise.all([
+        checkAccessRight(guid, 'violationDetectedIn:status'),
+        fetchCurrentUser(guid),
+      ])
+      if (!cancelled) {
+        setHasStatusRight(st)
+        setUserDepKindCode(u.depKindCode ?? null)
+        setUserDepKindName(u.depKindName ?? null)
+      }
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [guid])
+
+  useEffect(() => {
+    void reloadResolutions()
+  }, [reloadResolutions, meta.modificationDateTime, meta.dprStatusName])
+
+  const beginEdit = useCallback(() => {
+    setAuthId(parsed.notifyingAuthority.identifier?.trim() ?? '')
+    setAuthName(parsed.notifyingAuthority.name?.trim() ?? '')
+    setAuthBrief(parsed.notifyingAuthority.shortName?.trim() ?? '')
+    setDescText(parsed.resultDescription?.trim() ?? '')
+    setIsEditMode(true)
+  }, [parsed])
+
+  const cancelEdit = useCallback(() => {
+    setIsEditMode(false)
+  }, [])
+
+  const saveEdit = useCallback(async () => {
+    const g = guid?.trim()
+    if (!g) {
+      message.error('Нет GUID')
+      return
+    }
+    setSaving(true)
+    try {
+      await postDprSave({
+        guid: g,
+        dprid,
+        authorityId: authId.trim() || undefined,
+        authorityName: authName.trim() || undefined,
+        authorityBriefName: authBrief.trim() || undefined,
+        descriptionText: descText.trim() || undefined,
+      })
+      message.success('Карта сохранена')
+      setIsEditMode(false)
+      await onDataRefresh?.()
+    } catch (e) {
+      message.error(e instanceof Error ? e.message : 'Ошибка сохранения')
+    } finally {
+      setSaving(false)
+    }
+  }, [guid, dprid, authId, authName, authBrief, descText, onDataRefresh])
+
+  const runStatusAction = useCallback(
+    async (action: string) => {
+      const g = guid?.trim()
+      if (!g) {
+        message.error('Нет GUID')
+        return
+      }
+      setStatusActionLoading(true)
+      try {
+        const res = await changeDprStatus(dprid, action, { guid: g })
+        message.success(res.newStatus ? `Статус: ${res.newStatus}` : 'Выполнено')
+        await onDataRefresh?.()
+        await reloadResolutions()
+      } catch (e) {
+        message.error(e instanceof Error ? e.message : 'Ошибка смены статуса')
+      } finally {
+        setStatusActionLoading(false)
+      }
+    },
+    [dprid, guid, onDataRefresh, reloadResolutions]
+  )
 
   const openStatusHistory = useCallback(async () => {
     if (!guid?.trim()) return
@@ -206,13 +349,59 @@ export function DprCard({ dprid, guid, meta, parsed }: DprCardProps) {
     ),
   }))
 
+  const statusBtn = outgoing
+    ? outgoingDprStatusButton(
+        statusId,
+        meta.dprStatusName ?? '',
+        hasStatusRight,
+        resolutionCodes,
+        userDepKindCode,
+        userDepKindName
+      )
+    : { config: null as const, comment: '' }
+
+  const primaryStatus = statusBtn.config
+
   return (
-    <div className="dpr-card-root">
-      <div className="dpr-card-header">
-        <Title level={4} style={{ margin: '0 0 8px' }}>
-          Карта сведений о результатах рассмотрения
-        </Title>
-        <Descriptions column={{ xs: 1, sm: 2, md: 4 }} size="small" colon>
+    <div
+      style={{ padding: 0, display: 'flex', flexDirection: 'column', minHeight: '100vh' }}
+      className="fade-in card-page-layout"
+    >
+      <div className="card-sticky-header" style={CARD_STICKY_HEADER_STYLE}>
+        <div className="card-sticky-header-title-row">
+          <span className="card-sticky-header-title">Карта сведений о результатах рассмотрения</span>
+          <Space size="small" wrap>
+            {!isEditMode && canEditCard ? (
+              <Button type="default" onClick={beginEdit}>
+                Редактировать
+              </Button>
+            ) : null}
+            {isEditMode ? (
+              <>
+                <Button type="primary" onClick={() => void saveEdit()} loading={saving}>
+                  Сохранить
+                </Button>
+                <Button onClick={cancelEdit} disabled={saving}>
+                  Отменить
+                </Button>
+              </>
+            ) : null}
+            <Button
+              onClick={() => {
+                postMessageFromCardToParent({ code: 'exit' }, 'DPR: закрыть форму')
+              }}
+            >
+              Закрыть
+            </Button>
+          </Space>
+        </div>
+        <Descriptions
+          column={{ xxl: 4, xl: 4, lg: 4, md: 3, sm: 2, xs: 1 }}
+          bordered
+          size="small"
+          style={{ margin: 0 }}
+          className="card-header-descriptions"
+        >
           <Descriptions.Item label="Исходная карта">
             {ppvHref ? (
               <Button type="link" icon={<LinkOutlined />} onClick={openPpv} style={{ padding: 0, height: 'auto' }}>
@@ -237,78 +426,118 @@ export function DprCard({ dprid, guid, meta, parsed }: DprCardProps) {
           <Descriptions.Item label="Дата создания">{formatDt(meta.creationDateTime)}</Descriptions.Item>
           <Descriptions.Item label="Дата изменения">{formatDt(meta.modificationDateTime)}</Descriptions.Item>
         </Descriptions>
-        <div style={{ marginTop: 8, color: '#8c8c8c', fontSize: 12 }}>
-          Кнопки действий (редактирование, удаление, смена статуса и т.д.) будут добавлены отдельно по правилам доступа.
-        </div>
-      </div>
 
-      <div className="dpr-card-tabs-wrap">
-        <Tabs
-          defaultActiveKey="notification"
-          items={[
-            {
-              key: 'notification',
-              label: 'Уведомление',
-              children: (
-                <div style={{ padding: 16 }}>
-                  <Typography.Title level={5}>Уполномоченный орган</Typography.Title>
-                  <Descriptions column={1} bordered size="small" style={{ marginBottom: 16 }}>
-                    <Descriptions.Item label="Страна">
-                      {parsed.notifyingAuthority.country
-                        ? `${parsed.notifyingAuthority.country} — ${countryLabel(parsed.notifyingAuthority.country) || parsed.notifyingAuthority.country}`
-                        : '—'}
-                    </Descriptions.Item>
-                    <Descriptions.Item label="Идентификатор">{dash(parsed.notifyingAuthority.identifier)}</Descriptions.Item>
-                    <Descriptions.Item label="Наименование">{dash(parsed.notifyingAuthority.name)}</Descriptions.Item>
-                    <Descriptions.Item label="Краткое наименование">{dash(parsed.notifyingAuthority.shortName)}</Descriptions.Item>
-                  </Descriptions>
-                  <Typography.Title level={5}>Исходная карта сведений о выявленных нарушениях</Typography.Title>
-                  <Descriptions column={1} bordered size="small">
-                    <Descriptions.Item label="Страна">
-                      {parsed.incidentAlert.country
-                        ? `${parsed.incidentAlert.country} — ${countryLabel(parsed.incidentAlert.country) || parsed.incidentAlert.country}`
-                        : '—'}
-                    </Descriptions.Item>
-                    <Descriptions.Item label="Регистрационный номер">{dash(parsed.incidentAlert.registrationNumber)}</Descriptions.Item>
-                    <Descriptions.Item label="Вид уведомления">{incidentKindLabel || dash(parsed.incidentAlert.typeCode)}</Descriptions.Item>
-                    <Descriptions.Item label="Дата формирования">{formatDateOnly(parsed.incidentAlert.formationDate)}</Descriptions.Item>
-                  </Descriptions>
-                </div>
-              ),
-            },
-            {
-              key: 'measures',
-              label: 'Принятые меры',
-              children: (
-                <div style={{ padding: 16 }}>
-                  <MeasuresTab data={parsed.measures} />
-                </div>
-              ),
-            },
-            {
-              key: 'results',
-              label: 'Описание результатов',
-              children: (
-                <div style={{ padding: 16 }}>
-                  <Typography.Title level={5}>Описание результатов рассмотрения</Typography.Title>
-                  <Input.TextArea
-                    readOnly
-                    value={parsed.resultDescription ?? ''}
-                    placeholder="—"
-                    autoSize={{ minRows: 3, maxRows: 16 }}
-                    style={{ marginBottom: 16 }}
-                  />
-                  <Typography.Title level={5}>Документы</Typography.Title>
-                  {docPanels.length === 0 ? (
-                    <Text type="secondary">Нет приложенных документов</Text>
-                  ) : (
-                    <Collapse items={docPanels} />
-                  )}
-                </div>
-              ),
-            },
-          ]}
-        />
+        {!isEditMode && outgoing ? (
+          <div style={{ marginTop: 0, marginBottom: 4 }} className="card-actions-row">
+            <Space size="small" wrap>
+              {primaryStatus ? (
+                <Tooltip title={primaryStatus.hint ?? statusBtn.comment}>
+                  <span>
+                    <Button
+                      size="small"
+                      type="primary"
+                      loading={statusActionLoading}
+                      disabled={primaryStatus.disabled}
+                      onClick={() => !primaryStatus.disabled && void runStatusAction(primaryStatus.action)}
+                    >
+                      {primaryStatus.label}
+                    </Button>
+                  </span>
+                </Tooltip>
+              ) : null}
+              <Button size="small" type="link" onClick={() => setEdocOpen(true)}>
+                Электронный документ
+              </Button>
+            </Space>
+          </div>
+        ) : null}
+
+        <div className="card-tabs-wrapper">
+          <Tabs
+            defaultActiveKey="notification"
+            items={[
+              {
+                key: 'notification',
+                label: 'Уведомление',
+                children: (
+                  <div style={{ padding: 16 }}>
+                    <Typography.Title level={5}>Уполномоченный орган</Typography.Title>
+                    {isEditMode ? (
+                      <Space direction="vertical" style={{ width: '100%', maxWidth: 560 }} size="middle">
+                        <div>
+                          <Text type="secondary">Идентификатор</Text>
+                          <Input value={authId} onChange={(e) => setAuthId(e.target.value)} />
+                        </div>
+                        <div>
+                          <Text type="secondary">Наименование</Text>
+                          <Input value={authName} onChange={(e) => setAuthName(e.target.value)} />
+                        </div>
+                        <div>
+                          <Text type="secondary">Краткое наименование</Text>
+                          <Input value={authBrief} onChange={(e) => setAuthBrief(e.target.value)} />
+                        </div>
+                      </Space>
+                    ) : (
+                      <Descriptions column={1} bordered size="small" style={{ marginBottom: 16 }}>
+                        <Descriptions.Item label="Страна">
+                          {parsed.notifyingAuthority.country
+                            ? `${parsed.notifyingAuthority.country} — ${countryLabel(parsed.notifyingAuthority.country) || parsed.notifyingAuthority.country}`
+                            : '—'}
+                        </Descriptions.Item>
+                        <Descriptions.Item label="Идентификатор">{dash(parsed.notifyingAuthority.identifier)}</Descriptions.Item>
+                        <Descriptions.Item label="Наименование">{dash(parsed.notifyingAuthority.name)}</Descriptions.Item>
+                        <Descriptions.Item label="Краткое наименование">{dash(parsed.notifyingAuthority.shortName)}</Descriptions.Item>
+                      </Descriptions>
+                    )}
+                    <Typography.Title level={5}>Исходная карта сведений о выявленных нарушениях</Typography.Title>
+                    <Descriptions column={1} bordered size="small">
+                      <Descriptions.Item label="Страна">
+                        {parsed.incidentAlert.country
+                          ? `${parsed.incidentAlert.country} — ${countryLabel(parsed.incidentAlert.country) || parsed.incidentAlert.country}`
+                          : '—'}
+                      </Descriptions.Item>
+                      <Descriptions.Item label="Регистрационный номер">{dash(parsed.incidentAlert.registrationNumber)}</Descriptions.Item>
+                      <Descriptions.Item label="Вид уведомления">{incidentKindLabel || dash(parsed.incidentAlert.typeCode)}</Descriptions.Item>
+                      <Descriptions.Item label="Дата формирования">{formatDateOnly(parsed.incidentAlert.formationDate)}</Descriptions.Item>
+                    </Descriptions>
+                  </div>
+                ),
+              },
+              {
+                key: 'measures',
+                label: 'Принятые меры',
+                children: (
+                  <div style={{ padding: 16 }}>
+                    <MeasuresTab data={parsed.measures} />
+                  </div>
+                ),
+              },
+              {
+                key: 'results',
+                label: 'Описание результатов',
+                children: (
+                  <div style={{ padding: 16 }}>
+                    <Typography.Title level={5}>Описание результатов рассмотрения</Typography.Title>
+                    <Input.TextArea
+                      readOnly={!isEditMode}
+                      value={isEditMode ? descText : parsed.resultDescription ?? ''}
+                      onChange={(e) => setDescText(e.target.value)}
+                      placeholder="—"
+                      autoSize={{ minRows: 3, maxRows: 16 }}
+                      style={{ marginBottom: 16 }}
+                    />
+                    <Typography.Title level={5}>Документы</Typography.Title>
+                    {docPanels.length === 0 ? (
+                      <Text type="secondary">Нет приложенных документов</Text>
+                    ) : (
+                      <Collapse items={docPanels} />
+                    )}
+                  </div>
+                ),
+              },
+            ]}
+          />
+        </div>
       </div>
 
       <StatusHistoryModal

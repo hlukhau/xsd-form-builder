@@ -253,6 +253,19 @@ public final class AccessRightService {
         return hasAccessRightInJson(rightsJson, "violationDetectedIn", "status");
     }
 
+    /**
+     * Просмотр связанной карты DPR по входящей PPV — violationDetectedIn:view
+     * (непустой объект {@code up.violationDetectedIn.view} в JSON прав).
+     */
+    public static boolean hasViolationDetectedInView(String rightsJson) {
+        return hasAccessRightInJson(rightsJson, "violationDetectedIn", "view");
+    }
+
+    /** Ключи (DEPID) объекта up.violationDetectedIn.view. */
+    public static Set<String> violationDetectedInViewDepKeys(String rightsJson) {
+        return depKeysFromUpRightBlock(rightsJson, "violationDetectedIn", "view");
+    }
+
     public static boolean hasViolationDetectedOutStatus(String rightsJson) {
         return hasAccessRightInJson(rightsJson, "violationDetectedOut", "status");
     }

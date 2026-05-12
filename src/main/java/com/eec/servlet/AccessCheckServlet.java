@@ -67,6 +67,9 @@ public class AccessCheckServlet extends HttpServlet {
                 case "violationDetectedIn:status":
                     allowed = AccessRightService.hasViolationDetectedInStatus(rightsJson);
                     break;
+                case "violationDetectedIn:view":
+                    allowed = AccessRightService.hasViolationDetectedInView(rightsJson);
+                    break;
                 case "violationDetectedOut:status":
                     allowed = AccessRightService.hasViolationDetectedOutStatus(rightsJson);
                     break;

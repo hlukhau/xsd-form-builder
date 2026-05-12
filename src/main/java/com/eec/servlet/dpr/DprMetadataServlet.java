@@ -2,6 +2,7 @@ package com.eec.servlet.dpr;
 
 import com.eec.util.DatabaseUtil;
 import com.eec.util.DprAccessHelper;
+import com.eec.util.DprCreateSupport;
 
 import javax.servlet.ServletException;
 import javax.servlet.http.HttpServlet;
@@ -25,9 +26,11 @@ public class DprMetadataServlet extends HttpServlet {
             + "SELECT vw.INCIDENTID, vw.RESPONSECOUNTRYNAME, "
             + "       TRIM(TO_CHAR(vw.DATASOURCEKINDCODE)) AS DATASOURCEKINDCODE, t1.DATASOURCEKINDNAME, "
             + "       vw.DPRSTATUSNAME, vw.CREATIONDATETIME, vw.MODIFICATIONDATETIME, "
-            + "       (SELECT MIN(p.PPVID) FROM PPV p WHERE TRIM(p.INCIDENTID) = TRIM(vw.INCIDENTID)) AS LINKED_PPVID "
+            + "       (SELECT MIN(p.PPVID) FROM PPV p WHERE TRIM(p.INCIDENTID) = TRIM(vw.INCIDENTID)) AS LINKED_PPVID, "
+            + "       d.DPRSTATUSID, d.DPRVERSION, d.PPVID AS DPR_PPVID "
             + "FROM VW_DPR vw "
             + "LEFT JOIN DATASOURCEKIND t1 ON TRIM(TO_CHAR(vw.DATASOURCEKINDCODE)) = TRIM(TO_CHAR(t1.DATASOURCEKINDCODE)) "
+            + "LEFT JOIN DPR d ON d.DPRID = vw.DPRID "
             + "WHERE vw.DPRID = ?";
 
     @Override
@@ -92,6 +95,26 @@ public class DprMetadataServlet extends HttpServlet {
                 if (rs.wasNull()) {
                     linkedPpvid = 0;
                 }
+                long dprPpvid = rs.getLong("DPR_PPVID");
+                if (!rs.wasNull() && dprPpvid > 0) {
+                    linkedPpvid = dprPpvid;
+                }
+                int dprStatusId = rs.getInt("DPRSTATUSID");
+                if (rs.wasNull()) {
+                    dprStatusId = 0;
+                }
+                long dprVersion = rs.getLong("DPRVERSION");
+                if (rs.wasNull()) {
+                    dprVersion = 0;
+                }
+
+                boolean canEdit = false;
+                try {
+                    DprCreateSupport.GateResult eg = DprCreateSupport.evaluateEditGate(conn, dprId, guid);
+                    canEdit = eg.allowed;
+                } catch (SQLException ignored) {
+                    canEdit = false;
+                }
 
                 PrintWriter out = response.getWriter();
                 out.print("{");
@@ -103,6 +126,9 @@ public class DprMetadataServlet extends HttpServlet {
                 out.print(",\"creationDateTime\":" + quote(tsToIso(created)));
                 out.print(",\"modificationDateTime\":" + quote(tsToIso(modified)));
                 out.print(",\"linkedPpvid\":" + linkedPpvid);
+                out.print(",\"dprStatusId\":" + dprStatusId);
+                out.print(",\"dprVersion\":" + dprVersion);
+                out.print(",\"canEdit\":" + (canEdit ? "true" : "false"));
                 out.print("}");
                 out.flush();
                 response.setStatus(HttpServletResponse.SC_OK);

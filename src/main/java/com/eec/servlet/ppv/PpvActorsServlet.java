@@ -42,12 +42,29 @@ public class PpvActorsServlet extends HttpServlet {
             + "  ) "
             + "ORDER BY c.COUNTRYNAME";
 
+    /**
+     * Адресаты + связанная карта DPR по паре (PPVID, страна ответа = ACTORCOUNTRYCODE).
+     * При нескольких DPR на одну пару — последняя по CREATIONDATETIME / DPRID.
+     */
     private static final String SQL = ""
             + "SELECT a.PPVACTORID, a.PPVID, a.ACTORCOUNTRYCODE, a.ACTORCODE, a.EDOCID, a.PPVACTORACTFL, a.CDATE, "
-            + "       c.COUNTRYNAME AS ACTOR_COUNTRY_NAME "
+            + "       c.COUNTRYNAME AS ACTOR_COUNTRY_NAME, "
+            + "       dpr.DPRID, dpr.CREATIONDATETIME AS DPR_CREATIONDATETIME "
             + "FROM PPVACTOR a "
             + "LEFT JOIN COUNTRY c ON UPPER(TRIM(c.COUNTRYCODE)) = UPPER(TRIM(a.ACTORCOUNTRYCODE)) "
             + "     AND c.COUNTRYSDATE <= SYSDATE AND c.COUNTRYEDATE >= SYSDATE "
+            + "LEFT JOIN ( "
+            + "  SELECT dprid, ppvid, creationdatetime, resp_cc FROM ( "
+            + "    SELECT d.dprid, d.ppvid, d.creationdatetime, "
+            + "           UPPER(TRIM(uc.countrycode)) AS resp_cc, "
+            + "           ROW_NUMBER() OVER ( "
+            + "             PARTITION BY d.ppvid, UPPER(TRIM(uc.countrycode)) "
+            + "             ORDER BY d.creationdatetime DESC NULLS LAST, d.dprid DESC "
+            + "           ) AS rn "
+            + "      FROM dpr d "
+            + "      JOIN country uc ON uc.countryid = d.responsecountryid "
+            + "  ) ranked WHERE ranked.rn = 1 "
+            + ") dpr ON dpr.ppvid = a.ppvid AND dpr.resp_cc = UPPER(TRIM(a.actorcountrycode)) "
             + "WHERE a.PPVID = ? AND a.PPVACTORACTFL = 1 "
             + "ORDER BY a.PPVACTORID";
 
@@ -108,25 +125,37 @@ public class PpvActorsServlet extends HttpServlet {
                     countryName = actorCountryCode;
                 }
                 Object edocObj = rs.getObject("EDOCID");
-                boolean hasResponse = !rs.wasNull();
                 String edocIdStr = null;
-                if (hasResponse && edocObj != null) {
+                if (edocObj != null && !rs.wasNull()) {
                     edocIdStr = String.valueOf(edocObj).trim();
                     if (edocIdStr.isEmpty()) {
-                        hasResponse = false;
                         edocIdStr = null;
                     }
-                } else {
-                    hasResponse = false;
                 }
-                String responseDt = null;
-                if (hasResponse) {
-                    Timestamp cdate = rs.getTimestamp("CDATE");
-                    if (cdate != null) {
-                        responseDt = RESPONSE_DT.format(cdate.toInstant());
+                Long dprId = null;
+                Object dprIdObj = rs.getObject("DPRID");
+                if (dprIdObj != null && !rs.wasNull()) {
+                    if (dprIdObj instanceof Number) {
+                        dprId = ((Number) dprIdObj).longValue();
+                    } else {
+                        try {
+                            dprId = Long.parseLong(String.valueOf(dprIdObj).trim());
+                        } catch (NumberFormatException ignored) {
+                            dprId = null;
+                        }
+                    }
+                    if (dprId != null && dprId <= 0) {
+                        dprId = null;
                     }
                 }
-                items.add(jsonRow(actorId, actorCountryCode, actorCode, actFl, countryName, responseDt, edocIdStr));
+                String responseDt = null;
+                if (dprId != null) {
+                    Timestamp dprCdate = rs.getTimestamp("DPR_CREATIONDATETIME");
+                    if (dprCdate != null) {
+                        responseDt = RESPONSE_DT.format(dprCdate.toInstant());
+                    }
+                }
+                items.add(jsonRow(actorId, actorCountryCode, actorCode, actFl, countryName, responseDt, edocIdStr, dprId));
             }
 
             response.setStatus(HttpServletResponse.SC_OK);
@@ -205,7 +234,7 @@ public class PpvActorsServlet extends HttpServlet {
     }
 
     private static String jsonRow(long ppvActorId, String actorCountryCode, String actorCode, int ppvActorActFl,
-                                  String countryName, String responseDateTime, String edocId) {
+                                  String countryName, String responseDateTime, String edocId, Long dprId) {
         StringBuilder sb = new StringBuilder();
         sb.append("{\"ppvActorId\":").append(ppvActorId);
         sb.append(",\"actorCountryCode\":").append(quote(actorCountryCode));
@@ -214,6 +243,11 @@ public class PpvActorsServlet extends HttpServlet {
         sb.append(",\"countryName\":").append(quote(countryName));
         sb.append(",\"responseDateTime\":").append(quote(responseDateTime));
         sb.append(",\"edocId\":").append(quote(edocId));
+        if (dprId != null) {
+            sb.append(",\"dprId\":").append(dprId);
+        } else {
+            sb.append(",\"dprId\":null");
+        }
         sb.append("}");
         return sb.toString();
     }

@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useCallback } from 'react'
 import { Routes, Route, useParams, useSearchParams, useNavigate, useLocation } from 'react-router-dom'
 import { message, Spin } from 'antd'
 import { isPhaApp, isPpvApp, isDprApp, getDpaLikeCardSessionKeys } from './cards/config'
@@ -6,7 +6,7 @@ import { DangerousProductCard } from './cards/dpa'
 import { PhaCard } from './cards/pha'
 import { DprCard, DprCreateCard } from './cards/dpr'
 import type { CardData } from './types/card'
-import type { DprCreateEligibilityResponse, DprMetadataView } from './types/dprCard'
+import type { DprMetadataView, DprPrepareContext } from './types/dprCard'
 import {
   fetchDpaXml,
   fetchDpaMetadata,
@@ -19,7 +19,7 @@ import {
   changeDpaStatus,
   fetchDprXml,
   fetchDprMetadata,
-  fetchDprCreateEligibility,
+  fetchDprPpvIncomingActions,
 } from './utils/referenceDataApi'
 import { fetchPhaXml, fetchPhaMetadata, fetchPhaStatusHistory, postPhaStatus } from './cards/pha/phaApi'
 import { isPhaIncomingSource } from './utils/phaStatusButtonConfig'
@@ -647,7 +647,7 @@ function DprCreateFromPpvContent() {
   const id = (ppvid ?? '').trim()
   const [loading, setLoading] = useState(false)
   const [err, setErr] = useState<string | null>(null)
-  const [elig, setElig] = useState<DprCreateEligibilityResponse | null>(null)
+  const [elig, setElig] = useState<DprPrepareContext | null>(null)
 
   useEffect(() => {
     document.title = 'Создание карты сведений о результатах рассмотрения'
@@ -669,13 +669,16 @@ function DprCreateFromPpvContent() {
     setElig(null)
     ;(async () => {
       try {
-        const r = await fetchDprCreateEligibility(id, guid)
+        const r = await fetchDprPpvIncomingActions(id, guid)
         if (cancelled) return
-        if (!r.allowed) {
-          setErr(r.reason || 'Создание карты недоступно')
+        if (!r.canPrepareAnswer) {
+          setErr(r.prepareAnswerReason || 'Создание карты недоступно')
           setElig(null)
+        } else if (r.prepareContext) {
+          setElig(r.prepareContext)
         } else {
-          setElig(r)
+          setErr(r.prepareAnswerReason || 'Нет контекста создания')
+          setElig(null)
         }
       } catch (e) {
         if (!cancelled) {
@@ -727,6 +730,14 @@ function DprAppContent() {
   const [error, setError] = useState<string | null>(null)
   const [meta, setMeta] = useState<DprMetadataView | null>(null)
   const [parsed, setParsed] = useState<ReturnType<typeof parseDprXmlToBundle> | null>(null)
+
+  const reloadDprCard = useCallback(async () => {
+    const g = guid?.trim()
+    if (!g || !/^\d+$/.test(dprid)) return
+    const [xmlText, m] = await Promise.all([fetchDprXml(dprid, g), fetchDprMetadata(dprid, g)])
+    setMeta(m)
+    setParsed(parseDprXmlToBundle(xmlText))
+  }, [dprid, guid])
 
   useEffect(() => {
     setReferenceGuidContext(guid)
@@ -808,7 +819,7 @@ function DprAppContent() {
   }
 
   if (meta && parsed) {
-    return <DprCard dprid={dprid} guid={guid} meta={meta} parsed={parsed} />
+    return <DprCard dprid={dprid} guid={guid} meta={meta} parsed={parsed} onDataRefresh={reloadDprCard} />
   }
 
   return null

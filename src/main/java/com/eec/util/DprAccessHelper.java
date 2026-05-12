@@ -6,8 +6,8 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 
 /**
- * Доступ к карте DPR: по связи {@code DPR.PPVID} (предпочтительно) или по {@code INCIDENTID} → PPV,
- * далее {@link PpvViewAccessHelper#canViewPpv(Connection, long, String)}.
+ * Доступ к карте DPR: по связи {@code DPR.PPVID} (предпочтительно) или по {@code INCIDENTID} → PPV.
+ * Для входящей PPV допускается просмотр по {@link PpvViewAccessHelper#canViewIncomingPpvForLinkedDpr}.
  */
 public final class DprAccessHelper {
 
@@ -17,6 +17,8 @@ public final class DprAccessHelper {
 
     private static final String SQL_PPV_BY_INCIDENT = ""
             + "SELECT p.PPVID FROM PPV p WHERE TRIM(p.INCIDENTID) = TRIM(?) AND ROWNUM = 1";
+
+    private static final String SQL_PPV_DSC = "SELECT TRIM(TO_CHAR(DATASOURCEKINDCODE)) AS DSC FROM PPV WHERE PPVID = ?";
 
     private DprAccessHelper() {
     }
@@ -52,7 +54,7 @@ public final class DprAccessHelper {
         }
 
         if (ppvid > 0) {
-            return PpvViewAccessHelper.canViewPpv(conn, ppvid, guid);
+            return canViewDprForPpvid(conn, ppvid, guid);
         }
 
         String incidentId = null;
@@ -79,6 +81,22 @@ public final class DprAccessHelper {
             return false;
         }
 
-        return PpvViewAccessHelper.canViewPpv(conn, ppvidByInc, guid);
+        return canViewDprForPpvid(conn, ppvidByInc, guid);
+    }
+
+    private static boolean canViewDprForPpvid(Connection conn, long ppvid, String guid) throws SQLException {
+        String dsc = null;
+        try (PreparedStatement ps = conn.prepareStatement(SQL_PPV_DSC)) {
+            ps.setLong(1, ppvid);
+            try (ResultSet rs = ps.executeQuery()) {
+                if (rs.next()) {
+                    dsc = rs.getString("DSC");
+                }
+            }
+        }
+        if ("1".equals(dsc != null ? dsc.trim() : "")) {
+            return PpvViewAccessHelper.canViewIncomingPpvForLinkedDpr(conn, ppvid, guid);
+        }
+        return PpvViewAccessHelper.canViewPpv(conn, ppvid, guid);
     }
 }

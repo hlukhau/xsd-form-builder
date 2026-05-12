@@ -1,5 +1,5 @@
 import { useEffect, useState, useMemo, useCallback } from 'react'
-import { Table, Spin, Alert, Space, Typography, Select, Button, Modal, Tooltip, message } from 'antd'
+import { Table, Spin, Alert, Space, Typography, Select, Button, Tooltip, message } from 'antd'
 import { FileTextOutlined, DeleteOutlined, PlusOutlined } from '@ant-design/icons'
 import type { ColumnsType } from 'antd/es/table'
 import {
@@ -8,6 +8,7 @@ import {
   type PpvActorCountryOption,
   type PpvActorRow,
 } from '@/utils/referenceDataApi'
+import { buildDprCardViewUrl } from '@/utils/dprCardUrl'
 
 export interface PpvAddresseesTabEditProps {
   /** Коды стран, которые будут дописаны в PPVACTOR при сохранении карты */
@@ -60,6 +61,7 @@ function mergeRows(
       countryName: nameByCode.get(c) ?? null,
       responseDateTime: null,
       edocId: null,
+      dprId: null,
     })
   }
   return out
@@ -80,8 +82,6 @@ const PpvAddresseesTabEdit: React.FC<PpvAddresseesTabEditProps> = ({
   const [error, setError] = useState<string | null>(null)
   const [options, setOptions] = useState<PpvActorCountryOption[]>([])
   const [serverRows, setServerRows] = useState<PpvActorRow[]>([])
-  const [reviewStubOpen, setReviewStubOpen] = useState(false)
-  const [reviewStubEdocId, setReviewStubEdocId] = useState<string | null>(null)
   const [pickCode, setPickCode] = useState<string | undefined>(undefined)
 
   const removalSet = useMemo(() => new Set(removalIds), [removalIds])
@@ -159,10 +159,14 @@ const PpvAddresseesTabEdit: React.FC<PpvAddresseesTabEditProps> = ({
     [options]
   )
 
-  const openReviewStub = useCallback((edocId: string) => {
-    setReviewStubEdocId(edocId)
-    setReviewStubOpen(true)
-  }, [])
+  const openDprCard = useCallback(
+    (dprId: number) => {
+      const g = guid?.trim()
+      if (!g) return
+      window.open(buildDprCardViewUrl(dprId, g), '_blank', 'noopener,noreferrer')
+    },
+    [guid]
+  )
 
   const handleAdd = useCallback(() => {
     const c = pickCode?.trim().toUpperCase()
@@ -235,19 +239,29 @@ const PpvAddresseesTabEdit: React.FC<PpvAddresseesTabEditProps> = ({
         width: 200,
         align: 'center',
         render: (_: unknown, r: AddresseeEditRow) => {
+          const dprId = r.dprId != null && r.dprId > 0 ? r.dprId : null
           const id = r.edocId?.trim()
           const hasEdoc = id != null && id !== ''
-          const viewBtn = hasEdoc ? (
-            <Tooltip title="Карта сведений о результатах рассмотрения (заглушка)">
-              <Button
-                type="link"
-                size="small"
-                icon={<FileTextOutlined />}
-                onClick={() => openReviewStub(id)}
-                aria-label="Просмотр ответа"
-              />
-            </Tooltip>
-          ) : null
+          const hasAnswer = dprId != null || hasEdoc
+          const g = guid?.trim()
+          const viewBtn =
+            dprId != null ? (
+              g ? (
+                <Tooltip title="Открыть карту сведений о результатах рассмотрения">
+                  <Button
+                    type="link"
+                    size="small"
+                    icon={<FileTextOutlined />}
+                    onClick={() => openDprCard(dprId)}
+                    aria-label="Просмотр карты DPR"
+                  />
+                </Tooltip>
+              ) : (
+                <Tooltip title="Для перехода к карте DPR нужен GUID в адресе страницы">
+                  <Button type="link" size="small" disabled icon={<FileTextOutlined />} aria-label="Просмотр недоступен" />
+                </Tooltip>
+              )
+            ) : null
 
           if (r.isPending === true) {
             return (
@@ -268,7 +282,7 @@ const PpvAddresseesTabEdit: React.FC<PpvAddresseesTabEditProps> = ({
           }
 
           const sid = r.ppvActorId
-          const canRemoveFromDb = !hasEdoc && sid > 0
+          const canRemoveFromDb = !hasAnswer && sid > 0
           const delBtn = canRemoveFromDb ? (
             <Tooltip title="Удалить запись из БД при сохранении (ответа ещё нет)">
               <Button
@@ -280,8 +294,8 @@ const PpvAddresseesTabEdit: React.FC<PpvAddresseesTabEditProps> = ({
                 aria-label="Удалить адресата"
               />
             </Tooltip>
-          ) : hasEdoc ? (
-            <Tooltip title="Удаление недоступно: по адресату уже получен ответ (EDOCID)">
+          ) : hasAnswer ? (
+            <Tooltip title="Удаление недоступно: по адресату уже есть ответ (карта DPR или EDOCID)">
               <Button type="link" size="small" disabled icon={<DeleteOutlined />} aria-label="Удаление недоступно" />
             </Tooltip>
           ) : null
@@ -295,7 +309,7 @@ const PpvAddresseesTabEdit: React.FC<PpvAddresseesTabEditProps> = ({
         },
       },
     ],
-    [openReviewStub, handleRemovePending, handleMarkServerRemove]
+    [openDprCard, handleRemovePending, handleMarkServerRemove, guid]
   )
 
   const blockOnOptions = loadingOptions && options.length === 0 && !error
@@ -305,7 +319,8 @@ const PpvAddresseesTabEdit: React.FC<PpvAddresseesTabEditProps> = ({
       <Space direction="vertical" size="middle" style={{ width: '100%' }}>
         <Typography.Text type="secondary">
           Добавление — только выбор страны; код участника и признак актуальности задаются при сохранении. Запись без
-          ответа можно удалить из БД (кнопка удаления); при наличии ответа (EDOCID) удаление заблокировано.
+          ответа можно удалить из БД (кнопка удаления); при наличии ответа (карта DPR по стране или EDOCID) удаление
+          заблокировано.
         </Typography.Text>
         {error ? <Alert type="warning" message={error} showIcon /> : null}
         <Space wrap align="start">
@@ -350,22 +365,6 @@ const PpvAddresseesTabEdit: React.FC<PpvAddresseesTabEditProps> = ({
           />
         )}
       </Space>
-      <Modal
-        title="Карта сведений о результатах рассмотрения"
-        open={reviewStubOpen}
-        onCancel={() => setReviewStubOpen(false)}
-        footer={null}
-        destroyOnClose
-      >
-        <p style={{ color: '#595959', marginBottom: 8 }}>
-          Просмотр карты сведений о результате рассмотрения будет подключён позже.
-        </p>
-        {reviewStubEdocId ? (
-          <p style={{ fontFamily: 'monospace', fontSize: 12, wordBreak: 'break-all' }}>
-            Идентификатор ответа (EDOCID): {reviewStubEdocId}
-          </p>
-        ) : null}
-      </Modal>
     </div>
   )
 }

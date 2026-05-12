@@ -1,8 +1,9 @@
 import { useEffect, useState, useMemo, useCallback } from 'react'
-import { Table, Spin, Alert, Tooltip, Button, Modal } from 'antd'
+import { Table, Spin, Alert, Tooltip, Button } from 'antd'
 import { FileTextOutlined } from '@ant-design/icons'
 import type { ColumnsType } from 'antd/es/table'
 import { fetchPpvActors, type PpvActorRow } from '@/utils/referenceDataApi'
+import { buildDprCardViewUrl } from '@/utils/dprCardUrl'
 
 interface PpvAddresseesTabProps {
   ppvid: string
@@ -14,8 +15,6 @@ const PpvAddresseesTab: React.FC<PpvAddresseesTabProps> = ({ ppvid, guid, hasPer
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [rows, setRows] = useState<PpvActorRow[]>([])
-  const [reviewStubOpen, setReviewStubOpen] = useState(false)
-  const [reviewStubEdocId, setReviewStubEdocId] = useState<string | null>(null)
 
   useEffect(() => {
     if (!hasPersisted || !ppvid || ppvid === '-') {
@@ -45,10 +44,15 @@ const PpvAddresseesTab: React.FC<PpvAddresseesTabProps> = ({ ppvid, guid, hasPer
     }
   }, [ppvid, guid, hasPersisted])
 
-  const openReviewStub = useCallback((edocId: string) => {
-    setReviewStubEdocId(edocId)
-    setReviewStubOpen(true)
-  }, [])
+  const openDprCard = useCallback(
+    (dprId: number) => {
+      const g = guid?.trim()
+      if (!g) return
+      const url = buildDprCardViewUrl(dprId, g)
+      window.open(url, '_blank', 'noopener,noreferrer')
+    },
+    [guid]
+  )
 
   const columns: ColumnsType<PpvActorRow> = useMemo(
     () => [
@@ -78,22 +82,30 @@ const PpvAddresseesTab: React.FC<PpvAddresseesTabProps> = ({ ppvid, guid, hasPer
         width: 100,
         align: 'center',
         render: (_: unknown, record: PpvActorRow) => {
-          const id = record.edocId?.trim()
-          if (!id) return ''
+          const dprId = record.dprId
+          if (dprId == null || dprId <= 0) return null
+          const g = guid?.trim()
+          if (!g) {
+            return (
+              <Tooltip title="Для перехода к карте DPR нужен GUID в адресе страницы">
+                <Button type="link" disabled icon={<FileTextOutlined style={{ fontSize: 18 }} />} aria-label="Просмотр недоступен" />
+              </Tooltip>
+            )
+          }
           return (
-            <Tooltip title="Карта сведений о результатах рассмотрения (заглушка)">
+            <Tooltip title="Открыть карту сведений о результатах рассмотрения">
               <Button
                 type="link"
                 icon={<FileTextOutlined style={{ fontSize: 18 }} />}
-                onClick={() => openReviewStub(id)}
-                aria-label="Открыть карту результата рассмотрения"
+                onClick={() => openDprCard(dprId)}
+                aria-label="Открыть карту сведений о результатах рассмотрения"
               />
             </Tooltip>
           )
         },
       },
     ],
-    [openReviewStub]
+    [guid, openDprCard]
   )
 
   if (!hasPersisted || ppvid === '-') {
@@ -117,32 +129,14 @@ const PpvAddresseesTab: React.FC<PpvAddresseesTabProps> = ({ ppvid, guid, hasPer
   }
 
   return (
-    <>
-      <Table<PpvActorRow>
-        rowKey={(r) => String(r.ppvActorId)}
-        columns={columns}
-        dataSource={rows}
-        pagination={false}
-        size="small"
-        bordered
-      />
-      <Modal
-        title="Карта сведений о результатах рассмотрения"
-        open={reviewStubOpen}
-        onCancel={() => setReviewStubOpen(false)}
-        footer={null}
-        destroyOnClose
-      >
-        <p style={{ color: '#595959', marginBottom: 8 }}>
-          Просмотр карты сведений о результате рассмотрения будет подключён позже.
-        </p>
-        {reviewStubEdocId ? (
-          <p style={{ fontFamily: 'monospace', fontSize: 12, wordBreak: 'break-all' }}>
-            Идентификатор ответа (EDOCID): {reviewStubEdocId}
-          </p>
-        ) : null}
-      </Modal>
-    </>
+    <Table<PpvActorRow>
+      rowKey={(r) => String(r.ppvActorId)}
+      columns={columns}
+      dataSource={rows}
+      pagination={false}
+      size="small"
+      bordered
+    />
   )
 }
 

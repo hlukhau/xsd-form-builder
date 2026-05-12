@@ -4,7 +4,7 @@
 
 import { message } from 'antd'
 import type { CardData } from '@/types/card'
-import type { DprCreateEligibilityResponse, DprCreateSaveRequest, DprMetadataView } from '@/types/dprCard'
+import type { DprCreateEligibilityResponse, DprCreateSaveRequest, DprMetadataView, DprPpvIncomingActionsResponse, DprPrepareContext } from '@/types/dprCard'
 import { isPpvApp } from '@/cards/config'
 
 const BASE_URL = import.meta.env.BASE_URL || '/'
@@ -540,13 +540,97 @@ export async function fetchDprMetadata(dprid: string, guid?: string): Promise<Dp
   return response.json() as Promise<DprMetadataView>
 }
 
-/** Возможность создать карту DPR (ответ) по входящей PPV. GET /api/dpr/create-eligibility/{PPVID}?guid= */
-export async function fetchDprCreateEligibility(
+export interface DprResolutionRow {
+  depKindCode: string
+  depKindName: string
+}
+
+/** GET /api/dpr/resolutions?dprid=&guid= */
+export async function fetchDprResolutions(dprid: string, guid?: string): Promise<DprResolutionRow[]> {
+  const params = withGuidParams(new URLSearchParams(), guid)
+  params.set('dprid', dprid)
+  const response = await fetch(withGuidUrl(`${BASE_URL}api/dpr/resolutions?${params.toString()}`, guid))
+  const text = await response.text()
+  if (!response.ok) {
+    let errMsg = response.statusText
+    try {
+      const json = JSON.parse(text) as { error?: string }
+      if (json.error) errMsg = json.error
+    } catch {
+      if (text) errMsg = text.slice(0, 200)
+    }
+    throw new Error(errMsg)
+  }
+  try {
+    const data = JSON.parse(text) as { resolutions?: DprResolutionRow[] }
+    return Array.isArray(data.resolutions) ? data.resolutions : []
+  } catch {
+    return []
+  }
+}
+
+/** Сохранение правок исходящей DPR. POST /api/dpr/save */
+export async function postDprSave(payload: {
+  guid: string
+  dprid: string
+  authorityId?: string
+  authorityName?: string
+  authorityBriefName?: string
+  descriptionText?: string
+}): Promise<{ ok: boolean; dprStatusId?: number }> {
+  const response = await fetch(`${BASE_URL}api/dpr/save`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(withGuidBody(payload, payload.guid)),
+  })
+  const text = await response.text()
+  if (!response.ok) {
+    let errMsg = response.statusText
+    try {
+      const json = JSON.parse(text) as { error?: string }
+      if (json.error) errMsg = json.error
+    } catch {
+      if (text) errMsg = text.slice(0, 200)
+    }
+    throw new Error(errMsg)
+  }
+  return JSON.parse(text) as { ok: boolean; dprStatusId?: number }
+}
+
+/** Смена статуса исходящей DPR. POST /api/dpr/status */
+export async function changeDprStatus(
+  dprid: string,
+  action: string,
+  options?: { depKindCode?: string; guid?: string }
+): Promise<{ newStatus?: string; newStatusId?: number; ok?: boolean }> {
+  const body: Record<string, string> = { dprid, action }
+  if (options?.depKindCode) body.depKindCode = options.depKindCode
+  const response = await fetch(`${BASE_URL}api/dpr/status`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(withGuidBody(body, options?.guid)),
+  })
+  const text = await response.text()
+  if (!response.ok) {
+    let errMsg = response.statusText
+    try {
+      const json = JSON.parse(text) as { error?: string }
+      if (json.error) errMsg = json.error
+    } catch {
+      if (text) errMsg = text.slice(0, 200)
+    }
+    throw new Error(errMsg)
+  }
+  return JSON.parse(text) as { newStatus?: string; newStatusId?: number; ok?: boolean }
+}
+
+/** Действия по входящей PPV: «Открыть ответ» / «Подготовить ответ». GET /api/dpr/ppv-incoming-actions/{PPVID}?guid= */
+export async function fetchDprPpvIncomingActions(
   ppvid: string,
   guid?: string
-): Promise<DprCreateEligibilityResponse> {
+): Promise<DprPpvIncomingActionsResponse> {
   const response = await fetch(
-    withGuidUrl(`${BASE_URL}api/dpr/create-eligibility/${encodeURIComponent(ppvid)}`, guid)
+    withGuidUrl(`${BASE_URL}api/dpr/ppv-incoming-actions/${encodeURIComponent(ppvid)}`, guid)
   )
   if (!response.ok) {
     const text = await response.text()
@@ -559,7 +643,35 @@ export async function fetchDprCreateEligibility(
     }
     throw new Error(errMsg)
   }
-  return response.json() as Promise<DprCreateEligibilityResponse>
+  return response.json() as Promise<DprPpvIncomingActionsResponse>
+}
+
+/** Возможность создать карту DPR (ответ) по входящей PPV. Реализовано через {@link fetchDprPpvIncomingActions}. */
+export async function fetchDprCreateEligibility(
+  ppvid: string,
+  guid?: string
+): Promise<DprCreateEligibilityResponse> {
+  const a = await fetchDprPpvIncomingActions(ppvid, guid)
+  if (!a.canPrepareAnswer) {
+    return { allowed: false, reason: a.prepareAnswerReason ?? undefined }
+  }
+  const c = a.prepareContext
+  if (!c) {
+    return { allowed: false, reason: a.prepareAnswerReason ?? 'Нет контекста создания' }
+  }
+  return {
+    allowed: true,
+    ppvid: c.ppvid,
+    incidentId: c.incidentId,
+    alertCountryCode: c.alertCountryCode,
+    incidentKindCode: c.incidentKindCode,
+    docCreationDate: c.docCreationDate,
+    responseCountryId: c.responseCountryId,
+    responseCountryCode: c.responseCountryCode,
+    responseCountryName: c.responseCountryName,
+    draftDprStatusId: c.draftDprStatusId,
+    draftDprStatusName: c.draftDprStatusName,
+  }
 }
 
 /** Первое сохранение черновика DPR. POST /api/dpr/create-save */
@@ -698,9 +810,11 @@ export interface PpvActorRow {
   actorCountryCode: string | null
   ppvActorActFl: number | null
   countryName: string | null
-  /** ДД.ММ.ГГГГ ЧЧ:МИ:СС при наличии ответа, иначе null */
+  /** ДД.ММ.ГГГГ ЧЧ:МИ:СС — дата создания связанной карты DPR (ответа), иначе null */
   responseDateTime: string | null
   edocId: string | null
+  /** Идентификатор карты сведений о результатах рассмотрения (DPR), если ответ найден в БД */
+  dprId: number | null
 }
 
 /** Страны — адресаты PPV (EAЭС, не BY), дата формирования в диапазоне COUNTRYSDATE/COUNTRYEDATE. */
@@ -755,7 +869,11 @@ export async function fetchPpvActors(ppvid: string, guid?: string): Promise<PpvA
   }
   try {
     const data = JSON.parse(text) as { actors?: PpvActorRow[] }
-    return Array.isArray(data.actors) ? data.actors : []
+    if (!Array.isArray(data.actors)) return []
+    return data.actors.map((a) => ({
+      ...a,
+      dprId: typeof a.dprId === 'number' && Number.isFinite(a.dprId) && a.dprId > 0 ? a.dprId : null,
+    }))
   } catch {
     return []
   }

@@ -10,6 +10,35 @@ export interface DprMetadataView {
   creationDateTime: string | null
   modificationDateTime: string | null
   linkedPpvid: number
+  /** Идентификатор статуса DPR (DPRSTATUSID) */
+  dprStatusId?: number | null
+  dprVersion?: number | null
+  /** Сервер: можно ли войти в режим редактирования (violationDetectedIn:status ∩ PPVDEPPERMIS, исходящая, статусы 4/5/8/9) */
+  canEdit?: boolean
+}
+
+/** Контекст создания DPR (внутри ответа ppv-incoming-actions при canPrepareAnswer). */
+export interface DprPrepareContext {
+  ppvid: number
+  incidentId: string | null
+  alertCountryCode: string | null
+  incidentKindCode: string | null
+  docCreationDate: string | null
+  responseCountryId: number
+  responseCountryCode: string | null
+  responseCountryName: string | null
+  draftDprStatusId: number
+  draftDprStatusName: string | null
+}
+
+/** GET /api/dpr/ppv-incoming-actions/{PPVID} — кнопки «Открыть ответ» и «Подготовить ответ». */
+export interface DprPpvIncomingActionsResponse {
+  canOpenLinkedDpr: boolean
+  openLinkedDprReason: string | null
+  linkedDprid: number | null
+  canPrepareAnswer: boolean
+  prepareAnswerReason: string | null
+  prepareContext: DprPrepareContext | null
 }
 
 /** Ответ GET /api/dpr/create-eligibility/{PPVID} — возможность создать DPR по входящей PPV. */

@@ -1,4 +1,5 @@
 import { Button, Space, Tooltip } from 'antd'
+import type { ReactNode } from 'react'
 import { DeleteOutlined, CopyOutlined } from '@ant-design/icons'
 import type { CardData } from '@/types/card'
 import type { StatusButtonConfig } from '@/utils/statusButtonConfig'
@@ -25,6 +26,8 @@ interface CardActionsProps {
   /** Неактивна (например, пока проверка API или условия не выполнены) — title с причиной. */
   copyButtonDisabled?: boolean
   copyButtonHint?: string
+  /** Кнопки сразу после кнопки смены статуса (например PPV: «Открыть ответ», «Подготовить ответ»). */
+  nextToStatusButtons?: ReactNode
   onShowRightsDebug?: () => void
 }
 
@@ -45,6 +48,7 @@ const CardActions: React.FC<CardActionsProps> = ({
   onCopy,
   copyButtonDisabled,
   copyButtonHint,
+  nextToStatusButtons,
   onShowRightsDebug,
 }) => {
   const statusButtonNode = statusButton ? (
@@ -93,6 +97,7 @@ const CardActions: React.FC<CardActionsProps> = ({
           </Tooltip>
         )}
         {statusButtonNode}
+        {nextToStatusButtons}
         {closeButtonNode}
         {showDeleteButton && (
           <Tooltip title={deleteButtonHint}>

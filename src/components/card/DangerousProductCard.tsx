@@ -48,7 +48,7 @@ import {
   canCreateNewVersion,
   type DpaSaveMetadata,
   type RightsJson,
-  fetchDprCreateEligibility,
+  fetchDprPpvIncomingActions,
 } from '@/utils/referenceDataApi'
 import { getStatusButtonConfig } from '@/utils/statusButtonConfig'
 import { parseElectronicDocContentBody } from '@/utils/xmlParser'
@@ -65,6 +65,7 @@ import {
   type ValidationResult,
 } from '@/utils/cardValidation'
 import type { CardData, StatusHistoryItem, ElectronicDocument } from '@/types/card'
+import type { DprPpvIncomingActionsResponse } from '@/types/dprCard'
 import { isPpvApp, getDpaLikeCardSessionKeys, getDpaLikeCardIdLabel } from '@/cards/config'
 import { format } from 'date-fns'
 
@@ -155,7 +156,7 @@ const DangerousProductCard: React.FC<DangerousProductCardProps> = ({
   const [copyCanCreateAllowed, setCopyCanCreateAllowed] = useState<boolean | null>(null)
   const [copyCanCreateReason, setCopyCanCreateReason] = useState<string | null>(null)
   /** GET /api/dpr/create-eligibility — кнопка «Подготовить ответ» на входящей PPV */
-  const [dprPrepareAnswer, setDprPrepareAnswer] = useState<{ allowed: boolean; reason?: string } | null>(null)
+  const [dprPpvActions, setDprPpvActions] = useState<DprPpvIncomingActionsResponse | null>(null)
   const { countryOptions } = useCountryOptions()
   useParentActivityPing()
 
@@ -211,22 +212,22 @@ const DangerousProductCard: React.FC<DangerousProductCardProps> = ({
 
   useEffect(() => {
     if (!isPpvApp() || !hasPersistedDpaid || !guid?.trim()) {
-      setDprPrepareAnswer(null)
+      setDprPpvActions(null)
       return
     }
     const dsc =
       editedData.datasourceKindCode != null ? String(editedData.datasourceKindCode) : datasourceKindCode
     if (dsc !== '1') {
-      setDprPrepareAnswer(null)
+      setDprPpvActions(null)
       return
     }
     let cancelled = false
-    fetchDprCreateEligibility(effectiveDpaid, guid.trim())
+    fetchDprPpvIncomingActions(effectiveDpaid, guid.trim())
       .then((r) => {
-        if (!cancelled) setDprPrepareAnswer({ allowed: r.allowed, reason: r.reason })
+        if (!cancelled) setDprPpvActions(r)
       })
       .catch(() => {
-        if (!cancelled) setDprPrepareAnswer({ allowed: false })
+        if (!cancelled) setDprPpvActions(null)
       })
     return () => {
       cancelled = true
@@ -1092,21 +1093,6 @@ const DangerousProductCard: React.FC<DangerousProductCardProps> = ({
                     Валидация карты
                   </Button>
                 )}
-                {isPpvApp() && dprPrepareAnswer?.allowed && (
-                  <Button
-                    type="primary"
-                    onClick={() => {
-                      const base =
-                        (import.meta.env.VITE_DPR_CARD_BASE as string | undefined)?.replace(/\/$/, '') ||
-                        '/dpr_card'
-                      window.location.assign(
-                        `${base}/create/${encodeURIComponent(effectiveDpaid)}/${encodeURIComponent(guid!.trim())}`
-                      )
-                    }}
-                  >
-                    Подготовить ответ
-                  </Button>
-                )}
                 <Button
                   onClick={() => {
                     postMessageFromCardToParent(
@@ -1242,6 +1228,48 @@ const DangerousProductCard: React.FC<DangerousProductCardProps> = ({
                 },
               }
             : {})}
+          nextToStatusButtons={
+            isPpvApp() &&
+            dprPpvActions &&
+            ((dprPpvActions.canOpenLinkedDpr && dprPpvActions.linkedDprid != null) ||
+              dprPpvActions.canPrepareAnswer) ? (
+              <>
+                {dprPpvActions.canOpenLinkedDpr && dprPpvActions.linkedDprid != null && (
+                  <Button
+                    size="small"
+                    type="default"
+                    onClick={() => {
+                      const base =
+                        (import.meta.env.VITE_DPR_CARD_BASE as string | undefined)?.replace(/\/$/, '') ||
+                        '/dpr_card'
+                      const did = String(dprPpvActions.linkedDprid)
+                      window.location.assign(
+                        `${base}/${encodeURIComponent(did)}/${encodeURIComponent((guid ?? '').trim())}`
+                      )
+                    }}
+                  >
+                    Открыть ответ
+                  </Button>
+                )}
+                {dprPpvActions.canPrepareAnswer && (
+                  <Button
+                    size="small"
+                    type="primary"
+                    onClick={() => {
+                      const base =
+                        (import.meta.env.VITE_DPR_CARD_BASE as string | undefined)?.replace(/\/$/, '') ||
+                        '/dpr_card'
+                      window.location.assign(
+                        `${base}/create/${encodeURIComponent(effectiveDpaid)}/${encodeURIComponent((guid ?? '').trim())}`
+                      )
+                    }}
+                  >
+                    Подготовить ответ
+                  </Button>
+                )}
+              </>
+            ) : null
+          }
           statusButton={effectiveStatusButton}
           statusButtonComment={effectiveStatusButtonComment}
           closeButton={effectiveCloseButton && !effectiveCloseButton.disabled ? effectiveCloseButton : null}

@@ -372,6 +372,38 @@
         <servlet-name>DprCreateSaveServlet</servlet-name>
         <url-pattern>/api/dpr/create-save</url-pattern>
     </servlet-mapping>
+    <servlet>
+        <servlet-name>DprPpvIncomingActionsServlet</servlet-name>
+        <servlet-class>com.eec.servlet.dpr.DprPpvIncomingActionsServlet</servlet-class>
+    </servlet>
+    <servlet-mapping>
+        <servlet-name>DprPpvIncomingActionsServlet</servlet-name>
+        <url-pattern>/api/dpr/ppv-incoming-actions/*</url-pattern>
+    </servlet-mapping>
+    <servlet>
+        <servlet-name>DprSaveServlet</servlet-name>
+        <servlet-class>com.eec.servlet.dpr.DprSaveServlet</servlet-class>
+    </servlet>
+    <servlet-mapping>
+        <servlet-name>DprSaveServlet</servlet-name>
+        <url-pattern>/api/dpr/save</url-pattern>
+    </servlet-mapping>
+    <servlet>
+        <servlet-name>DprStatusChangeServlet</servlet-name>
+        <servlet-class>com.eec.servlet.dpr.DprStatusChangeServlet</servlet-class>
+    </servlet>
+    <servlet-mapping>
+        <servlet-name>DprStatusChangeServlet</servlet-name>
+        <url-pattern>/api/dpr/status</url-pattern>
+    </servlet-mapping>
+    <servlet>
+        <servlet-name>DprResolutionsServlet</servlet-name>
+        <servlet-class>com.eec.servlet.dpr.DprResolutionsServlet</servlet-class>
+    </servlet>
+    <servlet-mapping>
+        <servlet-name>DprResolutionsServlet</servlet-name>
+        <url-pattern>/api/dpr/resolutions</url-pattern>
+    </servlet-mapping>
 
     <!-- Карта PHA: XML по PHAID из PHAXML -->
     <servlet>

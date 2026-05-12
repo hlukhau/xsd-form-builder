@@ -1,10 +1,25 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useState, type CSSProperties } from 'react'
 import { Typography, Tabs, Descriptions, Button, Input, Space, message } from 'antd'
-import type { DprCreateEligibilityResponse } from '@/types/dprCard'
+import type { DprPrepareContext } from '@/types/dprCard'
 import { getIncidentAlertKindNameByCode, postDprCreateSave } from '@/utils/referenceDataApi'
 import { useCountryOptions } from '@/hooks/shared/useCountryOptions'
 
-const { Title, Text } = Typography
+const { Text } = Typography
+
+const CARD_STICKY_HEADER_STYLE: CSSProperties = {
+  position: 'sticky',
+  top: 0,
+  zIndex: 100,
+  background: '#ffffff',
+  boxShadow: '0 1px 2px rgba(0,0,0,0.06)',
+  padding: '0 24px 2px 24px',
+  isolation: 'isolate',
+  display: 'flex',
+  flexDirection: 'column',
+  height: '100vh',
+  maxHeight: '100vh',
+  overflow: 'hidden',
+}
 
 const BASE_URL = (import.meta.env.BASE_URL || '/').replace(/\/?$/, '/')
 
@@ -21,7 +36,7 @@ function formatDateRu(iso: string | null | undefined): string {
 }
 
 export interface DprCreateCardProps {
-  eligibility: DprCreateEligibilityResponse
+  eligibility: DprPrepareContext
   ppvid: string
   guid: string
 }
@@ -91,36 +106,42 @@ export function DprCreateCard({ eligibility, ppvid, guid }: DprCreateCardProps) 
   const draftName = eligibility.draftDprStatusName ?? 'Черновик'
 
   return (
-    <div className="dpr-card-root">
-      <div className="dpr-card-header">
-        <Space direction="vertical" size={8} style={{ width: '100%' }}>
-          <Space wrap style={{ justifyContent: 'space-between', width: '100%' }}>
-            <Title level={4} style={{ margin: 0 }}>
-              Создание карты сведений о результатах рассмотрения
-            </Title>
-            <Space>
-              <Button onClick={goBackToPpv}>Отменить создание</Button>
-              <Button type="primary" onClick={() => void handleSave()} loading={saving}>
-                Сохранить
-              </Button>
-            </Space>
+    <div
+      style={{ padding: 0, display: 'flex', flexDirection: 'column', minHeight: '100vh' }}
+      className="fade-in card-page-layout"
+    >
+      <div className="card-sticky-header" style={CARD_STICKY_HEADER_STYLE}>
+        <div className="card-sticky-header-title-row">
+          <span className="card-sticky-header-title">Создание карты сведений о результатах рассмотрения</span>
+          <Space size="small" wrap>
+            <Button onClick={goBackToPpv}>Отменить создание</Button>
+            <Button type="primary" onClick={() => void handleSave()} loading={saving}>
+              Сохранить
+            </Button>
           </Space>
-          <Descriptions column={{ xs: 1, sm: 2, md: 4 }} size="small" colon>
-            <Descriptions.Item label="Исходная карта (PPV)">{dash(eligibility.incidentId)}</Descriptions.Item>
-            <Descriptions.Item label="Страна">{responseCountryDisplay}</Descriptions.Item>
-            <Descriptions.Item label="Статус">{draftName}</Descriptions.Item>
-            <Descriptions.Item label="Источник">исходящие</Descriptions.Item>
-            <Descriptions.Item label="Дата создания">будет присвоена при сохранении</Descriptions.Item>
-            <Descriptions.Item label="Дата изменения">будет присвоена при сохранении</Descriptions.Item>
-          </Descriptions>
+        </div>
+        <Descriptions
+          column={{ xxl: 4, xl: 4, lg: 4, md: 3, sm: 2, xs: 1 }}
+          bordered
+          size="small"
+          style={{ margin: 0 }}
+          className="card-header-descriptions"
+        >
+          <Descriptions.Item label="Исходная карта (PPV)">{dash(eligibility.incidentId)}</Descriptions.Item>
+          <Descriptions.Item label="Страна">{responseCountryDisplay}</Descriptions.Item>
+          <Descriptions.Item label="Статус">{draftName}</Descriptions.Item>
+          <Descriptions.Item label="Источник">исходящие</Descriptions.Item>
+          <Descriptions.Item label="Дата создания">будет присвоена при сохранении</Descriptions.Item>
+          <Descriptions.Item label="Дата изменения">будет присвоена при сохранении</Descriptions.Item>
+        </Descriptions>
+        <div style={{ flexShrink: 0, marginTop: 2 }}>
           <Text type="secondary" style={{ fontSize: 12 }}>
             Черновик: допускается неполный ввод. Обязательные реквизиты шапки и исходной карты подставляются из PPV и
             справочников автоматически при сохранении.
           </Text>
-        </Space>
-      </div>
+        </div>
 
-      <div className="dpr-card-tabs-wrap">
+        <div className="card-tabs-wrapper">
         <Tabs
           defaultActiveKey="notification"
           items={[
@@ -200,6 +221,7 @@ export function DprCreateCard({ eligibility, ppvid, guid }: DprCreateCardProps) 
             },
           ]}
         />
+        </div>
       </div>
     </div>
   )
