@@ -30,6 +30,7 @@ import type {
   IdentityDocDetails,
 } from '@/types/card'
 import type { DprParsedBundle, DprResultDocRow } from '@/types/dprCard'
+import { SANITARY_MEASURE_START_DATE_XML_PLACEHOLDER } from '@/constants/measureXml'
 import { dprResultDocRowToMeasureDocDetails, hasDprResultDocRowContent } from '@/utils/dprResultDocMapping'
 import { getAddressListFromSubject } from '@/utils/addressFormatUtils'
 
@@ -817,11 +818,10 @@ function exportMeasureSubjectDetails(xmlParts: string[], subject: SubjectDetails
   xmlParts.push(`${indent}</smcdo:SubjectDetails>`)
 }
 
-/** Есть ли контент у меры (собственные поля или вложенные блоки с контентом). */
+/** Есть ли контент у меры (собственные поля или вложенные блоки с контентом). Начальная дата в форме может быть пустой — в XML подставляется плейсхолдер (см. SANITARY_MEASURE_START_DATE_XML_PLACEHOLDER). */
 function hasMeasureContent(measure: SanitaryMeasure | undefined): boolean {
   if (!measure) return false
   const s = (v: string | undefined) => (v ?? '').trim()
-  // Даты начала/окончания по XSD не обязаны для черновика в UI; мера экспортируется при заполненных прочих реквизитах.
   if (
     s(measure.languageCode) ||
     s(measure.measureCode) ||
@@ -1070,7 +1070,9 @@ function exportSanitaryMeasure(xmlParts: string[], measure: SanitaryMeasure, ind
     exportMeasureDocDetails(xmlParts, measure.initialMeasureDocDetails!, 'InitialMeasureDocDetails', `${indent}  `)
   }
 
-  if (measure.startDate) xmlParts.push(`${indent}  <csdo:StartDate>${escapeXML(measure.startDate)}</csdo:StartDate>`)
+  const startDateForXml =
+    measure.startDate?.trim() || SANITARY_MEASURE_START_DATE_XML_PLACEHOLDER
+  xmlParts.push(`${indent}  <csdo:StartDate>${escapeXML(startDateForXml)}</csdo:StartDate>`)
   if (measure.endDate) xmlParts.push(`${indent}  <csdo:EndDate>${escapeXML(measure.endDate)}</csdo:EndDate>`)
 
   const basisWithContent = (measure.measureInitiationBasisDetails ?? []).filter(hasBasisContent)

@@ -35,6 +35,10 @@ export interface ValidationResult {
   sections: { sectionName: string; remarks: string[] }[]
 }
 
+/** Логический контроль раздела «Принятые меры»: не заполнена начальная дата (в XML при сохранении подставляется техническая дата по XSD). */
+export const OUTGOING_MEASURE_START_DATE_REQUIRED_REMARK =
+  'В составе каждого набора сведений о принятой мере должна быть указана Начальная дата'
+
 function empty(s: string | undefined | null): boolean {
   return s == null || String(s).trim() === ''
 }
@@ -150,6 +154,9 @@ function appendOutgoingMeasuresLikeDpaValidation(
   }
   const measuresList = measures?.measures ?? []
   for (const m of measuresList) {
+    if (empty(m?.startDate)) {
+      add(OUTGOING_MEASURE_START_DATE_REQUIRED_REMARK)
+    }
     const basisList = m?.measureInitiationBasisDetails
     if (basisList && basisList.length > 0) {
       const anyBasisIncomplete = basisList.some(

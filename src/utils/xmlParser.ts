@@ -33,6 +33,7 @@ import type {
   DocumentReferenceDetails,
   MeasurePlaceDetails,
 } from '@/types/card'
+import { SANITARY_MEASURE_START_DATE_XML_PLACEHOLDER } from '@/constants/measureXml'
 import { getIncidentAlertKindNameByCode, checkIncidentAlertKindExists, getIncidentAlertKindOptions, checkSanitaryProdTypeExists, getSanitaryProdTypeOptions, checkShipDocKindExists, checkSupplyChainPartyKindExists, checkSanitaryMeasureObjKindExists } from '@/utils/referenceDataApi'
 import { DPA_CANONICAL_XML_NAMESPACES, normalizeXmlNamespaces } from '@/utils/xmlNamespaceNormalizer'
 
@@ -2657,7 +2658,9 @@ function parseSanitaryMeasure(measureElement: Element): SanitaryMeasure | null {
   const measureName = getTextContent(measureElement, 'MeasureName') || undefined
   const measureJustificationText = getTextContent(measureElement, 'MeasureJustificationText') || undefined
   const description = getDirectChildTextByLocalName(measureElement, 'DescriptionText') || undefined
-  const startDate = getDirectChildTextByLocalName(measureElement, 'StartDate') || undefined
+  const rawStartDate = getDirectChildTextByLocalName(measureElement, 'StartDate') || undefined
+  const startDate =
+    rawStartDate?.trim() === SANITARY_MEASURE_START_DATE_XML_PLACEHOLDER ? undefined : rawStartDate
   const endDate = getDirectChildTextByLocalName(measureElement, 'EndDate') || undefined
   const measureAffectedObjectKindCodes = getAllTextContents(measureElement, 'MeasureAffectedObjectKindCode')
   const measureAffectedObjectKindCode = measureAffectedObjectKindCodes.length > 0 ? measureAffectedObjectKindCodes.join(';') : undefined

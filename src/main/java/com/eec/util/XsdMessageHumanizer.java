@@ -496,8 +496,8 @@ public final class XsdMessageHumanizer {
                 Pattern.CASE_INSENSITIVE | Pattern.DOTALL)
                 .matcher(s);
         if (type313.find()) {
-            return "Значение «" + type313.group(1) + "» в поле «" + label(type313.group(2)) + "» недопустимо для типа «"
-                    + type313.group(3) + "» по схеме XSD.";
+            return "Значение «" + type313.group(1) + "» в поле «" + label(type313.group(2)) + "» недопустимо для ожидаемого типа данных «"
+                    + type313.group(3) + "».";
         }
         Matcher attrRequired = Pattern.compile(
                 "cvc-complex-type\\.4:\\s*Attribute\\s+'([^']+)'\\s+must\\s+appear\\s+on\\s+element\\s+'([^']+)'\\.",
@@ -571,30 +571,30 @@ public final class XsdMessageHumanizer {
         String type = xsdType == null ? "" : xsdType.trim();
         if ("date".equalsIgnoreCase(type)) {
             if (v.isEmpty()) {
-                return "Пустое значение недопустимо для типа «дата» (xs:date): укажите дату в формате ГГГГ-ММ-ДД или удалите элемент, если он необязателен.";
+                return "Пустое значение недопустимо для поля с датой: укажите дату в формате ГГГГ-ММ-ДД или удалите элемент, если он необязателен.";
             }
-            return "Значение «" + v + "» не является допустимой датой: укажите дату по григорианскому календарю в формате ГГГГ-ММ-ДД (xs:date).";
+            return "Значение «" + v + "» не является допустимой датой: укажите дату по григорианскому календарю в формате ГГГГ-ММ-ДД.";
         }
         if ("dateTime".equalsIgnoreCase(type)) {
-            return "Значение «" + v + "» не является допустимой датой и временем в формате ISO 8601 (xs:dateTime).";
+            return "Значение «" + v + "» не является допустимой датой и временем в формате ISO 8601.";
         }
         if ("time".equalsIgnoreCase(type)) {
-            return "Значение «" + v + "» не является допустимым временем (xs:time).";
+            return "Значение «" + v + "» не является допустимым временем суток.";
         }
         if ("gYearMonth".equalsIgnoreCase(type) || "gYear".equalsIgnoreCase(type) || "gMonthDay".equalsIgnoreCase(type)) {
-            return "Значение «" + v + "» не соответствует типу «" + type + "» по схеме XSD.";
+            return "Значение «" + v + "» не соответствует ожидаемому формату для типа «" + type + "».";
         }
         if ("decimal".equalsIgnoreCase(type) || "integer".equalsIgnoreCase(type) || "int".equalsIgnoreCase(type)
                 || "long".equalsIgnoreCase(type) || "double".equalsIgnoreCase(type) || "float".equalsIgnoreCase(type)) {
-            return "Значение «" + v + "» не является допустимым числом для типа «" + type + "» по схеме XSD.";
+            return "Значение «" + v + "» не является допустимым числом для типа «" + type + "».";
         }
         if ("boolean".equalsIgnoreCase(type)) {
-            return "Значение «" + v + "» должно быть ровно «true» или «false» (xs:boolean, латиницей, нижний регистр).";
+            return "Значение «" + v + "» должно быть ровно «true» или «false» (латиницей, нижний регистр).";
         }
         if ("anyURI".equalsIgnoreCase(type)) {
-            return "Значение «" + v + "» не является допустимым URI (xs:anyURI).";
+            return "Значение «" + v + "» не является допустимым адресом (URI).";
         }
-        return "Значение «" + v + "» не соответствует типу данных «" + type + "» по схеме XSD.";
+        return "Значение «" + v + "» не соответствует ожидаемому типу данных «" + type + "».";
     }
 
     /**
@@ -609,7 +609,7 @@ public final class XsdMessageHumanizer {
         r = replaceAllQuoted(
                 r,
                 Pattern.compile("The value '([^']*)' of (блок «[^»]+»)\\s+is\\s+not\\s+valid\\.?", Pattern.CASE_INSENSITIVE | Pattern.DOTALL),
-                (m) -> "Недопустимое значение «" + m.group(1) + "» в " + m.group(2) + " по схеме XSD.");
+                (m) -> "Недопустимое значение «" + m.group(1) + "» в " + m.group(2) + ".");
         // '…' is not a valid value for 'date'. (после снятия префикса cvc-datatype-valid)
         r = replaceAllQuoted(
                 r,
@@ -629,10 +629,10 @@ public final class XsdMessageHumanizer {
                 Pattern.compile(
                         "The value '([^']*)' of element '([^']+)'\\s+is not a valid value for(?: nullable)? type '([^']*)'\\.?",
                         Pattern.CASE_INSENSITIVE | Pattern.DOTALL),
-                (m) -> "Значение «" + m.group(1) + "» в поле «" + label(m.group(2)) + "» недопустимо для типа «" + m.group(3) + "» по схеме XSD.");
+                (m) -> "Значение «" + m.group(1) + "» в поле «" + label(m.group(2)) + "» недопустимо для ожидаемого типа данных «" + m.group(3) + "».");
         // Общие обрывки
-        r = r.replaceAll("(?i)\\bis not valid\\.?", "недопустимо по схеме XSD.");
-        r = r.replaceAll("(?i)\\bis not allowed\\.?", "не допускается по схеме XSD.");
+        r = r.replaceAll("(?i)\\bis not valid\\.?", "недопустимо.");
+        r = r.replaceAll("(?i)\\bis not allowed\\.?", "не допускается.");
         r = r.replaceAll("(?i)\\bmust appear on element\\b", "должно быть задано для элемента");
         r = r.replaceAll("(?i)\\bInvalid content was found\\b", "Обнаружено недопустимое содержимое");
         r = r.replaceAll("(?i)\\bNo child element is expected at this point\\.?", "дочерние элементы на этой позиции не предусмотрены.");

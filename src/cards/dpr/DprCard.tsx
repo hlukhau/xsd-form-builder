@@ -12,7 +12,7 @@ import XMLComparisonModal, { type ComparisonResultShape } from '@/components/mod
 import { CardActions } from '@/cards/shared'
 import type { DprMetadataView, DprParsedBundle, DprResultDocRow } from '@/types/dprCard'
 import type { StatusHistoryItem } from '@/types/card'
-import type { ValidationResult } from '@/utils/cardValidation'
+import { OUTGOING_MEASURE_START_DATE_REQUIRED_REMARK, type ValidationResult } from '@/utils/cardValidation'
 import {
   fetchDprStatusHistory,
   getIncidentAlertKindNameByCode,
@@ -318,12 +318,16 @@ export function DprCard({ dprid, guid, meta, parsed, onDataRefresh }: DprCardPro
       const fullXml = exportDprParsedBundleToXml(bundle)
       const originalXml = await fetchDprXml(dprid, g)
       const vr = await validateDprOutgoingCardFull(bundle, fullXml)
-      const { format: fmt, logical: log } = splitDprValidationForModal(vr)
+      const { format: fmt, logical: logRaw } = splitDprValidationForModal(vr)
+      const measureStartDateHints = logRaw.filter((line) =>
+        line.includes(OUTGOING_MEASURE_START_DATE_REQUIRED_REMARK)
+      )
+      const log = logRaw.filter((line) => !line.includes(OUTGOING_MEASURE_START_DATE_REQUIRED_REMARK))
       const cmp = compareDprResponseXml(originalXml, fullXml)
       setComparisonResult({
         isIdentical: cmp.isIdentical,
         differences: cmp.differences,
-        warnings: cmp.warnings,
+        warnings: [...cmp.warnings, ...measureStartDateHints],
         added: [],
       })
       setComparisonFormatErrors(fmt)
