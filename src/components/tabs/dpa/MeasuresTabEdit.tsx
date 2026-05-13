@@ -54,6 +54,10 @@ const MeasureDocDetailsEditStandalone: React.FC<{
   getMediaTypeSelectOptions: () => Array<{ value: string; label: string }>
   getMediaTypeNameByCode: (code: string | undefined) => string | null
   getMediaTypeCodeByName: (name: string | undefined) => string | null
+  /** DPR DocContentDetails: поле csdo:AuthorityId по XSD DocContentDetailsType. */
+  showAuthorityId?: boolean
+  /** Скрыть нижнюю кнопку «Удалить документ» (удаление строки — снаружи). */
+  hideInternalRemove?: boolean
 }> = ({
   doc,
   onChange,
@@ -65,6 +69,8 @@ const MeasureDocDetailsEditStandalone: React.FC<{
   getMediaTypeSelectOptions,
   getMediaTypeNameByCode,
   getMediaTypeCodeByName,
+  showAuthorityId,
+  hideInternalRemove,
 }) => {
   const [uploadedFileName, setUploadedFileName] = useState<string>('')
   const { getSelectOptions: getShipDocKindSelectOptions, loading: loadingShipDocKinds } = useShipDocKindOptions()
@@ -261,6 +267,16 @@ const MeasureDocDetailsEditStandalone: React.FC<{
           }}
         />
       </Form.Item>
+      {showAuthorityId ? (
+        <Form.Item label="Уполномоченный орган. Идентификатор">
+          <Input
+            value={doc.authorityId ?? ''}
+            onChange={(e) => onChange({ ...doc, authorityId: e.target.value || undefined })}
+            maxLength={getMaxLength('authorityId')}
+            showCount
+          />
+        </Form.Item>
+      ) : null}
       <Form.Item label="Уполномоченный орган. Наименование">
         <Input
           value={doc.authorityName}
@@ -380,17 +396,21 @@ const MeasureDocDetailsEditStandalone: React.FC<{
           )}
         </div>
       </Form.Item>
-      <Button
-        type="link"
-        danger
-        icon={<DeleteOutlined />}
-        onClick={() => onChange(undefined as any)}
-      >
-        Удалить документ
-      </Button>
+      {!hideInternalRemove ? (
+        <Button
+          type="link"
+          danger
+          icon={<DeleteOutlined />}
+          onClick={() => onChange(undefined as any)}
+        >
+          Удалить документ
+        </Button>
+      ) : null}
     </Form>
   )
 }
+
+export { MeasureDocDetailsEditStandalone }
 
 interface MeasuresTabEditProps {
   data: MeasuresData

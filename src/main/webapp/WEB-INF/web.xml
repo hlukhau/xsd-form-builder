@@ -389,6 +389,14 @@
         <url-pattern>/api/dpr/save</url-pattern>
     </servlet-mapping>
     <servlet>
+        <servlet-name>DprDeleteDraftServlet</servlet-name>
+        <servlet-class>com.eec.servlet.dpr.DprDeleteDraftServlet</servlet-class>
+    </servlet>
+    <servlet-mapping>
+        <servlet-name>DprDeleteDraftServlet</servlet-name>
+        <url-pattern>/api/dpr/delete-draft</url-pattern>
+    </servlet-mapping>
+    <servlet>
         <servlet-name>DprStatusChangeServlet</servlet-name>
         <servlet-class>com.eec.servlet.dpr.DprStatusChangeServlet</servlet-class>
     </servlet>

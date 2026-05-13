@@ -5,7 +5,8 @@ import type { CardData } from '@/types/card'
 import type { StatusButtonConfig } from '@/utils/statusButtonConfig'
 
 interface CardActionsProps {
-  data: CardData
+  /** Не используется в разметке; оставлен для совместимости с картами DPA/PHA. */
+  data?: CardData
   /** Определить доступ (DPA). При отсутствии кнопка не показывается. */
   onDefineAccess?: () => void
   /** DPA/PHA: открыть реестр всех версий по случаю. В PPV не используется — не передавать. */
@@ -29,10 +30,11 @@ interface CardActionsProps {
   /** Кнопки сразу после кнопки смены статуса (например PPV: «Открыть ответ», «Подготовить ответ»). */
   nextToStatusButtons?: ReactNode
   onShowRightsDebug?: () => void
+  /** Индикатор загрузки на кнопках смены статуса (основная и дополнительная). */
+  statusButtonsLoading?: boolean
 }
 
 const CardActions: React.FC<CardActionsProps> = ({
-  data,
   onDefineAccess,
   onOpenAllVersions,
   statusButton,
@@ -50,6 +52,7 @@ const CardActions: React.FC<CardActionsProps> = ({
   copyButtonHint,
   nextToStatusButtons,
   onShowRightsDebug,
+  statusButtonsLoading,
 }) => {
   const statusButtonNode = statusButton ? (
     <Tooltip title={statusButton.hint ?? statusButtonComment}>
@@ -57,6 +60,7 @@ const CardActions: React.FC<CardActionsProps> = ({
         <Button
           size="small"
           type="primary"
+          loading={statusButtonsLoading}
           disabled={statusButton.disabled}
           onClick={() => !statusButton.disabled && onStatusAction(statusButton.action)}
         >
@@ -71,6 +75,7 @@ const CardActions: React.FC<CardActionsProps> = ({
       <span>
         <Button
           size="small"
+          loading={statusButtonsLoading}
           disabled={closeButton.disabled}
           onClick={() => !closeButton.disabled && onStatusAction(closeButton.action)}
         >

@@ -4,7 +4,14 @@
 
 import { message } from 'antd'
 import type { CardData } from '@/types/card'
-import type { DprCreateEligibilityResponse, DprCreateSaveRequest, DprMetadataView, DprPpvIncomingActionsResponse, DprPrepareContext } from '@/types/dprCard'
+import type {
+  DprCreateEligibilityResponse,
+  DprCreateSaveRequest,
+  DprMetadataView,
+  DprPpvIncomingActionsResponse,
+  DprPrepareContext,
+  DprResolutionRow,
+} from '@/types/dprCard'
 import { isPpvApp } from '@/cards/config'
 
 const BASE_URL = import.meta.env.BASE_URL || '/'
@@ -540,11 +547,6 @@ export async function fetchDprMetadata(dprid: string, guid?: string): Promise<Dp
   return response.json() as Promise<DprMetadataView>
 }
 
-export interface DprResolutionRow {
-  depKindCode: string
-  depKindName: string
-}
-
 /** GET /api/dpr/resolutions?dprid=&guid= */
 export async function fetchDprResolutions(dprid: string, guid?: string): Promise<DprResolutionRow[]> {
   const params = withGuidParams(new URLSearchParams(), guid)
@@ -569,14 +571,12 @@ export async function fetchDprResolutions(dprid: string, guid?: string): Promise
   }
 }
 
-/** Сохранение правок исходящей DPR. POST /api/dpr/save */
+/** Сохранение правок исходящей DPR. POST /api/dpr/save — полный XML в теле (dprXmlB64). */
 export async function postDprSave(payload: {
   guid: string
   dprid: string
-  authorityId?: string
-  authorityName?: string
-  authorityBriefName?: string
-  descriptionText?: string
+  /** Полный XML карты DPR (UTF-8), Base64. Корень doc:DangerousProductAlertResponseDetails. */
+  dprXmlB64: string
 }): Promise<{ ok: boolean; dprStatusId?: number }> {
   const response = await fetch(`${BASE_URL}api/dpr/save`, {
     method: 'POST',
@@ -597,7 +597,28 @@ export async function postDprSave(payload: {
   return JSON.parse(text) as { ok: boolean; dprStatusId?: number }
 }
 
-/** Смена статуса исходящей DPR. POST /api/dpr/status */
+/** Удаление черновика исходящей DPR. POST /api/dpr/delete-draft */
+export async function postDprDeleteDraft(payload: { guid: string; dprid: string }): Promise<{ ok: boolean }> {
+  const response = await fetch(`${BASE_URL}api/dpr/delete-draft`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(withGuidBody(payload, payload.guid)),
+  })
+  const text = await response.text()
+  if (!response.ok) {
+    let errMsg = response.statusText
+    try {
+      const json = JSON.parse(text) as { error?: string }
+      if (json.error) errMsg = json.error
+    } catch {
+      if (text) errMsg = text.slice(0, 200)
+    }
+    throw new Error(errMsg)
+  }
+  return JSON.parse(text) as { ok: boolean }
+}
+
+/** Смена статуса исходящей DPR. POST /api/dpr/status — исходящая: mark_ready, send, to_new; входящая: complete_processing (PROCESSING→PROCESSED). */
 export async function changeDprStatus(
   dprid: string,
   action: string,
@@ -700,7 +721,7 @@ export async function postDprCreateSave(body: DprCreateSaveRequest): Promise<{ d
   }
 }
 
-/** История статусов DPR (GET /api/dpr/status-history/{DPRID}). */
+/** История смены статуса и резолюций DPR (GET /api/dpr/status-history/{DPRID}). Статусы и строки «Резолюция: …» в хронологическом порядке. */
 export async function fetchDprStatusHistory(dprid: string, guid?: string): Promise<DpaStatusHistoryItem[]> {
   const response = await fetch(withGuidUrl(`${BASE_URL}api/dpr/status-history/${encodeURIComponent(dprid)}`, guid))
   if (!response.ok) {
@@ -1358,20 +1379,92 @@ export async function removeDpaAccess(dpaid: string, depId: string, guid?: strin
   }
 }
 
+/** Список PPVDEPPERMIS для карты PPV. GET /api/ppv/access?dpaid={PPVID}&source=… */
+export async function fetchPpvDepPermisAccess(
+  ppvid: string,
+  source?: string,
+  creatorDepId?: string | number,
+  guid?: string,
+  datasourceKindCode?: string | null
+): Promise<AccessItemDto[]> {
+  const params = withGuidParams(new URLSearchParams({ dpaid: ppvid }), guid)
+  const apiSource = resolveCardAccessApiSource(source, datasourceKindCode)
+  if (apiSource) params.set('source', apiSource)
+  if (creatorDepId != null && String(creatorDepId).trim()) params.set('creatorDepId', String(creatorDepId).trim())
+  const response = await fetch(`${BASE_URL}api/ppv/access?${params.toString()}`)
+  if (!response.ok) {
+    const text = await response.text()
+    let errMsg = response.statusText
+    try {
+      const json = JSON.parse(text)
+      if (json.error) errMsg = json.error
+    } catch {
+      if (text) errMsg = text.slice(0, 200)
+    }
+    throw new Error(errMsg)
+  }
+  return response.json()
+}
+
+export async function addPpvDepPermisAccess(ppvid: string, depId: string, guid?: string): Promise<void> {
+  const response = await fetch(`${BASE_URL}api/ppv/access`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(withGuidBody({ dpaid: ppvid, depId }, guid)),
+  })
+  if (!response.ok) {
+    const text = await response.text()
+    let errMsg = response.statusText
+    try {
+      const json = JSON.parse(text)
+      if (json.error) errMsg = json.error
+    } catch {
+      if (text) errMsg = text.slice(0, 200)
+    }
+    throw new Error(errMsg)
+  }
+}
+
+export async function removePpvDepPermisAccess(ppvid: string, depId: string, guid?: string): Promise<void> {
+  const params = withGuidParams(new URLSearchParams({ dpaid: ppvid, depId }), guid)
+  const response = await fetch(`${BASE_URL}api/ppv/access?${params.toString()}`, { method: 'DELETE' })
+  if (!response.ok) {
+    const text = await response.text()
+    let errMsg = response.statusText
+    try {
+      const json = JSON.parse(text)
+      if (json.error) errMsg = json.error
+    } catch {
+      if (text) errMsg = text.slice(0, 200)
+    }
+    throw new Error(errMsg)
+  }
+}
+
 /** Уровень ЦГЭ (depKindCode + depKindName). Для текущего пользователя и для уровня по depid из карты прав. */
 export interface DepKindLevel {
   depKindCode: string | null
   depKindName: string | null
 }
 
-/** Текущий пользователь: уровень ЦГЭ (TB_USER → TB_EMP → TB_DEP → TB_DEPKIND). GET /api/current-user */
-export type CurrentUserLevel = DepKindLevel
+/** Текущий пользователь: уровень ЦГЭ + department.depkindid из JSON прав (72/73/74). GET /api/current-user */
+export interface CurrentUserLevel extends DepKindLevel {
+  /** Из JSON карты прав (department.depkindid), для ТЗ исходящей DPR */
+  rightsDepKindId?: number | null
+}
 
 export async function fetchCurrentUser(guid?: string): Promise<CurrentUserLevel> {
   const response = await fetch(withGuidUrl(`${BASE_URL}api/current-user`, guid))
-  if (!response.ok) return { depKindCode: null, depKindName: null }
+  if (!response.ok) return { depKindCode: null, depKindName: null, rightsDepKindId: null }
   const data = await response.json()
-  return { depKindCode: data.depKindCode ?? null, depKindName: data.depKindName ?? null }
+  const rid = data.rightsDepKindId
+  const rightsDepKindId =
+    rid === null || rid === undefined || rid === '' ? null : typeof rid === 'number' ? rid : Number(rid)
+  return {
+    depKindCode: data.depKindCode ?? null,
+    depKindName: data.depKindName ?? null,
+    rightsDepKindId: Number.isFinite(rightsDepKindId as number) ? (rightsDepKindId as number) : null,
+  }
 }
 
 /** Уровень ЦГЭ по DEPID (из карты прав доступа). GET /api/dep/info?depid=... */

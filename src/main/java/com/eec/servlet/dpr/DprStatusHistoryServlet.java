@@ -18,19 +18,29 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * История статусов DPR.
+ * История смены статуса DPR и резолюций (DPRSTATUSHIST ∪ DPRRESOLUTION), по времени.
  * GET /api/dpr/status-history/{DPRID}?guid=...
  */
 public class DprStatusHistoryServlet extends HttpServlet {
 
+    /** Подзапрос + ORDER BY: Oracle корректно сортирует объединённый набор. */
     private static final String SQL = ""
-            + "SELECT st.DPRSTATUSNAME, hs.DPRSTATUSDATETIME, ep.EMPCODE "
-            + "FROM DPRSTATUSHIST hs "
-            + "JOIN DPRSTATUS st ON st.DPRSTATUSID = hs.DPRSTATUSID "
-            + "LEFT JOIN TB_USER us ON hs.USERID = us.USERID "
-            + "LEFT JOIN TB_EMP ep ON ep.EMPID = us.EMPID "
-            + "WHERE hs.DPRID = ? "
-            + "ORDER BY hs.DPRSTATUSDATETIME";
+            + "SELECT t.DPRSTATUSNAME, t.DPRSTATUSDATETIME, t.EMPCODE FROM ( "
+            + "  SELECT st.DPRSTATUSNAME AS DPRSTATUSNAME, hs.DPRSTATUSDATETIME AS DPRSTATUSDATETIME, ep.EMPCODE AS EMPCODE "
+            + "  FROM DPRSTATUSHIST hs "
+            + "  JOIN DPRSTATUS st ON st.DPRSTATUSID = hs.DPRSTATUSID "
+            + "  LEFT JOIN TB_USER us ON hs.USERID = us.USERID "
+            + "  LEFT JOIN TB_EMP ep ON ep.EMPID = us.EMPID "
+            + "  WHERE hs.DPRID = ? "
+            + "  UNION ALL "
+            + "  SELECT '  Резолюция: ' || kn.DEPKINDNAME AS DPRSTATUSNAME, "
+            + "         rs.RESOLUTIONDATETIME AS DPRSTATUSDATETIME, ep.EMPCODE AS EMPCODE "
+            + "  FROM DPRRESOLUTION rs "
+            + "  JOIN TB_DEPKIND kn ON kn.DEPKINDID = rs.DEPKINDID "
+            + "  LEFT JOIN TB_USER us ON rs.USERID = us.USERID "
+            + "  LEFT JOIN TB_EMP ep ON ep.EMPID = us.EMPID "
+            + "  WHERE rs.DPRID = ? "
+            + ") t ORDER BY t.DPRSTATUSDATETIME";
 
     @Override
     protected void doGet(HttpServletRequest request, HttpServletResponse response)
@@ -73,12 +83,17 @@ public class DprStatusHistoryServlet extends HttpServlet {
             List<String> items = new ArrayList<>();
             try (PreparedStatement ps = conn.prepareStatement(SQL)) {
                 ps.setLong(1, dprId);
+                ps.setLong(2, dprId);
                 ResultSet rs = ps.executeQuery();
                 while (rs.next()) {
                     String status = rs.getString("DPRSTATUSNAME");
                     Timestamp ts = rs.getTimestamp("DPRSTATUSDATETIME");
                     String employee = rs.getString("EMPCODE");
-                    if (rs.wasNull()) employee = null;
+                    if (rs.wasNull()) {
+                        employee = null;
+                    } else if (employee != null && employee.trim().isEmpty()) {
+                        employee = null;
+                    }
                     String dateTime = ts != null ? ts.toInstant().toString() : null;
                     items.add(jsonItem(status, dateTime, employee));
                 }

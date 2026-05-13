@@ -23,7 +23,7 @@ import java.util.List;
 public class DprResolutionsServlet extends HttpServlet {
 
     private static final String SQL = ""
-            + "SELECT dk.DEPKINDCODE, dk.DEPKINDNAME "
+            + "SELECT r.DEPKINDID, dk.DEPKINDCODE, dk.DEPKINDNAME "
             + "FROM DPRRESOLUTION r "
             + "JOIN TB_DEPKIND dk ON r.DEPKINDID = dk.DEPKINDID "
             + "WHERE r.DPRID = ? "
@@ -72,9 +72,14 @@ public class DprResolutionsServlet extends HttpServlet {
                 try (ResultSet rs = ps.executeQuery()) {
                     List<String> items = new ArrayList<>();
                     while (rs.next()) {
+                        int depKindId = rs.getInt("DEPKINDID");
+                        if (rs.wasNull()) {
+                            depKindId = 0;
+                        }
                         String code = rs.getString("DEPKINDCODE");
                         String name = rs.getString("DEPKINDNAME");
-                        items.add("{\"depKindCode\":" + quote(code) + ",\"depKindName\":" + quote(name) + "}");
+                        items.add("{\"depKindId\":" + depKindId
+                                + ",\"depKindCode\":" + quote(code) + ",\"depKindName\":" + quote(name) + "}");
                     }
                     StringBuilder json = new StringBuilder();
                     json.append("{\"resolutions\":[");

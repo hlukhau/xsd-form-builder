@@ -27,10 +27,12 @@ public class DprMetadataServlet extends HttpServlet {
             + "       TRIM(TO_CHAR(vw.DATASOURCEKINDCODE)) AS DATASOURCEKINDCODE, t1.DATASOURCEKINDNAME, "
             + "       vw.DPRSTATUSNAME, vw.CREATIONDATETIME, vw.MODIFICATIONDATETIME, "
             + "       (SELECT MIN(p.PPVID) FROM PPV p WHERE TRIM(p.INCIDENTID) = TRIM(vw.INCIDENTID)) AS LINKED_PPVID, "
-            + "       d.DPRSTATUSID, d.DPRVERSION, d.PPVID AS DPR_PPVID "
+            + "       d.DPRSTATUSID, d.DPRVERSION, d.PPVID AS DPR_PPVID, "
+            + "       TRIM(UPPER(NVL(dst.DPRSTATUSCODE, ''))) AS DPRSTATUSCODE "
             + "FROM VW_DPR vw "
             + "LEFT JOIN DATASOURCEKIND t1 ON TRIM(TO_CHAR(vw.DATASOURCEKINDCODE)) = TRIM(TO_CHAR(t1.DATASOURCEKINDCODE)) "
             + "LEFT JOIN DPR d ON d.DPRID = vw.DPRID "
+            + "LEFT JOIN DPRSTATUS dst ON dst.DPRSTATUSID = d.DPRSTATUSID "
             + "WHERE vw.DPRID = ?";
 
     @Override
@@ -107,6 +109,10 @@ public class DprMetadataServlet extends HttpServlet {
                 if (rs.wasNull()) {
                     dprVersion = 0;
                 }
+                String dprStatusCode = rs.getString("DPRSTATUSCODE");
+                if (dprStatusCode == null) {
+                    dprStatusCode = "";
+                }
 
                 boolean canEdit = false;
                 try {
@@ -114,6 +120,22 @@ public class DprMetadataServlet extends HttpServlet {
                     canEdit = eg.allowed;
                 } catch (SQLException ignored) {
                     canEdit = false;
+                }
+
+                boolean canDeleteDraft = false;
+                try {
+                    DprCreateSupport.GateResult dg = DprCreateSupport.evaluateDeleteDraftGate(conn, dprId, guid);
+                    canDeleteDraft = dg.allowed;
+                } catch (SQLException ignored) {
+                    canDeleteDraft = false;
+                }
+
+                boolean canValidateOutgoingCard = false;
+                try {
+                    DprCreateSupport.GateResult vg = DprCreateSupport.evaluateOutgoingDprValidateCardGate(conn, dprId, guid);
+                    canValidateOutgoingCard = vg.allowed;
+                } catch (SQLException ignored) {
+                    canValidateOutgoingCard = false;
                 }
 
                 PrintWriter out = response.getWriter();
@@ -127,8 +149,11 @@ public class DprMetadataServlet extends HttpServlet {
                 out.print(",\"modificationDateTime\":" + quote(tsToIso(modified)));
                 out.print(",\"linkedPpvid\":" + linkedPpvid);
                 out.print(",\"dprStatusId\":" + dprStatusId);
+                out.print(",\"dprStatusCode\":" + quote(dprStatusCode.isEmpty() ? null : dprStatusCode));
                 out.print(",\"dprVersion\":" + dprVersion);
                 out.print(",\"canEdit\":" + (canEdit ? "true" : "false"));
+                out.print(",\"canDeleteDraft\":" + (canDeleteDraft ? "true" : "false"));
+                out.print(",\"canValidateOutgoingCard\":" + (canValidateOutgoingCard ? "true" : "false"));
                 out.print("}");
                 out.flush();
                 response.setStatus(HttpServletResponse.SC_OK);

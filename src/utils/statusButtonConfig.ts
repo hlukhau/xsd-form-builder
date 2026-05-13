@@ -19,6 +19,8 @@ export interface StatusButtonResult {
   comment: string
   /** Вторая кнопка «Закрытие карты», когда допустимы оба действия (направление сведений и закрытие) */
   closeConfig?: StatusButtonConfig | null
+  /** DPR: направление в ОП57 при FAILED/ERROR (рядом с «Перевести в Новое») */
+  sendOp57Config?: StatusButtonConfig | null
 }
 
 /** DPASTATUSID: входящие 1–4, исходящие 5–13 (DRAFT=5, NEW=6, PENDING=7, SENT=8, FAILED=9, ERROR=10, DELIVERED=11, EDITED=12, COMPLETED=13) */

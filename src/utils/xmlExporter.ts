@@ -29,6 +29,8 @@ import type {
   ComplianceDocument,
   IdentityDocDetails,
 } from '@/types/card'
+import type { DprParsedBundle, DprResultDocRow } from '@/types/dprCard'
+import { dprResultDocRowToMeasureDocDetails, hasDprResultDocRowContent } from '@/utils/dprResultDocMapping'
 import { getAddressListFromSubject } from '@/utils/addressFormatUtils'
 
 /**
@@ -1106,6 +1108,73 @@ function exportSanitaryMeasure(xmlParts: string[], measure: SanitaryMeasure, ind
   xmlParts.push(`${indent}</smcdo:SanitaryMeasureBaseDetails>`)
 }
 
+/**
+ * Только элементы smcdo:SanitaryMeasureBaseDetails (для патча XML DPR при сохранении).
+ * Пустая строка — удалить все меры на сервере.
+ */
+export function exportSanitaryMeasuresXmlFragment(
+  measures: MeasuresData | null | undefined,
+  indent = '        '
+): string {
+  const xmlParts: string[] = []
+  const measuresWithContent = (measures?.measures ?? []).filter(hasMeasureContent)
+  measuresWithContent.forEach((measure) => {
+    exportSanitaryMeasure(xmlParts, measure, indent)
+  })
+  return xmlParts.join('\n')
+}
+
+/** Элементы ccdo:DocContentDetails для DPR (тот же состав полей, что DocContentDetailsType / документ меры). */
+function exportDocContentDetailsBlock(xmlParts: string[], doc: MeasureDocDetails, indent: string) {
+  const inner = `${indent}    `
+  xmlParts.push(`${indent}<ccdo:DocContentDetails>`)
+  if (doc.country) {
+    xmlParts.push(`${inner}<csdo:UnifiedCountryCode codeListId="2021">${escapeXML(doc.country)}</csdo:UnifiedCountryCode>`)
+  }
+  if (doc.languageCode) xmlParts.push(`${inner}<csdo:LanguageCode>${escapeXML(doc.languageCode)}</csdo:LanguageCode>`)
+  if (doc.docKindCode?.trim()) {
+    const listId = doc.docKindCodeListId?.trim() || '2009'
+    xmlParts.push(`${inner}<csdo:DocKindCode codeListId="${escapeXML(listId)}">${escapeXML(doc.docKindCode.trim())}</csdo:DocKindCode>`)
+  } else if (doc.docKindName?.trim()) {
+    xmlParts.push(`${inner}<csdo:DocKindName>${escapeXML(doc.docKindName.trim())}</csdo:DocKindName>`)
+  }
+  if (doc.docName) xmlParts.push(`${inner}<csdo:DocName>${escapeXML(doc.docName)}</csdo:DocName>`)
+  if (doc.docSeriesId) xmlParts.push(`${inner}<csdo:DocSeriesId>${escapeXML(doc.docSeriesId)}</csdo:DocSeriesId>`)
+  if (doc.docId) xmlParts.push(`${inner}<csdo:DocId>${escapeXML(doc.docId)}</csdo:DocId>`)
+  if (doc.docCreationDate) xmlParts.push(`${inner}<csdo:DocCreationDate>${escapeXML(doc.docCreationDate)}</csdo:DocCreationDate>`)
+  if (doc.docStartDate) xmlParts.push(`${inner}<csdo:DocStartDate>${escapeXML(doc.docStartDate)}</csdo:DocStartDate>`)
+  if (doc.docValidityDate) xmlParts.push(`${inner}<csdo:DocValidityDate>${escapeXML(doc.docValidityDate)}</csdo:DocValidityDate>`)
+  if (doc.docValidityDuration) xmlParts.push(`${inner}<csdo:DocValidityDuration>${escapeXML(doc.docValidityDuration)}</csdo:DocValidityDuration>`)
+  if (doc.authorityId?.trim()) {
+    xmlParts.push(`${inner}<csdo:AuthorityId>${escapeXML(doc.authorityId.trim())}</csdo:AuthorityId>`)
+  }
+  if (doc.authorityName) xmlParts.push(`${inner}<csdo:AuthorityName>${escapeXML(doc.authorityName)}</csdo:AuthorityName>`)
+  if (doc.description) xmlParts.push(`${inner}<csdo:DescriptionText>${escapeXML(doc.description)}</csdo:DescriptionText>`)
+  if (doc.pageQuantity) xmlParts.push(`${inner}<csdo:PageQuantity>${escapeXML(doc.pageQuantity)}</csdo:PageQuantity>`)
+  if (doc.xmlDocument) {
+    xmlParts.push(`${inner}<ccdo:AnyDetails>${doc.xmlDocument}</ccdo:AnyDetails>`)
+  }
+  if (doc.docBinaryText && (doc.docBinaryText.content || doc.docBinaryText.mediaTypeCode)) {
+    const mediaAttr = doc.docBinaryText.mediaTypeCode
+      ? ` mediaTypeCode="${escapeXML(doc.docBinaryText.mediaTypeCode)}"`
+      : ''
+    xmlParts.push(`${inner}<csdo:DocBinaryText${mediaAttr}>${escapeXML(doc.docBinaryText.content || '')}</csdo:DocBinaryText>`)
+  }
+  xmlParts.push(`${indent}</ccdo:DocContentDetails>`)
+}
+
+export function exportDprDocContentDetailsXmlFragment(
+  documents: DprResultDocRow[] | null | undefined,
+  indent = '        '
+): string {
+  const xmlParts: string[] = []
+  for (const row of documents ?? []) {
+    if (!hasDprResultDocRowContent(row)) continue
+    exportDocContentDetailsBlock(xmlParts, dprResultDocRowToMeasureDocDetails(row), indent)
+  }
+  return xmlParts.join('\n')
+}
+
 function exportMeasureDocDetails(xmlParts: string[], doc: MeasureDocDetails, tagName: string, indent: string) {
   if (!hasMeasureDocDetailsContent(doc)) return
   const inner = `${indent}        `
@@ -1428,6 +1497,60 @@ export function compareXML(originalXML: string, exportedXML: string): {
       isIdentical: differences.length === 0 && warnings.length === 0,
       differences: [...new Set(differences)], // Убираем дубликаты
       warnings: [...new Set(warnings)], // Убираем дубликаты
+    }
+  } catch (error) {
+    differences.push(`Ошибка при сравнении: ${error instanceof Error ? error.message : String(error)}`)
+    return { isIdentical: false, differences, warnings }
+  }
+}
+
+/**
+ * Сравнивает два полных XML карты DPR (корень DangerousProductAlertResponseDetails).
+ * Пустые теги в экспортируемом XML удаляются перед сравнением (как в compareXML для DPA).
+ */
+export function compareDprResponseXml(originalXML: string, exportedXML: string): {
+  isIdentical: boolean
+  differences: string[]
+  warnings: string[]
+} {
+  const differences: string[] = []
+  const warnings: string[] = []
+  try {
+    const { xml: cleanedExportedXML, strippedTagNames } = stripEmptyTagsFromXML(exportedXML)
+    if (strippedTagNames.length > 0) {
+      warnings.push(
+        `В экспортированном XML обнаружены пустые теги (${strippedTagNames.join(', ')}). Они удалены для корректного сравнения.`
+      )
+    }
+
+    const parser = new DOMParser()
+    const originalDoc = parser.parseFromString(originalXML, 'text/xml')
+    const exportedDoc = parser.parseFromString(cleanedExportedXML, 'text/xml')
+
+    const originalError = originalDoc.querySelector('parsererror')
+    const exportedError = exportedDoc.querySelector('parsererror')
+    if (originalError) {
+      differences.push(`Ошибка парсинга исходного XML: ${originalError.textContent}`)
+      return { isIdentical: false, differences, warnings }
+    }
+    if (exportedError) {
+      differences.push(`Ошибка парсинга экспортированного XML: ${exportedError.textContent}`)
+      return { isIdentical: false, differences, warnings }
+    }
+
+    const originalRoot = originalDoc.documentElement
+    const exportedRoot = exportedDoc.documentElement
+    if (!originalRoot || !exportedRoot) {
+      differences.push('Не удалось найти корневой элемент в одном из XML документов')
+      return { isIdentical: false, differences, warnings }
+    }
+
+    compareElementsSimple(originalRoot, exportedRoot, differences, warnings, 'DangerousProductAlertResponseDetails')
+
+    return {
+      isIdentical: differences.length === 0 && warnings.length === 0,
+      differences: [...new Set(differences)],
+      warnings: [...new Set(warnings)],
     }
   } catch (error) {
     differences.push(`Ошибка при сравнении: ${error instanceof Error ? error.message : String(error)}`)
@@ -2017,4 +2140,82 @@ function isDateDifference(text1: string, text2: string): boolean {
   // Простая проверка - если оба текста выглядят как даты
   const datePattern = /^\d{4}-\d{2}-\d{2}/
   return datePattern.test(text1) && datePattern.test(text2)
+}
+
+const DPR_XML_INDENT = '    '
+
+/**
+ * Полный XML карты DPR для записи в DPRXML (EEC_R_SM_SS_08_DangerousProductAlertResponse).
+ * Корень doc:DangerousProductAlertResponseDetails: заголовок ЭД, уполномоченный орган, идентификатор исходного уведомления,
+ * принятые меры (та же структура, что у DPA), описание результатов, приложенные документы (ccdo:DocContentDetails).
+ */
+export function exportDprParsedBundleToXml(bundle: DprParsedBundle): string {
+  const edoc = bundle.electronicDocument
+  const msg = (edoc.messageCode ?? '').trim() || 'P.SS.08.MSG.018'
+  const code = (edoc.documentCode ?? '').trim() || 'R.SM.SS.08.003'
+  const id = (edoc.documentId ?? '').trim() || `dpr-${Date.now()}`
+  const dt = (edoc.documentDate ?? '').trim() ? toISODateTimeForXml(edoc.documentDate) : new Date().toISOString()
+  const lang = (edoc.language ?? '').trim() || 'ru'
+
+  const parts: string[] = []
+  parts.push('<?xml version="1.0" encoding="UTF-8"?>')
+  parts.push('<doc:DangerousProductAlertResponseDetails xmlns:ccdo="urn:EEC:M:ComplexDataObjects:v0.4.12"')
+  parts.push(' xmlns:csdo="urn:EEC:M:SimpleDataObjects:v0.4.12"')
+  parts.push(' xmlns:smcdo="urn:EEC:M:SM:ComplexDataObjects:v0.3.9"')
+  parts.push(' xmlns:smsdo="urn:EEC:M:SM:SimpleDataObjects:v0.3.9"')
+  parts.push(' xmlns:doc="urn:EEC:R:SM:SS:08:DangerousProductAlertResponse:v1.0.0"')
+  parts.push(' xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"')
+  parts.push(
+    ' xsi:schemaLocation="urn:EEC:R:SM:SS:08:DangerousProductAlertResponse:v1.0.0 EEC_R_SM_SS_08_DangerousProductAlertResponse_v1.0.0.xsd">'
+  )
+
+  parts.push('    <ccdo:EDocHeader>')
+  parts.push(`        <csdo:InfEnvelopeCode>${escapeXML(msg)}</csdo:InfEnvelopeCode>`)
+  parts.push(`        <csdo:EDocCode>${escapeXML(code)}</csdo:EDocCode>`)
+  parts.push(`        <csdo:EDocId>${escapeXML(id)}</csdo:EDocId>`)
+  const refId = (edoc.sourceDocumentId ?? '').trim()
+  if (refId) {
+    parts.push(`        <csdo:EDocRefId>${escapeXML(refId)}</csdo:EDocRefId>`)
+  }
+  parts.push(`        <csdo:EDocDateTime>${escapeXML(dt)}</csdo:EDocDateTime>`)
+  parts.push(`        <csdo:LanguageCode>${escapeXML(lang)}</csdo:LanguageCode>`)
+  parts.push('    </ccdo:EDocHeader>')
+
+  parts.push('    <ccdo:UnifiedAuthorityDetails>')
+  const authCountry = (bundle.notifyingAuthority.country ?? '').trim()
+  if (authCountry) {
+    parts.push(`        <csdo:UnifiedCountryCode codeListId="2021">${escapeXML(authCountry)}</csdo:UnifiedCountryCode>`)
+  }
+  const authId = (bundle.notifyingAuthority.identifier ?? '').trim()
+  if (authId) parts.push(`        <csdo:AuthorityId>${escapeXML(authId)}</csdo:AuthorityId>`)
+  const authName = (bundle.notifyingAuthority.name ?? '').trim()
+  if (authName) parts.push(`        <csdo:AuthorityName>${escapeXML(authName)}</csdo:AuthorityName>`)
+  const authBrief = (bundle.notifyingAuthority.shortName ?? '').trim()
+  if (authBrief) {
+    parts.push(`        <csdo:AuthorityBriefName>${escapeXML(authBrief)}</csdo:AuthorityBriefName>`)
+  }
+  parts.push('    </ccdo:UnifiedAuthorityDetails>')
+
+  parts.push('    <smcdo:IncidentAlertIdDetails>')
+  const incCountry = (bundle.incidentAlert.country ?? '').trim()
+  parts.push(`        <csdo:UnifiedCountryCode codeListId="2021">${escapeXML(incCountry)}</csdo:UnifiedCountryCode>`)
+  parts.push(`        <smsdo:IncidentId>${escapeXML((bundle.incidentAlert.registrationNumber ?? '').trim())}</smsdo:IncidentId>`)
+  parts.push(`        <smsdo:IncidentKindCode>${escapeXML((bundle.incidentAlert.typeCode ?? '').trim())}</smsdo:IncidentKindCode>`)
+  const formDate = (bundle.incidentAlert.formationDate ?? '').trim().slice(0, 10)
+  parts.push(`        <csdo:DocCreationDate>${escapeXML(formDate)}</csdo:DocCreationDate>`)
+  parts.push('    </smcdo:IncidentAlertIdDetails>')
+
+  const measuresXml = exportSanitaryMeasuresXmlFragment(bundle.measures, DPR_XML_INDENT).trim()
+  if (measuresXml) parts.push(measuresXml)
+
+  const desc = (bundle.resultDescription ?? '').trim()
+  if (desc) {
+    parts.push(`    <csdo:DescriptionText>${escapeXML(desc)}</csdo:DescriptionText>`)
+  }
+
+  const docsXml = exportDprDocContentDetailsXmlFragment(bundle.resultDocuments, DPR_XML_INDENT).trim()
+  if (docsXml) parts.push(docsXml)
+
+  parts.push('</doc:DangerousProductAlertResponseDetails>')
+  return parts.join('\n')
 }

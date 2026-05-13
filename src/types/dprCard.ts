@@ -12,9 +12,22 @@ export interface DprMetadataView {
   linkedPpvid: number
   /** Идентификатор статуса DPR (DPRSTATUSID) */
   dprStatusId?: number | null
+  /** Код статуса из DPRSTATUS.DPRSTATUSCODE (исходящие), в верхнем регистре */
+  dprStatusCode?: string | null
   dprVersion?: number | null
   /** Сервер: можно ли войти в режим редактирования (violationDetectedIn:status ∩ PPVDEPPERMIS, исходящая, статусы 4/5/8/9) */
   canEdit?: boolean
+  /** Сервер: удаление черновика исходящей DPR */
+  canDeleteDraft?: boolean
+  /** Сервер: принудительная проверка карты (violationDetectedOut:view ∩ PPVDEPPERMIS, исходящая) */
+  canValidateOutgoingCard?: boolean
+}
+
+/** Строка резолюции DPR (GET /api/dpr/resolutions). */
+export interface DprResolutionRow {
+  depKindId?: number
+  depKindCode: string
+  depKindName: string
 }
 
 /** Контекст создания DPR (внутри ответа ppv-incoming-actions при canPrepareAnswer). */

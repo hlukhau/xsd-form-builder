@@ -3,6 +3,7 @@ package com.eec.servlet.dpr;
 import com.eec.rights.RightsRegistryProvider;
 import com.eec.util.DatabaseUtil;
 import com.eec.util.DprCreateSupport;
+import com.eec.util.DprOutgoingStatusHelper;
 
 import javax.servlet.ServletException;
 import javax.servlet.http.HttpServlet;
@@ -17,20 +18,23 @@ import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
+import java.nio.charset.StandardCharsets;
+import java.util.Base64;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 /**
- * Сохранение правок исходящей DPR (одна транзакция): DPR (MODIFICATIONDATETIME, при FAILED/ERROR → NEW), DPRXML, DPRSTATUSHIST.
+ * Сохранение правок исходящей DPR (одна транзакция): DPR (MODIFICATIONDATETIME; при FAILED/ERROR → NEW по справочнику), DPRXML, DPRSTATUSHIST.
  * POST /api/dpr/save
- * Тело: guid, dprid, authorityId?, authorityName?, authorityBriefName?, descriptionText?
+ * Тело: guid, dprid, dprXmlB64 — полный XML карты DPR (UTF-8) в Base64 (корень doc:DangerousProductAlertResponseDetails).
  */
 public class DprSaveServlet extends HttpServlet {
 
-    private static final int STATUS_FAILED = 8;
-    private static final int STATUS_ERROR = 9;
-    private static final int STATUS_NEW = 5;
-
+    private static final String SQL_CURRENT_STATUS = ""
+            + "SELECT d.DPRSTATUSID, TRIM(UPPER(NVL(st.DPRSTATUSCODE, ''))) AS STCODE "
+            + "FROM DPR d "
+            + "LEFT JOIN DPRSTATUS st ON st.DPRSTATUSID = d.DPRSTATUSID "
+            + "WHERE d.DPRID = ?";
     private static final String SQL_READ_CLOB = "SELECT DPRXMLBODY FROM DPRXML WHERE DPRID = ?";
     private static final String SQL_UPDATE_XML = "UPDATE DPRXML SET DPRXMLBODY = ? WHERE DPRID = ?";
     private static final String SQL_UPDATE_DPR = ""
@@ -66,10 +70,7 @@ public class DprSaveServlet extends HttpServlet {
             return;
         }
 
-        String authorityId = jsonStringField(body, "authorityId");
-        String authorityName = jsonStringField(body, "authorityName");
-        String authorityBriefName = jsonStringField(body, "authorityBriefName");
-        String descriptionText = jsonStringField(body, "descriptionText");
+        String dprXmlB64 = jsonStringField(body, "dprXmlB64");
 
         Connection conn = null;
         try {
@@ -87,10 +88,34 @@ public class DprSaveServlet extends HttpServlet {
                 return;
             }
 
-            int currentStatusId = loadCurrentStatusId(conn, dprId);
-            if (currentStatusId < 0) {
-                sendErr(response, HttpServletResponse.SC_NOT_FOUND, "Карта DPR не найдена");
+            int currentStatusId;
+            String currentStatusCode;
+            try (PreparedStatement ps = conn.prepareStatement(SQL_CURRENT_STATUS)) {
+                ps.setLong(1, dprId);
+                try (ResultSet rs = ps.executeQuery()) {
+                    if (!rs.next()) {
+                        sendErr(response, HttpServletResponse.SC_NOT_FOUND, "Карта DPR не найдена");
+                        return;
+                    }
+                    currentStatusId = rs.getInt("DPRSTATUSID");
+                    currentStatusCode = rs.getString("STCODE");
+                    if (currentStatusCode == null) {
+                        currentStatusCode = "";
+                    }
+                }
+            }
+
+            Integer newStatusIdResolved = DprOutgoingStatusHelper.resolveOutgoingStatusId(conn, "NEW");
+            if (newStatusIdResolved == null) {
+                sendErr(response, HttpServletResponse.SC_INTERNAL_SERVER_ERROR,
+                        "В справочнике DPRSTATUS не найден активный статус NEW для исходящих (DATASOURCEKINDCODE=2)");
                 return;
+            }
+
+            boolean fromFailedOrError = "FAILED".equals(currentStatusCode) || "ERROR".equals(currentStatusCode);
+            int newStatusId = currentStatusId;
+            if (fromFailedOrError) {
+                newStatusId = newStatusIdResolved;
             }
 
             String xmlOld = readXmlBody(conn, dprId);
@@ -98,12 +123,23 @@ public class DprSaveServlet extends HttpServlet {
                 sendErr(response, HttpServletResponse.SC_NOT_FOUND, "XML карты DPR не найден");
                 return;
             }
-            String xmlNew = DprXmlPatcher.patchAuthorityAndDescription(xmlOld, authorityId, authorityName,
-                    authorityBriefName, descriptionText);
-
-            int newStatusId = currentStatusId;
-            if (currentStatusId == STATUS_FAILED || currentStatusId == STATUS_ERROR) {
-                newStatusId = STATUS_NEW;
+            if (dprXmlB64 == null || dprXmlB64.trim().isEmpty()) {
+                sendErr(response, HttpServletResponse.SC_BAD_REQUEST,
+                        "Укажите dprXmlB64: полный XML карты DPR (UTF-8) в кодировке Base64");
+                return;
+            }
+            final String xmlNew;
+            try {
+                xmlNew = new String(Base64.getDecoder().decode(dprXmlB64.trim()), StandardCharsets.UTF_8);
+            } catch (IllegalArgumentException e) {
+                sendErr(response, HttpServletResponse.SC_BAD_REQUEST, "Некорректный Base64 в dprXmlB64");
+                return;
+            }
+            if (xmlNew.trim().isEmpty()
+                    || xmlNew.indexOf("DangerousProductAlertResponseDetails") < 0) {
+                sendErr(response, HttpServletResponse.SC_BAD_REQUEST,
+                        "В dprXmlB64 ожидается полный XML документа DPR (корень DangerousProductAlertResponseDetails)");
+                return;
             }
 
             conn.setAutoCommit(false);
@@ -164,18 +200,6 @@ public class DprSaveServlet extends HttpServlet {
                     "Ошибка обработки XML: " + (e.getMessage() != null ? e.getMessage() : e.getClass().getName()));
         } finally {
             DatabaseUtil.closeConnection(conn);
-        }
-    }
-
-    private static int loadCurrentStatusId(Connection conn, long dprId) throws SQLException {
-        try (PreparedStatement ps = conn.prepareStatement("SELECT DPRSTATUSID FROM DPR WHERE DPRID = ?")) {
-            ps.setLong(1, dprId);
-            try (ResultSet rs = ps.executeQuery()) {
-                if (!rs.next()) {
-                    return -1;
-                }
-                return rs.getInt("DPRSTATUSID");
-            }
         }
     }
 

@@ -224,12 +224,15 @@ public final class DprCreateSupport {
     }
 
     private static final String SQL_DPR_FOR_EDIT = ""
-            + "SELECT d.PPVID, TRIM(TO_CHAR(d.DATASOURCEKINDCODE)) AS DSC, d.DPRSTATUSID "
-            + "FROM DPR d WHERE d.DPRID = ?";
+            + "SELECT d.PPVID, TRIM(TO_CHAR(d.DATASOURCEKINDCODE)) AS DSC, d.DPRSTATUSID, "
+            + "       TRIM(UPPER(NVL(st.DPRSTATUSCODE, ''))) AS STCODE "
+            + "FROM DPR d "
+            + "LEFT JOIN DPRSTATUS st ON st.DPRSTATUSID = d.DPRSTATUSID "
+            + "WHERE d.DPRID = ?";
 
     /**
      * Редактирование сохранённой исходящей DPR: violationDetectedIn:status ∩ PPVDEPPERMIS, DATASOURCEKINDCODE=2,
-     * статус DRAFT/NEW/FAILED/ERROR (по идентификаторам из справочника DPRSTATUS для исходящих).
+     * статус DRAFT / NEW / FAILED / ERROR (по коду {@code DPRSTATUSCODE} в справочнике DPRSTATUS для исходящих).
      */
     public static GateResult evaluateEditGate(Connection conn, long dprId, String guid) throws SQLException {
         if (guid == null || guid.trim().isEmpty() || dprId <= 0) {
@@ -241,7 +244,7 @@ public final class DprCreateSupport {
         }
         long ppvid = 0L;
         String dsc = null;
-        Integer statusId = null;
+        String statusCode = null;
         try (PreparedStatement ps = conn.prepareStatement(SQL_DPR_FOR_EDIT)) {
             ps.setLong(1, dprId);
             try (ResultSet rs = ps.executeQuery()) {
@@ -253,13 +256,17 @@ public final class DprCreateSupport {
                     return GateResult.denied("У карты DPR не задана связь с PPV (PPVID)");
                 }
                 dsc = rs.getString("DSC");
-                statusId = getIntObject(rs, "DPRSTATUSID");
+                statusCode = rs.getString("STCODE");
             }
         }
         if (dsc == null || !DSC_OUTGOING_DPR.equals(dsc.trim())) {
             return GateResult.denied("Редактирование доступно только для исходящей карты (DATASOURCEKINDCODE=2)");
         }
-        if (statusId == null || (statusId != 4 && statusId != 5 && statusId != 8 && statusId != 9)) {
+        if (statusCode == null || statusCode.isEmpty()) {
+            return GateResult.denied("Редактирование недоступно: у карты не определён код статуса в справочнике DPRSTATUS");
+        }
+        if (!("DRAFT".equals(statusCode) || "NEW".equals(statusCode) || "FAILED".equals(statusCode)
+                || "ERROR".equals(statusCode))) {
             return GateResult.denied("Редактирование недоступно для текущего статуса карты");
         }
         String rightsJson = RightsRegistryProvider.get().getRightsJson(guid);
@@ -278,10 +285,10 @@ public final class DprCreateSupport {
     }
 
     /**
-     * Смена статуса исходящей DPR: то же пересечение violationDetectedIn:status с PPVDEPPERMIS, источник исходящий;
-     * допустимые текущие статусы — идентификаторы 4…10 (проверка конкретного перехода в сервлете).
+     * Удаление черновика исходящей DPR: те же права и PPVDEPPERMIS, что и для редактирования,
+     * статус только {@code DRAFT} (по коду {@code DPRSTATUSCODE}).
      */
-    public static GateResult evaluateOutgoingDprStatusGate(Connection conn, long dprId, String guid) throws SQLException {
+    public static GateResult evaluateDeleteDraftGate(Connection conn, long dprId, String guid) throws SQLException {
         if (guid == null || guid.trim().isEmpty() || dprId <= 0) {
             return GateResult.denied("Не заданы DPRID или guid");
         }
@@ -291,7 +298,7 @@ public final class DprCreateSupport {
         }
         long ppvid = 0L;
         String dsc = null;
-        Integer statusId = null;
+        String statusCode = null;
         try (PreparedStatement ps = conn.prepareStatement(SQL_DPR_FOR_EDIT)) {
             ps.setLong(1, dprId);
             try (ResultSet rs = ps.executeQuery()) {
@@ -303,13 +310,71 @@ public final class DprCreateSupport {
                     return GateResult.denied("У карты DPR не задана связь с PPV (PPVID)");
                 }
                 dsc = rs.getString("DSC");
-                statusId = getIntObject(rs, "DPRSTATUSID");
+                statusCode = rs.getString("STCODE");
+            }
+        }
+        if (dsc == null || !DSC_OUTGOING_DPR.equals(dsc.trim())) {
+            return GateResult.denied("Удаление доступно только для исходящей карты (DATASOURCEKINDCODE=2)");
+        }
+        if (statusCode == null || statusCode.isEmpty()) {
+            return GateResult.denied("Удаление недоступно: у карты не определён код статуса в справочнике DPRSTATUS");
+        }
+        if (!"DRAFT".equals(statusCode)) {
+            return GateResult.denied("Удалить можно только черновик карты (статус DRAFT)");
+        }
+        String rightsJson = RightsRegistryProvider.get().getRightsJson(guid);
+        if (rightsJson == null || rightsJson.isEmpty()) {
+            return GateResult.denied("Карта прав по guid не найдена");
+        }
+        Set<String> statusDepKeys = AccessRightService.violationDetectedInStatusDepKeys(rightsJson);
+        if (statusDepKeys.isEmpty()) {
+            return GateResult.denied("В карте прав не заданы подразделения для violationDetectedIn:status");
+        }
+        if (!PpvDepPermisUtil.hasOverlap(conn, ppvid, statusDepKeys)) {
+            return GateResult.denied("Нет права на удаление: ни одно подразделение из violationDetectedIn:status "
+                    + "не входит в доступ к связанной карте PPV (PPVDEPPERMIS)");
+        }
+        return GateResult.ok(ppvid, null, null, null, null, 0L, null, null, 0, null);
+    }
+
+    /**
+     * Смена статуса исходящей DPR: то же пересечение violationDetectedIn:status с PPVDEPPERMIS, источник исходящий;
+     * допустимые текущие статусы — по коду {@code DPRSTATUSCODE} (DRAFT … DELIVERED для исходящих).
+     */
+    public static GateResult evaluateOutgoingDprStatusGate(Connection conn, long dprId, String guid) throws SQLException {
+        if (guid == null || guid.trim().isEmpty() || dprId <= 0) {
+            return GateResult.denied("Не заданы DPRID или guid");
+        }
+        guid = guid.trim();
+        if (!DprAccessHelper.canViewDpr(conn, dprId, guid)) {
+            return GateResult.denied("Нет доступа к просмотру карты DPR");
+        }
+        long ppvid = 0L;
+        String dsc = null;
+        String statusCode = null;
+        try (PreparedStatement ps = conn.prepareStatement(SQL_DPR_FOR_EDIT)) {
+            ps.setLong(1, dprId);
+            try (ResultSet rs = ps.executeQuery()) {
+                if (!rs.next()) {
+                    return GateResult.denied("Карта DPR не найдена");
+                }
+                ppvid = rs.getLong("PPVID");
+                if (rs.wasNull() || ppvid <= 0) {
+                    return GateResult.denied("У карты DPR не задана связь с PPV (PPVID)");
+                }
+                dsc = rs.getString("DSC");
+                statusCode = rs.getString("STCODE");
             }
         }
         if (dsc == null || !DSC_OUTGOING_DPR.equals(dsc.trim())) {
             return GateResult.denied("Действие доступно только для исходящей карты (DATASOURCEKINDCODE=2)");
         }
-        if (statusId == null || statusId < 4 || statusId > 10) {
+        if (statusCode == null || statusCode.isEmpty()) {
+            return GateResult.denied("Смена статуса недоступна: у карты не определён код статуса в справочнике DPRSTATUS");
+        }
+        if (!("DRAFT".equals(statusCode) || "NEW".equals(statusCode) || "PENDING".equals(statusCode)
+                || "SENT".equals(statusCode) || "FAILED".equals(statusCode) || "ERROR".equals(statusCode)
+                || "DELIVERED".equals(statusCode))) {
             return GateResult.denied("Смена статуса недоступна для текущего состояния карты");
         }
         String rightsJson = RightsRegistryProvider.get().getRightsJson(guid);
@@ -322,6 +387,104 @@ public final class DprCreateSupport {
         }
         if (!PpvDepPermisUtil.hasOverlap(conn, ppvid, statusDepKeys)) {
             return GateResult.denied("Нет права: ни одно подразделение из violationDetectedIn:status "
+                    + "не входит в доступ к связанной карте PPV (PPVDEPPERMIS)");
+        }
+        return GateResult.ok(ppvid, null, null, null, null, 0L, null, null, 0, null);
+    }
+
+    /**
+     * Завершение обработки входящей DPR: {@code violationDetectedOut:status} ∩ PPVDEPPERMIS,
+     * {@code DPR.DATASOURCEKINDCODE = 1}, текущий статус {@code PROCESSING} (справочник DPRSTATUS для входящих).
+     */
+    public static GateResult evaluateIncomingDprCompleteProcessingGate(Connection conn, long dprId, String guid)
+            throws SQLException {
+        if (guid == null || guid.trim().isEmpty() || dprId <= 0) {
+            return GateResult.denied("Не заданы DPRID или guid");
+        }
+        guid = guid.trim();
+        if (!DprAccessHelper.canViewDpr(conn, dprId, guid)) {
+            return GateResult.denied("Нет доступа к просмотру карты DPR");
+        }
+        long ppvid = 0L;
+        String dsc = null;
+        String statusCode = null;
+        try (PreparedStatement ps = conn.prepareStatement(SQL_DPR_FOR_EDIT)) {
+            ps.setLong(1, dprId);
+            try (ResultSet rs = ps.executeQuery()) {
+                if (!rs.next()) {
+                    return GateResult.denied("Карта DPR не найдена");
+                }
+                ppvid = rs.getLong("PPVID");
+                if (rs.wasNull() || ppvid <= 0) {
+                    return GateResult.denied("У карты DPR не задана связь с PPV (PPVID)");
+                }
+                dsc = rs.getString("DSC");
+                statusCode = rs.getString("STCODE");
+            }
+        }
+        if (dsc == null || !DSC_INCOMING.equals(dsc.trim())) {
+            return GateResult.denied("Завершение обработки доступно только для входящей карты (DATASOURCEKINDCODE=1)");
+        }
+        if (statusCode == null || statusCode.isEmpty()) {
+            return GateResult.denied("Не определён код статуса карты в справочнике DPRSTATUS");
+        }
+        if (!"PROCESSING".equals(statusCode)) {
+            return GateResult.denied("Завершение обработки возможно только при статусе «В обработке» (PROCESSING)");
+        }
+        String rightsJson = RightsRegistryProvider.get().getRightsJson(guid);
+        if (rightsJson == null || rightsJson.isEmpty()) {
+            return GateResult.denied("Карта прав по guid не найдена");
+        }
+        Set<String> statusDepKeys = AccessRightService.violationDetectedOutStatusDepKeys(rightsJson);
+        if (statusDepKeys.isEmpty()) {
+            return GateResult.denied("В карте прав не заданы подразделения для violationDetectedOut:status");
+        }
+        if (!PpvDepPermisUtil.hasOverlap(conn, ppvid, statusDepKeys)) {
+            return GateResult.denied("Нет права: ни одно подразделение из violationDetectedOut:status "
+                    + "не входит в доступ к связанной карте PPV (PPVDEPPERMIS)");
+        }
+        return GateResult.ok(ppvid, null, null, null, null, 0L, null, null, 0, null);
+    }
+
+    /**
+     * Принудительная проверка карты исходящей DPR: {@code violationDetectedOut:view} ∩ PPVDEPPERMIS, DATASOURCEKINDCODE=2.
+     */
+    public static GateResult evaluateOutgoingDprValidateCardGate(Connection conn, long dprId, String guid) throws SQLException {
+        if (guid == null || guid.trim().isEmpty() || dprId <= 0) {
+            return GateResult.denied("Не заданы DPRID или guid");
+        }
+        guid = guid.trim();
+        if (!DprAccessHelper.canViewDpr(conn, dprId, guid)) {
+            return GateResult.denied("Нет доступа к просмотру карты DPR");
+        }
+        long ppvid = 0L;
+        String dsc = null;
+        try (PreparedStatement ps = conn.prepareStatement(SQL_DPR_FOR_EDIT)) {
+            ps.setLong(1, dprId);
+            try (ResultSet rs = ps.executeQuery()) {
+                if (!rs.next()) {
+                    return GateResult.denied("Карта DPR не найдена");
+                }
+                ppvid = rs.getLong("PPVID");
+                if (rs.wasNull() || ppvid <= 0) {
+                    return GateResult.denied("У карты DPR не задана связь с PPV (PPVID)");
+                }
+                dsc = rs.getString("DSC");
+            }
+        }
+        if (dsc == null || !DSC_OUTGOING_DPR.equals(dsc.trim())) {
+            return GateResult.denied("Проверка доступна только для исходящей карты (DATASOURCEKINDCODE=2)");
+        }
+        String rightsJson = RightsRegistryProvider.get().getRightsJson(guid);
+        if (rightsJson == null || rightsJson.isEmpty()) {
+            return GateResult.denied("Карта прав по guid не найдена");
+        }
+        Set<String> viewDepKeys = AccessRightService.violationDetectedOutViewDepKeys(rightsJson);
+        if (viewDepKeys.isEmpty()) {
+            return GateResult.denied("В карте прав не заданы подразделения для violationDetectedOut:view");
+        }
+        if (!PpvDepPermisUtil.hasOverlap(conn, ppvid, viewDepKeys)) {
+            return GateResult.denied("Нет права на проверку: ни одно подразделение из violationDetectedOut:view "
                     + "не входит в доступ к связанной карте PPV (PPVDEPPERMIS)");
         }
         return GateResult.ok(ppvid, null, null, null, null, 0L, null, null, 0, null);

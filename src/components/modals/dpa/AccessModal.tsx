@@ -4,9 +4,12 @@ import { PlusOutlined, DeleteOutlined } from '@ant-design/icons'
 import type { AccessItem } from '@/types/card'
 import {
   fetchDpaAccess,
+  fetchPpvDepPermisAccess,
   fetchRightsByGuid,
   addDpaAccess,
+  addPpvDepPermisAccess,
   removeDpaAccess,
+  removePpvDepPermisAccess,
   fetchDepOptions,
   checkAccessRight,
   cardApiSourceToAccessRight,
@@ -53,6 +56,8 @@ export interface AccessModalProps {
   onUpdate: (accessList: AccessItem[]) => void
   /** При открытии карточки по DPAID — загрузка/сохранение в БД (TB_DEP, DPADEPPERMIS) */
   dpaid?: string
+  /** Карта PPV: идентификатор для PPVDEPPERMIS через `/api/ppv/access` (в запросе поле `dpaid`). */
+  ppvid?: string
   /** Источник сведений карты (Входящие / Исходящие / Данные ЕЭК) — для прав и списка по умолчанию */
   source?: string
   /** Код вида источника из метаданных (1/2/3), если подпись source пустая или не распознаётся */
@@ -68,6 +73,7 @@ const AccessModal: React.FC<AccessModalProps> = ({
   onClose,
   onUpdate,
   dpaid,
+  ppvid,
   source,
   datasourceKindCode,
   guid,
@@ -82,7 +88,11 @@ const AccessModal: React.FC<AccessModalProps> = ({
   const [adding, setAdding] = useState(false)
   const [canManageAccess, setCanManageAccess] = useState(true)
 
-  const fromApi = !!dpaid
+  const trimmedPpvid = (ppvid ?? '').trim()
+  const trimmedDpaid = (dpaid ?? '').trim()
+  const usePpvApi = trimmedPpvid.length > 0
+  const listKey = usePpvApi ? trimmedPpvid : trimmedDpaid
+  const fromApi = listKey.length > 0
 
   useEffect(() => {
     if (!visible) return
@@ -92,9 +102,10 @@ const AccessModal: React.FC<AccessModalProps> = ({
       const apiSource = resolveCardAccessApiSource(source, datasourceKindCode)
       const isOutgoing = apiSource === 'outgoing'
       const loadList = (creatorDepId?: string | number) =>
-        fetchDpaAccess(dpaid!, source, creatorDepId, guid, datasourceKindCode).then((list) =>
-          setAccessList(list)
-        )
+        (usePpvApi
+          ? fetchPpvDepPermisAccess(listKey, source, creatorDepId, guid, datasourceKindCode)
+          : fetchDpaAccess(listKey, source, creatorDepId, guid, datasourceKindCode)
+        ).then((list) => setAccessList(list))
       const promise =
         isOutgoing && guid
           ? fetchRightsByGuid(guid)
@@ -108,10 +119,10 @@ const AccessModal: React.FC<AccessModalProps> = ({
         })
         .finally(() => setLoadingList(false))
     }
-  }, [visible, dpaid, source, datasourceKindCode, data, fromApi, guid])
+  }, [visible, listKey, usePpvApi, source, datasourceKindCode, data, fromApi, guid])
 
   useEffect(() => {
-    if (!visible || !fromApi || !dpaid) return
+    if (!visible || !fromApi || !listKey) return
     if (!guid || !guid.trim()) {
       setCanManageAccess(false)
       return
@@ -125,7 +136,7 @@ const AccessModal: React.FC<AccessModalProps> = ({
       return
     }
     checkAccessRight(guid, right).then(setCanManageAccess)
-  }, [visible, fromApi, dpaid, source, datasourceKindCode, guid])
+  }, [visible, fromApi, listKey, source, datasourceKindCode, guid])
 
   useEffect(() => {
     if (visible && fromApi) {
@@ -151,7 +162,7 @@ const AccessModal: React.FC<AccessModalProps> = ({
   }
 
   const handleAddFromApi = async () => {
-    if (!selectedDepId || !dpaid) return
+    if (!selectedDepId || !listKey) return
     const opt = depOptions.find((o) => o.id === selectedDepId)
     if (accessList.some((a) => a.id === selectedDepId)) {
       message.warning('Это подразделение уже в списке')
@@ -159,7 +170,8 @@ const AccessModal: React.FC<AccessModalProps> = ({
     }
     setAdding(true)
     try {
-      await addDpaAccess(dpaid, selectedDepId, guid)
+      if (usePpvApi) await addPpvDepPermisAccess(listKey, selectedDepId, guid)
+      else await addDpaAccess(listKey, selectedDepId, guid)
       setAccessList([
         ...accessList,
         { id: selectedDepId, name: opt ? opt.name : selectedDepId, depKindCode: opt?.depKindCode },
@@ -175,9 +187,10 @@ const AccessModal: React.FC<AccessModalProps> = ({
   const handleAdd = fromApi ? handleAddFromApi : handleAddLocal
 
   const handleDelete = async (id: string) => {
-    if (fromApi && dpaid) {
+    if (fromApi && listKey) {
       try {
-        await removeDpaAccess(dpaid, id, guid)
+        if (usePpvApi) await removePpvDepPermisAccess(listKey, id, guid)
+        else await removeDpaAccess(listKey, id, guid)
         setAccessList(accessList.filter((item) => item.id !== id))
       } catch (e) {
         message.error('Ошибка удаления: ' + (e instanceof Error ? e.message : ''))

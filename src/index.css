@@ -944,6 +944,16 @@ body {
   font-style: italic;
 }
 
+/* DPR: текущий статус в шапке — явно кликабелен (история статусов) */
+.dpr-card-header-status-link.ant-btn-link {
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  font-weight: 600;
+}
+.dpr-card-header-status-link.ant-btn-link:hover {
+  text-decoration: underline;
+}
+
 /* Документы соответствия: колонка «Вид» 30%, перенос по словам, поле и строка растягиваются по высоте */
 .compliance-docs-edit-table .ant-table-tbody > tr > td {
   height: auto !important;

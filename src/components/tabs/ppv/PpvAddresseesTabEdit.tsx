@@ -163,7 +163,7 @@ const PpvAddresseesTabEdit: React.FC<PpvAddresseesTabEditProps> = ({
     (dprId: number) => {
       const g = guid?.trim()
       if (!g) return
-      window.open(buildDprCardViewUrl(dprId, g), '_blank', 'noopener,noreferrer')
+      window.location.assign(buildDprCardViewUrl(dprId, g))
     },
     [guid]
   )

@@ -140,6 +140,218 @@ function shippingProductDetailsHasContentAsideFromName(p: ProductDetails | undef
   })
 }
 
+function appendOutgoingMeasuresLikeDpaValidation(
+  sectionMeasures: { sectionName: string; remarks: string[] },
+  measures: MeasuresData | null | undefined,
+  applyDpaExecutorSubjectRules: boolean
+): void {
+  const add = (msg: string) => {
+    sectionMeasures.remarks.push(msg)
+  }
+  const measuresList = measures?.measures ?? []
+  for (const m of measuresList) {
+    const basisList = m?.measureInitiationBasisDetails
+    if (basisList && basisList.length > 0) {
+      const anyBasisIncomplete = basisList.some(
+        (basis) =>
+          empty(basis?.docKindName) ||
+          empty(basis?.docName) ||
+          empty(basis?.docId) ||
+          empty(basis?.docCreationDate)
+      )
+      if (anyBasisIncomplete) {
+        add(
+          'В составе каждого набора основания для введения меры должны быть указаны Наименование вида документа, Наименование документа, Номер документа, Дата документа'
+        )
+      }
+    }
+  }
+  for (const m of measuresList) {
+    if (empty(m?.measureCode) && empty(m?.measureName)) {
+      add('В составе каждого набора сведений о принятой мере должен быть указан или Код принятой меры, или ее Наименование')
+    }
+  }
+  for (const m of measuresList) {
+    if (!m?.measureDocDetails) {
+      add('В составе каждого набора сведений о принятой мере должен быть указан хотя один документ, регламентирующий введение (отмену) меры')
+    }
+  }
+  for (const m of measuresList) {
+    const docDetails = m?.measureDocDetails
+    if (docDetails) {
+      if (empty(docDetails.country)) {
+        add('Для документа, регламентирующего введение (отмену) меры должна быть указана страна')
+      }
+      if (empty(docDetails.docName)) {
+        add('Для документа, регламентирующего введение (отмену) меры должно быть указано его наименование')
+      }
+      if (empty(docDetails.docId)) {
+        add('Для документа, регламентирующего введение (отмену) меры должен быть указано его номер')
+      }
+      if (empty(docDetails.docCreationDate)) {
+        add('Для документа, регламентирующего введение (отмену) меры должна быть указано его дата')
+      }
+    }
+  }
+  for (const m of measuresList) {
+    if (empty(m?.measureAffectedObjectKindCode)) {
+      add('В составе каждого набора сведений о принятой мере должен быть указан хотя один вид объекта действия меры')
+    }
+  }
+  const implList = measuresList.flatMap((m) => m?.measureImplementationDetails ?? [])
+  {
+    let anyImplMissingCountry = false
+    let anyImplMissingStartDate = false
+    let anyImplMissingDescription = false
+    for (const m of measuresList) {
+      for (const impl of m?.measureImplementationDetails ?? []) {
+        if (!hasMeasureImplementationEntryContent(impl)) continue
+        if (empty(impl.country)) anyImplMissingCountry = true
+        if (empty(impl.startDate)) anyImplMissingStartDate = true
+        if (!(impl.description ?? '').trim()) anyImplMissingDescription = true
+      }
+    }
+    if (anyImplMissingCountry) {
+      add(
+        'В составе каждого набора сведений о мероприятии, обеспечивающем соблюдение меры должна быть указана Страна проведения мероприятия'
+      )
+    }
+    if (anyImplMissingStartDate) {
+      add(
+        'В составе каждого набора сведений о мероприятии, обеспечивающем соблюдение меры должна быть указана начальная дата проведения мероприятия'
+      )
+    }
+    if (anyImplMissingDescription) {
+      add(
+        'В составе каждого набора сведений о мероприятии, обеспечивающем соблюдение меры должно быть указано описание мероприятия'
+      )
+    }
+  }
+  const getAuthorities = (impl: MeasureImplementationItem) =>
+    (impl.authorities && impl.authorities.length > 0 ? impl.authorities : (impl.authority ? [impl.authority] : []))
+  const getSubjects = (impl: MeasureImplementationItem) =>
+    (impl.subjectDetailsList && impl.subjectDetailsList.length > 0 ? impl.subjectDetailsList : (impl.subjectDetails ? [impl.subjectDetails] : []))
+  for (const impl of implList) {
+    const hasEntity = getAuthorities(impl).length > 0 || getSubjects(impl).length > 0
+    const hasDoc = !!impl?.documentDetails
+    if (!hasEntity || !hasDoc) {
+      add('В составе каждого набора сведений о мероприятии, обеспечивающем соблюдение меры должны быть указаны сведения об исполнителе и документ, устанавливающий мероприятие')
+    }
+  }
+  for (const impl of implList) {
+    const hasAuthority = getAuthorities(impl).length > 0
+    const hasSubject = getSubjects(impl).length > 0
+    if (!hasAuthority && !hasSubject) {
+      add('В составе каждого набора сведений об исполнителе мероприятия, обеспечивающего соблюдение меры, должен быть указан один из следующих реквизитов: "Уполномоченный орган", "Субъект"')
+    }
+  }
+  for (const impl of implList) {
+    for (const authority of getAuthorities(impl)) {
+      if (empty(authority.country)) {
+        add('Страна уполномоченного органа, обеспечивающего соблюдение меры должна быть указана')
+      }
+      if (empty(authority.authorityName)) {
+        add('Наименование уполномоченного органа, обеспечивающего соблюдение меры должно быть указано')
+      }
+    }
+  }
+  for (const impl of implList) {
+    for (const subj of getSubjects(impl)) {
+      const identityDoc = subj?.identityDoc ?? (subj as { identityDoc?: { docId?: string } })?.identityDoc
+      if (identityDoc && empty(identityDoc?.docId)) {
+        add('В составе сведений об удостоверении личности субъекта, обеспечивающего соблюдение меры должен быть указан номер документа')
+      }
+    }
+  }
+  for (const impl of implList) {
+    for (const subj of getSubjects(impl)) {
+      if (!subj) continue
+      /** Как exportMeasureSubjectDetails / форма: у юрлица строки в businessEntity.addresses, не registrationAddress на subject. */
+      const subjAddrs = getMeasureExecutorSubjectAddressList(subj).filter((a) => measureExecutorAddressRowHasContent(a))
+      if (subjAddrs.length === 0) continue
+      for (const addr of subjAddrs) {
+        if (empty(addr?.country)) {
+          add('Для каждого адреса субъекта-исполнителя мероприятия должна быть указана страна')
+        }
+      }
+      let noCityOrSettlement = false
+      for (const addr of subjAddrs) {
+        if (!empty(addr?.cityName) || !empty(addr?.settlementName)) continue
+        noCityOrSettlement = true
+        break
+      }
+      if (noCityOrSettlement) {
+        add('В составе каждого адреса субъекта-исполнителя мероприятия должен быть указан или город, или населенный пункт')
+      }
+    }
+  }
+  if (applyDpaExecutorSubjectRules) {
+    let subjectMissingCountry = false
+    let subjectMissingName = false
+    let subjectMissingAddress = false
+    for (const impl of implList) {
+      for (const subj of getSubjects(impl)) {
+        if (!subj) continue
+        if (empty(measureExecutorSubjectCountry(subj))) subjectMissingCountry = true
+        if (empty(measureExecutorSubjectName(subj))) subjectMissingName = true
+        const addrList = getMeasureExecutorSubjectAddressList(subj)
+        if (!addrList.some((a) => measureExecutorAddressRowHasContent(a))) subjectMissingAddress = true
+      }
+    }
+    if (subjectMissingCountry) {
+      add('Код страны регистрации субъекта, обеспечивающего соблюдение меры должен быть указан')
+    }
+    if (subjectMissingName) {
+      add('Наименование субъекта, обеспечивающего соблюдение меры должно быть указано')
+    }
+    if (subjectMissingAddress) {
+      add('Должен быть указан хотя бы один адрес субъекта, обеспечивающего соблюдение меры')
+    }
+  }
+  for (const impl of implList) {
+    const docRef = impl?.documentDetails
+    if (docRef) {
+      if (empty(docRef?.docName)) {
+        add('В составе сведений о документе, устанавливающем мероприятие, обеспечивающее соблюдение меры должно быть указано его наименование')
+      }
+      if (empty(docRef?.docId)) {
+        add('В составе сведений о документе, устанавливающем мероприятие, обеспечивающее соблюдение меры должен быть указан его номер')
+      }
+      if (empty(docRef?.docCreationDate)) {
+        add('В составе сведений о документе, устанавливающем мероприятие, обеспечивающее соблюдение меры должна быть указана его дата')
+      }
+    }
+  }
+  for (let mi = 0; mi < measuresList.length; mi++) {
+    const m = measuresList[mi]
+    const impls = m?.measureImplementationDetails ?? []
+    for (let ii = 0; ii < impls.length; ii++) {
+      const impl = impls[ii]
+      const subjects = getSubjects(impl)
+      for (let si = 0; si < subjects.length; si++) {
+        const subj = subjects[si]
+        if (!subj) continue
+        const scope =
+          subjects.length > 1
+            ? `субъекта-исполнителя ${si + 1} (принятая мера ${mi + 1}, мероприятие ${ii + 1})`
+            : `субъекта-исполнителя мероприятия (принятая мера ${mi + 1}, мероприятие ${ii + 1})`
+        const cr = remarkContactsIncomplete(getMeasureSubjectContacts(subj), scope)
+        if (cr) add(cr)
+      }
+    }
+  }
+}
+
+/** Те же форматно-логические контроли раздела «Принятые меры», что для исходящей DPA. */
+export function validateOutgoingMeasuresLikeDpa(measures: MeasuresData | null | undefined): ValidationResult {
+  const sectionMeasures = { sectionName: 'Принятые меры', remarks: [] as string[] }
+  appendOutgoingMeasuresLikeDpaValidation(sectionMeasures, measures, true)
+  if (sectionMeasures.remarks.length === 0) {
+    return { success: true, sections: [] }
+  }
+  return { success: false, sections: [sectionMeasures] }
+}
+
 export function validateOutgoingCard(data: CardData): ValidationResult {
   const sections: { sectionName: string; remarks: string[] }[] = []
   const n = (name: string) => ({ sectionName: name, remarks: [] as string[] })
@@ -566,212 +778,9 @@ export function validateOutgoingCard(data: CardData): ValidationResult {
   if (sectionDetectionPlace.remarks.length) sections.push(sectionDetectionPlace)
 
   // —— Принятые меры ——
-  const measuresList = data.measures?.measures ?? []
-  for (const m of measuresList) {
-    const basisList = m?.measureInitiationBasisDetails
-    if (basisList && basisList.length > 0) {
-      const anyBasisIncomplete = basisList.some(
-        (basis) =>
-          empty(basis?.docKindName) ||
-          empty(basis?.docName) ||
-          empty(basis?.docId) ||
-          empty(basis?.docCreationDate)
-      )
-      if (anyBasisIncomplete) {
-        add(
-          sectionMeasures,
-          'В составе каждого набора основания для введения меры должны быть указаны Наименование вида документа, Наименование документа, Номер документа, Дата документа'
-        )
-      }
-    }
-  }
-  for (const m of measuresList) {
-    if (empty(m?.measureCode) && empty(m?.measureName)) {
-      add(sectionMeasures, 'В составе каждого набора сведений о принятой мере должен быть указан или Код принятой меры, или ее Наименование')
-    }
-  }
-  for (const m of measuresList) {
-    if (!m?.measureDocDetails) {
-      add(sectionMeasures, 'В составе каждого набора сведений о принятой мере должен быть указан хотя один документ, регламентирующий введение (отмену) меры')
-    }
-  }
-  for (const m of measuresList) {
-    const docDetails = m?.measureDocDetails
-    if (docDetails) {
-      if (empty(docDetails.country)) {
-        add(sectionMeasures, 'Для документа, регламентирующего введение (отмену) меры должна быть указана страна')
-      }
-      if (empty(docDetails.docName)) {
-        add(sectionMeasures, 'Для документа, регламентирующего введение (отмену) меры должно быть указано его наименование')
-      }
-      if (empty(docDetails.docId)) {
-        add(sectionMeasures, 'Для документа, регламентирующего введение (отмену) меры должен быть указано его номер')
-      }
-      if (empty(docDetails.docCreationDate)) {
-        add(sectionMeasures, 'Для документа, регламентирующего введение (отмену) меры должна быть указано его дата')
-      }
-    }
-  }
-  for (const m of measuresList) {
-    if (empty(m?.measureAffectedObjectKindCode)) {
-      add(sectionMeasures, 'В составе каждого набора сведений о принятой мере должен быть указан хотя один вид объекта действия меры')
-    }
-  }
-  const implList = measuresList.flatMap((m) => m?.measureImplementationDetails ?? [])
-  {
-    let anyImplMissingCountry = false
-    let anyImplMissingStartDate = false
-    let anyImplMissingDescription = false
-    for (const m of measuresList) {
-      for (const impl of m?.measureImplementationDetails ?? []) {
-        if (!hasMeasureImplementationEntryContent(impl)) continue
-        if (empty(impl.country)) anyImplMissingCountry = true
-        if (empty(impl.startDate)) anyImplMissingStartDate = true
-        if (!(impl.description ?? '').trim()) anyImplMissingDescription = true
-      }
-    }
-    if (anyImplMissingCountry) {
-      add(
-        sectionMeasures,
-        'В составе каждого набора сведений о мероприятии, обеспечивающем соблюдение меры должна быть указана Страна проведения мероприятия',
-      )
-    }
-    if (anyImplMissingStartDate) {
-      add(
-        sectionMeasures,
-        'В составе каждого набора сведений о мероприятии, обеспечивающем соблюдение меры должна быть указана начальная дата проведения мероприятия',
-      )
-    }
-    if (anyImplMissingDescription) {
-      add(
-        sectionMeasures,
-        'В составе каждого набора сведений о мероприятии, обеспечивающем соблюдение меры должно быть указано описание мероприятия',
-      )
-    }
-  }
-  const getAuthorities = (impl: MeasureImplementationItem) =>
-    (impl.authorities && impl.authorities.length > 0 ? impl.authorities : (impl.authority ? [impl.authority] : []))
-  const getSubjects = (impl: MeasureImplementationItem) =>
-    (impl.subjectDetailsList && impl.subjectDetailsList.length > 0 ? impl.subjectDetailsList : (impl.subjectDetails ? [impl.subjectDetails] : []))
-  for (const impl of implList) {
-    const hasEntity = getAuthorities(impl).length > 0 || getSubjects(impl).length > 0
-    const hasDoc = !!impl?.documentDetails
-    if (!hasEntity || !hasDoc) {
-      add(sectionMeasures, 'В составе каждого набора сведений о мероприятии, обеспечивающем соблюдение меры должны быть указаны сведения об исполнителе и документ, устанавливающий мероприятие')
-    }
-  }
-  for (const impl of implList) {
-    const hasAuthority = getAuthorities(impl).length > 0
-    const hasSubject = getSubjects(impl).length > 0
-    if (!hasAuthority && !hasSubject) {
-      add(sectionMeasures, 'В составе каждого набора сведений об исполнителе мероприятия, обеспечивающего соблюдение меры, должен быть указан один из следующих реквизитов: "Уполномоченный орган", "Субъект"')
-    }
-  }
-  for (const impl of implList) {
-    for (const authority of getAuthorities(impl)) {
-      if (empty(authority.country)) {
-        add(sectionMeasures, 'Страна уполномоченного органа, обеспечивающего соблюдение меры должна быть указана')
-      }
-      if (empty(authority.authorityName)) {
-        add(sectionMeasures, 'Наименование уполномоченного органа, обеспечивающего соблюдение меры должно быть указано')
-      }
-    }
-  }
-  for (const impl of implList) {
-    for (const subj of getSubjects(impl)) {
-      const identityDoc = subj?.identityDoc ?? (subj as { identityDoc?: { docId?: string } })?.identityDoc
-      if (identityDoc && empty(identityDoc?.docId)) {
-        add(sectionMeasures, 'В составе сведений об удостоверении личности субъекта, обеспечивающего соблюдение меры должен быть указан номер документа')
-      }
-    }
-  }
-  for (const impl of implList) {
-    for (const subj of getSubjects(impl)) {
-      if (!subj) continue
-      /** Как exportMeasureSubjectDetails / форма: у юрлица строки в businessEntity.addresses, не registrationAddress на subject. */
-      const subjAddrs = getMeasureExecutorSubjectAddressList(subj).filter((a) => measureExecutorAddressRowHasContent(a))
-      if (subjAddrs.length === 0) continue
-      for (const addr of subjAddrs) {
-        if (empty(addr?.country)) {
-          add(sectionMeasures, 'Для каждого адреса субъекта-исполнителя мероприятия должна быть указана страна')
-        }
-      }
-      let noCityOrSettlement = false
-      for (const addr of subjAddrs) {
-        if (!empty(addr?.cityName) || !empty(addr?.settlementName)) continue
-        noCityOrSettlement = true
-        break
-      }
-      if (noCityOrSettlement) {
-        add(sectionMeasures, 'В составе каждого адреса субъекта-исполнителя мероприятия должен быть указан или город, или населенный пункт')
-      }
-    }
-  }
-  if (!isPpvApp()) {
-    let subjectMissingCountry = false
-    let subjectMissingName = false
-    let subjectMissingAddress = false
-    for (const impl of implList) {
-      for (const subj of getSubjects(impl)) {
-        if (!subj) continue
-        if (empty(measureExecutorSubjectCountry(subj))) subjectMissingCountry = true
-        if (empty(measureExecutorSubjectName(subj))) subjectMissingName = true
-        const addrList = getMeasureExecutorSubjectAddressList(subj)
-        if (!addrList.some((a) => measureExecutorAddressRowHasContent(a))) subjectMissingAddress = true
-      }
-    }
-    if (subjectMissingCountry) {
-      add(
-        sectionMeasures,
-        'Код страны регистрации субъекта, обеспечивающего соблюдение меры должен быть указан'
-      )
-    }
-    if (subjectMissingName) {
-      add(
-        sectionMeasures,
-        'Наименование субъекта, обеспечивающего соблюдение меры должно быть указано'
-      )
-    }
-    if (subjectMissingAddress) {
-      add(
-        sectionMeasures,
-        'Должен быть указан хотя бы один адрес субъекта, обеспечивающего соблюдение меры'
-      )
-    }
-  }
-  for (const impl of implList) {
-    const docRef = impl?.documentDetails
-    if (docRef) {
-      if (empty(docRef?.docName)) {
-        add(sectionMeasures, 'В составе сведений о документе, устанавливающем мероприятие, обеспечивающее соблюдение меры должно быть указано его наименование')
-      }
-      if (empty(docRef?.docId)) {
-        add(sectionMeasures, 'В составе сведений о документе, устанавливающем мероприятие, обеспечивающее соблюдение меры должен быть указан его номер')
-      }
-      if (empty(docRef?.docCreationDate)) {
-        add(sectionMeasures, 'В составе сведений о документе, устанавливающем мероприятие, обеспечивающее соблюдение меры должна быть указана его дата')
-      }
-    }
-  }
-  for (let mi = 0; mi < measuresList.length; mi++) {
-    const m = measuresList[mi]
-    const impls = m?.measureImplementationDetails ?? []
-    for (let ii = 0; ii < impls.length; ii++) {
-      const impl = impls[ii]
-      const subjects = getSubjects(impl)
-      for (let si = 0; si < subjects.length; si++) {
-        const subj = subjects[si]
-        if (!subj) continue
-        const scope =
-          subjects.length > 1
-            ? `субъекта-исполнителя ${si + 1} (принятая мера ${mi + 1}, мероприятие ${ii + 1})`
-            : `субъекта-исполнителя мероприятия (принятая мера ${mi + 1}, мероприятие ${ii + 1})`
-        const cr = remarkContactsIncomplete(getMeasureSubjectContacts(subj), scope)
-        if (cr) add(sectionMeasures, cr)
-      }
-    }
-  }
+  appendOutgoingMeasuresLikeDpaValidation(sectionMeasures, data.measures, !isPpvApp())
   if (sectionMeasures.remarks.length) sections.push(sectionMeasures)
+
 
   const totalRemarks = sections.reduce((sum, s) => sum + s.remarks.length, 0)
   return {

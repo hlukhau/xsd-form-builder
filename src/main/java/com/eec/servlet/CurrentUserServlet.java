@@ -2,6 +2,7 @@ package com.eec.servlet;
 
 import com.eec.rights.RightsRegistryProvider;
 import com.eec.util.DatabaseUtil;
+import com.eec.util.RightsDepartmentDepKindId;
 
 import javax.servlet.ServletException;
 import javax.servlet.http.HttpServlet;
@@ -19,7 +20,7 @@ import java.util.regex.Pattern;
 /**
  * Текущий пользователь: уровень ЦГЭ (TB_USER → TB_EMP → TB_DEP → TB_DEPKIND).
  * GET /api/current-user
- * Ответ: { "depKindCode": "dep0601", "depKindName": "Районный ЦГЭ" } или { "depKindCode": null, "depKindName": null }.
+ * Ответ: { "depKindCode", "depKindName", "rightsDepKindId" } — последнее из department.depkindid в JSON прав (72/73/74), если передан guid.
  * USERID берётся из заголовка X-User-Id или из сессии (атрибут "userId").
  */
 public class CurrentUserServlet extends HttpServlet {
@@ -63,8 +64,15 @@ public class CurrentUserServlet extends HttpServlet {
             }
         }
 
+        String guidParam = request.getParameter("guid");
+        Integer rightsDepKindId = null;
+        if (guidParam != null && !guidParam.trim().isEmpty()) {
+            rightsDepKindId = RightsDepartmentDepKindId.parseFromRights(
+                    RightsRegistryProvider.get().getRightsJson(guidParam.trim()));
+        }
+
         if (userId == null) {
-            response.getWriter().print("{\"depKindCode\":null,\"depKindName\":null}");
+            response.getWriter().print(buildJson(null, null, rightsDepKindId));
             return;
         }
 
@@ -79,12 +87,11 @@ public class CurrentUserServlet extends HttpServlet {
                 String name = rs.getString("DEPKINDNAME");
                 rs.close();
                 ps.close();
-                String json = "{\"depKindCode\":" + quote(code) + ",\"depKindName\":" + quote(name) + "}";
-                response.getWriter().print(json);
+                response.getWriter().print(buildJson(code, name, rightsDepKindId));
             } else {
                 rs.close();
                 ps.close();
-                response.getWriter().print("{\"depKindCode\":null,\"depKindName\":null}");
+                response.getWriter().print(buildJson(null, null, rightsDepKindId));
             }
         } catch (SQLException e) {
             response.setStatus(HttpServletResponse.SC_INTERNAL_SERVER_ERROR);
@@ -92,6 +99,12 @@ public class CurrentUserServlet extends HttpServlet {
         } finally {
             DatabaseUtil.closeConnection(conn);
         }
+    }
+
+    private static String buildJson(String depKindCode, String depKindName, Integer rightsDepKindId) {
+        String rid = rightsDepKindId == null ? "null" : String.valueOf(rightsDepKindId);
+        return "{\"depKindCode\":" + quote(depKindCode) + ",\"depKindName\":" + quote(depKindName)
+                + ",\"rightsDepKindId\":" + rid + "}";
     }
 
     private static String quote(String s) {

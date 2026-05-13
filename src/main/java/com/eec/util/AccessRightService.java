@@ -278,6 +278,16 @@ public final class AccessRightService {
         return hasAccessRightInJson(rightsJson, "violationDetectedOut", "edit");
     }
 
+    /** Просмотр исходящей карты PPV / связанных данных — {@code up.violationDetectedOut.view}. */
+    public static boolean hasViolationDetectedOutView(String rightsJson) {
+        return hasAccessRightInJson(rightsJson, "violationDetectedOut", "view");
+    }
+
+    /** Ключи (DEPID) объекта up.violationDetectedOut.view. */
+    public static Set<String> violationDetectedOutViewDepKeys(String rightsJson) {
+        return depKeysFromUpRightBlock(rightsJson, "violationDetectedOut", "view");
+    }
+
     // ——— PHA (сведения об обнаружении болезней): просмотр по источнику
 
     /**

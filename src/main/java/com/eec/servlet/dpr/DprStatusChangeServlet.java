@@ -3,6 +3,9 @@ package com.eec.servlet.dpr;
 import com.eec.rights.RightsRegistryProvider;
 import com.eec.util.DatabaseUtil;
 import com.eec.util.DprCreateSupport;
+import com.eec.util.DprIncomingStatusHelper;
+import com.eec.util.DprOutgoingStatusHelper;
+import com.eec.util.RightsDepartmentDepKindId;
 
 import javax.servlet.ServletException;
 import javax.servlet.http.HttpServlet;
@@ -20,19 +23,16 @@ import java.util.regex.Pattern;
 
 /**
  * Смена статуса исходящей DPR (резолюции в DPRRESOLUTION по аналогии с DPA).
- * POST /api/dpr/status — тело: {@code dprid}, {@code action}, {@code guid}; для mark_ready — {@code depKindCode} (опционально).
- * Действия: mark_ready (черновик→новое + резолюция), send (новое→ожидает отправки при резолюции обл./респ. ЦГЭ), to_new (failed/error→новое).
+ * POST /api/dpr/status — тело: {@code dprid}, {@code action}, {@code guid}.
+ * Входящая (DSC=1): {@code complete_processing} — PROCESSING→PROCESSED, violationDetectedOut:status ∩ PPVDEPPERMIS.
+ * Исходящая (DSC=2): mark_ready, send, to_new (violationDetectedIn:status ∩ PPVDEPPERMIS).
  */
 public class DprStatusChangeServlet extends HttpServlet {
 
-    private static final int DPR_DRAFT = 4;
-    private static final int DPR_NEW = 5;
-    private static final int DPR_PENDING = 6;
-    private static final int DPR_FAILED = 8;
-    private static final int DPR_ERROR = 9;
-
     private static final String SQL_CURRENT = ""
-            + "SELECT d.DPRID, d.DPRSTATUSID, TRIM(st.DPRSTATUSNAME) AS STNAME, TRIM(TO_CHAR(d.DATASOURCEKINDCODE)) AS DSC "
+            + "SELECT d.DPRID, d.DPRSTATUSID, TRIM(st.DPRSTATUSNAME) AS STNAME, "
+            + "       TRIM(UPPER(NVL(st.DPRSTATUSCODE, ''))) AS STCODE, "
+            + "       TRIM(TO_CHAR(d.DATASOURCEKINDCODE)) AS DSC "
             + "FROM DPR d "
             + "LEFT JOIN DPRSTATUS st ON st.DPRSTATUSID = d.DPRSTATUSID "
             + "WHERE d.DPRID = ?";
@@ -40,14 +40,13 @@ public class DprStatusChangeServlet extends HttpServlet {
     private static final String SQL_UPDATE = "UPDATE DPR SET DPRSTATUSID = ?, MODIFICATIONDATETIME = SYSDATE WHERE DPRID = ?";
     private static final String SQL_INSERT_HIST = ""
             + "INSERT INTO DPRSTATUSHIST (DPRID, DPRSTATUSID, DPRSTATUSDATETIME, USERID) VALUES (?, ?, SYSDATE, ?)";
-    private static final String SQL_DEPKIND_ID = "SELECT DEPKINDID FROM TB_DEPKIND WHERE TRIM(UPPER(DEPKINDCODE)) = TRIM(UPPER(?))";
-    private static final String SQL_DEPKINDCODE_BY_DEPKINDID = "SELECT DEPKINDCODE FROM TB_DEPKIND WHERE DEPKINDID = ?";
+    private static final String SQL_DEPKIND_ID = ""
+            + "SELECT DEPKINDID FROM TB_DEPKIND WHERE TRIM(UPPER(DEPKINDCODE)) = TRIM(UPPER(?)) "
+            + "AND DEPKINDACTFL = 1 AND ROWNUM = 1";
     private static final String SQL_INSERT_RESOLUTION = ""
             + "INSERT INTO DPRRESOLUTION (DPRID, DPRSTATUSID, DEPKINDID, RESOLUTIONDATETIME, USERID) VALUES (?, ?, ?, SYSDATE, ?)";
-    private static final String SQL_HAS_REGIONAL_OR_REPUBLICAN_RESOLUTION = ""
-            + "SELECT 1 FROM DPRRESOLUTION r "
-            + "JOIN TB_DEPKIND dk ON r.DEPKINDID = dk.DEPKINDID "
-            + "WHERE r.DPRID = ? AND UPPER(TRIM(dk.DEPKINDCODE)) IN ('DEP0602','DEP0603') AND ROWNUM = 1";
+    private static final String SQL_HAS_RESOLUTION_DEPKIND = ""
+            + "SELECT 1 FROM DPRRESOLUTION WHERE DPRID = ? AND DEPKINDID = ? AND ROWNUM = 1";
 
     @Override
     protected void doPost(HttpServletRequest request, HttpServletResponse response)
@@ -59,7 +58,6 @@ public class DprStatusChangeServlet extends HttpServlet {
         String body = readBody(request);
         String dpridStr = extractJsonString(body, "dprid");
         String action = extractJsonString(body, "action");
-        String depKindCode = extractJsonString(body, "depKindCode");
         String guid = extractJsonString(body, "guid");
         if (guid == null) guid = extractJsonStringOrNumber(body, "guid");
 
@@ -75,7 +73,6 @@ public class DprStatusChangeServlet extends HttpServlet {
             return;
         }
         action = action.trim();
-        if (depKindCode != null) depKindCode = depKindCode.trim();
         if (guid != null) guid = guid.trim();
 
         Integer userId = resolveUserId(guid);
@@ -88,14 +85,24 @@ public class DprStatusChangeServlet extends HttpServlet {
         Connection conn = null;
         try {
             conn = DatabaseUtil.getConnectionForRequest(request, guid);
-            DprCreateSupport.GateResult gate = DprCreateSupport.evaluateOutgoingDprStatusGate(conn, dprId, guid);
-            if (!gate.allowed) {
-                sendJsonError(response, HttpServletResponse.SC_FORBIDDEN,
-                        gate.reason != null ? gate.reason : "Смена статуса недоступна");
-                return;
+            if ("complete_processing".equals(action)) {
+                DprCreateSupport.GateResult inGate = DprCreateSupport.evaluateIncomingDprCompleteProcessingGate(conn, dprId, guid);
+                if (!inGate.allowed) {
+                    sendJsonError(response, HttpServletResponse.SC_FORBIDDEN,
+                            inGate.reason != null ? inGate.reason : "Завершение обработки недоступно");
+                    return;
+                }
+            } else {
+                DprCreateSupport.GateResult gate = DprCreateSupport.evaluateOutgoingDprStatusGate(conn, dprId, guid);
+                if (!gate.allowed) {
+                    sendJsonError(response, HttpServletResponse.SC_FORBIDDEN,
+                            gate.reason != null ? gate.reason : "Смена статуса недоступна");
+                    return;
+                }
             }
 
             int currentStatusId;
+            String currentStatusCode;
             try (PreparedStatement ps = conn.prepareStatement(SQL_CURRENT)) {
                 ps.setLong(1, dprId);
                 try (ResultSet rs = ps.executeQuery()) {
@@ -104,17 +111,23 @@ public class DprStatusChangeServlet extends HttpServlet {
                         return;
                     }
                     currentStatusId = rs.getInt("DPRSTATUSID");
+                    currentStatusCode = rs.getString("STCODE");
+                    if (currentStatusCode == null) {
+                        currentStatusCode = "";
+                    }
                 }
             }
 
             conn.setAutoCommit(false);
             try {
-                if ("mark_ready".equals(action)) {
-                    handleMarkReady(response, conn, dprId, depKindCode, currentStatusId, userId, guid);
+                if ("complete_processing".equals(action)) {
+                    handleCompleteProcessing(response, conn, dprId, currentStatusCode, userId);
+                } else if ("mark_ready".equals(action)) {
+                    handleMarkReady(response, conn, dprId, currentStatusCode, userId, guid);
                 } else if ("send".equals(action)) {
-                    handleSend(response, conn, dprId, currentStatusId, userId);
+                    handleSend(response, conn, dprId, currentStatusId, currentStatusCode, userId);
                 } else if ("to_new".equals(action)) {
-                    handleToNew(response, conn, dprId, currentStatusId, userId);
+                    handleToNew(response, conn, dprId, currentStatusId, currentStatusCode, userId);
                 } else {
                     fail(conn, response, HttpServletResponse.SC_BAD_REQUEST, "Неизвестное действие: " + action);
                 }
@@ -130,36 +143,106 @@ public class DprStatusChangeServlet extends HttpServlet {
         }
     }
 
-    private void handleMarkReady(HttpServletResponse response, Connection conn, long dprId, String depKindCode,
-                                 int currentStatusId, Integer userId, String guid) throws IOException, SQLException {
-        if (currentStatusId != DPR_DRAFT && currentStatusId != DPR_NEW) {
+    private void handleMarkReady(HttpServletResponse response, Connection conn, long dprId,
+                                 String currentStatusCode, Integer userId, String guid)
+            throws IOException, SQLException {
+        if (!"DRAFT".equals(currentStatusCode) && !"NEW".equals(currentStatusCode)) {
             fail(conn, response, HttpServletResponse.SC_BAD_REQUEST,
                     "Отметка готовности возможна при статусе «Черновик» или «Новое»");
             return;
         }
-        if (depKindCode == null || depKindCode.isEmpty()) {
-            depKindCode = resolveDepKindCodeFromRights(conn, guid);
-        }
-        if (depKindCode == null || depKindCode.isEmpty()) {
-            fail(conn, response, HttpServletResponse.SC_BAD_REQUEST,
-                    "Для отметки готовности укажите depKindCode или department.depkindid в карте прав");
+        Integer newStatusIdObj = DprOutgoingStatusHelper.resolveOutgoingStatusId(conn, "NEW");
+        if (newStatusIdObj == null) {
+            fail(conn, response, HttpServletResponse.SC_INTERNAL_SERVER_ERROR,
+                    "В справочнике DPRSTATUS не найден активный статус NEW для исходящих (DATASOURCEKINDCODE=2)");
             return;
         }
-        int depKindId = resolveDepKindId(conn, depKindCode);
-        if (depKindId <= 0) {
-            fail(conn, response, HttpServletResponse.SC_BAD_REQUEST, "Неизвестный depKindCode: " + depKindCode);
+        int newStatusId = newStatusIdObj;
+
+        String rightsJson = RightsRegistryProvider.get().getRightsJson(guid.trim());
+        Integer userRightsDepKindId = RightsDepartmentDepKindId.parseFromRights(rightsJson);
+        if (userRightsDepKindId == null) {
+            fail(conn, response, HttpServletResponse.SC_BAD_REQUEST,
+                    "Для отметки готовности в карте прав укажите department.depkindid (72 — районный ЦГЭ, 73 — областной, 74 — республиканский)");
             return;
         }
 
-        if (currentStatusId == DPR_DRAFT) {
+        int dep0601 = resolveDepKindId(conn, "dep0601");
+        int dep0602 = resolveDepKindId(conn, "dep0602");
+        int dep0603 = resolveDepKindId(conn, "dep0603");
+        if (userRightsDepKindId == 72 && dep0601 <= 0) {
+            fail(conn, response, HttpServletResponse.SC_INTERNAL_SERVER_ERROR,
+                    "В TB_DEPKIND не найдена активная запись dep0601");
+            return;
+        }
+        if (userRightsDepKindId == 73 && (dep0601 <= 0 || dep0602 <= 0)) {
+            fail(conn, response, HttpServletResponse.SC_INTERNAL_SERVER_ERROR,
+                    "В TB_DEPKIND не найдены активные записи dep0601 и dep0602");
+            return;
+        }
+        if (userRightsDepKindId == 74 && dep0603 <= 0) {
+            fail(conn, response, HttpServletResponse.SC_INTERNAL_SERVER_ERROR,
+                    "В TB_DEPKIND не найдена активная запись dep0603");
+            return;
+        }
+
+        boolean isDraft = "DRAFT".equals(currentStatusCode);
+        boolean isNew = "NEW".equals(currentStatusCode);
+        int resolutionDepKindId;
+        boolean transitionDraftToNew;
+
+        if (userRightsDepKindId == 72) {
+            if (!isDraft) {
+                fail(conn, response, HttpServletResponse.SC_BAD_REQUEST,
+                        "Отметка готовности районного ЦГЭ доступна только при статусе «Черновик»");
+                return;
+            }
+            resolutionDepKindId = dep0601;
+            transitionDraftToNew = true;
+        } else if (userRightsDepKindId == 73) {
+            if (isDraft) {
+                resolutionDepKindId = dep0602;
+                transitionDraftToNew = true;
+            } else if (isNew) {
+                if (!hasResolutionWithDepKind(conn, dprId, dep0601)) {
+                    fail(conn, response, HttpServletResponse.SC_BAD_REQUEST,
+                            "Отметка готовности областного ЦГЭ при статусе «Новое» доступна при наличии резолюции районного ЦГЭ");
+                    return;
+                }
+                resolutionDepKindId = dep0602;
+                transitionDraftToNew = false;
+            } else {
+                fail(conn, response, HttpServletResponse.SC_BAD_REQUEST, "Отметка готовности недоступна");
+                return;
+            }
+        } else if (userRightsDepKindId == 74) {
+            if (!isDraft) {
+                fail(conn, response, HttpServletResponse.SC_BAD_REQUEST,
+                        "Отметка готовности республиканского ЦГЭ доступна только при статусе «Черновик»");
+                return;
+            }
+            resolutionDepKindId = dep0603;
+            transitionDraftToNew = true;
+        } else {
+            fail(conn, response, HttpServletResponse.SC_BAD_REQUEST,
+                    "Отметка готовности для department.depkindid=" + userRightsDepKindId + " не предусмотрена (ожидаются 72, 73 или 74)");
+            return;
+        }
+
+        if (transitionDraftToNew) {
+            if (!isDraft) {
+                fail(conn, response, HttpServletResponse.SC_BAD_REQUEST,
+                        "Внутренняя ошибка: ожидался статус «Черновик» для перевода в «Новое»");
+                return;
+            }
             try (PreparedStatement ps = conn.prepareStatement(SQL_UPDATE)) {
-                ps.setInt(1, DPR_NEW);
+                ps.setInt(1, newStatusId);
                 ps.setLong(2, dprId);
                 ps.executeUpdate();
             }
             try (PreparedStatement ps = conn.prepareStatement(SQL_INSERT_HIST)) {
                 ps.setLong(1, dprId);
-                ps.setInt(2, DPR_NEW);
+                ps.setInt(2, newStatusId);
                 ps.setInt(3, userId);
                 ps.executeUpdate();
             }
@@ -168,8 +251,8 @@ public class DprStatusChangeServlet extends HttpServlet {
         Savepoint sp = conn.setSavepoint("dpr_resolution");
         try (PreparedStatement ps = conn.prepareStatement(SQL_INSERT_RESOLUTION)) {
             ps.setLong(1, dprId);
-            ps.setInt(2, DPR_NEW);
-            ps.setInt(3, depKindId);
+            ps.setInt(2, newStatusId);
+            ps.setInt(3, resolutionDepKindId);
             ps.setInt(4, userId);
             ps.executeUpdate();
         } catch (SQLException e) {
@@ -177,7 +260,7 @@ public class DprStatusChangeServlet extends HttpServlet {
             if (msg.contains("ORA-00001") || msg.contains("unique") || msg.contains("Unique")) {
                 conn.rollback(sp);
                 conn.commit();
-                response.getWriter().print("{\"ok\":true,\"newStatus\":\"Новое\",\"newStatusId\":" + DPR_NEW + "}");
+                response.getWriter().print("{\"ok\":true,\"newStatus\":\"Новое\",\"newStatusId\":" + newStatusId + "}");
                 return;
             }
             if (msg.contains("ORA-00942") || msg.toLowerCase().contains("does not exist")) {
@@ -190,61 +273,125 @@ public class DprStatusChangeServlet extends HttpServlet {
             throw e;
         }
         conn.commit();
-        response.getWriter().print("{\"ok\":true,\"newStatus\":\"Новое\",\"newStatusId\":" + DPR_NEW + "}");
+        response.getWriter().print("{\"ok\":true,\"newStatus\":\"Новое\",\"newStatusId\":" + newStatusId + "}");
     }
 
-    private void handleSend(HttpServletResponse response, Connection conn, long dprId, int currentStatusId, Integer userId)
-            throws IOException, SQLException {
-        if (currentStatusId != DPR_NEW) {
-            fail(conn, response, HttpServletResponse.SC_BAD_REQUEST,
-                    "Направление возможно только при статусе «Новое» и наличии резолюции областного или республиканского ЦГЭ");
-            return;
-        }
-        try (PreparedStatement ps = conn.prepareStatement(SQL_HAS_REGIONAL_OR_REPUBLICAN_RESOLUTION)) {
+    private static boolean hasResolutionWithDepKind(Connection conn, long dprId, int depKindId) throws SQLException {
+        try (PreparedStatement ps = conn.prepareStatement(SQL_HAS_RESOLUTION_DEPKIND)) {
             ps.setLong(1, dprId);
+            ps.setInt(2, depKindId);
             try (ResultSet rs = ps.executeQuery()) {
-                if (!rs.next()) {
-                    fail(conn, response, HttpServletResponse.SC_BAD_REQUEST,
-                            "Направление возможно только при наличии резолюции областного или республиканского ЦГЭ.");
-                    return;
-                }
+                return rs.next();
             }
         }
+    }
+
+    private void handleSend(HttpServletResponse response, Connection conn, long dprId, int currentStatusId,
+                            String currentStatusCode, Integer userId) throws IOException, SQLException {
+        if ("NEW".equals(currentStatusCode)) {
+            int regionalDepKindId = resolveDepKindId(conn, "dep0602");
+            if (regionalDepKindId <= 0) {
+                fail(conn, response, HttpServletResponse.SC_INTERNAL_SERVER_ERROR,
+                        "В TB_DEPKIND не найдена активная запись dep0602 для проверки резолюции");
+                return;
+            }
+            if (!hasResolutionWithDepKind(conn, dprId, regionalDepKindId)) {
+                fail(conn, response, HttpServletResponse.SC_BAD_REQUEST,
+                        "Направление при статусе «Новое» возможно только при наличии резолюции областного уровня "
+                                + "(в DPRRESOLUTION запись по DEPKINDCODE dep0602).");
+                return;
+            }
+        } else if ("FAILED".equals(currentStatusCode) || "ERROR".equals(currentStatusCode)) {
+            // повторная отправка без дополнительной проверки резолюции по ТЗ
+        } else {
+            fail(conn, response, HttpServletResponse.SC_BAD_REQUEST,
+                    "Направление возможно только при статусе «Новое» (с резолюцией областного уровня dep0602), "
+                            + "«Отправка не удалась» или «Ошибка обработки».");
+            return;
+        }
+        Integer pendingIdObj = DprOutgoingStatusHelper.resolveOutgoingStatusId(conn, "PENDING");
+        if (pendingIdObj == null) {
+            fail(conn, response, HttpServletResponse.SC_INTERNAL_SERVER_ERROR,
+                    "В справочнике DPRSTATUS не найден активный статус PENDING для исходящих (DATASOURCEKINDCODE=2)");
+            return;
+        }
+        int pendingId = pendingIdObj;
         try (PreparedStatement ps = conn.prepareStatement(SQL_UPDATE)) {
-            ps.setInt(1, DPR_PENDING);
+            ps.setInt(1, pendingId);
             ps.setLong(2, dprId);
             ps.executeUpdate();
         }
         try (PreparedStatement ps = conn.prepareStatement(SQL_INSERT_HIST)) {
             ps.setLong(1, dprId);
-            ps.setInt(2, DPR_PENDING);
+            ps.setInt(2, pendingId);
             ps.setInt(3, userId);
             ps.executeUpdate();
         }
         conn.commit();
-        response.getWriter().print("{\"ok\":true,\"newStatus\":\"Ожидает отправки\",\"newStatusId\":" + DPR_PENDING + "}");
+        response.getWriter().print("{\"ok\":true,\"newStatus\":\"Ожидает отправки\",\"newStatusId\":" + pendingId + "}");
     }
 
-    private void handleToNew(HttpServletResponse response, Connection conn, long dprId, int currentStatusId, Integer userId)
-            throws IOException, SQLException {
-        if (currentStatusId != DPR_FAILED && currentStatusId != DPR_ERROR) {
+    private void handleCompleteProcessing(HttpServletResponse response, Connection conn, long dprId,
+                                          String currentStatusCode, Integer userId) throws IOException, SQLException {
+        if (!"PROCESSING".equals(currentStatusCode)) {
+            fail(conn, response, HttpServletResponse.SC_BAD_REQUEST,
+                    "Завершение обработки возможно только при статусе «В обработке» (PROCESSING)");
+            return;
+        }
+        Integer processedIdObj = DprIncomingStatusHelper.resolveIncomingStatusId(conn, "PROCESSED");
+        if (processedIdObj == null) {
+            fail(conn, response, HttpServletResponse.SC_INTERNAL_SERVER_ERROR,
+                    "В справочнике DPRSTATUS не найден активный статус PROCESSED для входящих (DATASOURCEKINDCODE=1)");
+            return;
+        }
+        int processedId = processedIdObj;
+        try (PreparedStatement ps = conn.prepareStatement(SQL_UPDATE)) {
+            ps.setInt(1, processedId);
+            ps.setLong(2, dprId);
+            ps.executeUpdate();
+        }
+        try (PreparedStatement ps = conn.prepareStatement(SQL_INSERT_HIST)) {
+            ps.setLong(1, dprId);
+            ps.setInt(2, processedId);
+            ps.setInt(3, userId);
+            ps.executeUpdate();
+        }
+        conn.commit();
+        String displayName = DprIncomingStatusHelper.resolveIncomingStatusName(conn, processedId);
+        if (displayName == null) {
+            displayName = "Обработано";
+        }
+        String esc = displayName.replace("\\", "\\\\").replace("\"", "\\\"");
+        response.getWriter().print("{\"ok\":true,\"newStatus\":\"" + esc + "\",\"newStatusId\":" + processedId + "}");
+    }
+
+    private void handleToNew(HttpServletResponse response, Connection conn, long dprId, int currentStatusId,
+                             String currentStatusCode, Integer userId) throws IOException, SQLException {
+        if (!"FAILED".equals(currentStatusCode) && !"ERROR".equals(currentStatusCode)) {
             fail(conn, response, HttpServletResponse.SC_BAD_REQUEST,
                     "Перевод в «Новое» возможен только из «Отправка не удалась» или «Ошибка обработки»");
             return;
         }
+        Integer newStatusIdObj = DprOutgoingStatusHelper.resolveOutgoingStatusId(conn, "NEW");
+        if (newStatusIdObj == null) {
+            fail(conn, response, HttpServletResponse.SC_INTERNAL_SERVER_ERROR,
+                    "В справочнике DPRSTATUS не найден активный статус NEW для исходящих (DATASOURCEKINDCODE=2)");
+            return;
+        }
+        int newStatusId = newStatusIdObj;
         try (PreparedStatement ps = conn.prepareStatement(SQL_UPDATE)) {
-            ps.setInt(1, DPR_NEW);
+            ps.setInt(1, newStatusId);
             ps.setLong(2, dprId);
             ps.executeUpdate();
         }
         try (PreparedStatement ps = conn.prepareStatement(SQL_INSERT_HIST)) {
             ps.setLong(1, dprId);
-            ps.setInt(2, DPR_NEW);
+            ps.setInt(2, newStatusId);
             ps.setInt(3, userId);
             ps.executeUpdate();
         }
         conn.commit();
-        response.getWriter().print("{\"ok\":true,\"newStatus\":\"Новое\",\"newStatusId\":" + DPR_NEW + "}");
+        response.getWriter().print("{\"ok\":true,\"newStatus\":\"Новое\",\"newStatusId\":" + newStatusId + "}");
     }
 
     private static int resolveDepKindId(Connection conn, String depKindCode) throws SQLException {
@@ -257,49 +404,6 @@ public class DprStatusChangeServlet extends HttpServlet {
             }
         }
         return -1;
-    }
-
-    private static String resolveDepKindCodeFromRights(Connection conn, String guid) throws SQLException {
-        if (guid == null || guid.isEmpty()) {
-            return null;
-        }
-        String rightsJson = RightsRegistryProvider.get().getRightsJson(guid.trim());
-        if (rightsJson == null || rightsJson.isEmpty()) {
-            return null;
-        }
-        Integer depkindid = extractDepKindIdFromRights(rightsJson);
-        if (depkindid == null) {
-            return null;
-        }
-        try (PreparedStatement ps = conn.prepareStatement(SQL_DEPKINDCODE_BY_DEPKINDID)) {
-            ps.setInt(1, depkindid);
-            try (ResultSet rs = ps.executeQuery()) {
-                if (rs.next()) {
-                    return rs.getString(1);
-                }
-            }
-        }
-        return null;
-    }
-
-    private static Integer extractDepKindIdFromRights(String rightsJson) {
-        Matcher m = Pattern.compile("\"depkindid\"\\s*:\\s*(-?\\d+)", Pattern.CASE_INSENSITIVE).matcher(rightsJson);
-        if (m.find()) {
-            try {
-                return Integer.parseInt(m.group(1));
-            } catch (NumberFormatException e) {
-                return null;
-            }
-        }
-        m = Pattern.compile("\"depkindid\"\\s*:\\s*\"(-?\\d+)\"", Pattern.CASE_INSENSITIVE).matcher(rightsJson);
-        if (m.find()) {
-            try {
-                return Integer.parseInt(m.group(1));
-            } catch (NumberFormatException e) {
-                return null;
-            }
-        }
-        return null;
     }
 
     private static Integer resolveUserId(String guid) {

@@ -9,6 +9,15 @@ interface StatusHistoryModalProps {
   data: StatusHistoryItem[]
   onClose: () => void
   loading?: boolean
+  /** Заголовок модального окна */
+  title?: string
+  /**
+   * Если true — при отсутствии сотрудника (автоматическая смена статуса / резолюция) ячейка пустая.
+   * Если false (по умолчанию) — показывается «Автоматически» (как для DPA/PPV).
+   */
+  hideEmployeeWhenMissing?: boolean
+  /** Подпись колонки сотрудника (например, для DPR: ФИО / код) */
+  employeeColumnTitle?: string
 }
 
 const StatusHistoryModal: React.FC<StatusHistoryModalProps> = ({
@@ -16,9 +25,14 @@ const StatusHistoryModal: React.FC<StatusHistoryModalProps> = ({
   data,
   onClose,
   loading = false,
+  title = 'История смены статусов',
+  hideEmployeeWhenMissing = false,
+  employeeColumnTitle = 'Сотрудник',
 }) => {
-  const isResolution = (status: string | undefined) =>
-    status != null && status.trim().toLowerCase().startsWith('резолюция')
+  const isResolution = (status: string | undefined) => {
+    const t = (status ?? '').trim().toLowerCase()
+    return t.startsWith('резолюция')
+  }
 
   const columns = [
     {
@@ -44,17 +58,20 @@ const StatusHistoryModal: React.FC<StatusHistoryModalProps> = ({
       },
     },
     {
-      title: 'Сотрудник',
+      title: employeeColumnTitle,
       dataIndex: 'employee',
       key: 'employee',
-      render: (employee: string | null) =>
-        employee?.trim() ? employee : 'Автоматически',
+      render: (employee: string | null) => {
+        if (employee?.trim()) return employee.trim()
+        if (hideEmployeeWhenMissing) return ''
+        return 'Автоматически'
+      },
     },
   ]
 
   return (
     <Modal
-      title="История смены статусов"
+      title={title}
       open={visible}
       onCancel={onClose}
       footer={[

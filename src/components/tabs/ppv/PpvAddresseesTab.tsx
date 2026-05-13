@@ -49,7 +49,7 @@ const PpvAddresseesTab: React.FC<PpvAddresseesTabProps> = ({ ppvid, guid, hasPer
       const g = guid?.trim()
       if (!g) return
       const url = buildDprCardViewUrl(dprId, g)
-      window.open(url, '_blank', 'noopener,noreferrer')
+      window.location.assign(url)
     },
     [guid]
   )

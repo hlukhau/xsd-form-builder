@@ -1,29 +1,45 @@
-import { useState, useCallback, useEffect, type CSSProperties } from 'react'
-import { Typography, Tabs, Descriptions, Button, Input, Collapse, Space, message, Tooltip } from 'antd'
+import { useState, useCallback, useEffect, useMemo, type CSSProperties, type ReactNode } from 'react'
+import { Typography, Tabs, Descriptions, Button, Input, Collapse, Space, message, Modal, Spin } from 'antd'
 import { LinkOutlined, DownloadOutlined } from '@ant-design/icons'
 import { format, parseISO } from 'date-fns'
 import { ru } from 'date-fns/locale'
 import MeasuresTab from '@/components/tabs/dpa/MeasuresTab'
+import MeasuresTabEdit from '@/components/tabs/dpa/MeasuresTabEdit'
 import StatusHistoryModal from '@/components/modals/dpa/StatusHistoryModal'
 import ElectronicDocumentModal from '@/components/modals/dpa/ElectronicDocumentModal'
+import AccessModal from '@/components/modals/dpa/AccessModal'
+import XMLComparisonModal, { type ComparisonResultShape } from '@/components/modals/dpa/XMLComparisonModal'
+import { CardActions } from '@/cards/shared'
 import type { DprMetadataView, DprParsedBundle, DprResultDocRow } from '@/types/dprCard'
 import type { StatusHistoryItem } from '@/types/card'
+import type { ValidationResult } from '@/utils/cardValidation'
 import {
   fetchDprStatusHistory,
   getIncidentAlertKindNameByCode,
   checkAccessRight,
   fetchCurrentUser,
   fetchDprResolutions,
+  fetchDprXml,
   postDprSave,
   changeDprStatus,
+  postDprDeleteDraft,
+  fetchRightsByGuid,
+  fetchRightsByGuidRaw,
+  type RightsJson,
 } from '@/utils/referenceDataApi'
+import type { DprResolutionRow } from '@/types/dprCard'
+import type { MeasuresData } from '@/types/card'
 import { useCountryOptions } from '@/hooks/shared/useCountryOptions'
 import { useLanguageOptions } from '@/hooks/shared/useLanguageOptions'
 import { useShipDocKindOptions } from '@/hooks/shared/useShipDocKindOptions'
 import { binaryDownloadFileName, blobMimeTypeFromDocBinaryMediaTypeCode } from '@/utils/docBinaryDownload'
 import { DATE_TIME_DISPLAY_FORMAT_DATEFNS } from '@/constants/dateFormat'
 import { postMessageFromCardToParent } from '@/utils/parentPostMessage'
-import { outgoingDprStatusButton } from '@/utils/dprStatusButtonConfig'
+import { outgoingDprStatusButton, incomingDprCompleteProcessingButton } from '@/utils/dprStatusButtonConfig'
+import type { StatusButtonResult } from '@/utils/statusButtonConfig'
+import { validateDprOutgoingCardFull } from '@/utils/dprCardValidation'
+import { compareDprResponseXml, exportDprParsedBundleToXml } from '@/utils/xmlExporter'
+import { DprResultDocumentsEdit } from '@/cards/dpr/DprResultDocumentsEdit'
 
 const { Text } = Typography
 
@@ -69,6 +85,58 @@ function dash(v: string | null | undefined): string {
   return t || '—'
 }
 
+function cloneMeasuresData(m: MeasuresData): MeasuresData {
+  return JSON.parse(JSON.stringify(m)) as MeasuresData
+}
+
+function utf8ToBase64(s: string): string {
+  return btoa(unescape(encodeURIComponent(s)))
+}
+
+function readinessLevelForMarkReadyDialog(
+  rightsDepKindId: number | null,
+  depKindName: string | null
+): string {
+  if (rightsDepKindId === 72) return 'районного уровня'
+  if (rightsDepKindId === 73) return 'областного уровня'
+  if (rightsDepKindId === 74) return 'республиканского уровня'
+  const t = depKindName?.trim()
+  return t || 'подразделения'
+}
+
+/** Разбивка результата валидации DPR для модалки «Проверка перед сохранением» (XSD отдельно от прочих разделов). */
+function splitDprValidationForModal(vr: ValidationResult): { format: string[]; logical: string[] } {
+  const format: string[] = []
+  const logical: string[] = []
+  for (const sec of vr.sections) {
+    const isXsd = sec.sectionName === 'Ошибки структуры (XSD)'
+    for (const r of sec.remarks) {
+      if (isXsd) format.push(r)
+      else logical.push(`${sec.sectionName}: ${r}`)
+    }
+  }
+  return { format, logical }
+}
+
+function dprValidationReportContent(vr: ValidationResult): ReactNode {
+  return (
+    <div>
+      {vr.sections.map((sec) => (
+        <div key={sec.sectionName} style={{ marginBottom: 12 }}>
+          <Text strong>{sec.sectionName}</Text>
+          <ul style={{ marginTop: 4, marginBottom: 0, paddingLeft: 20 }}>
+            {sec.remarks.map((r, i) => (
+              <li key={`${sec.sectionName}-${i}`}>
+                <Text>{r}</Text>
+              </li>
+            ))}
+          </ul>
+        </div>
+      ))}
+    </div>
+  )
+}
+
 export interface DprCardProps {
   dprid: string
   guid?: string
@@ -90,14 +158,30 @@ export function DprCard({ dprid, guid, meta, parsed, onDataRefresh }: DprCardPro
   const [isEditMode, setIsEditMode] = useState(false)
   const [saving, setSaving] = useState(false)
   const [statusActionLoading, setStatusActionLoading] = useState(false)
+  const [validateLoading, setValidateLoading] = useState(false)
   const [authId, setAuthId] = useState('')
   const [authName, setAuthName] = useState('')
   const [authBrief, setAuthBrief] = useState('')
   const [descText, setDescText] = useState('')
   const [hasStatusRight, setHasStatusRight] = useState(false)
-  const [resolutionCodes, setResolutionCodes] = useState<string[]>([])
+  const [hasIncomingCompleteRight, setHasIncomingCompleteRight] = useState(false)
+  const [resolutionRows, setResolutionRows] = useState<DprResolutionRow[]>([])
   const [userDepKindCode, setUserDepKindCode] = useState<string | null>(null)
   const [userDepKindName, setUserDepKindName] = useState<string | null>(null)
+  const [userRightsDepKindId, setUserRightsDepKindId] = useState<number | null>(null)
+  const [accessModalVisible, setAccessModalVisible] = useState(false)
+  const [rightsDebugVisible, setRightsDebugVisible] = useState(false)
+  const [rightsDebugData, setRightsDebugData] = useState<RightsJson | null>(null)
+  const [rightsDebugLoading, setRightsDebugLoading] = useState(false)
+  const [rightsDebugError, setRightsDebugError] = useState<string | null>(null)
+  const [rightsDebugRawText, setRightsDebugRawText] = useState<string | null>(null)
+  const [measuresEdit, setMeasuresEdit] = useState<MeasuresData>({ measures: [] })
+  const [documentsEdit, setDocumentsEdit] = useState<DprResultDocRow[]>([])
+  const [comparisonModalVisible, setComparisonModalVisible] = useState(false)
+  const [comparisonResult, setComparisonResult] = useState<ComparisonResultShape | null>(null)
+  const [pendingDprXmlB64, setPendingDprXmlB64] = useState<string | null>(null)
+  const [comparisonFormatErrors, setComparisonFormatErrors] = useState<string[]>([])
+  const [comparisonLogicalErrors, setComparisonLogicalErrors] = useState<string[]>([])
 
   const ppvBase = (import.meta.env.VITE_PPV_CARD_BASE as string | undefined)?.replace(/\/$/, '') || '/ppv_card'
   const ppvHref =
@@ -105,64 +189,109 @@ export function DprCard({ dprid, guid, meta, parsed, onDataRefresh }: DprCardPro
       ? `${ppvBase}/${meta.linkedPpvid}/${encodeURIComponent(guid.trim())}`
       : null
 
+  const accessPpvid = meta.linkedPpvid > 0 ? String(meta.linkedPpvid) : ''
+
   const outgoing = String(meta.datasourceKindCode ?? '').trim() === '2'
   const canEditCard = meta.canEdit === true
+  const canDeleteDraft = meta.canDeleteDraft === true
+  const canValidateOutgoingCard = meta.canValidateOutgoingCard === true
   const statusId = meta.dprStatusId ?? null
 
   const openPpv = useCallback(() => {
-    if (ppvHref) window.open(ppvHref, '_blank', 'noopener,noreferrer')
+    if (ppvHref) window.location.assign(ppvHref)
   }, [ppvHref])
 
   const reloadResolutions = useCallback(async () => {
     if (!guid?.trim()) {
-      setResolutionCodes([])
+      setResolutionRows([])
       return
     }
     try {
       const list = await fetchDprResolutions(dprid, guid)
-      setResolutionCodes(list.map((r) => String(r.depKindCode ?? '').trim()).filter(Boolean))
+      setResolutionRows(Array.isArray(list) ? list : [])
     } catch {
-      setResolutionCodes([])
+      setResolutionRows([])
     }
   }, [dprid, guid])
 
   useEffect(() => {
     if (!guid?.trim()) {
       setHasStatusRight(false)
+      setHasIncomingCompleteRight(false)
       setUserDepKindCode(null)
       setUserDepKindName(null)
+      setUserRightsDepKindId(null)
       return
     }
     let cancelled = false
     ;(async () => {
-      const [st, u] = await Promise.all([
-        checkAccessRight(guid, 'violationDetectedIn:status'),
-        fetchCurrentUser(guid),
-      ])
-      if (!cancelled) {
-        setHasStatusRight(st)
-        setUserDepKindCode(u.depKindCode ?? null)
-        setUserDepKindName(u.depKindName ?? null)
+      if (outgoing) {
+        const [st, u] = await Promise.all([
+          checkAccessRight(guid, 'violationDetectedIn:status'),
+          fetchCurrentUser(guid),
+        ])
+        if (!cancelled) {
+          setHasStatusRight(st)
+          setHasIncomingCompleteRight(false)
+          setUserDepKindCode(u.depKindCode ?? null)
+          setUserDepKindName(u.depKindName ?? null)
+          setUserRightsDepKindId(u.rightsDepKindId ?? null)
+        }
+      } else {
+        const [c, u] = await Promise.all([
+          checkAccessRight(guid, 'violationDetectedOut:status'),
+          fetchCurrentUser(guid),
+        ])
+        if (!cancelled) {
+          setHasStatusRight(false)
+          setHasIncomingCompleteRight(c)
+          setUserDepKindCode(u.depKindCode ?? null)
+          setUserDepKindName(u.depKindName ?? null)
+          setUserRightsDepKindId(u.rightsDepKindId ?? null)
+        }
       }
     })()
     return () => {
       cancelled = true
     }
-  }, [guid])
+  }, [guid, outgoing])
 
   useEffect(() => {
     void reloadResolutions()
   }, [reloadResolutions, meta.modificationDateTime, meta.dprStatusName])
+
+  const parsedForValidation: DprParsedBundle = useMemo(() => {
+    if (!isEditMode) return parsed
+    return {
+      ...parsed,
+      notifyingAuthority: {
+        country: parsed.notifyingAuthority.country?.trim() ?? '',
+        identifier: authId.trim(),
+        name: authName.trim(),
+        shortName: authBrief.trim(),
+      },
+      resultDescription: descText.trim() || null,
+      measures: measuresEdit,
+      resultDocuments: documentsEdit,
+    }
+  }, [isEditMode, parsed, authId, authName, authBrief, descText, measuresEdit, documentsEdit])
 
   const beginEdit = useCallback(() => {
     setAuthId(parsed.notifyingAuthority.identifier?.trim() ?? '')
     setAuthName(parsed.notifyingAuthority.name?.trim() ?? '')
     setAuthBrief(parsed.notifyingAuthority.shortName?.trim() ?? '')
     setDescText(parsed.resultDescription?.trim() ?? '')
+    setMeasuresEdit(cloneMeasuresData(parsed.measures ?? { measures: [] }))
+    setDocumentsEdit(JSON.parse(JSON.stringify(parsed.resultDocuments ?? [])) as DprResultDocRow[])
     setIsEditMode(true)
   }, [parsed])
 
   const cancelEdit = useCallback(() => {
+    setComparisonModalVisible(false)
+    setPendingDprXmlB64(null)
+    setComparisonResult(null)
+    setComparisonFormatErrors([])
+    setComparisonLogicalErrors([])
     setIsEditMode(false)
   }, [])
 
@@ -174,15 +303,66 @@ export function DprCard({ dprid, guid, meta, parsed, onDataRefresh }: DprCardPro
     }
     setSaving(true)
     try {
+      const bundle: DprParsedBundle = {
+        ...parsed,
+        notifyingAuthority: {
+          country: parsed.notifyingAuthority.country?.trim() ?? '',
+          identifier: authId.trim(),
+          name: authName.trim(),
+          shortName: authBrief.trim(),
+        },
+        resultDescription: descText.trim() || null,
+        measures: measuresEdit,
+        resultDocuments: documentsEdit,
+      }
+      const fullXml = exportDprParsedBundleToXml(bundle)
+      const originalXml = await fetchDprXml(dprid, g)
+      const vr = await validateDprOutgoingCardFull(bundle, fullXml)
+      const { format: fmt, logical: log } = splitDprValidationForModal(vr)
+      const cmp = compareDprResponseXml(originalXml, fullXml)
+      setComparisonResult({
+        isIdentical: cmp.isIdentical,
+        differences: cmp.differences,
+        warnings: cmp.warnings,
+        added: [],
+      })
+      setComparisonFormatErrors(fmt)
+      setComparisonLogicalErrors(log)
+      setPendingDprXmlB64(utf8ToBase64(fullXml))
+      setComparisonModalVisible(true)
+    } catch (e) {
+      message.error(e instanceof Error ? e.message : 'Ошибка подготовки сохранения')
+    } finally {
+      setSaving(false)
+    }
+  }, [
+    guid,
+    dprid,
+    parsed,
+    authId,
+    authName,
+    authBrief,
+    descText,
+    measuresEdit,
+    documentsEdit,
+  ])
+
+  const handleSaveToDbFromModal = useCallback(async () => {
+    const g = guid?.trim()
+    if (!g || !pendingDprXmlB64) return
+    setSaving(true)
+    try {
       await postDprSave({
         guid: g,
         dprid,
-        authorityId: authId.trim() || undefined,
-        authorityName: authName.trim() || undefined,
-        authorityBriefName: authBrief.trim() || undefined,
-        descriptionText: descText.trim() || undefined,
+        dprXmlB64: pendingDprXmlB64,
       })
       message.success('Карта сохранена')
+      setComparisonModalVisible(false)
+      setPendingDprXmlB64(null)
+      setComparisonResult(null)
+      setComparisonFormatErrors([])
+      setComparisonLogicalErrors([])
       setIsEditMode(false)
       await onDataRefresh?.()
     } catch (e) {
@@ -190,13 +370,140 @@ export function DprCard({ dprid, guid, meta, parsed, onDataRefresh }: DprCardPro
     } finally {
       setSaving(false)
     }
-  }, [guid, dprid, authId, authName, authBrief, descText, onDataRefresh])
+  }, [guid, dprid, pendingDprXmlB64, onDataRefresh])
+
+  const runForcedCardValidation = useCallback(async () => {
+    const g = guid?.trim()
+    if (!g) {
+      message.error('Нет GUID')
+      return
+    }
+    setValidateLoading(true)
+    try {
+      const xml = await fetchDprXml(dprid, g)
+      const vr = await validateDprOutgoingCardFull(parsedForValidation, xml)
+      if (!vr.success) {
+        Modal.info({
+          title: 'Результат валидации карты',
+          width: 640,
+          content: (
+            <div>
+              <Typography.Paragraph style={{ marginBottom: 8 }}>
+                Обнаружены замечания по результатам контроля:
+              </Typography.Paragraph>
+              {dprValidationReportContent(vr)}
+            </div>
+          ),
+        })
+      } else {
+        message.success('Все контроли пройдены успешно.')
+      }
+    } catch (e) {
+      message.error(e instanceof Error ? e.message : 'Ошибка валидации карты')
+    } finally {
+      setValidateLoading(false)
+    }
+  }, [dprid, guid, parsedForValidation])
 
   const runStatusAction = useCallback(
     async (action: string) => {
       const g = guid?.trim()
       if (!g) {
         message.error('Нет GUID')
+        return
+      }
+      if (action === 'complete_processing') {
+        const regDisplay =
+          (parsed.incidentAlert.registrationNumber ?? meta.incidentId ?? '').trim() || '—'
+        Modal.confirm({
+          title: 'Подтверждение',
+          content: `Ответ с результатами рассмотрения сведений о выявленных нарушениях ${regDisplay} будет переведен в статус „Обработано". Продолжить?`,
+          okText: 'Завершить',
+          cancelText: 'Отмена',
+          okButtonProps: { type: 'primary' },
+          onOk: async () => {
+            setStatusActionLoading(true)
+            try {
+              const res = await changeDprStatus(dprid, 'complete_processing', { guid: g })
+              message.success(res.newStatus ? `Статус: ${res.newStatus}` : 'Выполнено')
+              await onDataRefresh?.()
+              await reloadResolutions()
+            } catch (e) {
+              message.error(e instanceof Error ? e.message : 'Ошибка смены статуса')
+              throw e
+            } finally {
+              setStatusActionLoading(false)
+            }
+          },
+        })
+        return
+      }
+      if (action === 'mark_ready') {
+        const regDisplay =
+          (parsed.incidentAlert.registrationNumber ?? meta.incidentId ?? '').trim() || '—'
+        const levelLabel = readinessLevelForMarkReadyDialog(userRightsDepKindId, userDepKindName)
+        Modal.confirm({
+          title: 'Подтверждение',
+          content: `Внимание! После подтверждения по ответу с результатами рассмотрения сведений о выявленных нарушениях ${regDisplay} будет зафиксирована отметка о готовности на уровне ${levelLabel}. Отменить данное действие будет невозможно. Продолжить?`,
+          okText: 'Продолжить',
+          cancelText: 'Отмена',
+          onOk: async () => {
+            setStatusActionLoading(true)
+            try {
+              const res = await changeDprStatus(dprid, 'mark_ready', { guid: g })
+              message.success(res.newStatus ? `Статус: ${res.newStatus}` : 'Выполнено')
+              await onDataRefresh?.()
+              await reloadResolutions()
+            } catch (e) {
+              message.error(e instanceof Error ? e.message : 'Ошибка смены статуса')
+              throw e
+            } finally {
+              setStatusActionLoading(false)
+            }
+          },
+        })
+        return
+      }
+      if (action === 'send') {
+        Modal.confirm({
+          title: 'Подтверждение',
+          content:
+            'Направить сведения о результатах рассмотрения участникам органа по сотрудничеству в рамках решения Комиссии №57 (ОП 57)?',
+          okText: 'Направить',
+          cancelText: 'Отмена',
+          onOk: async () => {
+            setStatusActionLoading(true)
+            try {
+              const xml = await fetchDprXml(dprid, g)
+              const vr = await validateDprOutgoingCardFull(parsedForValidation, xml)
+              if (!vr.success) {
+                Modal.error({
+                  title: 'Доработка карты',
+                  width: 640,
+                  content: (
+                    <div>
+                      <Typography.Paragraph style={{ marginBottom: 12 }}>
+                        Необходимо доработать карту исходящих сведений. Направление сведений участникам ОП 57
+                        недоступно. Отчёт валидации:
+                      </Typography.Paragraph>
+                      {dprValidationReportContent(vr)}
+                    </div>
+                  ),
+                })
+                return
+              }
+              const res = await changeDprStatus(dprid, 'send', { guid: g })
+              message.success(res.newStatus ? `Статус: ${res.newStatus}` : 'Выполнено')
+              await onDataRefresh?.()
+              await reloadResolutions()
+            } catch (e) {
+              message.error(e instanceof Error ? e.message : 'Ошибка смены статуса')
+              throw e
+            } finally {
+              setStatusActionLoading(false)
+            }
+          },
+        })
         return
       }
       setStatusActionLoading(true)
@@ -211,15 +518,74 @@ export function DprCard({ dprid, guid, meta, parsed, onDataRefresh }: DprCardPro
         setStatusActionLoading(false)
       }
     },
-    [dprid, guid, onDataRefresh, reloadResolutions]
+    [
+      dprid,
+      guid,
+      onDataRefresh,
+      reloadResolutions,
+      parsedForValidation,
+      parsed.incidentAlert.registrationNumber,
+      meta.incidentId,
+      userRightsDepKindId,
+      userDepKindName,
+    ]
   )
 
+  const requestDeleteDraft = useCallback(() => {
+    const g = guid?.trim()
+    if (!g || !ppvHref) {
+      message.error('Нет данных для перехода к связанной карте PPV')
+      return
+    }
+    const regDisplay =
+      (parsed.incidentAlert.registrationNumber ?? meta.incidentId ?? '').trim() || '—'
+    Modal.confirm({
+      title: 'Подтверждение',
+      content: `Ответ с результатами рассмотрения сведений о выявленных нарушениях ${regDisplay} будет удален безвозвратно. Продолжить?`,
+      okText: 'Продолжить',
+      cancelText: 'Отмена',
+      okButtonProps: { danger: true },
+      onOk: async () => {
+        try {
+          await postDprDeleteDraft({ guid: g, dprid })
+          message.open({
+            type: 'success',
+            content: 'Черновик карты успешно удален',
+            duration: 3,
+            style: {
+              position: 'fixed',
+              left: '50%',
+              transform: 'translateX(-50%)',
+              top: '15vh',
+              marginTop: 0,
+            } as CSSProperties,
+            onClose: () => {
+              window.location.assign(ppvHref)
+            },
+          })
+        } catch (e) {
+          const reason = e instanceof Error ? e.message : String(e)
+          Modal.error({
+            title: 'Ошибка',
+            content: `Не удалось выполнить удаление черновика. Причина: ${reason}`,
+            okText: 'Ок',
+          })
+          throw e
+        }
+      },
+    })
+  }, [guid, ppvHref, dprid, parsed.incidentAlert.registrationNumber, meta.incidentId])
+
   const openStatusHistory = useCallback(async () => {
-    if (!guid?.trim()) return
+    const g = guid?.trim()
+    if (!g) {
+      message.warning('Для просмотра истории укажите доступ к карте (guid)')
+      return
+    }
     setStatusModalOpen(true)
     setStatusLoading(true)
     try {
-      const rows = await fetchDprStatusHistory(dprid, guid)
+      const rows = await fetchDprStatusHistory(dprid, g)
       setStatusRows(
         rows.map((r) => ({
           status: r.status,
@@ -306,61 +672,81 @@ export function DprCard({ dprid, guid, meta, parsed, onDataRefresh }: DprCardPro
     URL.revokeObjectURL(url)
   }
 
-  const docPanels = parsed.resultDocuments.map((row, i) => ({
-    key: String(i),
-    label: `Документ ${i + 1}`,
-    children: (
-      <Descriptions column={1} bordered size="small">
-        <Descriptions.Item label="Страна">
-          {row.countryCode ? `${row.countryCode} — ${countryLabel(row.countryCode) || row.countryCode}` : '—'}
-        </Descriptions.Item>
-        <Descriptions.Item label="Язык">{row.languageCode ? langLabel(row.languageCode) : '—'}</Descriptions.Item>
-        <Descriptions.Item label="Вид">{docKindLabel(row)}</Descriptions.Item>
-        <Descriptions.Item label="Наименование">{dash(row.docName)}</Descriptions.Item>
-        <Descriptions.Item label="Серия">{dash(row.docSeriesId)}</Descriptions.Item>
-        <Descriptions.Item label="Номер">{dash(row.docId)}</Descriptions.Item>
-        <Descriptions.Item label="Дата документа">{formatDateOnly(row.docCreationDate)}</Descriptions.Item>
-        <Descriptions.Item label="Срок действия. Начало">{formatDateOnly(row.docStartDate)}</Descriptions.Item>
-        <Descriptions.Item label="Срок действия. Окончание">{formatDateOnly(row.docValidityDate)}</Descriptions.Item>
-        <Descriptions.Item label="Срок действия">{dash(row.docValidityDuration)}</Descriptions.Item>
-        <Descriptions.Item label="Уполномоченный орган. Идентификатор">{dash(row.authorityId)}</Descriptions.Item>
-        <Descriptions.Item label="Уполномоченный орган. Наименование">{dash(row.authorityName)}</Descriptions.Item>
-        <Descriptions.Item label="Описание">{dash(row.descriptionText)}</Descriptions.Item>
-        <Descriptions.Item label="Количество листов">{dash(row.pageQuantity)}</Descriptions.Item>
-        <Descriptions.Item label="Документ в бинарном виде">
-          {row.docBinaryText?.trim() ? (
-            <Button type="link" icon={<DownloadOutlined />} onClick={() => downloadBinary(row)}>
-              Скачать
-            </Button>
-          ) : (
-            '—'
-          )}
-        </Descriptions.Item>
-        <Descriptions.Item label="XML">
-          {row.anyDetailsXml?.trim() ? (
-            <Button type="link" icon={<DownloadOutlined />} onClick={() => downloadAnyXml(row)}>
-              Скачать
-            </Button>
-          ) : (
-            '—'
-          )}
-        </Descriptions.Item>
-      </Descriptions>
-    ),
-  }))
+  const docPanels = useMemo(
+    () =>
+      parsed.resultDocuments.map((row, i) => ({
+        key: String(i),
+        label: `Документ ${i + 1}`,
+        children: (
+          <Descriptions column={1} bordered size="small">
+            <Descriptions.Item label="Страна">
+              {row.countryCode ? `${row.countryCode} — ${countryLabel(row.countryCode) || row.countryCode}` : '—'}
+            </Descriptions.Item>
+            <Descriptions.Item label="Язык">{row.languageCode ? langLabel(row.languageCode) : '—'}</Descriptions.Item>
+            <Descriptions.Item label="Вид">{docKindLabel(row)}</Descriptions.Item>
+            <Descriptions.Item label="Наименование">{dash(row.docName)}</Descriptions.Item>
+            <Descriptions.Item label="Серия">{dash(row.docSeriesId)}</Descriptions.Item>
+            <Descriptions.Item label="Номер">{dash(row.docId)}</Descriptions.Item>
+            <Descriptions.Item label="Дата документа">{formatDateOnly(row.docCreationDate)}</Descriptions.Item>
+            <Descriptions.Item label="Срок действия. Начало">{formatDateOnly(row.docStartDate)}</Descriptions.Item>
+            <Descriptions.Item label="Срок действия. Окончание">{formatDateOnly(row.docValidityDate)}</Descriptions.Item>
+            <Descriptions.Item label="Срок действия">{dash(row.docValidityDuration)}</Descriptions.Item>
+            <Descriptions.Item label="Уполномоченный орган. Идентификатор">{dash(row.authorityId)}</Descriptions.Item>
+            <Descriptions.Item label="Уполномоченный орган. Наименование">{dash(row.authorityName)}</Descriptions.Item>
+            <Descriptions.Item label="Описание">{dash(row.descriptionText)}</Descriptions.Item>
+            <Descriptions.Item label="Количество листов">{dash(row.pageQuantity)}</Descriptions.Item>
+            <Descriptions.Item label="Документ в бинарном виде">
+              {row.docBinaryText?.trim() ? (
+                <Button type="link" icon={<DownloadOutlined />} onClick={() => downloadBinary(row)}>
+                  Скачать
+                </Button>
+              ) : (
+                '—'
+              )}
+            </Descriptions.Item>
+            <Descriptions.Item label="XML">
+              {row.anyDetailsXml?.trim() ? (
+                <Button type="link" icon={<DownloadOutlined />} onClick={() => downloadAnyXml(row)}>
+                  Скачать
+                </Button>
+              ) : (
+                '—'
+              )}
+            </Descriptions.Item>
+          </Descriptions>
+        ),
+      })),
+    [parsed.resultDocuments, countryLabel, langLabel, docKindLabel]
+  )
 
   const statusBtn = outgoing
     ? outgoingDprStatusButton(
+        meta.dprStatusCode,
         statusId,
         meta.dprStatusName ?? '',
         hasStatusRight,
-        resolutionCodes,
+        resolutionRows,
         userDepKindCode,
-        userDepKindName
+        userDepKindName,
+        userRightsDepKindId
       )
-    : { config: null as const, comment: '' }
+    : ({ config: null, comment: '' } satisfies StatusButtonResult)
+
+  const incomingCompleteBtn = !outgoing
+    ? incomingDprCompleteProcessingButton(
+        meta.dprStatusCode,
+        statusId,
+        meta.dprStatusName ?? '',
+        hasIncomingCompleteRight
+      )
+    : ({ config: null, comment: '' } satisfies StatusButtonResult)
 
   const primaryStatus = statusBtn.config
+  const sendOp57Status = statusBtn.sendOp57Config
+
+  const cardActionsPrimaryStatus = outgoing ? primaryStatus : incomingCompleteBtn.config
+  const cardActionsStatusComment = outgoing ? statusBtn.comment : incomingCompleteBtn.comment
+  const cardActionsCloseStatus = outgoing ? sendOp57Status : null
 
   return (
     <div
@@ -378,13 +764,23 @@ export function DprCard({ dprid, guid, meta, parsed, onDataRefresh }: DprCardPro
             ) : null}
             {isEditMode ? (
               <>
-                <Button type="primary" onClick={() => void saveEdit()} loading={saving}>
+                <Button
+                  type="primary"
+                  onClick={() => void saveEdit()}
+                  loading={saving}
+                  disabled={comparisonModalVisible}
+                >
                   Сохранить
                 </Button>
-                <Button onClick={cancelEdit} disabled={saving}>
+                <Button onClick={cancelEdit} disabled={saving || comparisonModalVisible}>
                   Отменить
                 </Button>
               </>
+            ) : null}
+            {outgoing && canValidateOutgoingCard ? (
+              <Button type="default" loading={validateLoading} onClick={() => void runForcedCardValidation()}>
+                Валидация карты
+              </Button>
             ) : null}
             <Button
               onClick={() => {
@@ -413,9 +809,18 @@ export function DprCard({ dprid, guid, meta, parsed, onDataRefresh }: DprCardPro
           </Descriptions.Item>
           <Descriptions.Item label="Страна">{dash(meta.responseCountryName)}</Descriptions.Item>
           <Descriptions.Item label="Статус">
-            <Button type="link" style={{ padding: 0, height: 'auto' }} onClick={openStatusHistory}>
-              {dash(meta.dprStatusName)}
-            </Button>
+            {isEditMode ? (
+              <Text>{dash(meta.dprStatusName)}</Text>
+            ) : (
+              <Button
+                type="link"
+                className="dpr-card-header-status-link"
+                style={{ padding: 0, height: 'auto' }}
+                onClick={() => void openStatusHistory()}
+              >
+                {dash(meta.dprStatusName)}
+              </Button>
+            )}
           </Descriptions.Item>
           <Descriptions.Item label="Электронный документ">
             <Button type="link" style={{ padding: 0, height: 'auto' }} onClick={() => setEdocOpen(true)}>
@@ -427,29 +832,58 @@ export function DprCard({ dprid, guid, meta, parsed, onDataRefresh }: DprCardPro
           <Descriptions.Item label="Дата изменения">{formatDt(meta.modificationDateTime)}</Descriptions.Item>
         </Descriptions>
 
-        {!isEditMode && outgoing ? (
-          <div style={{ marginTop: 0, marginBottom: 4 }} className="card-actions-row">
-            <Space size="small" wrap>
-              {primaryStatus ? (
-                <Tooltip title={primaryStatus.hint ?? statusBtn.comment}>
-                  <span>
-                    <Button
-                      size="small"
-                      type="primary"
-                      loading={statusActionLoading}
-                      disabled={primaryStatus.disabled}
-                      onClick={() => !primaryStatus.disabled && void runStatusAction(primaryStatus.action)}
-                    >
-                      {primaryStatus.label}
-                    </Button>
-                  </span>
-                </Tooltip>
-              ) : null}
-              <Button size="small" type="link" onClick={() => setEdocOpen(true)}>
-                Электронный документ
-              </Button>
-            </Space>
-          </div>
+        {!isEditMode ? (
+          <CardActions
+            onDefineAccess={
+              accessPpvid && guid?.trim()
+                ? () => {
+                    setAccessModalVisible(true)
+                  }
+                : undefined
+            }
+            onShowRightsDebug={() => {
+              setRightsDebugVisible(true)
+              setRightsDebugError(null)
+              setRightsDebugRawText(null)
+              setRightsDebugData(null)
+              const g = guid?.trim()
+              if (g) {
+                setRightsDebugLoading(true)
+                fetchRightsByGuid(g)
+                  .then((data) => {
+                    setRightsDebugData(data)
+                    setRightsDebugError(null)
+                    setRightsDebugRawText(null)
+                  })
+                  .catch(async (e) => {
+                    setRightsDebugError(e instanceof Error ? e.message : 'Ошибка загрузки')
+                    setRightsDebugData(null)
+                    try {
+                      const raw = await fetchRightsByGuidRaw(g)
+                      setRightsDebugRawText(raw.text)
+                    } catch {
+                      setRightsDebugRawText(null)
+                    }
+                  })
+                  .finally(() => setRightsDebugLoading(false))
+              } else {
+                setRightsDebugError('GUID не задан')
+                setRightsDebugLoading(false)
+              }
+            }}
+            showDeleteButton={canDeleteDraft}
+            deleteButtonDisabled={!ppvHref}
+            deleteButtonHint={
+              !ppvHref ? 'Нет связанной карты PPV — удаление недоступно' : undefined
+            }
+            onDelete={() => void requestDeleteDraft()}
+            statusButton={cardActionsPrimaryStatus}
+            statusButtonComment={cardActionsStatusComment}
+            closeButton={cardActionsCloseStatus}
+            onStatusAction={(action) => void runStatusAction(action)}
+            onElectronicDocumentClick={() => setEdocOpen(true)}
+            statusButtonsLoading={statusActionLoading}
+          />
         ) : null}
 
         <div className="card-tabs-wrapper">
@@ -508,7 +942,11 @@ export function DprCard({ dprid, guid, meta, parsed, onDataRefresh }: DprCardPro
                 label: 'Принятые меры',
                 children: (
                   <div style={{ padding: 16 }}>
-                    <MeasuresTab data={parsed.measures} />
+                    {isEditMode ? (
+                      <MeasuresTabEdit data={measuresEdit} onChange={setMeasuresEdit} />
+                    ) : (
+                      <MeasuresTab data={parsed.measures} />
+                    )}
                   </div>
                 ),
               },
@@ -520,14 +958,17 @@ export function DprCard({ dprid, guid, meta, parsed, onDataRefresh }: DprCardPro
                     <Typography.Title level={5}>Описание результатов рассмотрения</Typography.Title>
                     <Input.TextArea
                       readOnly={!isEditMode}
+                      disabled={!isEditMode}
                       value={isEditMode ? descText : parsed.resultDescription ?? ''}
-                      onChange={(e) => setDescText(e.target.value)}
+                      onChange={isEditMode ? (e) => setDescText(e.target.value) : undefined}
                       placeholder="—"
                       autoSize={{ minRows: 3, maxRows: 16 }}
                       style={{ marginBottom: 16 }}
                     />
                     <Typography.Title level={5}>Документы</Typography.Title>
-                    {docPanels.length === 0 ? (
+                    {isEditMode ? (
+                      <DprResultDocumentsEdit documents={documentsEdit} onChange={setDocumentsEdit} />
+                    ) : docPanels.length === 0 ? (
                       <Text type="secondary">Нет приложенных документов</Text>
                     ) : (
                       <Collapse items={docPanels} />
@@ -545,12 +986,132 @@ export function DprCard({ dprid, guid, meta, parsed, onDataRefresh }: DprCardPro
         data={statusRows}
         loading={statusLoading}
         onClose={() => setStatusModalOpen(false)}
+        title="История смены статуса карты"
+        hideEmployeeWhenMissing
+        employeeColumnTitle="ФИО / код сотрудника"
       />
       <ElectronicDocumentModal
         visible={edocOpen}
         data={parsed.electronicDocument}
         onClose={() => setEdocOpen(false)}
       />
+      <AccessModal
+        visible={accessModalVisible}
+        data={[]}
+        onClose={() => setAccessModalVisible(false)}
+        onUpdate={() => {
+          void onDataRefresh?.()
+        }}
+        ppvid={accessPpvid || undefined}
+        source={meta.datasourceKindName ?? undefined}
+        datasourceKindCode={
+          meta.datasourceKindCode != null ? String(meta.datasourceKindCode) : undefined
+        }
+        guid={guid}
+      />
+      <Modal
+        title="Карта прав доступа (отладка)"
+        open={rightsDebugVisible}
+        onCancel={() => {
+          setRightsDebugVisible(false)
+          setRightsDebugData(null)
+          setRightsDebugError(null)
+          setRightsDebugRawText(null)
+        }}
+        footer={[
+          <Button
+            key="close"
+            onClick={() => {
+              setRightsDebugVisible(false)
+              setRightsDebugData(null)
+              setRightsDebugError(null)
+              setRightsDebugRawText(null)
+            }}
+          >
+            Закрыть
+          </Button>,
+          rightsDebugData != null && (
+            <Button
+              key="copy"
+              type="primary"
+              onClick={() => {
+                navigator.clipboard.writeText(JSON.stringify(rightsDebugData, null, 2)).then(
+                  () => message.success('Скопировано в буфер обмена'),
+                  () => message.error('Не удалось скопировать')
+                )
+              }}
+            >
+              Копировать JSON
+            </Button>
+          ),
+          rightsDebugRawText != null && (
+            <Button
+              key="copyRaw"
+              onClick={() => {
+                navigator.clipboard.writeText(rightsDebugRawText).then(
+                  () => message.success('Сырой ответ скопирован'),
+                  () => message.error('Не удалось скопировать')
+                )
+              }}
+            >
+              Копировать сырой ответ
+            </Button>
+          ),
+        ].filter(Boolean)}
+        width={640}
+        destroyOnClose
+      >
+        {rightsDebugLoading ? (
+          <div style={{ padding: 24, textAlign: 'center' }}>
+            <Spin tip="Загрузка карты прав..." />
+          </div>
+        ) : rightsDebugError != null ? (
+          <div>
+            <div style={{ color: '#ff4d4f', marginBottom: 8 }}>{rightsDebugError}</div>
+            {rightsDebugRawText != null && (
+              <pre
+                style={{
+                  margin: 0,
+                  padding: 12,
+                  background: '#fff2f0',
+                  borderRadius: 4,
+                  maxHeight: 360,
+                  overflow: 'auto',
+                  fontSize: 11,
+                }}
+              >
+                {rightsDebugRawText}
+              </pre>
+            )}
+          </div>
+        ) : rightsDebugData != null ? (
+          <Input.TextArea
+            readOnly
+            value={JSON.stringify(rightsDebugData, null, 2)}
+            autoSize={{ minRows: 14, maxRows: 22 }}
+            style={{ fontFamily: 'monospace' }}
+          />
+        ) : (
+          <span>Нет данных</span>
+        )}
+      </Modal>
+
+      {comparisonResult != null && (
+        <XMLComparisonModal
+          visible={comparisonModalVisible}
+          comparisonResult={comparisonResult}
+          onClose={() => {
+            setComparisonModalVisible(false)
+            setPendingDprXmlB64(null)
+            setComparisonFormatErrors([])
+            setComparisonLogicalErrors([])
+          }}
+          formatValidationErrors={comparisonFormatErrors}
+          logicalValidationErrors={comparisonLogicalErrors}
+          onSaveToDb={pendingDprXmlB64 ? handleSaveToDbFromModal : undefined}
+          saving={saving}
+        />
+      )}
     </div>
   )
 }

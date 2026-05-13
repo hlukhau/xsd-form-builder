@@ -1,8 +1,10 @@
 /**
- * Кнопки смены статуса для исходящей карты DPR (DPRSTATUSID по справочнику DPRSTATUS, DATASOURCEKINDCODE=2).
- * Логика по образцу исходящей DPA: mark_ready, send, to_new.
+ * Кнопки смены статуса для исходящей карты DPR.
+ * Предпочтительно по {@code dprStatusCode} из справочника DPRSTATUS; иначе запасной разбор по {@code dprStatusId} / названию.
+ * Отметка готовности: {@code rightsDepKindId} из JSON прав (72 — район, 73 — область, 74 — республика) по ТЗ.
  */
 import type { StatusButtonConfig, StatusButtonResult } from '@/utils/statusButtonConfig'
+import type { DprResolutionRow } from '@/types/dprCard'
 
 const DPR_DRAFT = 4
 const DPR_NEW = 5
@@ -11,6 +13,11 @@ const DPR_SENT = 7
 const DPR_FAILED = 8
 const DPR_ERROR = 9
 const DPR_DELIVERED = 10
+
+/** department.depkindid в карте прав (ТЗ на исходящую DPR). */
+const RIGHTS_DEPKIND_DISTRICT = 72
+const RIGHTS_DEPKIND_REGIONAL = 73
+const RIGHTS_DEPKIND_REPUBLIC = 74
 
 function norm(c: string | null | undefined): string {
   return String(c ?? '')
@@ -22,6 +29,10 @@ function hintNoStatusRight(): string {
   return 'Недостаточно прав: требуется violationDetectedIn:status с пересечением подразделений с доступом к PPV (PPVDEPPERMIS).'
 }
 
+function hintRightsDepKindId(): string {
+  return 'Укажите в карте прав department.depkindid: 72 — районный ЦГЭ, 73 — областной, 74 — республиканский.'
+}
+
 function getResolutionButtonLabel(userDepKindCode: string | null | undefined): string {
   const c = norm(userDepKindCode)
   if (c === 'dep0601') return 'Отметить готовность (районный ЦГЭ)'
@@ -30,31 +41,65 @@ function getResolutionButtonLabel(userDepKindCode: string | null | undefined): s
   return 'Отметить готовность'
 }
 
+function resolutionCodes(resolutions: DprResolutionRow[]): string[] {
+  return resolutions.map((r) => String(r.depKindCode ?? '').trim()).filter(Boolean)
+}
+
+/** Резолюция районного уровня (TB_DEPKIND dep0601). */
+function hasDistrictResolution(resolutions: DprResolutionRow[]): boolean {
+  if (!Array.isArray(resolutions) || resolutions.length === 0) return false
+  return resolutions.some((r) => norm(r.depKindCode) === 'dep0601')
+}
+
+/** Резолюция областного уровня (TB_DEPKIND dep0602) — для направления из «Новое». */
+function hasRegionalResolutionDep0602(resolutions: DprResolutionRow[]): boolean {
+  if (!Array.isArray(resolutions) || resolutions.length === 0) return false
+  return resolutions.some((r) => norm(r.depKindCode) === 'dep0602')
+}
+
+function rightsAllowMarkReadyDraft(rightsDepKindId: number | null | undefined): boolean {
+  return (
+    rightsDepKindId === RIGHTS_DEPKIND_DISTRICT ||
+    rightsDepKindId === RIGHTS_DEPKIND_REGIONAL ||
+    rightsDepKindId === RIGHTS_DEPKIND_REPUBLIC
+  )
+}
+
+const hintSendOp57 =
+  'Направление сведений участникам ОП 57: после подтверждения выполняется валидация карты, затем статус «Ожидает отправки».'
+
+const hintNewToPending =
+  'Новое при резолюции областного уровня (dep0602) → Ожидает отправки (направление в ОП 57 после валидации).'
+
+const hintToNew =
+  'Перевод в «Новое» из «Отправка не удалась» или «Ошибка обработки»; при необходимости доступно также направление в ОП 57 после валидации.'
+
+const NEED_REGIONAL_DEP0602_HINT =
+  'Ожидается резолюция областного уровня (в DPRRESOLUTION — запись по уровню dep0602).'
+
+const sendOp57Button: StatusButtonConfig = {
+  label: 'Направление сведений',
+  action: 'send',
+  hint: hintSendOp57,
+}
+
 export function outgoingDprStatusButton(
+  dprStatusCode: string | null | undefined,
   statusId: number | null | undefined,
   statusName: string,
   hasStatusRight: boolean,
-  existingResolutionDepKindCodes: string[] | undefined,
+  resolutions: DprResolutionRow[],
   userDepKindCode: string | null | undefined,
-  userDepKindName: string | null | undefined
+  userDepKindName: string | null | undefined,
+  rightsDepKindId: number | null | undefined
 ): StatusButtonResult {
   const noSt = hintNoStatusRight()
   const resolutionLabel = getResolutionButtonLabel(userDepKindCode)
-  const hasRegionalOrRepublicanResolution =
-    Array.isArray(existingResolutionDepKindCodes) &&
-    existingResolutionDepKindCodes.some((c) => {
-      const x = norm(c)
-      return x === 'dep0602' || x === 'dep0603'
-    })
+  const codes = resolutionCodes(resolutions)
+  const hasRegionalDep0602 = hasRegionalResolutionDep0602(resolutions)
+  const hasDistrictRes = hasDistrictResolution(resolutions)
   const hasResolutionOfUserLevel =
-    userDepKindCode &&
-    Array.isArray(existingResolutionDepKindCodes) &&
-    existingResolutionDepKindCodes.some((c) => norm(c) === norm(userDepKindCode))
-
-  const hintNewToPending = 'Новое + резолюция областного/республиканского ЦГЭ → Ожидает отправки'
-  const hintToNew =
-    'Перевод в «Новое» из «Отправка не удалась» или «Ошибка обработки»; далее снова доступно направление при резолюции.'
-  const NEED_REGIONAL_OR_REPUBLICAN_HINT = 'Ожидается резолюция областного или республиканского ЦГЭ.'
+    userDepKindCode && codes.some((c) => norm(c) === norm(userDepKindCode))
 
   if (!hasStatusRight) {
     return {
@@ -68,8 +113,119 @@ export function outgoingDprStatusButton(
     }
   }
 
+  const code = norm(dprStatusCode)
+  if (code) {
+    if (code === 'draft') {
+      if (!rightsAllowMarkReadyDraft(rightsDepKindId)) {
+        return {
+          config: {
+            label: resolutionLabel,
+            action: 'mark_ready',
+            disabled: true,
+            hint: hintRightsDepKindId(),
+          },
+          comment: hintRightsDepKindId(),
+        }
+      }
+      const draftHint =
+        userDepKindName && userDepKindName.trim()
+          ? `Наложение резолюции уровня «${userDepKindName.trim()}» и перевод в «Новое».`
+          : 'Наложение резолюции и перевод карты в статус «Новое».'
+      return {
+        config: { label: resolutionLabel, action: 'mark_ready', hint: draftHint },
+        comment: draftHint,
+      }
+    }
+    if (code === 'new') {
+      if (hasRegionalDep0602) {
+        return {
+          config: { label: 'Направление сведений', action: 'send', hint: hintNewToPending },
+          comment: hintNewToPending,
+        }
+      }
+      if (rightsDepKindId === RIGHTS_DEPKIND_REGIONAL && hasDistrictRes && !hasRegionalDep0602) {
+        const hintRegionalSecond =
+          'Будет записана резолюция областного уровня о готовности к отправке; статус карты останется «Новое».'
+        return {
+          config: { label: resolutionLabel, action: 'mark_ready', hint: hintRegionalSecond },
+          comment: hintRegionalSecond,
+        }
+      }
+      if (hasResolutionOfUserLevel && !hasRegionalDep0602) {
+        return {
+          config: {
+            label: 'Направление сведений',
+            action: 'send',
+            disabled: true,
+            hint: NEED_REGIONAL_DEP0602_HINT,
+          },
+          comment: NEED_REGIONAL_DEP0602_HINT,
+        }
+      }
+      const hintNew =
+        userDepKindCode && norm(userDepKindCode) === 'dep0601'
+          ? NEED_REGIONAL_DEP0602_HINT
+          : 'Наложите резолюцию своего уровня либо дождитесь резолюции областного уровня (dep0602).'
+      if (rightsDepKindId === RIGHTS_DEPKIND_DISTRICT || rightsDepKindId === RIGHTS_DEPKIND_REPUBLIC) {
+        return {
+          config: {
+            label: 'Направление сведений',
+            action: 'send',
+            disabled: true,
+            hint: hintNew,
+          },
+          comment: hintNew,
+        }
+      }
+      if (rightsDepKindId === RIGHTS_DEPKIND_REGIONAL && !hasDistrictRes) {
+        return {
+          config: {
+            label: resolutionLabel,
+            action: 'mark_ready',
+            disabled: true,
+            hint: 'Отметка готовности областного ЦГЭ при «Новое» доступна при наличии резолюции районного ЦГЭ (dep0601).',
+          },
+          comment: 'Нет резолюции районного ЦГЭ',
+        }
+      }
+      return {
+        config: {
+          label: resolutionLabel,
+          action: 'mark_ready',
+          disabled: true,
+          hint: hintRightsDepKindId(),
+        },
+        comment: hintRightsDepKindId(),
+      }
+    }
+    if (code === 'pending' || code === 'sent') {
+      return { config: null, comment: '' }
+    }
+    if (code === 'failed' || code === 'error') {
+      return {
+        config: { label: 'Перевести в Новое', action: 'to_new', hint: hintToNew },
+        sendOp57Config: sendOp57Button,
+        comment: hintToNew,
+      }
+    }
+    if (code === 'delivered') {
+      return { config: null, comment: '' }
+    }
+  }
+
   const sid = statusId ?? -1
   if (sid === DPR_DRAFT) {
+    if (!rightsAllowMarkReadyDraft(rightsDepKindId)) {
+      return {
+        config: {
+          label: resolutionLabel,
+          action: 'mark_ready',
+          disabled: true,
+          hint: hintRightsDepKindId(),
+        },
+        comment: hintRightsDepKindId(),
+      }
+    }
     const draftHint =
       userDepKindName && userDepKindName.trim()
         ? `Наложение резолюции уровня «${userDepKindName.trim()}» и перевод в «Новое».`
@@ -80,30 +236,65 @@ export function outgoingDprStatusButton(
     }
   }
   if (sid === DPR_NEW) {
-    if (hasRegionalOrRepublicanResolution) {
+    if (hasRegionalDep0602) {
       return {
         config: { label: 'Направление сведений', action: 'send', hint: hintNewToPending },
         comment: hintNewToPending,
       }
     }
-    if (hasResolutionOfUserLevel && !hasRegionalOrRepublicanResolution) {
+    if (rightsDepKindId === RIGHTS_DEPKIND_REGIONAL && hasDistrictRes && !hasRegionalDep0602) {
+      const hintRegionalSecond =
+        'Будет записана резолюция областного уровня о готовности к отправке; статус карты останется «Новое».'
+      return {
+        config: { label: resolutionLabel, action: 'mark_ready', hint: hintRegionalSecond },
+        comment: hintRegionalSecond,
+      }
+    }
+    if (hasResolutionOfUserLevel && !hasRegionalDep0602) {
       return {
         config: {
           label: 'Направление сведений',
           action: 'send',
           disabled: true,
-          hint: NEED_REGIONAL_OR_REPUBLICAN_HINT,
+          hint: NEED_REGIONAL_DEP0602_HINT,
         },
-        comment: NEED_REGIONAL_OR_REPUBLICAN_HINT,
+        comment: NEED_REGIONAL_DEP0602_HINT,
       }
     }
     const hintNew =
       userDepKindCode && norm(userDepKindCode) === 'dep0601'
-        ? 'Ожидается резолюция областного или республиканского ЦГЭ.'
-        : 'Наложите резолюцию своего уровня либо дождитесь резолюции вышестоящего ЦГЭ.'
+        ? NEED_REGIONAL_DEP0602_HINT
+        : 'Наложите резолюцию своего уровня либо дождитесь резолюции областного уровня (dep0602).'
+    if (rightsDepKindId === RIGHTS_DEPKIND_DISTRICT || rightsDepKindId === RIGHTS_DEPKIND_REPUBLIC) {
+      return {
+        config: {
+          label: 'Направление сведений',
+          action: 'send',
+          disabled: true,
+          hint: hintNew,
+        },
+        comment: hintNew,
+      }
+    }
+    if (rightsDepKindId === RIGHTS_DEPKIND_REGIONAL && !hasDistrictRes) {
+      return {
+        config: {
+          label: resolutionLabel,
+          action: 'mark_ready',
+          disabled: true,
+          hint: 'Отметка готовности областного ЦГЭ при «Новое» доступна при наличии резолюции районного ЦГЭ (dep0601).',
+        },
+        comment: 'Нет резолюции районного ЦГЭ',
+      }
+    }
     return {
-      config: { label: resolutionLabel, action: 'mark_ready', hint: hintNew },
-      comment: hintNew,
+      config: {
+        label: resolutionLabel,
+        action: 'mark_ready',
+        disabled: true,
+        hint: hintRightsDepKindId(),
+      },
+      comment: hintRightsDepKindId(),
     }
   }
   if (sid === DPR_PENDING || sid === DPR_SENT) {
@@ -112,6 +303,7 @@ export function outgoingDprStatusButton(
   if (sid === DPR_FAILED || sid === DPR_ERROR) {
     return {
       config: { label: 'Перевести в Новое', action: 'to_new', hint: hintToNew },
+      sendOp57Config: sendOp57Button,
       comment: hintToNew,
     }
   }
@@ -121,29 +313,86 @@ export function outgoingDprStatusButton(
 
   const s = norm(statusName)
   if (s.includes('черновик')) {
+    if (!rightsAllowMarkReadyDraft(rightsDepKindId)) {
+      return {
+        config: {
+          label: resolutionLabel,
+          action: 'mark_ready',
+          disabled: true,
+          hint: hintRightsDepKindId(),
+        },
+        comment: hintRightsDepKindId(),
+      }
+    }
     return {
       config: { label: resolutionLabel, action: 'mark_ready', hint: 'Перевод в «Новое» с резолюцией.' },
       comment: 'Черновик',
     }
   }
   if (s.includes('новое') || s.includes('новая')) {
-    if (hasRegionalOrRepublicanResolution) {
+    if (hasRegionalDep0602) {
       return {
         config: { label: 'Направление сведений', action: 'send', hint: hintNewToPending },
         comment: hintNewToPending,
       }
     }
+    if (rightsDepKindId === RIGHTS_DEPKIND_REGIONAL && hasDistrictRes && !hasRegionalDep0602) {
+      return {
+        config: { label: resolutionLabel, action: 'mark_ready', hint: 'Наложение резолюции областного уровня.' },
+        comment: 'Новое',
+      }
+    }
     return {
-      config: { label: resolutionLabel, action: 'mark_ready', hint: 'Наложение резолюции.' },
+      config: { label: resolutionLabel, action: 'mark_ready', disabled: true, hint: hintRightsDepKindId() },
       comment: 'Новое',
     }
   }
   if (s.includes('не удалась') || s.includes('ошибка')) {
     return {
       config: { label: 'Перевести в Новое', action: 'to_new', hint: hintToNew },
+      sendOp57Config: sendOp57Button,
       comment: hintToNew,
     }
   }
 
+  return { config: null, comment: '' }
+}
+
+/** Входящая DPR: завершение обработки (PROCESSING → PROCESSED), право violationDetectedOut:status ∩ PPVDEPPERMIS. */
+const HINT_INCOMING_COMPLETE_NO_RIGHT =
+  'Недостаточно прав: требуется violationDetectedOut:status с пересечением подразделений с доступом к связанной карте PPV (PPVDEPPERMIS).'
+
+export function incomingDprCompleteProcessingButton(
+  dprStatusCode: string | null | undefined,
+  _statusId: number | null | undefined,
+  statusName: string,
+  hasCompleteRight: boolean
+): StatusButtonResult {
+  const noR = HINT_INCOMING_COMPLETE_NO_RIGHT
+  if (!hasCompleteRight) {
+    return {
+      config: {
+        label: 'Завершить обработку',
+        action: 'complete_processing',
+        disabled: true,
+        hint: noR,
+      },
+      comment: noR,
+    }
+  }
+  const code = norm(dprStatusCode)
+  const s = norm(statusName)
+  const looksProcessing =
+    code === 'processing' || (s.includes('обработке') && !s.includes('обработано'))
+  if (looksProcessing) {
+    return {
+      config: {
+        label: 'Завершить обработку',
+        action: 'complete_processing',
+        hint: 'Перевод карты входящих сведений в статус «Обработано».',
+      },
+      comment: '',
+    }
+  }
   return { config: null, comment: '' }
 }

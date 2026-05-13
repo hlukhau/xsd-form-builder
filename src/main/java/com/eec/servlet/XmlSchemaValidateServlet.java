@@ -28,9 +28,9 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 /**
- * Валидация тела XML по XSD ЕЭК (DPA / PHA).
+ * Валидация тела XML по XSD ЕЭК (DPA / PHA / DPR).
  * POST /api/xml/validate-schema
- * Заголовок X-Document-Type: dpa | pha | ppv (ppv — та же XSD, что и dpa).
+ * Заголовок X-Document-Type: dpa | pha | ppv (ppv — та же XSD, что и dpa) | dpr (ответ DangerousProductAlertResponse).
  * Тело: application/xml (сырой XML документа).
  * Ответ: application/json UTF-8 — {"errors":["…"]} (пустой массив при успехе).
  * Ошибки в блоках ccdo:EDocHeader и ccdo:ResourceItemStatusDetails в ответ не включаются.
@@ -41,6 +41,7 @@ public class XmlSchemaValidateServlet extends HttpServlet {
 
     private volatile Schema schemaDpa;
     private volatile Schema schemaPha;
+    private volatile Schema schemaDpr;
 
     @Override
     public void init() throws ServletException {
@@ -51,6 +52,13 @@ public class XmlSchemaValidateServlet extends HttpServlet {
             System.out.println("[XmlSchemaValidateServlet] XSD schemas loaded (DPA, PHA)");
         } catch (Exception e) {
             throw new ServletException("Failed to load EEC XSD from classpath eec-xsd/", e);
+        }
+        try {
+            schemaDpr = loadSchema("EEC_R_SM_SS_08_DangerousProductAlertResponse_v1.0.0.xsd");
+            System.out.println("[XmlSchemaValidateServlet] XSD schema loaded (DPR)");
+        } catch (Exception e) {
+            schemaDpr = null;
+            System.err.println("[XmlSchemaValidateServlet] DPR XSD not loaded: " + e.getMessage());
         }
     }
 
@@ -122,11 +130,13 @@ public class XmlSchemaValidateServlet extends HttpServlet {
             schema = schemaDpa;
         } else if ("pha".equals(docType)) {
             schema = schemaPha;
+        } else if ("dpr".equals(docType)) {
+            schema = schemaDpr;
         } else {
             response.setStatus(HttpServletResponse.SC_BAD_REQUEST);
             response.setContentType("application/json;charset=UTF-8");
             writeJsonErrors(response.getWriter(), Collections.singletonList(
-                    "Укажите заголовок " + HDR_TYPE + ": dpa, pha или ppv"));
+                    "Укажите заголовок " + HDR_TYPE + ": dpa, pha, ppv или dpr"));
             return;
         }
         if (schema == null) {
