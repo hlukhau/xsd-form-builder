@@ -19,7 +19,12 @@ REMOTE_PASSWORD="${REMOTE_PASSWORD:-Ssa101}"
 
 if [ "$1" = "--build" ]; then
     echo "[1/2] Building PPV..."
-    ./build-and-deploy-ppv.sh
+    if { [[ "${OSTYPE:-}" == msys* ]] || [[ "${OSTYPE:-}" == cygwin* ]]; } && [ -f "$PROJECT_DIR/scripts/build-card-war.cmd" ] && command -v cmd.exe &>/dev/null; then
+        WIN_SCRIPT=$(cygpath -w "$PROJECT_DIR/scripts/build-card-war.cmd")
+        cmd.exe //C "\"$WIN_SCRIPT\" ppv_card build:ppv" || exit 1
+    else
+        ./build-and-deploy-ppv.sh || exit 1
+    fi
     echo ""
 fi
 

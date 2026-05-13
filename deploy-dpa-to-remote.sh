@@ -19,7 +19,12 @@ REMOTE_PASSWORD="${REMOTE_PASSWORD:-Ssa101}"
 
 if [ "$1" = "--build" ]; then
     echo "[1/2] Building DPA..."
-    ./build-and-deploy-dpa.sh
+    if { [[ "${OSTYPE:-}" == msys* ]] || [[ "${OSTYPE:-}" == cygwin* ]]; } && [ -f "$PROJECT_DIR/scripts/build-card-war.cmd" ] && command -v cmd.exe &>/dev/null; then
+        WIN_SCRIPT=$(cygpath -w "$PROJECT_DIR/scripts/build-card-war.cmd")
+        cmd.exe //C "\"$WIN_SCRIPT\" dpa_card build" || exit 1
+    else
+        ./build-and-deploy-dpa.sh || exit 1
+    fi
     echo ""
 fi
 

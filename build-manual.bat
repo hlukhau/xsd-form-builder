@@ -106,16 +106,37 @@ REM Compile Java classes
 echo [4/6] Compiling Java classes...
 set "SRC_DIR=src\main\java"
 set "CLASS_DIR=target\%APP_NAME%\WEB-INF\classes"
-if defined SERVLET_API_JAR (
-    set "CLASSPATH=%SERVLET_API_JAR%"
-) else (
-    set "CLASSPATH=%TOMCAT_HOME%\lib\servlet-api.jar"
+REM servlet-api.jar for javac (javax.servlet)
+set "SERVLET_JAR="
+if defined SERVLET_API_JAR if exist "!SERVLET_API_JAR!" set "SERVLET_JAR=!SERVLET_API_JAR!"
+if not defined SERVLET_JAR if exist "%TOMCAT_HOME%\lib\servlet-api.jar" set "SERVLET_JAR=%TOMCAT_HOME%\lib\servlet-api.jar"
+if not defined SERVLET_JAR if defined CATALINA_HOME if exist "!CATALINA_HOME!\lib\servlet-api.jar" set "SERVLET_JAR=!CATALINA_HOME!\lib\servlet-api.jar"
+if not defined SERVLET_JAR if exist "G:\Tomcat8\lib\servlet-api.jar" set "SERVLET_JAR=G:\Tomcat8\lib\servlet-api.jar"
+if not defined SERVLET_JAR (
+    for /d %%D in ("%ProgramFiles%\Apache Software Foundation\Tomcat *") do (
+        if exist "%%~D\lib\servlet-api.jar" (
+            set "SERVLET_JAR=%%~D\lib\servlet-api.jar"
+            goto :servlet_done
+        )
+    )
 )
-if not exist "%CLASSPATH%" (
-    echo [ERROR] servlet-api.jar not found: %CLASSPATH%
-    echo [INFO] Set SERVLET_API_JAR or TOMCAT_HOME to a valid Tomcat lib path.
+if not defined SERVLET_JAR (
+    for /d %%D in ("%ProgramFiles(x86)%\Apache Software Foundation\Tomcat *") do (
+        if exist "%%~D\lib\servlet-api.jar" (
+            set "SERVLET_JAR=%%~D\lib\servlet-api.jar"
+            goto :servlet_done
+        )
+    )
+)
+:servlet_done
+if not defined SERVLET_JAR (
+    echo [ERROR] servlet-api.jar not found.
+    echo [INFO] Set SERVLET_API_JAR to the full path, e.g.  set SERVLET_API_JAR=G:\Tomcat8\lib\servlet-api.jar
+    echo [INFO] Or set CATALINA_HOME / TOMCAT_HOME to a Tomcat installation that contains lib\servlet-api.jar
     exit /b 1
 )
+set "CLASSPATH=!SERVLET_JAR!"
+echo [INFO] servlet-api: !CLASSPATH!
 
 REM Create package structure (создаем все необходимые директории)
 for /r "%SRC_DIR%" %%d in (.) do (

@@ -19,7 +19,12 @@ REMOTE_PASSWORD="${REMOTE_PASSWORD:-Ssa101}"
 
 if [ "$1" = "--build" ]; then
     echo "[1/2] Building DPR..."
-    ./build-and-deploy-dpr.sh
+    if { [[ "${OSTYPE:-}" == msys* ]] || [[ "${OSTYPE:-}" == cygwin* ]]; } && [ -f "$PROJECT_DIR/scripts/build-card-war.cmd" ] && command -v cmd.exe &>/dev/null; then
+        WIN_SCRIPT=$(cygpath -w "$PROJECT_DIR/scripts/build-card-war.cmd")
+        cmd.exe //C "\"$WIN_SCRIPT\" dpr_card build:dpr" || exit 1
+    else
+        ./build-and-deploy-dpr.sh || exit 1
+    fi
     echo ""
 fi
 
