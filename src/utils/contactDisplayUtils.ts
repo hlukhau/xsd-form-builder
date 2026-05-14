@@ -29,9 +29,11 @@ export function buildContactDisplayLines(
     (acc, contact) => {
       const label = formatContactLabel(contact) || 'Контакт'
       const value = channelId(contact)
-      if (!value) return acc
+      const hasLabel = !!(formatContactLabel(contact)?.trim())
+      const hasValue = !!value
+      if (!hasLabel && !hasValue) return acc
       if (!acc[label]) acc[label] = []
-      acc[label].push(value)
+      acc[label].push(hasValue ? value : '—')
       return acc
     },
     {} as Record<string, string[]>

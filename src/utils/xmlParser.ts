@@ -2093,10 +2093,28 @@ function parseRequirementDoc(docElement: Element): ViolatedRequirement | null {
     }
   }
   
-  if (!technicalRegulationId && !technicalRegulationName && !description) {
+  const hasStructural = structuralElements.some(
+    (s) => !!(s.elementName?.trim() || s.elementId?.trim())
+  )
+  const hasApproving =
+    !!(
+      approvingDocument &&
+      ((approvingDocument.docName ?? '').trim() ||
+        (approvingDocument.docId ?? '').trim() ||
+        (approvingDocument.docCreationDate ?? '').trim() ||
+        (approvingDocument.docStartDate ?? '').trim())
+    )
+  if (
+    !technicalRegulationId?.trim() &&
+    !technicalRegulationName?.trim() &&
+    !registrationNumber?.trim() &&
+    !description?.trim() &&
+    !hasStructural &&
+    !hasApproving
+  ) {
     return null
   }
-  
+
   return {
     technicalRegulationId,
     technicalRegulationName,
@@ -2689,11 +2707,35 @@ function parseSanitaryMeasure(measureElement: Element): SanitaryMeasure | null {
   
   // MeasureImplementationDetails (может быть несколько)
   const measureImplementationDetails = parseMeasureImplementationDetails(measureElement)
-  
-  if (!measureName && !measureCode) {
-    return null
+
+  const docHasContent = (d: MeasureDocDetails | undefined): boolean =>
+    !!d &&
+    [
+      d.country,
+      d.docKindCode,
+      d.docKindName,
+      d.docName,
+      d.docId,
+      d.docCreationDate,
+      d.docSeriesId,
+      d.pageQuantity,
+      d.docStartDate,
+    ].some((v) => (v ?? '').toString().trim() !== '')
+
+  if (!measureName?.trim() && !measureCode?.trim()) {
+    const hasDates = !!(startDate?.trim() || endDate?.trim())
+    const hasOther =
+      !!(languageCode?.trim()) ||
+      !!(measureJustificationText?.trim()) ||
+      !!(description?.trim()) ||
+      !!(measureAffectedObjectKindCode?.trim()) ||
+      (measureInitiationBasisDetails?.length ?? 0) > 0 ||
+      (measureImplementationDetails?.length ?? 0) > 0
+    if (!hasDates && !hasOther && !docHasContent(measureDocDetails) && !docHasContent(initialMeasureDocDetails)) {
+      return null
+    }
   }
-  
+
   return {
     languageCode,
     measureCode,
