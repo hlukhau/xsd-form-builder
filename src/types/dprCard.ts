@@ -23,6 +23,8 @@ export interface DprMetadataView {
   canValidateOutgoingCard?: boolean
   /** Сервер: смена статуса исходящей DPR (violationDetectedIn:status ∩ PPVDEPPERMIS, DSC=2) */
   canChangeOutgoingStatus?: boolean
+  /** Сервер: завершение обработки входящей DPR (violationDetectedOut:status ∩ PPVDEPPERMIS, DSC=1, PROCESSING) */
+  canCompleteIncomingProcessing?: boolean
 }
 
 /** Строка резолюции DPR (GET /api/dpr/resolutions). */

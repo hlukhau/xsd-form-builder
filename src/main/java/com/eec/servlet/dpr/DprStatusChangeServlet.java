@@ -354,17 +354,31 @@ public class DprStatusChangeServlet extends HttpServlet {
                     "Завершение обработки возможно только при статусе «В обработке» (PROCESSING)");
             return;
         }
+        Integer processingIdObj = DprIncomingStatusHelper.resolveIncomingStatusId(conn, "PROCESSING");
+        if (processingIdObj == null) {
+            fail(conn, response, HttpServletResponse.SC_INTERNAL_SERVER_ERROR,
+                    "В справочнике DPRSTATUS не найден активный статус PROCESSING для входящих (DATASOURCEKINDCODE=1)");
+            return;
+        }
         Integer processedIdObj = DprIncomingStatusHelper.resolveIncomingStatusId(conn, "PROCESSED");
         if (processedIdObj == null) {
             fail(conn, response, HttpServletResponse.SC_INTERNAL_SERVER_ERROR,
                     "В справочнике DPRSTATUS не найден активный статус PROCESSED для входящих (DATASOURCEKINDCODE=1)");
             return;
         }
+        int processingId = processingIdObj;
         int processedId = processedIdObj;
-        try (PreparedStatement ps = conn.prepareStatement(SQL_UPDATE)) {
+        try (PreparedStatement ps = conn.prepareStatement(
+                "UPDATE DPR SET DPRSTATUSID = ?, MODIFICATIONDATETIME = SYSDATE WHERE DPRID = ? AND DPRSTATUSID = ?")) {
             ps.setInt(1, processedId);
             ps.setLong(2, dprId);
-            ps.executeUpdate();
+            ps.setInt(3, processingId);
+            int updated = ps.executeUpdate();
+            if (updated == 0) {
+                fail(conn, response, HttpServletResponse.SC_BAD_REQUEST,
+                        "Карта не в статусе «В обработке» или уже обновлена другим запросом");
+                return;
+            }
         }
         try (PreparedStatement ps = conn.prepareStatement(SQL_INSERT_HIST)) {
             ps.setLong(1, dprId);

@@ -16,7 +16,6 @@ import { OUTGOING_MEASURE_START_DATE_REQUIRED_REMARK, type ValidationResult } fr
 import {
   fetchDprStatusHistory,
   getIncidentAlertKindNameByCode,
-  checkAccessRight,
   fetchCurrentUser,
   fetchDprResolutions,
   fetchDprXml,
@@ -235,13 +234,10 @@ export function DprCard({ dprid, guid, meta, parsed, onDataRefresh }: DprCardPro
           setUserRightsDepKindId(u.rightsDepKindId ?? null)
         }
       } else {
-        const [c, u] = await Promise.all([
-          checkAccessRight(guid, 'violationDetectedOut:status'),
-          fetchCurrentUser(guid),
-        ])
+        const u = await fetchCurrentUser(guid)
         if (!cancelled) {
           setHasStatusRight(false)
-          setHasIncomingCompleteRight(c)
+          setHasIncomingCompleteRight(meta.canCompleteIncomingProcessing === true)
           setUserDepKindCode(u.depKindCode ?? null)
           setUserDepKindName(u.depKindName ?? null)
           setUserRightsDepKindId(u.rightsDepKindId ?? null)
@@ -251,7 +247,7 @@ export function DprCard({ dprid, guid, meta, parsed, onDataRefresh }: DprCardPro
     return () => {
       cancelled = true
     }
-  }, [guid, outgoing, meta.canChangeOutgoingStatus])
+  }, [guid, outgoing, meta.canChangeOutgoingStatus, meta.canCompleteIncomingProcessing])
 
   useEffect(() => {
     void reloadResolutions()
@@ -414,11 +410,10 @@ export function DprCard({ dprid, guid, meta, parsed, onDataRefresh }: DprCardPro
         return
       }
       if (action === 'complete_processing') {
-        const regDisplay =
-          (parsed.incidentAlert.registrationNumber ?? meta.incidentId ?? '').trim() || '—'
+        const ppvRegNumber = (meta.incidentId ?? parsed.incidentAlert.registrationNumber ?? '').trim() || '—'
         Modal.confirm({
-          title: 'Подтверждение',
-          content: `Ответ с результатами рассмотрения сведений о выявленных нарушениях ${regDisplay} будет переведен в статус „Обработано". Продолжить?`,
+          title: 'Завершение обработки',
+          content: `Ответ с результатами рассмотрения сведений о выявленных нарушениях ${ppvRegNumber} будет переведен в статус „Обработано". Продолжить?`,
           okText: 'Завершить',
           cancelText: 'Отмена',
           okButtonProps: { type: 'primary' },
