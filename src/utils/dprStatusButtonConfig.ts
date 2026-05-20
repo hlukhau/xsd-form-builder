@@ -65,6 +65,27 @@ function rightsAllowMarkReadyDraft(rightsDepKindId: number | null | undefined): 
   )
 }
 
+/** Видимость «Отметить готовность» по ТЗ (depkindid 72/73/74, DRAFT/NEW+районная резолюция). */
+function canShowOutgoingDprMarkReady(
+  rightsDepKindId: number | null | undefined,
+  statusCode: string,
+  hasDistrictRes: boolean,
+  hasRegionalDep0602: boolean
+): boolean {
+  const code = norm(statusCode)
+  if (code === 'draft') {
+    return rightsAllowMarkReadyDraft(rightsDepKindId)
+  }
+  if (code === 'new') {
+    return (
+      rightsDepKindId === RIGHTS_DEPKIND_REGIONAL &&
+      hasDistrictRes &&
+      !hasRegionalDep0602
+    )
+  }
+  return false
+}
+
 const hintSendOp57 =
   'Направление сведений участникам ОП 57: после подтверждения выполняется валидация карты, затем статус «Ожидает отправки».'
 
@@ -107,32 +128,31 @@ export function outgoingDprStatusButton(
 
   const code = norm(dprStatusCode)
   if (code) {
-    if (code === 'draft') {
-      if (!rightsAllowMarkReadyDraft(rightsDepKindId)) {
-        return { config: null, comment: hintRightsDepKindId() }
-      }
+    if (canShowOutgoingDprMarkReady(rightsDepKindId, code, hasDistrictRes, hasRegionalDep0602)) {
+      const isRegionalOnNew = code === 'new' && rightsDepKindId === RIGHTS_DEPKIND_REGIONAL
       const draftHint =
         userDepKindName && userDepKindName.trim()
           ? `Наложение резолюции уровня «${userDepKindName.trim()}» и перевод в «Новое».`
           : 'Наложение резолюции и перевод карты в статус «Новое».'
+      const hintRegionalSecond =
+        'Будет записана резолюция областного уровня о готовности к отправке; статус карты останется «Новое».'
       return {
-        config: { label: resolutionLabel, action: 'mark_ready', hint: draftHint },
-        comment: draftHint,
+        config: {
+          label: resolutionLabel,
+          action: 'mark_ready',
+          hint: isRegionalOnNew ? hintRegionalSecond : draftHint,
+        },
+        comment: isRegionalOnNew ? hintRegionalSecond : draftHint,
       }
+    }
+    if (code === 'draft' && !rightsAllowMarkReadyDraft(rightsDepKindId)) {
+      return { config: null, comment: hintRightsDepKindId() }
     }
     if (code === 'new') {
       if (hasRegionalDep0602) {
         return {
           config: { label: 'Направление сведений', action: 'send', hint: hintNewToPending },
           comment: hintNewToPending,
-        }
-      }
-      if (rightsDepKindId === RIGHTS_DEPKIND_REGIONAL && hasDistrictRes && !hasRegionalDep0602) {
-        const hintRegionalSecond =
-          'Будет записана резолюция областного уровня о готовности к отправке; статус карты останется «Новое».'
-        return {
-          config: { label: resolutionLabel, action: 'mark_ready', hint: hintRegionalSecond },
-          comment: hintRegionalSecond,
         }
       }
       if (hasResolutionOfUserLevel && !hasRegionalDep0602) {
@@ -166,48 +186,35 @@ export function outgoingDprStatusButton(
   }
 
   const sid = statusId ?? -1
-  if (sid === DPR_DRAFT) {
-    if (!rightsAllowMarkReadyDraft(rightsDepKindId)) {
-      return { config: null, comment: hintRightsDepKindId() }
+  const fallbackCode =
+    sid === DPR_DRAFT ? 'draft' : sid === DPR_NEW ? 'new' : sid === DPR_PENDING || sid === DPR_SENT ? 'pending' : ''
+  if (fallbackCode) {
+    if (canShowOutgoingDprMarkReady(rightsDepKindId, fallbackCode, hasDistrictRes, hasRegionalDep0602)) {
+      const isRegionalOnNew = fallbackCode === 'new' && rightsDepKindId === RIGHTS_DEPKIND_REGIONAL
+      const draftHint =
+        userDepKindName && userDepKindName.trim()
+          ? `Наложение резолюции уровня «${userDepKindName.trim()}» и перевод в «Новое».`
+          : 'Наложение резолюции и перевод карты в статус «Новое».'
+      const hintRegionalSecond =
+        'Будет записана резолюция областного уровня о готовности к отправке; статус карты останется «Новое».'
+      return {
+        config: {
+          label: resolutionLabel,
+          action: 'mark_ready',
+          hint: isRegionalOnNew ? hintRegionalSecond : draftHint,
+        },
+        comment: isRegionalOnNew ? hintRegionalSecond : draftHint,
+      }
     }
-    const draftHint =
-      userDepKindName && userDepKindName.trim()
-        ? `Наложение резолюции уровня «${userDepKindName.trim()}» и перевод в «Новое».`
-        : 'Наложение резолюции и перевод карты в статус «Новое».'
-    return {
-      config: { label: resolutionLabel, action: 'mark_ready', hint: draftHint },
-      comment: draftHint,
-    }
-  }
-  if (sid === DPR_NEW) {
-    if (hasRegionalDep0602) {
+    if (fallbackCode === 'new' && hasRegionalDep0602) {
       return {
         config: { label: 'Направление сведений', action: 'send', hint: hintNewToPending },
         comment: hintNewToPending,
       }
     }
-    if (rightsDepKindId === RIGHTS_DEPKIND_REGIONAL && hasDistrictRes && !hasRegionalDep0602) {
-      const hintRegionalSecond =
-        'Будет записана резолюция областного уровня о готовности к отправке; статус карты останется «Новое».'
-      return {
-        config: { label: resolutionLabel, action: 'mark_ready', hint: hintRegionalSecond },
-        comment: hintRegionalSecond,
-      }
+    if (fallbackCode === 'pending') {
+      return { config: null, comment: '' }
     }
-    if (hasResolutionOfUserLevel && !hasRegionalDep0602) {
-      return { config: null, comment: NEED_REGIONAL_DEP0602_HINT }
-    }
-    const hintNew =
-      userDepKindCode && norm(userDepKindCode) === 'dep0601'
-        ? NEED_REGIONAL_DEP0602_HINT
-        : 'Наложите резолюцию своего уровня либо дождитесь резолюции областного уровня (dep0602).'
-    if (rightsDepKindId === RIGHTS_DEPKIND_DISTRICT || rightsDepKindId === RIGHTS_DEPKIND_REPUBLIC) {
-      return { config: null, comment: hintNew }
-    }
-    if (rightsDepKindId === RIGHTS_DEPKIND_REGIONAL && !hasDistrictRes) {
-      return { config: null, comment: 'Нет резолюции районного ЦГЭ' }
-    }
-    return { config: null, comment: hintRightsDepKindId() }
   }
   if (sid === DPR_PENDING || sid === DPR_SENT) {
     return { config: null, comment: '' }
@@ -225,25 +232,25 @@ export function outgoingDprStatusButton(
 
   const s = norm(statusName)
   if (s.includes('черновик')) {
-    if (!rightsAllowMarkReadyDraft(rightsDepKindId)) {
-      return { config: null, comment: hintRightsDepKindId() }
+    if (canShowOutgoingDprMarkReady(rightsDepKindId, 'draft', hasDistrictRes, hasRegionalDep0602)) {
+      return {
+        config: { label: resolutionLabel, action: 'mark_ready', hint: 'Перевод в «Новое» с резолюцией.' },
+        comment: 'Черновик',
+      }
     }
-    return {
-      config: { label: resolutionLabel, action: 'mark_ready', hint: 'Перевод в «Новое» с резолюцией.' },
-      comment: 'Черновик',
-    }
+    return { config: null, comment: hintRightsDepKindId() }
   }
   if (s.includes('новое') || s.includes('новая')) {
+    if (canShowOutgoingDprMarkReady(rightsDepKindId, 'new', hasDistrictRes, hasRegionalDep0602)) {
+      return {
+        config: { label: resolutionLabel, action: 'mark_ready', hint: 'Наложение резолюции областного уровня.' },
+        comment: 'Новое',
+      }
+    }
     if (hasRegionalDep0602) {
       return {
         config: { label: 'Направление сведений', action: 'send', hint: hintNewToPending },
         comment: hintNewToPending,
-      }
-    }
-    if (rightsDepKindId === RIGHTS_DEPKIND_REGIONAL && hasDistrictRes && !hasRegionalDep0602) {
-      return {
-        config: { label: resolutionLabel, action: 'mark_ready', hint: 'Наложение резолюции областного уровня.' },
-        comment: 'Новое',
       }
     }
     return { config: null, comment: 'Новое' }

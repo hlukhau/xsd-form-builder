@@ -48,6 +48,9 @@ public class DprStatusChangeServlet extends HttpServlet {
             + "INSERT INTO DPRRESOLUTION (DPRID, DPRSTATUSID, DEPKINDID, RESOLUTIONDATETIME, USERID) VALUES (?, ?, ?, SYSDATE, ?)";
     private static final String SQL_HAS_RESOLUTION_DEPKIND = ""
             + "SELECT 1 FROM DPRRESOLUTION WHERE DPRID = ? AND DEPKINDID = ? AND ROWNUM = 1";
+    /** Районная резолюция при статусе «Новое» (для отметки готовности областным ЦГЭ). */
+    private static final String SQL_HAS_DISTRICT_RESOLUTION_AT_NEW = ""
+            + "SELECT 1 FROM DPRRESOLUTION WHERE DPRID = ? AND DPRSTATUSID = ? AND DEPKINDID = ? AND ROWNUM = 1";
 
     @Override
     protected void doPost(HttpServletRequest request, HttpServletResponse response)
@@ -220,7 +223,7 @@ public class DprStatusChangeServlet extends HttpServlet {
                 resolutionDepKindId = dep0602;
                 transitionDraftToNew = true;
             } else if (isNew) {
-                if (!hasResolutionWithDepKind(conn, dprId, dep0601)) {
+                if (!hasDistrictResolutionAtNew(conn, dprId, newStatusId, dep0601)) {
                     fail(conn, response, HttpServletResponse.SC_BAD_REQUEST,
                             "Отметка готовности областного ЦГЭ при статусе «Новое» доступна при наличии резолюции районного ЦГЭ");
                     return;
@@ -296,6 +299,18 @@ public class DprStatusChangeServlet extends HttpServlet {
         try (PreparedStatement ps = conn.prepareStatement(SQL_HAS_RESOLUTION_DEPKIND)) {
             ps.setLong(1, dprId);
             ps.setInt(2, depKindId);
+            try (ResultSet rs = ps.executeQuery()) {
+                return rs.next();
+            }
+        }
+    }
+
+    private static boolean hasDistrictResolutionAtNew(Connection conn, long dprId, int newStatusId, int districtDepKindId)
+            throws SQLException {
+        try (PreparedStatement ps = conn.prepareStatement(SQL_HAS_DISTRICT_RESOLUTION_AT_NEW)) {
+            ps.setLong(1, dprId);
+            ps.setInt(2, newStatusId);
+            ps.setInt(3, districtDepKindId);
             try (ResultSet rs = ps.executeQuery()) {
                 return rs.next();
             }
