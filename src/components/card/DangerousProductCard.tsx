@@ -50,7 +50,7 @@ import {
   type RightsJson,
   fetchDprPpvIncomingActions,
 } from '@/utils/referenceDataApi'
-import { getStatusButtonConfig } from '@/utils/statusButtonConfig'
+import { getStatusButtonConfig, visibleStatusButton } from '@/utils/statusButtonConfig'
 import { parseElectronicDocContentBody } from '@/utils/xmlParser'
 import { openLegacyRegisterAllVersions, isLegacyRegisterConfigured } from '@/utils/legacyRegisterUrl'
 import { useCountryOptions } from '@/hooks/shared/useCountryOptions'
@@ -368,24 +368,12 @@ const DangerousProductCard: React.FC<DangerousProductCardProps> = ({
   const statusButton = statusButtonResult.config
   const statusButtonComment = statusButtonResult.comment
   const closeConfig = statusButtonResult.closeConfig ?? null
-  // Несохранённая карта: кнопка смены статуса заблокирована с подсказкой «Сохраните изменения»
+  // Несохранённая карта и неактивные кнопки — не показываем (см. visibleStatusButton в CardActions)
   const effectiveStatusButton =
-    effectiveDpaid === '-' && statusButton
-      ? { ...statusButton, disabled: true, hint: 'Сохраните изменения' }
-      : statusButton
-  const effectiveStatusButtonComment =
-    effectiveDpaid === '-' && statusButton ? 'Сохраните изменения' : statusButtonComment
-  const CLOSE_BUTTON_DISABLED_HINT = isPpvApp()
-    ? 'Закрытие карты для исходящих: при «Новое» — если есть резолюция областного или республиканского ЦГЭ; иначе — в статусах «Обработано», ожидание ответов, частично или полностью выполнено.'
-    : 'Закрытие карты доступно при статусе «Новое», «Отправка не удалась», «Ошибка обработки» или «Доставлено».'
-  const primaryIsClose = (effectiveStatusButton?.action ?? '') === 'close'
+    effectiveDpaid === '-' ? null : visibleStatusButton(statusButton)
+  const effectiveStatusButtonComment = effectiveStatusButton ? statusButtonComment : ''
   const effectiveCloseButton =
-    effectiveDpaid === '-' && closeConfig
-      ? { ...closeConfig, disabled: true, hint: 'Сохраните изменения' }
-      : closeConfig ??
-        (isOutgoingSource && !primaryIsClose
-          ? { label: 'Закрытие карты', action: 'close' as const, disabled: true, hint: CLOSE_BUTTON_DISABLED_HINT }
-          : null)
+    effectiveDpaid === '-' ? null : visibleStatusButton(closeConfig)
 
   // Кнопка «Удалить»: для черновика исходящей карты всегда отображается;
   // при отсутствии права/ guid — disabled с подсказкой причины.
@@ -1272,7 +1260,7 @@ const DangerousProductCard: React.FC<DangerousProductCardProps> = ({
           }
           statusButton={effectiveStatusButton}
           statusButtonComment={effectiveStatusButtonComment}
-          closeButton={effectiveCloseButton && !effectiveCloseButton.disabled ? effectiveCloseButton : null}
+          closeButton={effectiveCloseButton}
           onStatusAction={(action) => {
             if (!effectiveDpaid || effectiveDpaid === '-') {
               message.warning('Сначала сохраните карту перед сменой статуса')
@@ -1368,7 +1356,10 @@ const DangerousProductCard: React.FC<DangerousProductCardProps> = ({
                       onUpdate({ ...currentData, status: newStatus, statusId: newStatusId })
                       setEditedData((prev) => ({ ...prev, status: newStatus, statusId: newStatusId }))
                       message.success('Статус обновлён')
-                      fetchDpaResolutions(effectiveDpaid, guid).then((list) => setDpaResolutionDepKindCodes(list.map((r) => r.depKindCode)))
+                      fetchDpaResolutions(effectiveDpaid, guid).then((list) => {
+                        setDpaResolutionDepKindCodes(list.map((r) => r.depKindCode))
+                        setHasResolution(list.length > 0)
+                      })
                     })
                     .catch((e) => message.error(e instanceof Error ? e.message : 'Ошибка смены статуса'))
                 },
@@ -1494,7 +1485,12 @@ const DangerousProductCard: React.FC<DangerousProductCardProps> = ({
                 onUpdate({ ...currentData, status: newStatus, statusId: newStatusId })
                 setEditedData((prev) => ({ ...prev, status: newStatus, statusId: newStatusId }))
                 message.success('Статус обновлён')
-                if (action === 'mark_ready') fetchDpaResolutions(effectiveDpaid, guid).then((list) => setDpaResolutionDepKindCodes(list.map((r) => r.depKindCode)))
+                if (action === 'mark_ready') {
+                  fetchDpaResolutions(effectiveDpaid, guid).then((list) => {
+                    setDpaResolutionDepKindCodes(list.map((r) => r.depKindCode))
+                    setHasResolution(list.length > 0)
+                  })
+                }
               })
               .catch((e) => message.error(e instanceof Error ? e.message : 'Ошибка смены статуса'))
           }}

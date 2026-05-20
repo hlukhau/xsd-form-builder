@@ -26,6 +26,7 @@ import java.util.regex.Pattern;
  * POST /api/dpr/status — тело: {@code dprid}, {@code action}, {@code guid}.
  * Входящая (DSC=1): {@code complete_processing} — PROCESSING→PROCESSED, violationDetectedOut:status ∩ PPVDEPPERMIS.
  * Исходящая (DSC=2): mark_ready, send, to_new (violationDetectedIn:status ∩ PPVDEPPERMIS).
+ * mark_ready: черновик→новое+резолюция (dep0601/dep0602/dep0603 по depkindid 72/73/74); новое+районная→резолюция dep0602 без смены статуса.
  */
 public class DprStatusChangeServlet extends HttpServlet {
 
@@ -146,6 +147,21 @@ public class DprStatusChangeServlet extends HttpServlet {
     private void handleMarkReady(HttpServletResponse response, Connection conn, long dprId,
                                  String currentStatusCode, Integer userId, String guid)
             throws IOException, SQLException {
+        String dsc = null;
+        try (PreparedStatement ps = conn.prepareStatement(
+                "SELECT TRIM(TO_CHAR(DATASOURCEKINDCODE)) FROM DPR WHERE DPRID = ?")) {
+            ps.setLong(1, dprId);
+            try (ResultSet rs = ps.executeQuery()) {
+                if (rs.next()) {
+                    dsc = rs.getString(1);
+                }
+            }
+        }
+        if (dsc == null || !"2".equals(dsc.trim())) {
+            fail(conn, response, HttpServletResponse.SC_BAD_REQUEST,
+                    "Отметка готовности доступна только для исходящей карты (DATASOURCEKINDCODE=2)");
+            return;
+        }
         if (!"DRAFT".equals(currentStatusCode) && !"NEW".equals(currentStatusCode)) {
             fail(conn, response, HttpServletResponse.SC_BAD_REQUEST,
                     "Отметка готовности возможна при статусе «Черновик» или «Новое»");

@@ -138,6 +138,14 @@ public class DprMetadataServlet extends HttpServlet {
                     canValidateOutgoingCard = false;
                 }
 
+                boolean canChangeOutgoingStatus = false;
+                try {
+                    DprCreateSupport.GateResult sg = DprCreateSupport.evaluateOutgoingDprStatusGate(conn, dprId, guid);
+                    canChangeOutgoingStatus = sg.allowed;
+                } catch (SQLException ignored) {
+                    canChangeOutgoingStatus = false;
+                }
+
                 PrintWriter out = response.getWriter();
                 out.print("{");
                 out.print("\"incidentId\":" + quote(incidentId));
@@ -154,6 +162,7 @@ public class DprMetadataServlet extends HttpServlet {
                 out.print(",\"canEdit\":" + (canEdit ? "true" : "false"));
                 out.print(",\"canDeleteDraft\":" + (canDeleteDraft ? "true" : "false"));
                 out.print(",\"canValidateOutgoingCard\":" + (canValidateOutgoingCard ? "true" : "false"));
+                out.print(",\"canChangeOutgoingStatus\":" + (canChangeOutgoingStatus ? "true" : "false"));
                 out.print("}");
                 out.flush();
                 response.setStatus(HttpServletResponse.SC_OK);

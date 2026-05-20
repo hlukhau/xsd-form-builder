@@ -36,7 +36,7 @@ import { binaryDownloadFileName, blobMimeTypeFromDocBinaryMediaTypeCode } from '
 import { DATE_TIME_DISPLAY_FORMAT_DATEFNS } from '@/constants/dateFormat'
 import { postMessageFromCardToParent } from '@/utils/parentPostMessage'
 import { outgoingDprStatusButton, incomingDprCompleteProcessingButton } from '@/utils/dprStatusButtonConfig'
-import type { StatusButtonResult } from '@/utils/statusButtonConfig'
+import { visibleStatusButton, type StatusButtonResult } from '@/utils/statusButtonConfig'
 import { validateDprOutgoingCardFull } from '@/utils/dprCardValidation'
 import { compareDprResponseXml, exportDprParsedBundleToXml } from '@/utils/xmlExporter'
 import { DprResultDocumentsEdit } from '@/cards/dpr/DprResultDocumentsEdit'
@@ -226,12 +226,9 @@ export function DprCard({ dprid, guid, meta, parsed, onDataRefresh }: DprCardPro
     let cancelled = false
     ;(async () => {
       if (outgoing) {
-        const [st, u] = await Promise.all([
-          checkAccessRight(guid, 'violationDetectedIn:status'),
-          fetchCurrentUser(guid),
-        ])
+        const u = await fetchCurrentUser(guid)
         if (!cancelled) {
-          setHasStatusRight(st)
+          setHasStatusRight(meta.canChangeOutgoingStatus === true)
           setHasIncomingCompleteRight(false)
           setUserDepKindCode(u.depKindCode ?? null)
           setUserDepKindName(u.depKindName ?? null)
@@ -254,7 +251,7 @@ export function DprCard({ dprid, guid, meta, parsed, onDataRefresh }: DprCardPro
     return () => {
       cancelled = true
     }
-  }, [guid, outgoing])
+  }, [guid, outgoing, meta.canChangeOutgoingStatus])
 
   useEffect(() => {
     void reloadResolutions()
@@ -443,12 +440,11 @@ export function DprCard({ dprid, guid, meta, parsed, onDataRefresh }: DprCardPro
         return
       }
       if (action === 'mark_ready') {
-        const regDisplay =
-          (parsed.incidentAlert.registrationNumber ?? meta.incidentId ?? '').trim() || '—'
+        const ppvRegNumber = (meta.incidentId ?? parsed.incidentAlert.registrationNumber ?? '').trim() || '—'
         const levelLabel = readinessLevelForMarkReadyDialog(userRightsDepKindId, userDepKindName)
         Modal.confirm({
-          title: 'Подтверждение',
-          content: `Внимание! После подтверждения по ответу с результатами рассмотрения сведений о выявленных нарушениях ${regDisplay} будет зафиксирована отметка о готовности на уровне ${levelLabel}. Отменить данное действие будет невозможно. Продолжить?`,
+          title: 'Отметка о готовности',
+          content: `Внимание! После подтверждения по ответу с результатами рассмотрения сведений о выявленных нарушениях ${ppvRegNumber} будет зафиксирована отметка о готовности на уровне ${levelLabel}. Отменить данное действие будет невозможно. Продолжить?`,
           okText: 'Продолжить',
           cancelText: 'Отмена',
           onOk: async () => {
@@ -748,9 +744,11 @@ export function DprCard({ dprid, guid, meta, parsed, onDataRefresh }: DprCardPro
   const primaryStatus = statusBtn.config
   const sendOp57Status = statusBtn.sendOp57Config
 
-  const cardActionsPrimaryStatus = outgoing ? primaryStatus : incomingCompleteBtn.config
+  const cardActionsPrimaryStatus = visibleStatusButton(
+    outgoing ? primaryStatus : incomingCompleteBtn.config
+  )
   const cardActionsStatusComment = outgoing ? statusBtn.comment : incomingCompleteBtn.comment
-  const cardActionsCloseStatus = outgoing ? sendOp57Status : null
+  const cardActionsCloseStatus = visibleStatusButton(outgoing ? sendOp57Status : null)
 
   return (
     <div

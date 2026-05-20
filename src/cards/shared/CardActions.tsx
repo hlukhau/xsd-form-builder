@@ -2,7 +2,7 @@ import { Button, Space, Tooltip } from 'antd'
 import type { ReactNode } from 'react'
 import { DeleteOutlined, CopyOutlined } from '@ant-design/icons'
 import type { CardData } from '@/types/card'
-import type { StatusButtonConfig } from '@/utils/statusButtonConfig'
+import { visibleStatusButton, type StatusButtonConfig } from '@/utils/statusButtonConfig'
 
 interface CardActionsProps {
   /** Не используется в разметке; оставлен для совместимости с картами DPA/PHA. */
@@ -54,34 +54,31 @@ const CardActions: React.FC<CardActionsProps> = ({
   onShowRightsDebug,
   statusButtonsLoading,
 }) => {
-  const statusButtonNode = statusButton ? (
-    <Tooltip title={statusButton.hint ?? statusButtonComment}>
-      <span>
-        <Button
-          size="small"
-          type="primary"
-          loading={statusButtonsLoading}
-          disabled={statusButton.disabled}
-          onClick={() => !statusButton.disabled && onStatusAction(statusButton.action)}
-        >
-          {statusButton.label}
-        </Button>
-      </span>
+  const activeStatusButton = visibleStatusButton(statusButton)
+  const activeCloseButton = visibleStatusButton(closeButton)
+
+  const statusButtonNode = activeStatusButton ? (
+    <Tooltip title={activeStatusButton.hint ?? statusButtonComment}>
+      <Button
+        size="small"
+        type="primary"
+        loading={statusButtonsLoading}
+        onClick={() => onStatusAction(activeStatusButton.action)}
+      >
+        {activeStatusButton.label}
+      </Button>
     </Tooltip>
   ) : null
 
-  const closeButtonNode = closeButton ? (
-    <Tooltip title={closeButton.hint}>
-      <span>
-        <Button
-          size="small"
-          loading={statusButtonsLoading}
-          disabled={closeButton.disabled}
-          onClick={() => !closeButton.disabled && onStatusAction(closeButton.action)}
-        >
-          {closeButton.label}
-        </Button>
-      </span>
+  const closeButtonNode = activeCloseButton ? (
+    <Tooltip title={activeCloseButton.hint}>
+      <Button
+        size="small"
+        loading={statusButtonsLoading}
+        onClick={() => onStatusAction(activeCloseButton.action)}
+      >
+        {activeCloseButton.label}
+      </Button>
     </Tooltip>
   ) : null
 

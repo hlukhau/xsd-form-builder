@@ -31,7 +31,9 @@ import java.util.regex.Pattern;
  * complete_processing — текущий PROCESSING → PROCESSED; close — текущий PROCESSED → COMPLETED (коды справочника, DSC=1).
  * GET /api/ppv/status?preview=incoming_complete&dpaid=...&guid=... — { reviewOutcomeSent } для диалога подтверждения.
  * Исходящие: action mark_ready | send | close; mark_ready/close — violationDetectedOut:status и пересечение с PPVDEPPERMIS, send — violationDetectedOut:send.
- * close — «Новое» + резолюция DEP0602/DEP0603 в PPVRESOLUTION при статусе NEW, либо текущий статус с кодом PROCESSED|AWAITING|PARTIAL|FULFIELD|FULFILLED; целевой COMPLETED (DSC=2).
+ * mark_ready: Черновик→Новое+резолюция (dep0601|dep0602|dep0603); Новое+районная→Новое+областная (только dep0602 при наличии dep0601).
+ * send: Новое+областная|республиканская→Ожидает отправки (PENDING). close: Новое+dep0602/dep0603 или PROCESSED|AWAITING|PARTIAL|FULFIELD→COMPLETED (DSC=2).
+ * Переходы PENDING→AWAITING→PARTIAL/FULFIELD выполняются системой (интеграция), не этим сервлетом.
  * mark_ready: тело { "dpaid", "action": "mark_ready", "depKindCode": "dep0601"|"dep0602"|"dep0603" }.
  * Обновляется PPV.PPVSTATUSID, PPVSTATUSHIST (и при mark_ready — PPVRESOLUTION).
  */
@@ -116,7 +118,7 @@ public class PpvStatusChangeServlet extends HttpServlet {
             + "AND r.DEPKINDID IN (SELECT dk.DEPKINDID FROM TB_DEPKIND dk "
             + "WHERE UPPER(TRIM(dk.DEPKINDCODE)) IN ('DEP0602','DEP0603')) AND ROWNUM = 1";
 
-    /** Исходящие: закрытие разрешено при статусах с кодами из ТЗ (ожидание ответов, частично/полностью и т.д.). */
+    /** Исходящие: закрытие при кодах PROCESSED, AWAITING, PARTIAL, FULFIELD (и FULFILLED — опечатка в БД). */
     private static final String SQL_OUTGOING_STATUS_IN_CLOSE_CODES = ""
             + "SELECT 1 FROM PPVSTATUS WHERE PPVSTATUSID = ? "
             + "AND TRIM(TO_CHAR(DATASOURCEKINDCODE)) = '2' AND PPVSTATUSACTFL = 1 "
@@ -247,7 +249,7 @@ public class PpvStatusChangeServlet extends HttpServlet {
                     sendJsonError(response, HttpServletResponse.SC_BAD_REQUEST, "Укажите guid в теле запроса (в карте прав должен быть атрибут userId)");
                     return;
                 }
-                handleOutgoing(response, conn, dpaidNum, action, depKindCode, currentStatusId, currentStatusName, userId, guid, rightsJson);
+                handleOutgoing(response, conn, dpaidNum, action, depKindCode, currentStatusId, currentStatusName, userId, guid, rightsJson, dsc);
                 return;
             }
             sendJsonError(response, HttpServletResponse.SC_BAD_REQUEST, "Смена статуса по действию доступна только для входящих или исходящих сведений");
@@ -348,6 +350,11 @@ public class PpvStatusChangeServlet extends HttpServlet {
             applyIncomingCompleteToProcessed(response, conn, dpaid, processingStatusId, userId);
             return;
         } else if ("close".equals(action)) {
+            if (!DATASOURCEKIND_INCOMING.equals(datasourceKindCode != null ? datasourceKindCode.trim() : "")) {
+                sendJsonError(response, HttpServletResponse.SC_BAD_REQUEST,
+                        "Закрытие карты для входящих сведений доступно только при DATASOURCEKINDCODE=1");
+                return;
+            }
             Set<String> statusDepKeys = AccessRightService.violationDetectedInStatusDepKeys(rightsJson);
             if (statusDepKeys.isEmpty()) {
                 sendJsonError(response, HttpServletResponse.SC_FORBIDDEN,
@@ -544,7 +551,8 @@ public class PpvStatusChangeServlet extends HttpServlet {
 
     private void handleOutgoing(HttpServletResponse response, Connection conn,
                                 long dpaid, String action, String depKindCode,
-                                int currentStatusId, String currentStatusName, Integer userId, String guid, String rightsJson) throws IOException, SQLException {
+                                int currentStatusId, String currentStatusName, Integer userId, String guid, String rightsJson,
+                                String datasourceKindCode) throws IOException, SQLException {
         if ("mark_ready".equals(action)) {
             if (!AccessRightService.hasViolationDetectedOutStatus(rightsJson)) {
                 sendJsonError(response, HttpServletResponse.SC_FORBIDDEN, "Нет права управления статусом исходящих сведений (violationDetectedOut:status)");
@@ -564,6 +572,33 @@ public class PpvStatusChangeServlet extends HttpServlet {
             if (depKindId <= 0) {
                 sendJsonError(response, HttpServletResponse.SC_BAD_REQUEST, "Неизвестный код подразделения (depKindCode): " + depKindCode);
                 return;
+            }
+            boolean isDraft = currentStatusId == OUTGOING_DRAFT;
+            boolean isNew = currentStatusId == OUTGOING_NEW;
+            if (!isDraft && !isNew) {
+                sendJsonError(response, HttpServletResponse.SC_BAD_REQUEST,
+                        "Отметка готовности возможна при статусе «Черновик» или «Новое»");
+                return;
+            }
+            String depKindUpper = depKindCode.toUpperCase();
+            if ("DEP0601".equals(depKindUpper)) {
+                if (!isDraft) {
+                    sendJsonError(response, HttpServletResponse.SC_BAD_REQUEST,
+                            "Отметка готовности районного ЦГЭ доступна только при статусе «Черновик»");
+                    return;
+                }
+            } else if ("DEP0602".equals(depKindUpper)) {
+                if (isNew && !hasDistrictResolution(conn, dpaid)) {
+                    sendJsonError(response, HttpServletResponse.SC_BAD_REQUEST,
+                            "Отметка готовности областного ЦГЭ при статусе «Новое» доступна при наличии резолюции районного ЦГЭ");
+                    return;
+                }
+            } else if ("DEP0603".equals(depKindUpper)) {
+                if (!isDraft) {
+                    sendJsonError(response, HttpServletResponse.SC_BAD_REQUEST,
+                            "Отметка готовности республиканского ЦГЭ доступна только при статусе «Черновик»");
+                    return;
+                }
             }
             if (currentStatusId == OUTGOING_DRAFT) {
                 try (PreparedStatement ps = conn.prepareStatement(SQL_UPDATE)) {
@@ -667,6 +702,11 @@ public class PpvStatusChangeServlet extends HttpServlet {
             return;
         }
         if ("close".equals(action)) {
+            if (!DATASOURCEKIND_OUTGOING.equals(datasourceKindCode != null ? datasourceKindCode.trim() : "")) {
+                sendJsonError(response, HttpServletResponse.SC_BAD_REQUEST,
+                        "Закрытие карты для исходящих сведений доступно только при DATASOURCEKINDCODE=2");
+                return;
+            }
             if (!AccessRightService.hasViolationDetectedOutStatus(rightsJson)) {
                 sendJsonError(response, HttpServletResponse.SC_FORBIDDEN, "Нет права управления статусом исходящих сведений (violationDetectedOut:status)");
                 return;

@@ -1,7 +1,7 @@
 import { Button, Space, Tooltip } from 'antd'
 import { DeleteOutlined, CopyOutlined } from '@ant-design/icons'
 import type { CardData } from '@/types/card'
-import type { StatusButtonConfig } from '@/utils/statusButtonConfig'
+import { visibleStatusButton, type StatusButtonConfig } from '@/utils/statusButtonConfig'
 
 interface CardActionsProps {
   data: CardData
@@ -40,32 +40,29 @@ const CardActions: React.FC<CardActionsProps> = ({
   onCopy,
   onShowRightsDebug,
 }) => {
-  const statusButtonNode = statusButton ? (
-    <Tooltip title={statusButton.hint ?? statusButtonComment}>
-      <span>
-        <Button
-          size="small"
-          type="primary"
-          disabled={statusButton.disabled}
-          onClick={() => !statusButton.disabled && onStatusAction(statusButton.action)}
-        >
-          {statusButton.label}
-        </Button>
-      </span>
+  const activeStatusButton = visibleStatusButton(statusButton)
+  const activeCloseButton = visibleStatusButton(closeButton)
+
+  const statusButtonNode = activeStatusButton ? (
+    <Tooltip title={activeStatusButton.hint ?? statusButtonComment}>
+      <Button
+        size="small"
+        type="primary"
+        onClick={() => onStatusAction(activeStatusButton.action)}
+      >
+        {activeStatusButton.label}
+      </Button>
     </Tooltip>
   ) : null
 
-  const closeButtonNode = closeButton ? (
-    <Tooltip title={closeButton.hint}>
-      <span>
-        <Button
-          size="small"
-          disabled={closeButton.disabled}
-          onClick={() => !closeButton.disabled && onStatusAction(closeButton.action)}
-        >
-          {closeButton.label}
-        </Button>
-      </span>
+  const closeButtonNode = activeCloseButton ? (
+    <Tooltip title={activeCloseButton.hint}>
+      <Button
+        size="small"
+        onClick={() => onStatusAction(activeCloseButton.action)}
+      >
+        {activeCloseButton.label}
+      </Button>
     </Tooltip>
   ) : null
 

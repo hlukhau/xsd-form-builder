@@ -21,6 +21,8 @@ export interface DprMetadataView {
   canDeleteDraft?: boolean
   /** Сервер: принудительная проверка карты (violationDetectedOut:view ∩ PPVDEPPERMIS, исходящая) */
   canValidateOutgoingCard?: boolean
+  /** Сервер: смена статуса исходящей DPR (violationDetectedIn:status ∩ PPVDEPPERMIS, DSC=2) */
+  canChangeOutgoingStatus?: boolean
 }
 
 /** Строка резолюции DPR (GET /api/dpr/resolutions). */

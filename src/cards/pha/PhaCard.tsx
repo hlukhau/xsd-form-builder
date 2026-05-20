@@ -1072,15 +1072,9 @@ const PhaCard: React.FC<PhaCardProps> = ({
             }
             postMessageFromCardToParent(payload, 'PHA: открыть все версии')
           }}
-          statusButton={
-            phaStatusResult.config && !phaStatusResult.config.disabled ? phaStatusResult.config : null
-          }
+          statusButton={phaStatusResult.config}
           statusButtonComment={phaStatusResult.comment || undefined}
-          closeButton={
-            phaStatusResult.closeConfig && !phaStatusResult.closeConfig.disabled
-              ? phaStatusResult.closeConfig
-              : null
-          }
+          closeButton={phaStatusResult.closeConfig}
           onStatusAction={handlePhaStatusAction}
           onElectronicDocumentClick={() => setElectronicDocumentVisible(true)}
           showDeleteButton={showDeleteButton}
