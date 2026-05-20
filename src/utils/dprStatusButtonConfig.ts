@@ -29,6 +29,10 @@ function hintNoStatusRight(): string {
   return 'Недостаточно прав: требуется violationDetectedIn:status с пересечением подразделений с доступом к PPV (PPVDEPPERMIS).'
 }
 
+function hintNoSendRight(): string {
+  return 'Направление сведений недоступно: нет права violationDetectedIn:status с пересечением PPVDEPPERMIS, неверный статус карты или отсутствует резолюция областного уровня (dep0602 / DEPKINDID 73).'
+}
+
 function hintRightsDepKindId(): string {
   return 'Укажите в карте прав department.depkindid: 72 — районный ЦГЭ, 73 — областной, 74 — республиканский.'
 }
@@ -51,10 +55,17 @@ function hasDistrictResolution(resolutions: DprResolutionRow[]): boolean {
   return resolutions.some((r) => norm(r.depKindCode) === 'dep0601')
 }
 
-/** Резолюция областного уровня (TB_DEPKIND dep0602) — для направления из «Новое». */
-function hasRegionalResolutionDep0602(resolutions: DprResolutionRow[]): boolean {
+/** Резолюция областного уровня (TB_DEPKIND dep0602 или DEPKINDID 73) — для направления из «Новое». */
+function hasRegionalResolutionForSend(resolutions: DprResolutionRow[]): boolean {
   if (!Array.isArray(resolutions) || resolutions.length === 0) return false
-  return resolutions.some((r) => norm(r.depKindCode) === 'dep0602')
+  return resolutions.some(
+    (r) => norm(r.depKindCode) === 'dep0602' || r.depKindId === RIGHTS_DEPKIND_REGIONAL
+  )
+}
+
+/** @deprecated используйте hasRegionalResolutionForSend */
+function hasRegionalResolutionDep0602(resolutions: DprResolutionRow[]): boolean {
+  return hasRegionalResolutionForSend(resolutions)
 }
 
 function rightsAllowMarkReadyDraft(rightsDepKindId: number | null | undefined): boolean {
@@ -109,15 +120,17 @@ export function outgoingDprStatusButton(
   statusId: number | null | undefined,
   statusName: string,
   hasStatusRight: boolean,
+  hasSendRight: boolean,
   resolutions: DprResolutionRow[],
   userDepKindCode: string | null | undefined,
   userDepKindName: string | null | undefined,
   rightsDepKindId: number | null | undefined
 ): StatusButtonResult {
   const noSt = hintNoStatusRight()
+  const noSend = hintNoSendRight()
   const resolutionLabel = getResolutionButtonLabel(userDepKindCode)
   const codes = resolutionCodes(resolutions)
-  const hasRegionalDep0602 = hasRegionalResolutionDep0602(resolutions)
+  const hasRegionalDep0602 = hasRegionalResolutionForSend(resolutions)
   const hasDistrictRes = hasDistrictResolution(resolutions)
   const hasResolutionOfUserLevel =
     userDepKindCode && codes.some((c) => norm(c) === norm(userDepKindCode))
@@ -149,11 +162,14 @@ export function outgoingDprStatusButton(
       return { config: null, comment: hintRightsDepKindId() }
     }
     if (code === 'new') {
-      if (hasRegionalDep0602) {
+      if (hasRegionalDep0602 && hasSendRight) {
         return {
           config: { label: 'Направление сведений', action: 'send', hint: hintNewToPending },
           comment: hintNewToPending,
         }
+      }
+      if (hasRegionalDep0602 && !hasSendRight) {
+        return { config: null, comment: noSend }
       }
       if (hasResolutionOfUserLevel && !hasRegionalDep0602) {
         return { config: null, comment: NEED_REGIONAL_DEP0602_HINT }
@@ -174,11 +190,22 @@ export function outgoingDprStatusButton(
       return { config: null, comment: '' }
     }
     if (code === 'failed' || code === 'error') {
-      return {
-        config: { label: 'Перевести в Новое', action: 'to_new', hint: hintToNew },
-        sendOp57Config: sendOp57Button,
-        comment: hintToNew,
+      if (hasSendRight) {
+        return {
+          config: sendOp57Button,
+          closeConfig: hasStatusRight
+            ? { label: 'Перевести в Новое', action: 'to_new', hint: hintToNew }
+            : null,
+          comment: hintSendOp57,
+        }
       }
+      if (hasStatusRight) {
+        return {
+          config: { label: 'Перевести в Новое', action: 'to_new', hint: hintToNew },
+          comment: hintToNew,
+        }
+      }
+      return { config: null, comment: noSend }
     }
     if (code === 'delivered') {
       return { config: null, comment: '' }
@@ -206,7 +233,7 @@ export function outgoingDprStatusButton(
         comment: isRegionalOnNew ? hintRegionalSecond : draftHint,
       }
     }
-    if (fallbackCode === 'new' && hasRegionalDep0602) {
+    if (fallbackCode === 'new' && hasRegionalDep0602 && hasSendRight) {
       return {
         config: { label: 'Направление сведений', action: 'send', hint: hintNewToPending },
         comment: hintNewToPending,
@@ -220,11 +247,22 @@ export function outgoingDprStatusButton(
     return { config: null, comment: '' }
   }
   if (sid === DPR_FAILED || sid === DPR_ERROR) {
-    return {
-      config: { label: 'Перевести в Новое', action: 'to_new', hint: hintToNew },
-      sendOp57Config: sendOp57Button,
-      comment: hintToNew,
+    if (hasSendRight) {
+      return {
+        config: sendOp57Button,
+        closeConfig: hasStatusRight
+          ? { label: 'Перевести в Новое', action: 'to_new', hint: hintToNew }
+          : null,
+        comment: hintSendOp57,
+      }
     }
+    if (hasStatusRight) {
+      return {
+        config: { label: 'Перевести в Новое', action: 'to_new', hint: hintToNew },
+        comment: hintToNew,
+      }
+    }
+    return { config: null, comment: noSend }
   }
   if (sid === DPR_DELIVERED) {
     return { config: null, comment: '' }
@@ -247,20 +285,31 @@ export function outgoingDprStatusButton(
         comment: 'Новое',
       }
     }
-    if (hasRegionalDep0602) {
+    if (hasRegionalDep0602 && hasSendRight) {
       return {
         config: { label: 'Направление сведений', action: 'send', hint: hintNewToPending },
         comment: hintNewToPending,
       }
     }
-    return { config: null, comment: 'Новое' }
+    return { config: null, comment: hasRegionalDep0602 && !hasSendRight ? noSend : 'Новое' }
   }
   if (s.includes('не удалась') || s.includes('ошибка')) {
-    return {
-      config: { label: 'Перевести в Новое', action: 'to_new', hint: hintToNew },
-      sendOp57Config: sendOp57Button,
-      comment: hintToNew,
+    if (hasSendRight) {
+      return {
+        config: sendOp57Button,
+        closeConfig: hasStatusRight
+          ? { label: 'Перевести в Новое', action: 'to_new', hint: hintToNew }
+          : null,
+        comment: hintSendOp57,
+      }
     }
+    if (hasStatusRight) {
+      return {
+        config: { label: 'Перевести в Новое', action: 'to_new', hint: hintToNew },
+        comment: hintToNew,
+      }
+    }
+    return { config: null, comment: noSend }
   }
 
   return { config: null, comment: '' }

@@ -146,6 +146,14 @@ public class DprMetadataServlet extends HttpServlet {
                     canChangeOutgoingStatus = false;
                 }
 
+                boolean canSendOutgoing = false;
+                try {
+                    DprCreateSupport.GateResult sendG = DprCreateSupport.evaluateOutgoingDprSendGate(conn, dprId, guid);
+                    canSendOutgoing = sendG.allowed;
+                } catch (SQLException ignored) {
+                    canSendOutgoing = false;
+                }
+
                 boolean canCompleteIncomingProcessing = false;
                 try {
                     DprCreateSupport.GateResult cg = DprCreateSupport.evaluateIncomingDprCompleteProcessingGate(conn, dprId, guid);
@@ -171,6 +179,7 @@ public class DprMetadataServlet extends HttpServlet {
                 out.print(",\"canDeleteDraft\":" + (canDeleteDraft ? "true" : "false"));
                 out.print(",\"canValidateOutgoingCard\":" + (canValidateOutgoingCard ? "true" : "false"));
                 out.print(",\"canChangeOutgoingStatus\":" + (canChangeOutgoingStatus ? "true" : "false"));
+                out.print(",\"canSendOutgoing\":" + (canSendOutgoing ? "true" : "false"));
                 out.print(",\"canCompleteIncomingProcessing\":" + (canCompleteIncomingProcessing ? "true" : "false"));
                 out.print("}");
                 out.flush();

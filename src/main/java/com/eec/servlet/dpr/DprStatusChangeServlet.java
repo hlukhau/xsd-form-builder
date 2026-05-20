@@ -25,7 +25,8 @@ import java.util.regex.Pattern;
  * Смена статуса исходящей DPR (резолюции в DPRRESOLUTION по аналогии с DPA).
  * POST /api/dpr/status — тело: {@code dprid}, {@code action}, {@code guid}.
  * Входящая (DSC=1): {@code complete_processing} — PROCESSING→PROCESSED, violationDetectedOut:status ∩ PPVDEPPERMIS.
- * Исходящая (DSC=2): mark_ready, send, to_new (violationDetectedIn:status ∩ PPVDEPPERMIS).
+ * Исходящая (DSC=2): mark_ready, to_new (violationDetectedIn:status ∩ PPVDEPPERMIS);
+ * send — отдельный gate {@link DprCreateSupport#evaluateOutgoingDprSendGate} (NEW+областная резолюция / FAILED / ERROR).
  * mark_ready: черновик→новое+резолюция (dep0601/dep0602/dep0603 по depkindid 72/73/74); новое+районная→резолюция dep0602 без смены статуса.
  */
 public class DprStatusChangeServlet extends HttpServlet {
@@ -94,6 +95,13 @@ public class DprStatusChangeServlet extends HttpServlet {
                 if (!inGate.allowed) {
                     sendJsonError(response, HttpServletResponse.SC_FORBIDDEN,
                             inGate.reason != null ? inGate.reason : "Завершение обработки недоступно");
+                    return;
+                }
+            } else if ("send".equals(action)) {
+                DprCreateSupport.GateResult sendGate = DprCreateSupport.evaluateOutgoingDprSendGate(conn, dprId, guid);
+                if (!sendGate.allowed) {
+                    sendJsonError(response, HttpServletResponse.SC_FORBIDDEN,
+                            sendGate.reason != null ? sendGate.reason : "Направление сведений недоступно");
                     return;
                 }
             } else {
@@ -320,23 +328,17 @@ public class DprStatusChangeServlet extends HttpServlet {
     private void handleSend(HttpServletResponse response, Connection conn, long dprId, int currentStatusId,
                             String currentStatusCode, Integer userId) throws IOException, SQLException {
         if ("NEW".equals(currentStatusCode)) {
-            int regionalDepKindId = resolveDepKindId(conn, "dep0602");
-            if (regionalDepKindId <= 0) {
-                fail(conn, response, HttpServletResponse.SC_INTERNAL_SERVER_ERROR,
-                        "В TB_DEPKIND не найдена активная запись dep0602 для проверки резолюции");
-                return;
-            }
-            if (!hasResolutionWithDepKind(conn, dprId, regionalDepKindId)) {
+            if (!DprCreateSupport.hasRegionalResolutionForOutgoingSend(conn, dprId)) {
                 fail(conn, response, HttpServletResponse.SC_BAD_REQUEST,
                         "Направление при статусе «Новое» возможно только при наличии резолюции областного уровня "
-                                + "(в DPRRESOLUTION запись по DEPKINDCODE dep0602).");
+                                + "(в DPRRESOLUTION запись по DEPKINDCODE dep0602 или DEPKINDID 73).");
                 return;
             }
         } else if ("FAILED".equals(currentStatusCode) || "ERROR".equals(currentStatusCode)) {
             // повторная отправка без дополнительной проверки резолюции по ТЗ
         } else {
             fail(conn, response, HttpServletResponse.SC_BAD_REQUEST,
-                    "Направление возможно только при статусе «Новое» (с резолюцией областного уровня dep0602), "
+                    "Направление возможно только при статусе «Новое» (с резолюцией областного уровня), "
                             + "«Отправка не удалась» или «Ошибка обработки».");
             return;
         }
@@ -347,10 +349,16 @@ public class DprStatusChangeServlet extends HttpServlet {
             return;
         }
         int pendingId = pendingIdObj;
-        try (PreparedStatement ps = conn.prepareStatement(SQL_UPDATE)) {
+        try (PreparedStatement ps = conn.prepareStatement(
+                "UPDATE DPR SET DPRSTATUSID = ?, MODIFICATIONDATETIME = SYSDATE WHERE DPRID = ? AND DPRSTATUSID = ?")) {
             ps.setInt(1, pendingId);
             ps.setLong(2, dprId);
-            ps.executeUpdate();
+            ps.setInt(3, currentStatusId);
+            if (ps.executeUpdate() == 0) {
+                fail(conn, response, HttpServletResponse.SC_CONFLICT,
+                        "Статус карты был изменён. Обновите страницу и повторите направление сведений.");
+                return;
+            }
         }
         try (PreparedStatement ps = conn.prepareStatement(SQL_INSERT_HIST)) {
             ps.setLong(1, dprId);

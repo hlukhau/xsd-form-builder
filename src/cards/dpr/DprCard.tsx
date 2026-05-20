@@ -473,13 +473,13 @@ export function DprCard({ dprid, guid, meta, parsed, onDataRefresh }: DprCardPro
               const vr = await validateDprOutgoingCardFull(parsedForValidation, xml)
               if (!vr.success) {
                 Modal.error({
-                  title: 'Доработка карты',
+                  title: 'Направление сведений недоступно',
                   width: 640,
                   content: (
                     <div>
                       <Typography.Paragraph style={{ marginBottom: 12 }}>
                         Необходимо доработать карту исходящих сведений. Направление сведений участникам ОП 57
-                        недоступно. Отчёт валидации:
+                        не выполнено. Отчёт по проверкам:
                       </Typography.Paragraph>
                       {dprValidationReportContent(vr)}
                     </div>
@@ -720,6 +720,7 @@ export function DprCard({ dprid, guid, meta, parsed, onDataRefresh }: DprCardPro
         statusId,
         meta.dprStatusName ?? '',
         hasStatusRight,
+        meta.canSendOutgoing === true,
         resolutionRows,
         userDepKindCode,
         userDepKindName,
@@ -743,7 +744,9 @@ export function DprCard({ dprid, guid, meta, parsed, onDataRefresh }: DprCardPro
     outgoing ? primaryStatus : incomingCompleteBtn.config
   )
   const cardActionsStatusComment = outgoing ? statusBtn.comment : incomingCompleteBtn.comment
-  const cardActionsCloseStatus = visibleStatusButton(outgoing ? sendOp57Status : null)
+  const cardActionsCloseStatus = visibleStatusButton(
+    outgoing ? statusBtn.closeConfig ?? sendOp57Status : null
+  )
 
   return (
     <div

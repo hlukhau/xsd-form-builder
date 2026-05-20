@@ -392,6 +392,89 @@ public final class DprCreateSupport {
         return GateResult.ok(ppvid, null, null, null, null, 0L, null, null, 0, null);
     }
 
+    /** Областной уровень в DPRRESOLUTION по ТЗ (DEPKINDID = 73 в карте прав / TB_DEPKIND). */
+    private static final int RIGHTS_DEPKIND_REGIONAL = 73;
+
+    private static final String SQL_DEPKIND_ID_BY_CODE = ""
+            + "SELECT DEPKINDID FROM TB_DEPKIND WHERE TRIM(UPPER(DEPKINDCODE)) = TRIM(UPPER(?)) "
+            + "AND DEPKINDACTFL = 1 AND ROWNUM = 1";
+
+    private static final String SQL_HAS_RESOLUTION_DEPKIND = ""
+            + "SELECT 1 FROM DPRRESOLUTION WHERE DPRID = ? AND DEPKINDID = ? AND ROWNUM = 1";
+
+    /**
+     * Направление исходящей DPR участникам ОП 57: {@code violationDetectedIn:status} ∩ PPVDEPPERMIS,
+     * {@code DATASOURCEKINDCODE = 2}, статус NEW (с резолюцией областного уровня dep0602 / DEPKINDID 73),
+     * FAILED или ERROR.
+     */
+    public static GateResult evaluateOutgoingDprSendGate(Connection conn, long dprId, String guid) throws SQLException {
+        GateResult statusGate = evaluateOutgoingDprStatusGate(conn, dprId, guid);
+        if (!statusGate.allowed) {
+            return statusGate;
+        }
+        String statusCode = null;
+        try (PreparedStatement ps = conn.prepareStatement(SQL_DPR_FOR_EDIT)) {
+            ps.setLong(1, dprId);
+            try (ResultSet rs = ps.executeQuery()) {
+                if (rs.next()) {
+                    statusCode = rs.getString("STCODE");
+                }
+            }
+        }
+        if (statusCode == null || statusCode.isEmpty()) {
+            return GateResult.denied("Не определён код статуса карты в справочнике DPRSTATUS");
+        }
+        if ("FAILED".equals(statusCode) || "ERROR".equals(statusCode)) {
+            return statusGate;
+        }
+        if ("NEW".equals(statusCode)) {
+            if (hasRegionalResolutionForOutgoingSend(conn, dprId)) {
+                return statusGate;
+            }
+            return GateResult.denied(
+                    "Направление при статусе «Новое» возможно только при наличии резолюции областного уровня "
+                            + "(в DPRRESOLUTION запись по DEPKINDCODE dep0602 или DEPKINDID 73).");
+        }
+        return GateResult.denied(
+                "Направление сведений возможно только при статусе «Новое» (с резолюцией областного уровня), "
+                        + "«Отправка не удалась» или «Ошибка обработки».");
+    }
+
+    /** Резолюция областного уровня для направления из «Новое» (dep0602 или DEPKINDID 73). */
+    public static boolean hasRegionalResolutionForOutgoingSend(Connection conn, long dprId) throws SQLException {
+        int regionalDepKindId = resolveRegionalDepKindId(conn);
+        if (regionalDepKindId <= 0) {
+            return false;
+        }
+        try (PreparedStatement ps = conn.prepareStatement(SQL_HAS_RESOLUTION_DEPKIND)) {
+            ps.setLong(1, dprId);
+            ps.setInt(2, regionalDepKindId);
+            try (ResultSet rs = ps.executeQuery()) {
+                return rs.next();
+            }
+        }
+    }
+
+    private static int resolveRegionalDepKindId(Connection conn) throws SQLException {
+        int dep0602 = resolveDepKindIdByCode(conn, "dep0602");
+        if (dep0602 > 0) {
+            return dep0602;
+        }
+        return RIGHTS_DEPKIND_REGIONAL;
+    }
+
+    private static int resolveDepKindIdByCode(Connection conn, String depKindCode) throws SQLException {
+        try (PreparedStatement ps = conn.prepareStatement(SQL_DEPKIND_ID_BY_CODE)) {
+            ps.setString(1, depKindCode);
+            try (ResultSet rs = ps.executeQuery()) {
+                if (rs.next()) {
+                    return rs.getInt(1);
+                }
+            }
+        }
+        return -1;
+    }
+
     /**
      * Завершение обработки входящей DPR: {@code violationDetectedOut:status} ∩ PPVDEPPERMIS,
      * {@code DPR.DATASOURCEKINDCODE = 1}, текущий статус {@code PROCESSING} (справочник DPRSTATUS для входящих).
