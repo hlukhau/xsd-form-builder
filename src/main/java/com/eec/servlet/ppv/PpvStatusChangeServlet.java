@@ -5,6 +5,7 @@ import com.eec.util.AccessRightService;
 import com.eec.util.DatabaseUtil;
 import com.eec.util.PpvDepPermisUtil;
 import com.eec.util.PpvIncomingDefaultDepPermis;
+import com.eec.util.RightsDepartmentDepKindId;
 
 import javax.servlet.ServletException;
 import javax.servlet.http.HttpServlet;
@@ -78,6 +79,16 @@ public class PpvStatusChangeServlet extends HttpServlet {
             + "SELECT 1 FROM PPVRESOLUTION r "
             + "JOIN TB_DEPKIND dk ON r.DEPKINDID = dk.DEPKINDID "
             + "WHERE r.PPVID = ? AND UPPER(TRIM(dk.DEPKINDCODE)) = 'DEP0601' AND ROWNUM = 1";
+    /** Районная резолюция при статусе «Новое» (DEPKINDID 72 / dep0601) — для отметки готовности областным ЦГЭ. */
+    private static final String SQL_HAS_DISTRICT_RESOLUTION_AT_NEW = ""
+            + "SELECT 1 FROM PPVRESOLUTION r "
+            + "WHERE r.PPVID = ? AND r.PPVSTATUSID = ? "
+            + "AND (r.DEPKINDID = 72 OR r.DEPKINDID IN ("
+            + "  SELECT dk.DEPKINDID FROM TB_DEPKIND dk WHERE UPPER(TRIM(dk.DEPKINDCODE)) = 'DEP0601')) "
+            + "AND ROWNUM = 1";
+    private static final int RIGHTS_DEPKIND_DISTRICT = 72;
+    private static final int RIGHTS_DEPKIND_REGIONAL = 73;
+    private static final int RIGHTS_DEPKIND_REPUBLIC = 74;
     /** PARENTDEPID по иерархии OS (Организационная структура) для подразделения — для отметки готовности районным ЦГЭ. */
     private static final String SQL_PARENT_DEPID_OS = ""
             + "SELECT dp.PARENTDEPID FROM TB_DEPLINK dp "
@@ -558,6 +569,18 @@ public class PpvStatusChangeServlet extends HttpServlet {
                 sendJsonError(response, HttpServletResponse.SC_FORBIDDEN, "Нет права управления статусом исходящих сведений (violationDetectedOut:status)");
                 return;
             }
+            Set<String> statusDepKeys = AccessRightService.violationDetectedOutStatusDepKeys(rightsJson);
+            if (statusDepKeys.isEmpty()) {
+                sendJsonError(response, HttpServletResponse.SC_FORBIDDEN,
+                        "В карте прав не заданы подразделения для violationDetectedOut:status");
+                return;
+            }
+            if (!PpvDepPermisUtil.hasOverlap(conn, dpaid, statusDepKeys)) {
+                sendJsonError(response, HttpServletResponse.SC_FORBIDDEN,
+                        "Нет права на отметку готовности: ни одно подразделение из violationDetectedOut:status "
+                                + "не входит в доступ к карте (PPVDEPPERMIS)");
+                return;
+            }
             if (depKindCode == null || depKindCode.trim().isEmpty()) {
                 log("[PpvStatusChange] mark_ready: depKindCode not in body, resolving from rights (guid=" + guid + ")");
                 depKindCode = resolveDepKindCodeFromRights(conn, guid);
@@ -568,6 +591,14 @@ public class PpvStatusChangeServlet extends HttpServlet {
                 return;
             }
             depKindCode = depKindCode.trim();
+            Integer rightsDepKindId = guid != null ? RightsDepartmentDepKindId.parseFromRights(
+                    RightsRegistryProvider.get().getRightsJson(guid)) : null;
+            if (rightsDepKindId != null && !markReadyDepKindMatchesRightsLevel(depKindCode, rightsDepKindId)) {
+                sendJsonError(response, HttpServletResponse.SC_FORBIDDEN,
+                        "Отметка готовности для department.depkindid=" + rightsDepKindId
+                                + " не соответствует уровню подразделения (depKindCode " + depKindCode + ")");
+                return;
+            }
             int depKindId = resolveDepKindId(conn, depKindCode);
             if (depKindId <= 0) {
                 sendJsonError(response, HttpServletResponse.SC_BAD_REQUEST, "Неизвестный код подразделения (depKindCode): " + depKindCode);
@@ -588,9 +619,10 @@ public class PpvStatusChangeServlet extends HttpServlet {
                     return;
                 }
             } else if ("DEP0602".equals(depKindUpper)) {
-                if (isNew && !hasDistrictResolution(conn, dpaid)) {
+                if (isNew && !hasDistrictResolutionAtNew(conn, dpaid)) {
                     sendJsonError(response, HttpServletResponse.SC_BAD_REQUEST,
-                            "Отметка готовности областного ЦГЭ при статусе «Новое» доступна при наличии резолюции районного ЦГЭ");
+                            "Отметка готовности областного ЦГЭ при статусе «Новое» доступна при наличии резолюции районного ЦГЭ "
+                                    + "(PPVRESOLUTION при статусе «Новое», DEPKINDID 72 / dep0601)");
                     return;
                 }
             } else if ("DEP0603".equals(depKindUpper)) {
@@ -600,11 +632,19 @@ public class PpvStatusChangeServlet extends HttpServlet {
                     return;
                 }
             }
+            final int statusIdBeforeMarkReady = currentStatusId;
             if (currentStatusId == OUTGOING_DRAFT) {
-                try (PreparedStatement ps = conn.prepareStatement(SQL_UPDATE)) {
+                try (PreparedStatement ps = conn.prepareStatement(
+                        "UPDATE PPV SET PPVSTATUSID = ?, MODIFICATIONDATETIME = SYSDATE WHERE PPVID = ? AND PPVSTATUSID = ?")) {
                     ps.setInt(1, OUTGOING_NEW);
                     ps.setLong(2, dpaid);
-                    ps.executeUpdate();
+                    ps.setInt(3, OUTGOING_DRAFT);
+                    if (ps.executeUpdate() == 0) {
+                        DatabaseUtil.rollbackQuietly(conn);
+                        sendJsonError(response, HttpServletResponse.SC_CONFLICT,
+                                "Статус карты был изменён. Обновите страницу и повторите отметку о готовности.");
+                        return;
+                    }
                 }
                 try (PreparedStatement ps = conn.prepareStatement(SQL_INSERT_HIST)) {
                     ps.setLong(1, dpaid);
@@ -617,7 +657,7 @@ public class PpvStatusChangeServlet extends HttpServlet {
             }
             // При статусе «Новое» и резолюции районного уровня (dep0601), если отметку ставит областной уровень
             // (dep0602), статус не меняется, но в доступ для просмотра добавляется республиканский ЦГЭ (DEPCODE=006).
-            if (currentStatusId == OUTGOING_NEW && "DEP0602".equalsIgnoreCase(depKindCode)) {
+            if (statusIdBeforeMarkReady == OUTGOING_NEW && "DEP0602".equalsIgnoreCase(depKindCode)) {
                 insertRepublicanDepPermisOnRegionalReadyForNew(conn, dpaid);
             }
             Savepoint spResolution = conn.setSavepoint("dpa_resolution");
@@ -797,7 +837,8 @@ public class PpvStatusChangeServlet extends HttpServlet {
                 return;
             }
             Integer parentDepId = getParentDepIdOs(conn, userDepId);
-            if (parentDepId != null && existsDepIdInTbDep(conn, parentDepId)) {
+            if (parentDepId != null && existsDepIdInTbDep(conn, parentDepId)
+                    && !hasActiveDpaDepPermis(conn, dpaid, parentDepId)) {
                 try (PreparedStatement ps = conn.prepareStatement(SQL_INSERT_PPVDEPPERMIS)) {
                     ps.setLong(1, dpaid);
                     ps.setInt(2, parentDepId);
@@ -812,7 +853,8 @@ public class PpvStatusChangeServlet extends HttpServlet {
         if ("DEP0602".equals(code)) {
             // Областной уровень: добавить республиканский ЦГЭ (006)
             Integer depId006 = getDepIdByDepCode006(conn);
-            if (depId006 != null && existsDepIdInTbDep(conn, depId006)) {
+            if (depId006 != null && existsDepIdInTbDep(conn, depId006)
+                    && !hasActiveDpaDepPermis(conn, dpaid, depId006)) {
                 try (PreparedStatement ps = conn.prepareStatement(SQL_INSERT_PPVDEPPERMIS)) {
                     ps.setLong(1, dpaid);
                     ps.setInt(2, depId006);
@@ -826,7 +868,7 @@ public class PpvStatusChangeServlet extends HttpServlet {
     }
 
     private static void insertRepublicanDepPermisOnRegionalReadyForNew(Connection conn, long dpaid) throws SQLException {
-        if (!hasDistrictResolution(conn, dpaid)) {
+        if (!hasDistrictResolutionAtNew(conn, dpaid)) {
             return;
         }
         Integer depId006 = getDepIdByDepCode006(conn);
@@ -892,6 +934,34 @@ public class PpvStatusChangeServlet extends HttpServlet {
                 return rs.next();
             }
         }
+    }
+
+    private static boolean hasDistrictResolutionAtNew(Connection conn, long dpaid) throws SQLException {
+        try (PreparedStatement ps = conn.prepareStatement(SQL_HAS_DISTRICT_RESOLUTION_AT_NEW)) {
+            ps.setLong(1, dpaid);
+            ps.setInt(2, OUTGOING_NEW);
+            try (ResultSet rs = ps.executeQuery()) {
+                return rs.next();
+            }
+        }
+    }
+
+    /** depkindid 72→dep0601, 73→dep0602, 74→dep0603 (ТЗ на отметку готовности исходящей PPV). */
+    private static boolean markReadyDepKindMatchesRightsLevel(String depKindCode, int rightsDepKindId) {
+        if (depKindCode == null) {
+            return false;
+        }
+        String code = depKindCode.trim().toUpperCase();
+        if (rightsDepKindId == RIGHTS_DEPKIND_DISTRICT) {
+            return "DEP0601".equals(code);
+        }
+        if (rightsDepKindId == RIGHTS_DEPKIND_REGIONAL) {
+            return "DEP0602".equals(code);
+        }
+        if (rightsDepKindId == RIGHTS_DEPKIND_REPUBLIC) {
+            return "DEP0603".equals(code);
+        }
+        return false;
     }
 
     private static boolean hasActiveDpaDepPermis(Connection conn, long dpaid, int depId) throws SQLException {

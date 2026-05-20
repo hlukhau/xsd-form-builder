@@ -61,6 +61,52 @@ function outgoingPpvCloseAllowedByStatusName(status: string | undefined): boolea
   return false
 }
 
+/** department.depkindid в карте прав (ТЗ на отметку готовности исходящей PPV). */
+const RIGHTS_DEPKIND_DISTRICT = 72
+const RIGHTS_DEPKIND_REGIONAL = 73
+const RIGHTS_DEPKIND_REPUBLIC = 74
+
+function resolvePpvRightsLevel(
+  userDepKindCode: string | null | undefined,
+  rightsDepKindId: number | null | undefined
+): number | null {
+  if (rightsDepKindId === RIGHTS_DEPKIND_DISTRICT || rightsDepKindId === RIGHTS_DEPKIND_REGIONAL
+      || rightsDepKindId === RIGHTS_DEPKIND_REPUBLIC) {
+    return rightsDepKindId
+  }
+  const c = norm(userDepKindCode)
+  if (c === 'dep0601') return RIGHTS_DEPKIND_DISTRICT
+  if (c === 'dep0602') return RIGHTS_DEPKIND_REGIONAL
+  if (c === 'dep0603') return RIGHTS_DEPKIND_REPUBLIC
+  return null
+}
+
+function hintPpvRightsDepKindId(): string {
+  return 'Укажите в карте прав department.depkindid: 72 — районный ЦГЭ, 73 — областной, 74 — республиканский.'
+}
+
+/** Видимость «Отметить готовность» по ТЗ (depkindid 72/73/74, черновик / новое+районная резолюция). */
+export function canShowPpvOutgoingMarkReady(
+  rightsDepKindId: number | null | undefined,
+  userDepKindCode: string | null | undefined,
+  statusCode: string,
+  hasDistrictResolutionFlag: boolean,
+  hasRegionalResolutionFlag: boolean
+): boolean {
+  const level = resolvePpvRightsLevel(userDepKindCode, rightsDepKindId)
+  const code = norm(statusCode)
+  if (level === RIGHTS_DEPKIND_DISTRICT) {
+    return code === 'draft'
+  }
+  if (level === RIGHTS_DEPKIND_REGIONAL) {
+    return code === 'draft' || (code === 'new' && hasDistrictResolutionFlag && !hasRegionalResolutionFlag)
+  }
+  if (level === RIGHTS_DEPKIND_REPUBLIC) {
+    return code === 'draft'
+  }
+  return false
+}
+
 function hasDistrictResolution(existingResolutionDepKindCodes: string[] | undefined): boolean {
   return (
     Array.isArray(existingResolutionDepKindCodes) &&
@@ -105,10 +151,13 @@ function outgoingPpvNewStatusButtons(
   resolutionLabel: string,
   noSt: string,
   noSn: string,
-  hintClose: string
+  hintClose: string,
+  rightsDepKindId?: number | null
 ): StatusButtonResult {
+  const hasDistrictRes = hasDistrictResolution(existingResolutionDepKindCodes)
+  const hasRegionalRes = hasRegionalResolution(existingResolutionDepKindCodes)
   const hasRegionalOrRepublican =
-    hasRegionalResolution(existingResolutionDepKindCodes) ||
+    hasRegionalRes ||
     (Array.isArray(existingResolutionDepKindCodes) &&
       existingResolutionDepKindCodes.some((c) => norm(c) === 'dep0603'))
   const NEED_REGIONAL_OR_REPUBLICAN_HINT =
@@ -159,6 +208,9 @@ function outgoingPpvNewStatusButtons(
         config: { label: resolutionLabel, action: 'mark_ready', disabled: true, hint: noSt },
         comment: noSt,
       }
+    }
+    if (!canShowPpvOutgoingMarkReady(rightsDepKindId, userDepKindCode, 'new', hasDistrictRes, hasRegionalRes)) {
+      return { config: null, comment: hintPpvRightsDepKindId() }
     }
     return {
       config: {
@@ -815,7 +867,8 @@ function outgoingStatusButtonPpv(
   existingResolutionDepKindCodes: string[] | undefined,
   userDepKindName: string | null | undefined,
   _notificationEndDate: string | null | undefined,
-  forPpvRightsHints: boolean
+  forPpvRightsHints: boolean,
+  rightsDepKindId?: number | null
 ): StatusButtonResult {
   const noSt = hintNoStatusRightOut(forPpvRightsHints)
   const noSn = hintNoSendRightOut(forPpvRightsHints)
@@ -834,6 +887,8 @@ function outgoingStatusButtonPpv(
   }
   const resolutionLabel = getResolutionButtonLabel(userDepKindCode)
   const hintClose = 'Закрытие карты — переход в состояние «Завершено» (без направления в ЕЭК).'
+  const hasDistrictRes = hasDistrictResolution(existingResolutionDepKindCodes)
+  const hasRegionalRes = hasRegionalResolution(existingResolutionDepKindCodes)
 
   // По DPASTATUSID (исходящие 5–13)
   if (statusId === OUTGOING_DRAFT) {
@@ -847,6 +902,9 @@ function outgoingStatusButtonPpv(
         },
         comment: noSt,
       }
+    }
+    if (!canShowPpvOutgoingMarkReady(rightsDepKindId, userDepKindCode, 'draft', hasDistrictRes, hasRegionalRes)) {
+      return { config: null, comment: hintPpvRightsDepKindId() }
     }
     const draftComment = getResolutionHintForDraft(userDepKindCode, userDepKindName)
     const draftButtonHint = getResolutionHintFromDraft(userDepKindCode)
@@ -864,7 +922,8 @@ function outgoingStatusButtonPpv(
       resolutionLabel,
       noSt,
       noSn,
-      hintClose
+      hintClose,
+      rightsDepKindId
     )
   }
   if (statusId === OUTGOING_PENDING) {
@@ -930,6 +989,9 @@ function outgoingStatusButtonPpv(
         comment: noSt,
       }
     }
+    if (!canShowPpvOutgoingMarkReady(rightsDepKindId, userDepKindCode, 'draft', hasDistrictRes, hasRegionalRes)) {
+      return { config: null, comment: hintPpvRightsDepKindId() }
+    }
     const draftComment = getResolutionHintForDraft(userDepKindCode, userDepKindName)
     const draftButtonHint = getResolutionHintFromDraft(userDepKindCode)
     return {
@@ -946,7 +1008,8 @@ function outgoingStatusButtonPpv(
       resolutionLabel,
       noSt,
       noSn,
-      hintClose
+      hintClose,
+      rightsDepKindId
     )
   }
   if (s.includes('ожидает отправки')) {
@@ -1007,7 +1070,8 @@ function outgoingStatusButton(
   existingResolutionDepKindCodes: string[] | undefined,
   userDepKindName: string | null | undefined,
   _notificationEndDate: string | null | undefined,
-  forPpvRightsHints: boolean
+  forPpvRightsHints: boolean,
+  rightsDepKindId?: number | null
 ): StatusButtonResult {
   if (forPpvRightsHints) {
     return outgoingStatusButtonPpv(
@@ -1020,7 +1084,8 @@ function outgoingStatusButton(
       existingResolutionDepKindCodes,
       userDepKindName,
       _notificationEndDate,
-      forPpvRightsHints
+      forPpvRightsHints,
+      rightsDepKindId
     )
   }
   return outgoingStatusButtonDpa(
@@ -1059,7 +1124,9 @@ export function getStatusButtonConfig(
   /** Дата закрытия (архивации) csdo:EndDate — на доступность кнопки «Закрытие карты» не влияет */
   notificationEndDate?: string | null,
   /** PPV: в подсказках указывать violationDetected* вместо dangerousProduct* */
-  usePpvRightsHints?: boolean
+  usePpvRightsHints?: boolean,
+  /** department.depkindid из карты прав (72/73/74) — отметка готовности исходящей PPV */
+  rightsDepKindId?: number | null
 ): StatusButtonResult {
   const code = datasourceKindCode != null ? String(datasourceKindCode).trim() : ''
   const src = norm(source)
@@ -1080,7 +1147,8 @@ export function getStatusButtonConfig(
       existingResolutionDepKindCodes ?? [],
       userDepKindName ?? null,
       notificationEndDate ?? null,
-      ppvHints
+      ppvHints,
+      rightsDepKindId
     )
   }
   if (code === '3') {
@@ -1102,7 +1170,8 @@ export function getStatusButtonConfig(
       existingResolutionDepKindCodes ?? [],
       userDepKindName ?? null,
       notificationEndDate ?? null,
-      ppvHints
+      ppvHints,
+      rightsDepKindId
     )
   }
   if (src.includes('входящ')) {

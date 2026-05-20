@@ -134,6 +134,7 @@ const DangerousProductCard: React.FC<DangerousProductCardProps> = ({
   const [hasResolution, setHasResolution] = useState(false)
   const [currentUserDepKindCode, setCurrentUserDepKindCode] = useState<string | null>(null)
   const [currentUserDepKindName, setCurrentUserDepKindName] = useState<string | null>(null)
+  const [userRightsDepKindId, setUserRightsDepKindId] = useState<number | null>(null)
   /** Уровень ЦГЭ по depid из карты прав (когда текущий пользователь не загружен) — для подсказки в черновике */
   const [rightsDepKindCode, setRightsDepKindCode] = useState<string | null>(null)
   const [rightsDepKindName, setRightsDepKindName] = useState<string | null>(null)
@@ -275,6 +276,7 @@ const DangerousProductCard: React.FC<DangerousProductCardProps> = ({
       fetchCurrentUser(guid).then((u) => {
         setCurrentUserDepKindCode(u.depKindCode ?? null)
         setCurrentUserDepKindName(u.depKindName ?? null)
+        setUserRightsDepKindId(u.rightsDepKindId ?? null)
       })
       if (guid) {
         fetchRightsByGuid(guid)
@@ -363,7 +365,8 @@ const DangerousProductCard: React.FC<DangerousProductCardProps> = ({
     effectiveDatasourceKindCode,
     currentUserDepKindName ?? rightsDepKindName,
     editedData.notification?.endDate ?? data.notification?.endDate ?? null,
-    isPpvApp()
+    isPpvApp(),
+    userRightsDepKindId
   )
   const statusButton = statusButtonResult.config
   const statusButtonComment = statusButtonResult.comment
@@ -1336,7 +1339,13 @@ const DangerousProductCard: React.FC<DangerousProductCardProps> = ({
 
             if (action === 'mark_ready') {
               const regNumber = currentData.registrationNumber ?? currentData.notification?.registrationNumber ?? effectiveDpaid ?? ''
-              const levelName = currentUserDepKindName ?? rightsDepKindName ?? (() => {
+              const levelName = (() => {
+                const rid = userRightsDepKindId
+                if (rid === 72) return 'районного уровня'
+                if (rid === 73) return 'областного уровня'
+                if (rid === 74) return 'республиканского уровня'
+                if (currentUserDepKindName?.trim()) return currentUserDepKindName.trim()
+                if (rightsDepKindName?.trim()) return rightsDepKindName.trim()
                 const c = (depKindForAction ?? '').trim().toLowerCase()
                 if (c === 'dep0601') return 'районный ЦГЭ'
                 if (c === 'dep0602') return 'областной ЦГЭ'
