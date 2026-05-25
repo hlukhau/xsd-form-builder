@@ -378,8 +378,7 @@ const DangerousProductCard: React.FC<DangerousProductCardProps> = ({
   const effectiveCloseButton =
     effectiveDpaid === '-' ? null : visibleStatusButton(closeConfig)
 
-  // Кнопка «Удалить»: для черновика исходящей карты всегда отображается;
-  // при отсутствии права/ guid — disabled с подсказкой причины.
+  // Кнопка «Удалить»: только исходящий черновик при наличии права edit (как на PHA).
   const isDraftStatus =
     (editedData.statusId ?? data.statusId) === 5 ||
     /черновик/i.test(editedData.status ?? data.status ?? '')
@@ -387,15 +386,9 @@ const DangerousProductCard: React.FC<DangerousProductCardProps> = ({
     isOutgoingSource &&
     isDraftStatus &&
     effectiveDpaid !== '-' &&
-    effectiveDpaid != null
-  const canDeleteCard = effectiveHasSaveRight && !!guid
-  const deleteButtonHint = !effectiveHasSaveRight
-    ? isPpvApp()
-      ? 'Недостаточно прав: требуется violationDetectedOut:edit.'
-      : 'Недостаточно прав: требуется dangerousProductOut:edit.'
-    : !guid
-      ? 'GUID не задан: не удалось определить права доступа.'
-      : undefined
+    effectiveDpaid != null &&
+    effectiveHasSaveRight &&
+    !!guid
 
   const copyButtonEligible = useMemo(
     () =>
@@ -1192,8 +1185,6 @@ const DangerousProductCard: React.FC<DangerousProductCardProps> = ({
             }
           }}
           showDeleteButton={showDeleteButton}
-          deleteButtonDisabled={!canDeleteCard}
-          deleteButtonHint={deleteButtonHint}
           onDelete={handleDelete}
           showCopyButton={copyButtonEligible}
           onCopy={handleCopy}

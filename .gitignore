@@ -29,6 +29,11 @@ logs/
 .env
 .env.local
 .env.*.local
+deploy.env
+
+# Shell scripts (локальные) — общий загрузчик параметров в репозитории
+*.sh
+!load-deploy-env.sh
 
 # Maven
 .mvn/
@@ -39,8 +44,7 @@ mvnw.cmd
 *.tmp
 *.temp
 
-# Shell / PowerShell / CMD scripts (локальные, не в репозитории)
-*.sh
+# PowerShell / CMD scripts (локальные, не в репозитории)
 *.ps1
 *.cmd
 
