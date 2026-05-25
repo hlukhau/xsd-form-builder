@@ -1,6 +1,5 @@
 # Dependencies
 node_modules/
-package-lock.json
 
 # Build outputs
 dist/
@@ -52,5 +51,3 @@ mvnw.cmd
 vite.config.ts.timestamp-*
 vite.config.*.timestamp-*
 build-manual.bat
-package-lock.json
-package.json

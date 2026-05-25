@@ -1,0 +1,46 @@
+{
+  "name": "xsd-form-builder",
+  "version": "1.0.0",
+  "type": "module",
+  "description": "Frontend application for visualizing Dangerous Product Alert Details card",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "build:dpa": "vite build",
+    "build:pha": "cross-env VITE_APP_BASE=/pha_card/ vite build",
+    "build:ppv": "cross-env VITE_APP_BASE=/ppv_card/ vite build",
+    "build:dpr": "cross-env VITE_APP_BASE=/dpr_card/ vite build",
+    "build:check": "tsc && vite build",
+    "preview": "vite preview",
+    "lint": "eslint . --ext ts,tsx --report-unused-disable-directives --max-warnings 0"
+  },
+  "dependencies": {
+    "@hookform/resolvers": "^3.3.2",
+    "antd": "^5.11.0",
+    "axios": "^1.6.2",
+    "clsx": "^2.0.0",
+    "date-fns": "^2.30.0",
+    "dayjs": "^1.11.19",
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0",
+    "react-hook-form": "^7.48.2",
+    "react-router-dom": "^6.20.0",
+    "zod": "^3.22.4",
+    "zustand": "^4.4.7"
+  },
+  "devDependencies": {
+    "@types/react": "^18.2.43",
+    "@types/react-dom": "^18.2.17",
+    "@typescript-eslint/eslint-plugin": "^6.13.1",
+    "@typescript-eslint/parser": "^6.13.1",
+    "@vitejs/plugin-react": "^4.2.1",
+    "cross-env": "^7.0.3",
+    "eslint": "^8.54.0",
+    "eslint-plugin-react-hooks": "^4.6.0",
+    "eslint-plugin-react-refresh": "^0.4.4",
+    "typescript": "^5.2.2",
+    "vite": "^5.0.8"
+  }
+}
+
+
