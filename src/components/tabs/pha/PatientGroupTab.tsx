@@ -1,5 +1,7 @@
 import { Descriptions, Table } from 'antd'
-import type { CardData, PhaPatientGroupItem } from '@/types/card'
+import type { CardData } from '@/types/card'
+import { useAgeGroupOptions } from '@/hooks/shared/useAgeGroupOptions'
+import { useDiseaseOutcomeOptions } from '@/hooks/shared/useDiseaseOutcomeOptions'
 
 const LAB_INDICATOR_LABELS: Record<0 | 1 | null | undefined, string> = {
   0: 'Нет',
@@ -12,21 +14,25 @@ interface PatientGroupTabProps {
   data: CardData
 }
 
+function formatCodeName(
+  code: string | undefined,
+  getName: (c: string | undefined) => string | null
+): string {
+  const c = (code ?? '').trim()
+  if (!c) return '—'
+  const name = getName(c)
+  return name ? `${c} — ${name}` : c
+}
+
 /**
  * Группа пациентов — сведения по группам (R.SM.SS.08.001, smcdo:PatientGroupDetails).
  * Возрастная группа и исход болезни: при наличии справочников — «код — наименование».
  */
 const PatientGroupTab: React.FC<PatientGroupTabProps> = ({ data }) => {
   const groups = data.phaPatientGroups ?? []
+  const { getNameByCode: getAgeGroupNameByCode } = useAgeGroupOptions()
+  const { getNameByCode: getDiseaseOutcomeNameByCode } = useDiseaseOutcomeOptions()
 
-  const ageGroupDisplay = (code: string | undefined) => {
-    if (!code) return '—'
-    return code
-  }
-  const outcomeDisplay = (code: string | undefined) => {
-    if (!code) return '—'
-    return code
-  }
   const labDisplay = (v: 0 | 1 | null | undefined) => LAB_INDICATOR_LABELS[v ?? undefined]
 
   if (groups.length === 0) {
@@ -55,13 +61,13 @@ const PatientGroupTab: React.FC<PatientGroupTabProps> = ({ data }) => {
             title: 'Возрастная группа',
             dataIndex: 'ageGroupCode',
             key: 'ageGroupCode',
-            render: (v: string) => ageGroupDisplay(v),
+            render: (v: string) => formatCodeName(v, getAgeGroupNameByCode),
           },
           {
             title: 'Исход болезни',
             dataIndex: 'diseaseOutcomeCode',
             key: 'diseaseOutcomeCode',
-            render: (v: string) => outcomeDisplay(v),
+            render: (v: string) => formatCodeName(v, getDiseaseOutcomeNameByCode),
           },
           {
             title: 'Наличие лабораторного подтверждения',
