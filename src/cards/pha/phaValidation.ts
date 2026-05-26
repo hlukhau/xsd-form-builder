@@ -409,6 +409,13 @@ export function collectPhaFormatValidationErrors(data: CardData): string[] {
   return collectFormatValidationErrors(data).errors
 }
 
+/** Перед сохранением в БД: только незаполненный вид уведомления (без прочих контролей «Валидация карты»). */
+export function collectPhaIncidentAlertKindSaveErrors(data: CardData): string[] {
+  const kind = data.notification?.type?.trim() ?? ''
+  if (kind) return []
+  return ['Вид уведомления должен быть указан']
+}
+
 /** Для подсветки в форме: в строке причинного уведомления заполнено хотя бы одно поле. */
 export function isPhaCauseNotificationRowTouched(c: PhaCauseNotificationItem): boolean {
   return causeIncidentAlertFilled(c)

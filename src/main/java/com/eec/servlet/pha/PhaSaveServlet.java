@@ -128,6 +128,11 @@ public class PhaSaveServlet extends HttpServlet {
                             "При создании обязателен регистрационный номер (metadata.incidentId)");
                     return;
                 }
+                if (isBlank(incidentAlertKindCode)) {
+                    sendJsonError(response, HttpServletResponse.SC_BAD_REQUEST,
+                            "Вид уведомления должен быть указан");
+                    return;
+                }
 
                 Integer alertCountryId = resolveCountryId(conn, countryCode);
                 if (alertCountryId == null && "RU".equalsIgnoreCase(trimToEmpty(countryCode))) {
@@ -211,6 +216,11 @@ public class PhaSaveServlet extends HttpServlet {
                 if (!isAllowedToEditOutgoing(conn, phaid, rightsJson)) {
                     sendJsonError(response, HttpServletResponse.SC_FORBIDDEN,
                             "Нет права на редактирование исходящих сведений (publicHealthOut:edit) в пределах подразделений доступа к карте или карта недоступна для редактирования");
+                    return;
+                }
+                if (isBlank(incidentAlertKindCode)) {
+                    sendJsonError(response, HttpServletResponse.SC_BAD_REQUEST,
+                            "Вид уведомления должен быть указан");
                     return;
                 }
                 try (PreparedStatement ps = conn.prepareStatement(SQL_UPDATE_PHAXML)) {
@@ -447,6 +457,10 @@ public class PhaSaveServlet extends HttpServlet {
         m = Pattern.compile("\"userId\"\\s*:\\s*\"(-?\\d+)\"").matcher(json);
         if (m.find()) try { return Integer.parseInt(m.group(1)); } catch (NumberFormatException e) { return null; }
         return null;
+    }
+
+    private static boolean isBlank(String s) {
+        return s == null || s.trim().isEmpty();
     }
 
     private static String trimToEmpty(String s) {

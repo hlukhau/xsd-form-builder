@@ -28,6 +28,7 @@ import { alignPhaParsedCardForCompare, parsePhaXmlToCardData } from '@/cards/pha
 import {
   validatePhaOutgoingCardFullWithSchema,
   collectPhaFormatValidationErrors,
+  collectPhaIncidentAlertKindSaveErrors,
   type ValidationResult,
 } from '@/cards/pha/phaValidation'
 import { compareCardData, getPhaCardDataReview } from '@/utils/cardDataComparator'
@@ -680,6 +681,10 @@ const PhaCard: React.FC<PhaCardProps> = ({
 
   const handleSaveToDbFromModal = async () => {
     if (!pendingSavePayload) return
+    if (logicalValidationErrors.length > 0 || formatValidationErrors.length > 0) {
+      message.error('Сохранение невозможно: исправьте замечания в окне проверки.')
+      return
+    }
     const xmlJustSaved = pendingSavePayload.xmlBody
     setSaving(true)
     const isNewCard = effectivePhaid === '-'
@@ -726,8 +731,10 @@ const PhaCard: React.FC<PhaCardProps> = ({
 
     const formatErrors = collectPhaFormatValidationErrors(editedData)
     setFormatValidationErrors(formatErrors)
-    /** Незаполненные обязательные по XSD поля и прочие контроли — только в «Валидация карты» / перед направлением ОП 57, не блокируют сохранение. */
-    setLogicalValidationErrors([])
+    const willSaveToDb = isNewCard || canSaveToDb
+    setLogicalValidationErrors(
+      willSaveToDb ? collectPhaIncidentAlertKindSaveErrors(editedData) : []
+    )
 
     if (isNewCard) {
       const { filled, unfilled } = getPhaCardDataReview(editedData)
