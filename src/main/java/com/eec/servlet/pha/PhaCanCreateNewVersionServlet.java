@@ -84,8 +84,8 @@ public class PhaCanCreateNewVersionServlet extends HttpServlet {
                     statusId = rs.getInt("PHASTATUSID");
                     datasourceKindCode = rs.getString("DATASOURCEKINDCODE");
                     incidentId = rs.getString("INCIDENTID");
-                    version = rs.getInt("PHAVERSION");
-                    alertCountryId = (Integer) rs.getObject("ALERTCOUNTRYID");
+                    version = toNullableInt(rs.getObject("PHAVERSION"));
+                    alertCountryId = toNullableInt(rs.getObject("ALERTCOUNTRYID"));
                     endDate = rs.getDate("ENDDATE");
                 }
             }
@@ -156,6 +156,17 @@ public class PhaCanCreateNewVersionServlet extends HttpServlet {
             sendJson(response, false, "Ошибка БД: " + e.getMessage());
         } finally {
             DatabaseUtil.closeConnection(conn);
+        }
+    }
+
+    /** Oracle NUMBER приходит как BigDecimal, не Integer. */
+    private static Integer toNullableInt(Object v) {
+        if (v == null) return null;
+        if (v instanceof Number) return ((Number) v).intValue();
+        try {
+            return Integer.valueOf(String.valueOf(v).trim());
+        } catch (Exception e) {
+            return null;
         }
     }
 

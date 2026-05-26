@@ -1,6 +1,6 @@
 package com.eec.servlet;
 
-import javax.servlet.RequestDispatcher;
+import javax.servlet.DispatcherType;
 import javax.servlet.ServletException;
 import javax.servlet.http.HttpServlet;
 import javax.servlet.http.HttpServletRequest;
@@ -8,9 +8,6 @@ import javax.servlet.http.HttpServletResponse;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.Paths;
 
 /**
  * Сервлет для обработки SPA маршрутизации.
@@ -33,16 +30,17 @@ public class SpaServlet extends HttpServlet {
     @Override
     protected void doGet(HttpServletRequest request, HttpServletResponse response)
             throws ServletException, IOException {
-        // Проверяем, не является ли запрос диспетчеризованным (forward/include/error)
-        // Это предотвращает рекурсию
-        String dispatcherType = request.getDispatcherType().name();
-        if (!"REQUEST".equals(dispatcherType)) {
-            // Логируем для диагностики - ERROR может указывать на реальную проблему
-            String requestURI = request.getRequestURI();
-            String errorStatus = request.getAttribute("javax.servlet.error.status_code") != null 
-                ? request.getAttribute("javax.servlet.error.status_code").toString() 
-                : "unknown";
-            System.out.println("[SpaServlet] Skipping " + dispatcherType + " dispatcher type. URI: " + requestURI + ", Error status: " + errorStatus);
+        // REQUEST — обычный запрос; FORWARD — welcome-file (/) → index.html.
+        // ERROR не обрабатываем (раньше error-page 500→index.html давал пустой ответ и рекурсию).
+        DispatcherType dispatcherType = request.getDispatcherType();
+        if (dispatcherType != DispatcherType.REQUEST && dispatcherType != DispatcherType.FORWARD) {
+            if (dispatcherType == DispatcherType.ERROR) {
+                String requestURI = request.getRequestURI();
+                String errorStatus = request.getAttribute("javax.servlet.error.status_code") != null
+                        ? request.getAttribute("javax.servlet.error.status_code").toString()
+                        : "unknown";
+                System.out.println("[SpaServlet] Skipping ERROR dispatcher. URI: " + requestURI + ", status: " + errorStatus);
+            }
             return;
         }
         
@@ -83,14 +81,7 @@ public class SpaServlet extends HttpServlet {
                 response.setContentType("text/html;charset=UTF-8");
                 response.setStatus(HttpServletResponse.SC_OK);
                 
-                OutputStream os = response.getOutputStream();
-                byte[] buffer = new byte[4096];
-                int bytesRead;
-                while ((bytesRead = is.read(buffer)) != -1) {
-                    os.write(buffer, 0, bytesRead);
-                }
-                is.close();
-                os.flush();
+                copyStream(is, response.getOutputStream());
             } else {
                 response.sendError(HttpServletResponse.SC_NOT_FOUND, "index.html not found");
             }
@@ -111,15 +102,7 @@ public class SpaServlet extends HttpServlet {
                 response.setContentType(contentType);
                 response.setStatus(HttpServletResponse.SC_OK);
                 
-                // Копируем содержимое
-                OutputStream os = response.getOutputStream();
-                byte[] buffer = new byte[4096];
-                int bytesRead;
-                while ((bytesRead = resourceStream.read(buffer)) != -1) {
-                    os.write(buffer, 0, bytesRead);
-                }
-                resourceStream.close();
-                os.flush();
+                copyStream(resourceStream, response.getOutputStream());
             } else {
                 System.out.println("[SpaServlet] Static resource not found: " + path);
                 response.sendError(HttpServletResponse.SC_NOT_FOUND);
@@ -139,14 +122,7 @@ public class SpaServlet extends HttpServlet {
                 response.setContentType(contentType);
                 response.setStatus(HttpServletResponse.SC_OK);
                 
-                OutputStream os = response.getOutputStream();
-                byte[] buffer = new byte[4096];
-                int bytesRead;
-                while ((bytesRead = resourceStream.read(buffer)) != -1) {
-                    os.write(buffer, 0, bytesRead);
-                }
-                resourceStream.close();
-                os.flush();
+                copyStream(resourceStream, response.getOutputStream());
             } else {
                 System.out.println("[SpaServlet] Static resource not found: " + path);
                 response.sendError(HttpServletResponse.SC_NOT_FOUND);
@@ -163,17 +139,7 @@ public class SpaServlet extends HttpServlet {
             response.setContentType("text/html;charset=UTF-8");
             response.setStatus(HttpServletResponse.SC_OK);
             
-            // Копируем содержимое файла в ответ
-            OutputStream os = response.getOutputStream();
-            byte[] buffer = new byte[4096];
-            int bytesRead;
-            int totalBytes = 0;
-            while ((bytesRead = is.read(buffer)) != -1) {
-                os.write(buffer, 0, bytesRead);
-                totalBytes += bytesRead;
-            }
-            is.close();
-            os.flush();
+            int totalBytes = copyStream(is, response.getOutputStream());
             System.out.println("[SpaServlet] Sent " + totalBytes + " bytes");
         } else {
             System.out.println("[SpaServlet] ERROR: index.html not found!");
@@ -197,6 +163,22 @@ public class SpaServlet extends HttpServlet {
     protected void doDelete(HttpServletRequest request, HttpServletResponse response)
             throws ServletException, IOException {
         doGet(request, response);
+    }
+
+    private static int copyStream(InputStream in, OutputStream out) throws IOException {
+        byte[] buffer = new byte[4096];
+        int totalBytes = 0;
+        int bytesRead;
+        try {
+            while ((bytesRead = in.read(buffer)) != -1) {
+                out.write(buffer, 0, bytesRead);
+                totalBytes += bytesRead;
+            }
+            out.flush();
+        } finally {
+            in.close();
+        }
+        return totalBytes;
     }
 
     /**

@@ -404,14 +404,7 @@ public class XsdFormBuilderServlet extends HttpServlet {
             response.setContentType("text/html;charset=UTF-8");
             response.setStatus(HttpServletResponse.SC_OK);
             
-            OutputStream os = response.getOutputStream();
-            byte[] buffer = new byte[4096];
-            int bytesRead;
-            while ((bytesRead = is.read(buffer)) >= 0) {
-                os.write(buffer, 0, bytesRead);
-            }
-            is.close();
-            os.flush();
+            copyStreamToResponse(is, response.getOutputStream());
         } else {
             response.setStatus(HttpServletResponse.SC_NOT_FOUND);
             response.setContentType("text/plain;charset=UTF-8");
@@ -442,14 +435,7 @@ public class XsdFormBuilderServlet extends HttpServlet {
             response.setContentType(contentType);
             response.setStatus(HttpServletResponse.SC_OK);
             
-            OutputStream os = response.getOutputStream();
-            byte[] buffer = new byte[4096];
-            int bytesRead;
-            while ((bytesRead = resourceStream.read(buffer)) >= 0) {
-                os.write(buffer, 0, bytesRead);
-            }
-            resourceStream.close();
-            os.flush();
+            copyStreamToResponse(resourceStream, response.getOutputStream());
         } else {
             System.out.println("[XsdFormBuilderServlet] Static resource not found: " + resourcePath);
             // Пробуем без начального слеша
@@ -463,15 +449,7 @@ public class XsdFormBuilderServlet extends HttpServlet {
                 System.out.println("[XsdFormBuilderServlet] Serving static resource (alt path): " + altPath);
                 response.setContentType(contentType);
                 response.setStatus(HttpServletResponse.SC_OK);
-                
-                OutputStream os = response.getOutputStream();
-                byte[] buffer = new byte[4096];
-                int bytesRead;
-                while ((bytesRead = resourceStream.read(buffer)) >= 0) {
-                    os.write(buffer, 0, bytesRead);
-                }
-                resourceStream.close();
-                os.flush();
+                copyStreamToResponse(resourceStream, response.getOutputStream());
             } else {
                 System.out.println("[XsdFormBuilderServlet] Static resource not found (both paths tried)");
                 response.setStatus(HttpServletResponse.SC_NOT_FOUND);
@@ -516,6 +494,19 @@ public class XsdFormBuilderServlet extends HttpServlet {
             return "image/x-icon";
         } else {
             return "application/octet-stream";
+        }
+    }
+
+    private static void copyStreamToResponse(InputStream in, OutputStream out) throws IOException {
+        byte[] buffer = new byte[4096];
+        int bytesRead;
+        try {
+            while ((bytesRead = in.read(buffer)) != -1) {
+                out.write(buffer, 0, bytesRead);
+            }
+            out.flush();
+        } finally {
+            in.close();
         }
     }
 

@@ -55,12 +55,8 @@
         <session-timeout>30</session-timeout>
     </session-config>
 
-    <!-- Обработка ошибок -->
-    <!-- Убираем error-page для 404, чтобы не вызывать рекурсию через SpaServlet -->
-    <error-page>
-        <error-code>500</error-code>
-        <location>/index.html</location>
-    </error-page>
+    <!-- Обработка ошибок: не маппим 500 на index.html — SpaServlet не обрабатывает ERROR-dispatch,
+         из-за чего получается пустой ответ и повторные 500 в логе. -->
 
     <!-- Реестр JSON-прав (in-memory WAR или HTTP) — раньше справочников -->
     <listener>
