@@ -2188,8 +2188,6 @@ export function exportDprParsedBundleToXml(bundle: DprParsedBundle): string {
   if (authCountry) {
     parts.push(`        <csdo:UnifiedCountryCode codeListId="2021">${escapeXML(authCountry)}</csdo:UnifiedCountryCode>`)
   }
-  const authId = (bundle.notifyingAuthority.identifier ?? '').trim()
-  if (authId) parts.push(`        <csdo:AuthorityId>${escapeXML(authId)}</csdo:AuthorityId>`)
   const authName = (bundle.notifyingAuthority.name ?? '').trim()
   if (authName) parts.push(`        <csdo:AuthorityName>${escapeXML(authName)}</csdo:AuthorityName>`)
   const authBrief = (bundle.notifyingAuthority.shortName ?? '').trim()

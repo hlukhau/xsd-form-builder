@@ -1,8 +1,14 @@
 import { useCallback, useEffect, useState, type CSSProperties } from 'react'
 import { Typography, Tabs, Descriptions, Button, Input, Space, message } from 'antd'
 import type { DprPrepareContext } from '@/types/dprCard'
-import { getIncidentAlertKindNameByCode, postDprCreateSave } from '@/utils/referenceDataApi'
+import {
+  getIncidentAlertKindNameByCode,
+  postDprCreateSave,
+  fetchRightsByGuid,
+  getOutgoingAuthorityFilterDepIdsFromRights,
+} from '@/utils/referenceDataApi'
 import { useCountryOptions } from '@/hooks/shared/useCountryOptions'
+import { DprNotifyingAuthorityEdit } from '@/cards/dpr/DprNotifyingAuthorityEdit'
 
 const { Text } = Typography
 
@@ -44,9 +50,13 @@ export interface DprCreateCardProps {
 export function DprCreateCard({ eligibility, ppvid, guid }: DprCreateCardProps) {
   const { getDisplayLabel: countryLabel } = useCountryOptions()
   const [saving, setSaving] = useState(false)
-  const [authorityId, setAuthorityId] = useState('')
-  const [authorityName, setAuthorityName] = useState('')
-  const [authorityBriefName, setAuthorityBriefName] = useState('')
+  const [authEdit, setAuthEdit] = useState({
+    country: 'BY',
+    authorityUid: undefined as string | undefined,
+    name: '',
+    shortName: '',
+  })
+  const [authorityFilterDepIds, setAuthorityFilterDepIds] = useState<string[] | null>(null)
   const [descriptionText, setDescriptionText] = useState('')
   const [incidentKindLabel, setIncidentKindLabel] = useState<string>('')
 
@@ -77,6 +87,26 @@ export function DprCreateCard({ eligibility, ppvid, guid }: DprCreateCardProps) 
     }
   }, [eligibility.incidentKindCode])
 
+  useEffect(() => {
+    if (!guid?.trim()) {
+      setAuthorityFilterDepIds(null)
+      return
+    }
+    let cancelled = false
+    fetchRightsByGuid(guid.trim())
+      .then((rights) => {
+        if (!cancelled) {
+          setAuthorityFilterDepIds(getOutgoingAuthorityFilterDepIdsFromRights(rights, true))
+        }
+      })
+      .catch(() => {
+        if (!cancelled) setAuthorityFilterDepIds([])
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [guid])
+
   const goBackToPpv = useCallback(() => {
     const ppvBase = (import.meta.env.VITE_PPV_CARD_BASE as string | undefined)?.replace(/\/$/, '') || '/ppv_card'
     window.location.href = `${ppvBase}/${encodeURIComponent(ppvid)}/${encodeURIComponent(guid.trim())}`
@@ -88,9 +118,8 @@ export function DprCreateCard({ eligibility, ppvid, guid }: DprCreateCardProps) 
       const { dprid } = await postDprCreateSave({
         guid: guid.trim(),
         ppvid,
-        authorityId: authorityId.trim() || undefined,
-        authorityName: authorityName.trim() || undefined,
-        authorityBriefName: authorityBriefName.trim() || undefined,
+        authorityName: authEdit.name.trim() || undefined,
+        authorityBriefName: authEdit.shortName.trim() || undefined,
         descriptionText: descriptionText.trim() || undefined,
       })
       if (!dprid) throw new Error('Пустой DPRID в ответе сервера')
@@ -101,7 +130,7 @@ export function DprCreateCard({ eligibility, ppvid, guid }: DprCreateCardProps) 
     } finally {
       setSaving(false)
     }
-  }, [guid, ppvid, authorityId, authorityName, authorityBriefName, descriptionText])
+  }, [guid, ppvid, authEdit.name, authEdit.shortName, descriptionText])
 
   const draftName = eligibility.draftDprStatusName ?? 'Черновик'
 
@@ -155,27 +184,28 @@ export function DprCreateCard({ eligibility, ppvid, guid }: DprCreateCardProps) 
                     <Descriptions.Item label="Страна">{responseCountryDisplay}</Descriptions.Item>
                   </Descriptions>
                   <Typography.Paragraph type="secondary" style={{ marginBottom: 8 }}>
-                    Необязательно: уточните реквизиты уполномоченного органа (BY). Поля можно оставить пустыми в
-                    черновике.
+                    Уполномоченный орган выбирается из справочника (по правам пользователя). Наименования
+                    подставляются автоматически; в черновике поля можно оставить пустыми.
                   </Typography.Paragraph>
-                  <Space direction="vertical" style={{ width: '100%', maxWidth: 560 }} size="middle">
-                    <div>
-                      <Text type="secondary">Идентификатор</Text>
-                      <Input value={authorityId} onChange={(e) => setAuthorityId(e.target.value)} placeholder="—" />
-                    </div>
-                    <div>
-                      <Text type="secondary">Наименование</Text>
-                      <Input value={authorityName} onChange={(e) => setAuthorityName(e.target.value)} placeholder="—" />
-                    </div>
-                    <div>
-                      <Text type="secondary">Краткое наименование</Text>
-                      <Input
-                        value={authorityBriefName}
-                        onChange={(e) => setAuthorityBriefName(e.target.value)}
-                        placeholder="—"
-                      />
-                    </div>
-                  </Space>
+                  <DprNotifyingAuthorityEdit
+                    value={{
+                      country: authEdit.country || rc || 'BY',
+                      authorityUid: authEdit.authorityUid,
+                      name: authEdit.name,
+                      shortName: authEdit.shortName,
+                    }}
+                    onChange={(next) =>
+                      setAuthEdit({
+                        country: next.country,
+                        authorityUid: next.authorityUid,
+                        name: next.name,
+                        shortName: next.shortName,
+                      })
+                    }
+                    countryDisplay={responseCountryDisplay}
+                    isDraft
+                    allowedAuthorityIds={authorityFilterDepIds}
+                  />
                   <Typography.Title level={5} style={{ marginTop: 24 }}>
                     Исходная карта сведений о выявленных нарушениях
                   </Typography.Title>

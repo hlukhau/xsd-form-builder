@@ -25,11 +25,8 @@ export function validateDprFormatLogical(parsed: DprParsedBundle): ValidationRes
   if (empty(auth?.country)) {
     secAuth.remarks.push('Должен быть указан код страны уполномоченного органа')
   }
-  if (empty(auth?.identifier)) {
-    secAuth.remarks.push('Должен быть указан идентификатор уполномоченного органа')
-  }
   if (empty(auth?.name)) {
-    secAuth.remarks.push('Должно быть указано наименование уполномоченного органа')
+    secAuth.remarks.push('Должно быть указано наименование уполномоченного органа (csdo:AuthorityName)')
   }
   if (empty(auth?.shortName)) {
     secAuth.remarks.push('Должно быть указано краткое наименование уполномоченного органа')

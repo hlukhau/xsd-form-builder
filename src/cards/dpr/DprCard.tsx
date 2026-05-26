@@ -39,6 +39,8 @@ import { visibleStatusButton, type StatusButtonResult } from '@/utils/statusButt
 import { validateDprOutgoingCardFull } from '@/utils/dprCardValidation'
 import { compareDprResponseXml, exportDprParsedBundleToXml } from '@/utils/xmlExporter'
 import { DprResultDocumentsEdit } from '@/cards/dpr/DprResultDocumentsEdit'
+import { DprNotifyingAuthorityEdit } from '@/cards/dpr/DprNotifyingAuthorityEdit'
+import { getOutgoingAuthorityFilterDepIdsFromRights } from '@/utils/referenceDataApi'
 
 const { Text } = Typography
 
@@ -158,9 +160,13 @@ export function DprCard({ dprid, guid, meta, parsed, onDataRefresh }: DprCardPro
   const [saving, setSaving] = useState(false)
   const [statusActionLoading, setStatusActionLoading] = useState(false)
   const [validateLoading, setValidateLoading] = useState(false)
-  const [authId, setAuthId] = useState('')
-  const [authName, setAuthName] = useState('')
-  const [authBrief, setAuthBrief] = useState('')
+  const [authEdit, setAuthEdit] = useState({
+    country: '',
+    authorityUid: undefined as string | undefined,
+    name: '',
+    shortName: '',
+  })
+  const [authorityFilterDepIds, setAuthorityFilterDepIds] = useState<string[] | null>(null)
   const [descText, setDescText] = useState('')
   const [hasStatusRight, setHasStatusRight] = useState(false)
   const [hasIncomingCompleteRight, setHasIncomingCompleteRight] = useState(false)
@@ -195,6 +201,10 @@ export function DprCard({ dprid, guid, meta, parsed, onDataRefresh }: DprCardPro
   const canDeleteDraft = meta.canDeleteDraft === true
   const canValidateOutgoingCard = meta.canValidateOutgoingCard === true
   const statusId = meta.dprStatusId ?? null
+  const isDraftAuthority =
+    statusId === 4 ||
+    (meta.dprStatusCode ?? '').toUpperCase() === 'DRAFT' ||
+    /черновик/i.test(meta.dprStatusName ?? '')
 
   const openPpv = useCallback(() => {
     if (ppvHref) window.location.assign(ppvHref)
@@ -253,26 +263,54 @@ export function DprCard({ dprid, guid, meta, parsed, onDataRefresh }: DprCardPro
     void reloadResolutions()
   }, [reloadResolutions, meta.modificationDateTime, meta.dprStatusName])
 
+  useEffect(() => {
+    if (!guid?.trim() || !outgoing) {
+      setAuthorityFilterDepIds(null)
+      return
+    }
+    let cancelled = false
+    fetchRightsByGuid(guid.trim())
+      .then((rights) => {
+        if (!cancelled) {
+          setAuthorityFilterDepIds(getOutgoingAuthorityFilterDepIdsFromRights(rights, true))
+        }
+      })
+      .catch(() => {
+        if (!cancelled) setAuthorityFilterDepIds([])
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [guid, outgoing])
+
+  const authCountryDisplay =
+    (parsed.notifyingAuthority.country ?? '').trim()
+      ? `${parsed.notifyingAuthority.country} — ${countryLabel(parsed.notifyingAuthority.country) || parsed.notifyingAuthority.country}`
+      : '—'
+
   const parsedForValidation: DprParsedBundle = useMemo(() => {
     if (!isEditMode) return parsed
     return {
       ...parsed,
       notifyingAuthority: {
-        country: parsed.notifyingAuthority.country?.trim() ?? '',
-        identifier: authId.trim(),
-        name: authName.trim(),
-        shortName: authBrief.trim(),
+        country: (authEdit.country || parsed.notifyingAuthority.country)?.trim() ?? '',
+        identifier: '',
+        name: authEdit.name.trim(),
+        shortName: authEdit.shortName.trim(),
       },
       resultDescription: descText.trim() || null,
       measures: measuresEdit,
       resultDocuments: documentsEdit,
     }
-  }, [isEditMode, parsed, authId, authName, authBrief, descText, measuresEdit, documentsEdit])
+  }, [isEditMode, parsed, authEdit, descText, measuresEdit, documentsEdit])
 
   const beginEdit = useCallback(() => {
-    setAuthId(parsed.notifyingAuthority.identifier?.trim() ?? '')
-    setAuthName(parsed.notifyingAuthority.name?.trim() ?? '')
-    setAuthBrief(parsed.notifyingAuthority.shortName?.trim() ?? '')
+    setAuthEdit({
+      country: parsed.notifyingAuthority.country?.trim() ?? '',
+      authorityUid: parsed.notifyingAuthority.identifier?.trim() || undefined,
+      name: parsed.notifyingAuthority.name?.trim() ?? '',
+      shortName: parsed.notifyingAuthority.shortName?.trim() ?? '',
+    })
     setDescText(parsed.resultDescription?.trim() ?? '')
     setMeasuresEdit(cloneMeasuresData(parsed.measures ?? { measures: [] }))
     setDocumentsEdit(JSON.parse(JSON.stringify(parsed.resultDocuments ?? [])) as DprResultDocRow[])
@@ -299,10 +337,10 @@ export function DprCard({ dprid, guid, meta, parsed, onDataRefresh }: DprCardPro
       const bundle: DprParsedBundle = {
         ...parsed,
         notifyingAuthority: {
-          country: parsed.notifyingAuthority.country?.trim() ?? '',
-          identifier: authId.trim(),
-          name: authName.trim(),
-          shortName: authBrief.trim(),
+          country: (authEdit.country || parsed.notifyingAuthority.country)?.trim() ?? '',
+          identifier: '',
+          name: authEdit.name.trim(),
+          shortName: authEdit.shortName.trim(),
         },
         resultDescription: descText.trim() || null,
         measures: measuresEdit,
@@ -336,9 +374,7 @@ export function DprCard({ dprid, guid, meta, parsed, onDataRefresh }: DprCardPro
     guid,
     dprid,
     parsed,
-    authId,
-    authName,
-    authBrief,
+    authEdit,
     descText,
     measuresEdit,
     documentsEdit,
@@ -445,6 +481,24 @@ export function DprCard({ dprid, guid, meta, parsed, onDataRefresh }: DprCardPro
           onOk: async () => {
             setStatusActionLoading(true)
             try {
+              const xml = await fetchDprXml(dprid, g)
+              const vr = await validateDprOutgoingCardFull(parsed, xml)
+              if (!vr.success) {
+                Modal.error({
+                  title: 'Отметка о готовности недоступна',
+                  width: 640,
+                  content: (
+                    <div>
+                      <Typography.Paragraph style={{ marginBottom: 8 }}>
+                        Заполните обязательные поля карты, в том числе наименование уполномоченного органа
+                        (csdo:AuthorityName), и повторите попытку.
+                      </Typography.Paragraph>
+                      {dprValidationReportContent(vr)}
+                    </div>
+                  ),
+                })
+                return
+              }
               const res = await changeDprStatus(dprid, 'mark_ready', { guid: g })
               message.success(res.newStatus ? `Статус: ${res.newStatus}` : 'Выполнено')
               await onDataRefresh?.()
@@ -897,28 +951,29 @@ export function DprCard({ dprid, guid, meta, parsed, onDataRefresh }: DprCardPro
                   <div style={{ padding: 16 }}>
                     <Typography.Title level={5}>Уполномоченный орган</Typography.Title>
                     {isEditMode ? (
-                      <Space direction="vertical" style={{ width: '100%', maxWidth: 560 }} size="middle">
-                        <div>
-                          <Text type="secondary">Идентификатор</Text>
-                          <Input value={authId} onChange={(e) => setAuthId(e.target.value)} />
-                        </div>
-                        <div>
-                          <Text type="secondary">Наименование</Text>
-                          <Input value={authName} onChange={(e) => setAuthName(e.target.value)} />
-                        </div>
-                        <div>
-                          <Text type="secondary">Краткое наименование</Text>
-                          <Input value={authBrief} onChange={(e) => setAuthBrief(e.target.value)} />
-                        </div>
-                      </Space>
+                      <DprNotifyingAuthorityEdit
+                        value={{
+                          country: authEdit.country || parsed.notifyingAuthority.country || '',
+                          authorityUid: authEdit.authorityUid,
+                          name: authEdit.name,
+                          shortName: authEdit.shortName,
+                        }}
+                        onChange={(next) =>
+                          setAuthEdit({
+                            country: next.country,
+                            authorityUid: next.authorityUid,
+                            name: next.name,
+                            shortName: next.shortName,
+                          })
+                        }
+                        countryDisplay={authCountryDisplay}
+                        isDraft={isDraftAuthority}
+                        allowedAuthorityIds={authorityFilterDepIds}
+                      />
                     ) : (
                       <Descriptions column={1} bordered size="small" style={{ marginBottom: 16 }}>
-                        <Descriptions.Item label="Страна">
-                          {parsed.notifyingAuthority.country
-                            ? `${parsed.notifyingAuthority.country} — ${countryLabel(parsed.notifyingAuthority.country) || parsed.notifyingAuthority.country}`
-                            : '—'}
-                        </Descriptions.Item>
-                        <Descriptions.Item label="Идентификатор">{dash(parsed.notifyingAuthority.identifier)}</Descriptions.Item>
+                        <Descriptions.Item label="Страна">{authCountryDisplay}</Descriptions.Item>
+                        <Descriptions.Item label="Идентификатор">—</Descriptions.Item>
                         <Descriptions.Item label="Наименование">{dash(parsed.notifyingAuthority.name)}</Descriptions.Item>
                         <Descriptions.Item label="Краткое наименование">{dash(parsed.notifyingAuthority.shortName)}</Descriptions.Item>
                       </Descriptions>

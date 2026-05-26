@@ -623,6 +623,7 @@ function PhaAppContent() {
       onMakeCopy={(initialCardData, sourcePhaid) => {
         navigate(`/-/${guid ?? ''}`, { state: { newVersionFrom: sourcePhaid, initialCardData } })
       }}
+      autoRunCopyFromUrl={(searchParams.get('command') ?? '').toLowerCase() === 'copy'}
     />
   )
   return (

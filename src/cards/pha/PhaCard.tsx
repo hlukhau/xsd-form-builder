@@ -66,6 +66,8 @@ interface PhaCardProps {
   onCardDeleted?: () => void
   /** Создание новой версии исходящей карты PHA */
   onMakeCopy?: (initialCardData: CardData, sourcePhaid: number) => void
+  /** Автоматически выполнить сценарий «Новая версия» (URL ?command=copy), как DPA. */
+  autoRunCopyFromUrl?: boolean
 }
 
 /** Исходящие PHA: редактирование недоступно в терминальных / «ожидает отправки» статусах */
@@ -166,7 +168,9 @@ const PhaCard: React.FC<PhaCardProps> = ({
   onSaveNewCard,
   onCardDeleted,
   onMakeCopy,
+  autoRunCopyFromUrl,
 }) => {
+  const copyCommandHandledRef = useRef(false)
   const [savedPhaid, setSavedPhaid] = useState<number | null>(null)
   const effectivePhaid =
     phaid && phaid !== '-' ? phaid : savedPhaid != null ? String(savedPhaid) : '-'
@@ -614,6 +618,13 @@ const PhaCard: React.FC<PhaCardProps> = ({
       message.error(e instanceof Error ? e.message : 'Ошибка проверки возможности создания новой версии')
     }
   }
+
+  useEffect(() => {
+    if (!autoRunCopyFromUrl) return
+    if (copyCommandHandledRef.current) return
+    copyCommandHandledRef.current = true
+    void handleCopy()
+  }, [autoRunCopyFromUrl, handleCopy])
 
   const handlePhaStatusAction = (action: string) => {
     if (!effectivePhaid || effectivePhaid === '-') return
