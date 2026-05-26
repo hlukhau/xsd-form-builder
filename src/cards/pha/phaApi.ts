@@ -111,6 +111,8 @@ export async function savePhaCard(payload: {
   metadata: PhaSaveMetadata
   phaid?: number
   guid?: string
+  /** Исходный PHAID при сохранении новой версии (копия). */
+  copyFromPhaid?: number
 }): Promise<{ success: boolean; phaid: number }> {
   const url = getApiUrl('/api/pha/save')
   const body: Record<string, unknown> = {
@@ -120,6 +122,9 @@ export async function savePhaCard(payload: {
   }
   if (payload.guid) body.guid = payload.guid
   if (!payload.isNew && payload.phaid != null) body.phaid = payload.phaid
+  if (payload.isNew && payload.copyFromPhaid != null && payload.copyFromPhaid > 0) {
+    body.copyFromPhaid = payload.copyFromPhaid
+  }
 
   const res = await fetch(url, {
     method: 'POST',

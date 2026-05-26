@@ -28,6 +28,8 @@ public class PhaSaveServlet extends HttpServlet {
     private static final String DATASOURCE_OUTGOING = "2";
     /** Статус «Новое» при создании (PHASTATUS). */
     private static final int PHA_STATUS_NEW_ID = 5;
+    /** Статус «Доставлено» — исходная карта для новой версии. */
+    private static final int PHA_STATUS_DELIVERED_ID = 10;
 
     private static final String SQL_NEXT_PHAID = "SELECT SQPHA.NEXTVAL FROM DUAL";
     private static final String SQL_NEXT_PHAID_FALLBACK = "SELECT NVL(MAX(PHAID),0)+1 AS NEXTVAL FROM PHA";
@@ -39,7 +41,14 @@ public class PhaSaveServlet extends HttpServlet {
             + "INSERT INTO PHA (PHAID, DATASOURCEKINDCODE, ALERTCOUNTRYID, INCIDENTID, PHAVERSION, "
             + "PHASTATUSID, AUTHORITYID, ENDDATE, CREATIONDATETIME, MODIFICATIONDATETIME, INCIDENTALERTKINDCODE, DOCCREATIONDATE, "
             + "DISEASEHEALTHPROBLEMID, DISEASEHEALTHPROBLEMNAME, INCIDENTEVENTDATE, INCIDENTENDDATE, CROSSBOARDERRISKFL) "
-            + "VALUES (?, ?, ?, ?, 1, ?, ?, ?, SYSDATE, SYSDATE, ?, ?, ?, ?, ?, ?, ?)";
+            + "VALUES (?, ?, ?, ?, ?, ?, ?, ?, SYSDATE, SYSDATE, ?, ?, ?, ?, ?, ?, ?)";
+
+    private static final String SQL_SOURCE_PHA_FOR_COPY = ""
+            + "SELECT p.INCIDENTID, p.PHAVERSION, p.ALERTCOUNTRYID, p.AUTHORITYID, p.INCIDENTALERTKINDCODE, "
+            + "p.DISEASEHEALTHPROBLEMID, p.DISEASEHEALTHPROBLEMNAME, p.INCIDENTEVENTDATE, p.INCIDENTENDDATE, p.CROSSBOARDERRISKFL "
+            + "FROM PHA p WHERE p.PHAID = ? AND TRIM(TO_CHAR(p.DATASOURCEKINDCODE)) = ? AND p.PHASTATUSID = ? AND p.ENDDATE IS NULL";
+    private static final String SQL_MAX_PHA_VERSION = ""
+            + "SELECT NVL(MAX(PHAVERSION), 0) FROM PHA WHERE INCIDENTID = ? AND ALERTCOUNTRYID = ?";
 
     private static final String SQL_INSERT_PHAXML = "INSERT INTO PHAXML (PHAID, PHAXMLBODY) VALUES (?, ?)";
     private static final String SQL_INSERT_HIST = ""
@@ -134,6 +143,19 @@ public class PhaSaveServlet extends HttpServlet {
                     return;
                 }
 
+                Long copyFromPhaid = extractJsonLong(body, "copyFromPhaid");
+                if (copyFromPhaid != null && copyFromPhaid > 0 && guid != null && !guid.isEmpty()) {
+                    Long newPhaid = handleNewVersionCopy(conn, response, request, copyFromPhaid, guid.trim(),
+                            xmlBody, body, userId);
+                    if (newPhaid == null) {
+                        return;
+                    }
+                    conn.commit();
+                    transactionEnded = true;
+                    response.getWriter().print("{\"success\":true,\"phaid\":" + newPhaid + "}");
+                    return;
+                }
+
                 Integer alertCountryId = resolveCountryId(conn, countryCode);
                 if (alertCountryId == null && "RU".equalsIgnoreCase(trimToEmpty(countryCode))) {
                     alertCountryId = 191;
@@ -145,29 +167,11 @@ public class PhaSaveServlet extends HttpServlet {
                 Integer authorityId = resolveAuthorityId(conn, authorityIdentifier);
                 Integer diseaseId = resolveDiseaseIdByName(conn, diseaseName);
 
+                int phaVersion = resolveNextPhaVersionForIncident(conn, incId, alertCountryId);
                 long phaid = getNextPhaid(conn);
-
-                try (PreparedStatement ps = conn.prepareStatement(SQL_INSERT_PHA)) {
-                    int i = 1;
-                    ps.setLong(i++, phaid);
-                    ps.setString(i++, DATASOURCE_OUTGOING);
-                    ps.setInt(i++, alertCountryId);
-                    ps.setString(i++, incId);
-                    ps.setInt(i++, PHA_STATUS_NEW_ID);
-                    if (authorityId != null) ps.setInt(i++, authorityId);
-                    else ps.setNull(i++, Types.INTEGER);
-                    setDateOrNull(ps, i++, endDate);
-                    ps.setString(i++, incidentAlertKindCode != null ? incidentAlertKindCode : "");
-                    setDateOrNull(ps, i++, docCreationDate);
-                    if (diseaseId != null) ps.setInt(i++, diseaseId);
-                    else ps.setNull(i++, Types.INTEGER);
-                    ps.setString(i++, trimToEmpty(diseaseName));
-                    setDateOrNull(ps, i++, firstCaseDate);
-                    setDateOrNull(ps, i++, lastCaseDate);
-                    if (crossborderRiskFl == null) ps.setNull(i++, Types.INTEGER);
-                    else ps.setInt(i++, crossborderRiskFl);
-                    ps.executeUpdate();
-                }
+                insertPhaRow(conn, phaid, alertCountryId, incId, phaVersion, PHA_STATUS_NEW_ID, authorityId, endDate,
+                        incidentAlertKindCode, docCreationDate, diseaseId, diseaseName, firstCaseDate, lastCaseDate,
+                        crossborderRiskFl);
 
                 try (PreparedStatement ps = conn.prepareStatement(SQL_INSERT_PHAXML)) {
                     ps.setLong(1, phaid);
@@ -286,6 +290,220 @@ public class PhaSaveServlet extends HttpServlet {
                 }
                 DatabaseUtil.closeConnection(conn);
             }
+        }
+    }
+
+    /**
+     * Создание новой версии PHA (копия из карты в статусе «Доставлено»).
+     * PHAVERSION = версия исходной + 1; тот же INCIDENTID и ALERTCOUNTRYID (ограничение PHA_UK1).
+     */
+    private Long handleNewVersionCopy(Connection conn, HttpServletResponse response, HttpServletRequest request,
+                                      long sourcePhaid, String guid, String xmlBody, String body, Integer userId)
+            throws IOException, SQLException {
+        String metaBlock = extractJsonObject(body, "metadata");
+        if (metaBlock == null) metaBlock = "{}";
+        String docCreationDate = extractJsonString(metaBlock, "docCreationDate");
+        String incidentAlertKindCode = extractJsonString(metaBlock, "incidentAlertKindCode");
+        String authorityIdentifier = extractJsonString(metaBlock, "authorityIdentifier");
+        String endDate = extractJsonString(metaBlock, "endDate");
+        String diseaseName = extractJsonString(metaBlock, "diseaseName");
+        String firstCaseDate = extractJsonString(metaBlock, "firstCaseDate");
+        String lastCaseDate = extractJsonString(metaBlock, "lastCaseDate");
+        Integer crossborderRiskFl = extractJsonInt(metaBlock, "crossborderRiskFl");
+
+        try (PreparedStatement ps = conn.prepareStatement(SQL_SOURCE_PHA_FOR_COPY)) {
+            ps.setLong(1, sourcePhaid);
+            ps.setString(2, DATASOURCE_OUTGOING);
+            ps.setInt(3, PHA_STATUS_DELIVERED_ID);
+            try (ResultSet rs = ps.executeQuery()) {
+                if (!rs.next()) {
+                    sendJsonError(response, HttpServletResponse.SC_BAD_REQUEST,
+                            "Исходная карта не найдена или не подходит для создания новой версии "
+                                    + "(исходящая, статус «Доставлено», дата закрытия не указана).");
+                    return null;
+                }
+                String incidentId = rs.getString("INCIDENTID");
+                int sourceVersion = rs.getInt("PHAVERSION");
+                if (rs.wasNull()) sourceVersion = 0;
+                Integer alertCountryId = getIntObject(rs, "ALERTCOUNTRYID");
+                Integer sourceAuthorityId = getIntObject(rs, "AUTHORITYID");
+                String sourceIncidentAlertKindCode = rs.getString("INCIDENTALERTKINDCODE");
+                if (sourceIncidentAlertKindCode != null) {
+                    sourceIncidentAlertKindCode = sourceIncidentAlertKindCode.trim();
+                }
+                Integer sourceDiseaseId = getIntObject(rs, "DISEASEHEALTHPROBLEMID");
+                String sourceDiseaseName = rs.getString("DISEASEHEALTHPROBLEMNAME");
+                String sourceFirstCase = rs.getDate("INCIDENTEVENTDATE") != null
+                        ? rs.getDate("INCIDENTEVENTDATE").toLocalDate().toString() : null;
+                String sourceLastCase = rs.getDate("INCIDENTENDDATE") != null
+                        ? rs.getDate("INCIDENTENDDATE").toLocalDate().toString() : null;
+                Integer sourceCross = getIntObject(rs, "CROSSBOARDERRISKFL");
+
+                int maxVersion = 0;
+                try (PreparedStatement psMax = conn.prepareStatement(SQL_MAX_PHA_VERSION)) {
+                    psMax.setString(1, incidentId != null ? incidentId : "");
+                    psMax.setObject(2, alertCountryId);
+                    try (ResultSet rsMax = psMax.executeQuery()) {
+                        if (rsMax.next()) maxVersion = rsMax.getInt(1);
+                    }
+                }
+                if (sourceVersion < maxVersion) {
+                    sendJsonError(response, HttpServletResponse.SC_BAD_REQUEST,
+                            "Создание новой версии доступно только для карты с максимальной версией по данному регистрационному номеру.");
+                    return null;
+                }
+
+                Set<String> cardDepIds = new HashSet<>();
+                try (PreparedStatement psDep = conn.prepareStatement(SQL_PHA_DEPS)) {
+                    psDep.setLong(1, sourcePhaid);
+                    try (ResultSet rsDep = psDep.executeQuery()) {
+                        while (rsDep.next()) {
+                            String depId = rsDep.getString(1);
+                            if (depId != null && !depId.trim().isEmpty()) cardDepIds.add(depId.trim());
+                        }
+                    }
+                }
+                String rightsJson = RightsRegistryProvider.get().getRightsJson(guid);
+                boolean commandInvoke = Boolean.TRUE.equals(request.getAttribute("com.eec.command.invoke"));
+                if (!commandInvoke) {
+                    if (cardDepIds.isEmpty()) {
+                        sendJsonError(response, HttpServletResponse.SC_FORBIDDEN, "Нет доступа к исходной карте.");
+                        return null;
+                    }
+                    if (rightsJson == null || rightsJson.isEmpty()) {
+                        sendJsonError(response, HttpServletResponse.SC_FORBIDDEN, "Права по GUID не найдены.");
+                        return null;
+                    }
+                    Set<String> userEditDepIds = parsePublicHealthOutEditDepIds(rightsJson);
+                    boolean hasEdit = false;
+                    for (String depId : userEditDepIds) {
+                        if (cardDepIds.contains(depId)) {
+                            hasEdit = true;
+                            break;
+                        }
+                    }
+                    if (!hasEdit) {
+                        sendJsonError(response, HttpServletResponse.SC_FORBIDDEN,
+                                "Нет права на редактирование исходящих сведений в пределах подразделений доступа к исходной карте.");
+                        return null;
+                    }
+                }
+
+                int newVersion = sourceVersion + 1;
+                long newPhaid = getNextPhaid(conn);
+
+                String effectiveKind = !isBlank(incidentAlertKindCode) ? incidentAlertKindCode.trim() : sourceIncidentAlertKindCode;
+                Integer authorityId = resolveAuthorityId(conn, authorityIdentifier);
+                if (authorityId == null) authorityId = sourceAuthorityId;
+                String effectiveDiseaseName = diseaseName != null && !diseaseName.trim().isEmpty()
+                        ? diseaseName.trim() : trimToEmpty(sourceDiseaseName);
+                Integer diseaseId = resolveDiseaseIdByName(conn, effectiveDiseaseName);
+                if (diseaseId == null) diseaseId = sourceDiseaseId;
+                String effectiveFirst = firstCaseDate != null && !firstCaseDate.trim().isEmpty()
+                        ? firstCaseDate : sourceFirstCase;
+                String effectiveLast = lastCaseDate != null && !lastCaseDate.trim().isEmpty()
+                        ? lastCaseDate : sourceLastCase;
+                Integer effectiveCross = crossborderRiskFl != null ? crossborderRiskFl : sourceCross;
+                String effectiveEndDate = endDate != null ? endDate.trim() : null;
+                if (effectiveEndDate != null && effectiveEndDate.isEmpty()) effectiveEndDate = null;
+
+                insertPhaRow(conn, newPhaid, alertCountryId, incidentId != null ? incidentId : "", newVersion,
+                        PHA_STATUS_NEW_ID, authorityId, effectiveEndDate, effectiveKind, docCreationDate, diseaseId,
+                        effectiveDiseaseName, effectiveFirst, effectiveLast, effectiveCross);
+
+                try (PreparedStatement psXml = conn.prepareStatement(SQL_INSERT_PHAXML)) {
+                    psXml.setLong(1, newPhaid);
+                    Clob clob = conn.createClob();
+                    clob.setString(1, xmlBody);
+                    psXml.setClob(2, clob);
+                    psXml.executeUpdate();
+                }
+
+                if (userId == null) {
+                    sendJsonError(response, HttpServletResponse.SC_BAD_REQUEST,
+                            "Укажите guid (в карте прав должен быть userId)");
+                    return null;
+                }
+                try (PreparedStatement psHist = conn.prepareStatement(SQL_INSERT_HIST)) {
+                    psHist.setLong(1, newPhaid);
+                    psHist.setInt(2, PHA_STATUS_NEW_ID);
+                    psHist.setInt(3, userId);
+                    psHist.executeUpdate();
+                }
+
+                Integer creatorDepId = getDepartmentDepIdFromRights(rightsJson);
+                if (creatorDepId != null && existsDepIdInTbDep(conn, creatorDepId)) {
+                    try (PreparedStatement psDepIns = conn.prepareStatement(SQL_INSERT_DEP)) {
+                        psDepIns.setLong(1, newPhaid);
+                        psDepIns.setInt(2, creatorDepId);
+                        psDepIns.executeUpdate();
+                    }
+                }
+
+                System.out.println("[PhaSaveServlet] New PHA version: PHAID=" + newPhaid + ", PHAVERSION=" + newVersion
+                        + ", from PHAID=" + sourcePhaid);
+                return newPhaid;
+            }
+        }
+    }
+
+    /** Следующая PHAVERSION: 1 для нового инцидента, иначе MAX+1 (защита от PHA_UK1, если copyFromPhaid не передан). */
+    private static int resolveNextPhaVersionForIncident(Connection conn, String incidentId, Integer alertCountryId)
+            throws SQLException {
+        int maxVersion = 0;
+        try (PreparedStatement psMax = conn.prepareStatement(SQL_MAX_PHA_VERSION)) {
+            psMax.setString(1, incidentId != null ? incidentId : "");
+            psMax.setObject(2, alertCountryId);
+            try (ResultSet rsMax = psMax.executeQuery()) {
+                if (rsMax.next()) {
+                    maxVersion = rsMax.getInt(1);
+                }
+            }
+        }
+        int next = maxVersion > 0 ? maxVersion + 1 : 1;
+        if (next > 1) {
+            System.out.println("[PhaSaveServlet] PHAVERSION=" + next + " for INCIDENTID=" + incidentId
+                    + " (max existing=" + maxVersion + ")");
+        }
+        return next;
+    }
+
+    private static void insertPhaRow(Connection conn, long phaid, Integer alertCountryId, String incId, int phaVersion,
+                                     int phaStatusId, Integer authorityId, String endDate, String incidentAlertKindCode,
+                                     String docCreationDate, Integer diseaseId, String diseaseName, String firstCaseDate,
+                                     String lastCaseDate, Integer crossborderRiskFl) throws SQLException {
+        try (PreparedStatement ps = conn.prepareStatement(SQL_INSERT_PHA)) {
+            int i = 1;
+            ps.setLong(i++, phaid);
+            ps.setString(i++, DATASOURCE_OUTGOING);
+            ps.setInt(i++, alertCountryId);
+            ps.setString(i++, incId);
+            ps.setInt(i++, phaVersion);
+            ps.setInt(i++, phaStatusId);
+            if (authorityId != null) ps.setInt(i++, authorityId);
+            else ps.setNull(i++, Types.INTEGER);
+            setDateOrNull(ps, i++, endDate);
+            ps.setString(i++, incidentAlertKindCode != null ? incidentAlertKindCode : "");
+            setDateOrNull(ps, i++, docCreationDate);
+            if (diseaseId != null) ps.setInt(i++, diseaseId);
+            else ps.setNull(i++, Types.INTEGER);
+            ps.setString(i++, trimToEmpty(diseaseName));
+            setDateOrNull(ps, i++, firstCaseDate);
+            setDateOrNull(ps, i++, lastCaseDate);
+            if (crossborderRiskFl == null) ps.setNull(i++, Types.INTEGER);
+            else ps.setInt(i++, crossborderRiskFl);
+            ps.executeUpdate();
+        }
+    }
+
+    private static Integer getIntObject(ResultSet rs, String column) throws SQLException {
+        Object v = rs.getObject(column);
+        if (v == null || rs.wasNull()) return null;
+        if (v instanceof Number) return ((Number) v).intValue();
+        try {
+            return Integer.valueOf(String.valueOf(v).trim());
+        } catch (NumberFormatException e) {
+            return null;
         }
     }
 

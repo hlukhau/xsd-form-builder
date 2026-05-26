@@ -68,6 +68,8 @@ interface PhaCardProps {
   onMakeCopy?: (initialCardData: CardData, sourcePhaid: number) => void
   /** Автоматически выполнить сценарий «Новая версия» (URL ?command=copy), как DPA. */
   autoRunCopyFromUrl?: boolean
+  /** При сохранении новой версии — PHAID исходной карты (копия). */
+  copyFromPhaid?: number
 }
 
 /** Исходящие PHA: редактирование недоступно в терминальных / «ожидает отправки» статусах */
@@ -169,8 +171,25 @@ const PhaCard: React.FC<PhaCardProps> = ({
   onCardDeleted,
   onMakeCopy,
   autoRunCopyFromUrl,
+  copyFromPhaid,
 }) => {
   const copyCommandHandledRef = useRef(false)
+  /** Не терять PHAID источника, если location.state очистился до сохранения. */
+  const copyFromPhaidRef = useRef<number | undefined>(undefined)
+  useEffect(() => {
+    if (copyFromPhaid != null && copyFromPhaid > 0) {
+      copyFromPhaidRef.current = copyFromPhaid
+      return
+    }
+    if (phaid !== '-') return
+    try {
+      const stored = sessionStorage.getItem('pha_card_copy_from_phaid')
+      if (stored) {
+        const n = Number(stored)
+        if (n > 0) copyFromPhaidRef.current = n
+      }
+    } catch (_) {}
+  }, [copyFromPhaid, phaid])
   const [savedPhaid, setSavedPhaid] = useState<number | null>(null)
   const effectivePhaid =
     phaid && phaid !== '-' ? phaid : savedPhaid != null ? String(savedPhaid) : '-'
@@ -699,6 +718,12 @@ const PhaCard: React.FC<PhaCardProps> = ({
     const xmlJustSaved = pendingSavePayload.xmlBody
     setSaving(true)
     const isNewCard = effectivePhaid === '-'
+    const copySourcePhaid =
+      copyFromPhaid != null && copyFromPhaid > 0
+        ? copyFromPhaid
+        : copyFromPhaidRef.current != null && copyFromPhaidRef.current > 0
+          ? copyFromPhaidRef.current
+          : undefined
     try {
       const res = await savePhaCard({
         isNew: isNewCard,
@@ -706,6 +731,7 @@ const PhaCard: React.FC<PhaCardProps> = ({
         metadata: pendingSavePayload.metadata,
         ...(isNewCard ? {} : { phaid: Number(effectivePhaid) }),
         ...(guid ? { guid } : {}),
+        ...(isNewCard && copySourcePhaid != null ? { copyFromPhaid: copySourcePhaid } : {}),
       })
       setPendingSavePayload(null)
       setComparisonModalVisible(false)
@@ -715,9 +741,11 @@ const PhaCard: React.FC<PhaCardProps> = ({
       setBaselineXml(xmlJustSaved)
       if (isNewCard) {
         setSavedPhaid(res.phaid)
+        copyFromPhaidRef.current = undefined
         try {
           sessionStorage.setItem('pha_card_last_saved_phaid', String(res.phaid))
           sessionStorage.setItem('pha_card_save_happened', '1')
+          sessionStorage.removeItem('pha_card_copy_from_phaid')
         } catch (_) {}
         message.success(`Карта сохранена в БД с PHAID ${res.phaid}`)
         onSaveNewCard?.(res.phaid)

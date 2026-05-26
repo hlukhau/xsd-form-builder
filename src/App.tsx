@@ -412,9 +412,12 @@ function AppContent() {
 }
 
 /** Контент приложения для карты PHA (путь /pha_card/{PHAID}/{GUID}) */
+const PHA_COPY_FROM_SESSION_KEY = 'pha_card_copy_from_phaid'
+
 function PhaAppContent() {
   const [cardData, setCardData] = useState<CardData | null>(null)
   const [originalXML, setOriginalXML] = useState<string | null>(null)
+  const [copyFromPhaid, setCopyFromPhaid] = useState<number | null>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   /** Блокировка просмотра: нет права publicHealthIn/Out/DB:view для источника карты */
@@ -453,12 +456,20 @@ function PhaAppContent() {
       const state = location.state as { newVersionFrom?: number; initialCardData?: CardData } | null
       if (state?.newVersionFrom != null && state?.initialCardData) {
         setCardData(state.initialCardData)
+        setCopyFromPhaid(state.newVersionFrom)
+        try {
+          sessionStorage.setItem(PHA_COPY_FROM_SESSION_KEY, String(state.newVersionFrom))
+        } catch (_) {}
         setOriginalXML(null)
         setViewDenied(false)
         setError(null)
         setLoading(false)
         return
       }
+      setCopyFromPhaid(null)
+      try {
+        sessionStorage.removeItem(PHA_COPY_FROM_SESSION_KEY)
+      } catch (_) {}
       setViewDenied(false)
       setOriginalXML(null)
       setCardData(null)
@@ -481,6 +492,10 @@ function PhaAppContent() {
       })()
       return
     }
+    setCopyFromPhaid(null)
+    try {
+      sessionStorage.removeItem(PHA_COPY_FROM_SESSION_KEY)
+    } catch (_) {}
     setLoading(true)
     setError(null)
     setViewDenied(false)
@@ -594,6 +609,8 @@ function PhaAppContent() {
 
   if (loading) return <div style={{ textAlign: 'center', padding: 16 }}><Spin size="large" tip="Загрузка карты PHA..." /></div>
   if (error) return <div className="empty-state"><div style={{ color: '#ff4d4f' }}>{error}</div></div>
+  const isNewVersionFromCopy = phaid === '-' && copyFromPhaid != null && copyFromPhaid > 0
+
   if (viewDenied) return (
     <div className="empty-state">
       <div style={{ color: '#ff4d4f', fontSize: 16 }}>Просмотр невозможен, недостаточно прав</div>
@@ -601,10 +618,11 @@ function PhaAppContent() {
   )
   if (cardData) return (
     <PhaCard
-      key={phaid === '-' ? 'new' : phaid}
+      key={isNewVersionFromCopy ? `copy-${copyFromPhaid}-${location.key}` : phaid === '-' ? 'new' : phaid}
       data={cardData}
       phaid={phaid}
       guid={guid}
+      copyFromPhaid={copyFromPhaid ?? undefined}
       originalXML={originalXML}
       onUpdate={setCardData}
       onSaveNewCard={(newPhaid) => {
@@ -621,6 +639,9 @@ function PhaAppContent() {
         navigate('/', { replace: true, state: { cardDeleted: true } })
       }}
       onMakeCopy={(initialCardData, sourcePhaid) => {
+        try {
+          sessionStorage.setItem(PHA_COPY_FROM_SESSION_KEY, String(sourcePhaid))
+        } catch (_) {}
         navigate(`/-/${guid ?? ''}`, { state: { newVersionFrom: sourcePhaid, initialCardData } })
       }}
       autoRunCopyFromUrl={(searchParams.get('command') ?? '').toLowerCase() === 'copy'}
