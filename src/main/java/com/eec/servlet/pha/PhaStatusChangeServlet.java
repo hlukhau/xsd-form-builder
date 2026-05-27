@@ -35,7 +35,7 @@ import java.util.regex.Pattern;
  * <p>Исходящие:</p>
  * <ul>
  *   <li>{@code send} — Новое (5) / Отправка не удалась (8) / Ошибка обработки (9) → Ожидает отправки (6); publicHealthOut:send ∩ PHADEPPERMIS; валидация XML; DOCCREATIONDATE.</li>
- *   <li>{@code close} — статусы NEW(5), FAILED(8), ERROR(9), DELIVERED(10); при DELIVERED — обязательна PHA.ENDDATE; publicHealthOut:status ∩ PHADEPPERMIS.</li>
+ *   <li>{@code close} — статусы NEW(5), FAILED(8), ERROR(9), DELIVERED(10); publicHealthOut:status ∩ PHADEPPERMIS.</li>
  *   <li>{@code to_new} — Отправка не удалась/Ошибка обработки → Новое; publicHealthOut:status.</li>
  * </ul>
  */
@@ -54,7 +54,6 @@ public class PhaStatusChangeServlet extends HttpServlet {
             + "LEFT JOIN PHASTATUS ps ON p.PHASTATUSID = ps.PHASTATUSID "
             + "WHERE p.PHAID = ?";
     private static final String SQL_PHA_DEPS = "SELECT DEPID FROM PHADEPPERMIS WHERE PHAID = ?";
-    private static final String SQL_PHA_ENDDATE = "SELECT ENDDATE FROM PHA WHERE PHAID = ?";
     private static final String SQL_STATUS_ID = "SELECT PHASTATUSID FROM PHASTATUS WHERE TRIM(PHASTATUSNAME) = ?";
     private static final String SQL_UPDATE_PHA = "UPDATE PHA SET PHASTATUSID = ?, MODIFICATIONDATETIME = SYSDATE WHERE PHAID = ?";
     /** При направлении сведений ОП 57: обновить дату формирования документа и время изменения. */
@@ -395,11 +394,6 @@ public class PhaStatusChangeServlet extends HttpServlet {
                         "Действие «Закрытие карты» возможно только при статусе «Новое» (5), «Отправка не удалась» (8), «Ошибка обработки» (9) или «Доставлено» (10)");
                 return;
             }
-            if (outgoingCloseRequiresEndDate(row.statusId, n) && !hasPhaSituationEndDate(conn, phaId)) {
-                sendJsonError(response, HttpServletResponse.SC_BAD_REQUEST,
-                        "При статусе «Доставлено» для закрытия карты укажите дату закрытия (архивации) нежелательной ситуации (PHA.ENDDATE / csdo:EndDate)");
-                return;
-            }
             int newId = resolveFinalClosingStatusId(conn);
             if (newId < 0) {
                 sendJsonError(response, HttpServletResponse.SC_INTERNAL_SERVER_ERROR,
@@ -498,33 +492,12 @@ public class PhaStatusChangeServlet extends HttpServlet {
         return -1;
     }
 
-    /** Дата закрытия нежелательной ситуации в PHA.ENDDATE. */
-    private static boolean hasPhaSituationEndDate(Connection conn, long phaId) throws SQLException {
-        try (PreparedStatement ps = conn.prepareStatement(SQL_PHA_ENDDATE)) {
-            ps.setLong(1, phaId);
-            try (ResultSet rs = ps.executeQuery()) {
-                if (!rs.next()) {
-                    return false;
-                }
-                Object o = rs.getObject(1);
-                return o != null;
-            }
-        }
-    }
-
     private static boolean canCloseOutgoingPha(int statusId, String statusLower) {
         if (statusId == PHA_OUT_NEW || statusId == PHA_OUT_FAILED || statusId == PHA_OUT_ERROR
                 || statusId == PHA_OUT_DELIVERED) {
             return true;
         }
         return canTransitionToCompleted(statusLower);
-    }
-
-    private static boolean outgoingCloseRequiresEndDate(int statusId, String statusLower) {
-        if (statusId == PHA_OUT_DELIVERED) {
-            return true;
-        }
-        return statusLower.contains("доставлено") && !statusLower.contains("заверш");
     }
 
     private boolean verifyOutgoingStatusDepIntersect(HttpServletRequest request, HttpServletResponse response,

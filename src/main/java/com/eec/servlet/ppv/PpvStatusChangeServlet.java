@@ -3,6 +3,7 @@ package com.eec.servlet.ppv;
 import com.eec.rights.RightsRegistryProvider;
 import com.eec.util.AccessRightService;
 import com.eec.util.DatabaseUtil;
+import com.eec.util.OutgoingMarkReadyAuthorityCheck;
 import com.eec.util.PpvDepPermisUtil;
 import com.eec.util.PpvIncomingDefaultDepPermis;
 import com.eec.util.RightsDepartmentDepKindId;
@@ -567,6 +568,10 @@ public class PpvStatusChangeServlet extends HttpServlet {
         if ("mark_ready".equals(action)) {
             if (!AccessRightService.hasViolationDetectedOutStatus(rightsJson)) {
                 sendJsonError(response, HttpServletResponse.SC_FORBIDDEN, "Нет права управления статусом исходящих сведений (violationDetectedOut:status)");
+                return;
+            }
+            if (!OutgoingMarkReadyAuthorityCheck.ensureAuthorityNamePresent(conn, response, dpaid,
+                    "PPV", "PPVID", "PPVXML", "PPVID", "PPVXMLBODY")) {
                 return;
             }
             Set<String> statusDepKeys = AccessRightService.violationDetectedOutStatusDepKeys(rightsJson);

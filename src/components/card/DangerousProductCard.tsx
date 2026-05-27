@@ -31,6 +31,10 @@ import {
   normalizePpvActorRemovalIds,
 } from '@/utils/cardDataComparator'
 import {
+  isNotificationAuthorityNameFilled,
+  MARK_READY_AUTHORITY_REQUIRED_MESSAGE,
+} from '@/utils/markReadyAuthorityValidation'
+import {
   fetchDpaStatusHistory,
   fetchDpaElectronicDocs,
   changeDpaStatus,
@@ -1329,6 +1333,10 @@ const DangerousProductCard: React.FC<DangerousProductCardProps> = ({
             }
 
             if (action === 'mark_ready') {
+              if (!isNotificationAuthorityNameFilled(currentData)) {
+                message.error(MARK_READY_AUTHORITY_REQUIRED_MESSAGE)
+                return
+              }
               const regNumber = currentData.registrationNumber ?? currentData.notification?.registrationNumber ?? effectiveDpaid ?? ''
               const levelName = (() => {
                 const rid = userRightsDepKindId

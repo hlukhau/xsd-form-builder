@@ -13,8 +13,6 @@ const HINT_NO_STATUS_RIGHT_OUT =
   'Недостаточно прав: для смены статуса требуется право publicHealthOut:status.'
 const HINT_NO_SEND_RIGHT =
   'Недостаточно прав: для направления сведений требуется право publicHealthOut:send в пределах подразделения с доступом к карте (PHADEPPERMIS).'
-const HINT_END_DATE_CLOSE_OUT_DELIVERED =
-  'При статусе «Доставлено» для закрытия карты укажите дату закрытия (архивации) нежелательной ситуации (csdo:EndDate).'
 
 function norm(s: string | undefined): string {
   return (s ?? '').trim().toLowerCase()
@@ -26,12 +24,12 @@ export function phaSituationEndDateFilled(notificationEndDate: unknown): boolean
   return String(notificationEndDate).trim() !== ''
 }
 
-/** Исходящие PHA: закрытие допускается в статусах 5, 8, 9, 10 (и по тексту); при «Доставлено»/10 — нужна EndDate. */
+/** Исходящие PHA: закрытие допускается в статусах 5, 8, 9, 10 (и по тексту статуса). */
 export function phaOutgoingCloseAllowed(
   statusId: number | null | undefined,
   status: string,
   hasStatusRight: boolean,
-  situationEndDateFilled: boolean
+  _situationEndDateFilled?: boolean
 ): { allowed: boolean; hint?: string } {
   if (!hasStatusRight) return { allowed: false, hint: HINT_NO_STATUS_RIGHT_OUT }
   const s = norm(status)
@@ -42,10 +40,6 @@ export function phaOutgoingCloseAllowed(
     s.includes('ошибка обработки') ||
     s.includes('доставлено')
   if (!idOk && !textOk) return { allowed: false }
-  const needsEndDate = statusId === 10 || (s.includes('доставлено') && !s.includes('заверш'))
-  if (needsEndDate && !situationEndDateFilled) {
-    return { allowed: false, hint: HINT_END_DATE_CLOSE_OUT_DELIVERED }
-  }
   return { allowed: true }
 }
 
@@ -228,26 +222,22 @@ export function outgoingPhaStatusButton(
           disabled: false,
         }
       : null
-    let secondary: StatusButtonConfig | undefined
-    if (canSend && hasSendRight) secondary = sendCfg()
-    else if (canClose && !cu.disabled) secondary = closeCfg(cu.hint)
+    const closeSecondary =
+      canClose && !cu.disabled && hasStatusRight ? closeCfg(cu.hint) : undefined
 
     let comment: string
-    if (toNewBtn && secondary) {
-      comment = 'Доступны перевод в «Новое» и дополнительное действие (направление или закрытие).'
+    if (toNewBtn && closeSecondary) {
+      comment = 'Доступны перевод в «Новое» и закрытие карты.'
     } else if (toNewBtn) {
       comment = 'Перевести в Новое после редактирования.'
-    } else if (secondary) {
-      comment =
-        secondary.action === 'pha_send'
-          ? 'Направить сведения участникам ОП 57.'
-          : 'Закрытие карты.'
+    } else if (closeSecondary) {
+      comment = 'Закрытие карты.'
     } else {
-      comment = HINT_NO_STATUS_RIGHT_OUT
+      comment = cu.disabled ? (cu.hint ?? HINT_NO_STATUS_RIGHT_OUT) : HINT_NO_STATUS_RIGHT_OUT
     }
     return {
       config: toNewBtn,
-      closeConfig: secondary,
+      closeConfig: closeSecondary,
       comment,
     }
   }

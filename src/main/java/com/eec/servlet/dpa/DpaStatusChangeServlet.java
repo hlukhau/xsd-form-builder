@@ -3,6 +3,7 @@ package com.eec.servlet.dpa;
 import com.eec.rights.RightsRegistryProvider;
 import com.eec.util.AccessRightService;
 import com.eec.util.DatabaseUtil;
+import com.eec.util.OutgoingMarkReadyAuthorityCheck;
 
 import javax.servlet.ServletException;
 import javax.servlet.http.HttpServlet;
@@ -255,6 +256,10 @@ public class DpaStatusChangeServlet extends HttpServlet {
         if ("mark_ready".equals(action)) {
             if (!AccessRightService.hasDangerousProductOutStatus(rightsJson)) {
                 sendJsonError(response, HttpServletResponse.SC_FORBIDDEN, "Нет права управления статусом исходящих сведений (dangerousProductOut:status)");
+                return;
+            }
+            if (!OutgoingMarkReadyAuthorityCheck.ensureAuthorityNamePresent(conn, response, dpaid,
+                    "DPA", "DPAID", "DPAXML", "DPAID", "DPAXMLBODY")) {
                 return;
             }
             if (depKindCode == null || depKindCode.trim().isEmpty()) {
