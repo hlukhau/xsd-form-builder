@@ -308,7 +308,7 @@ const ManufacturerDetailsEdit: React.FC<ManufacturerDetailsEditProps> = ({
                     }
                     options={getLegalFormSelectOptions()}
                     disabled={!countryForLegalForm}
-                    notFoundContent={loadingLegalForms ? 'Загрузка...' : 'Нет данных по выбранной стране. Проверьте период действия записей (LEGALFORMSDATE–LEGALFORMEDATE) и страну.'}
+                    notFoundContent={loadingLegalForms ? 'Загрузка...' : 'Нет данных по выбранной стране.'}
                   />
                 </Form.Item>
                 {!isLegalFormFromRef && (
