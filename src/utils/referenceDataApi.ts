@@ -271,10 +271,13 @@ export interface DpaSaveMetadata {
   dataSourceKindCode?: string | null
 }
 
-/** Ответ успешного сохранения новой карты */
+/** Ответ успешного сохранения карты */
 export interface DpaSaveResponse {
   success: boolean
   dpaid: number
+  /** При сохранении из «Отредактировано» / «Отправка не удалась» / «Ошибка обработки» — переход в «Новое». */
+  newStatusId?: number
+  newStatus?: string
 }
 
 /**

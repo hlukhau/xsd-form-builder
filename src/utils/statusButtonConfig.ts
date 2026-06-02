@@ -649,17 +649,18 @@ function outgoingStatusButtonDpa(
     }
   }
   if (statusId === OUTGOING_FAILED || statusId === OUTGOING_ERROR) {
-    const toNewHint = 'Перевод карты в статус «Новое»; после этого станет доступно направление сведений при наличии резолюции областного или республиканского ЦГЭ.'
+    const saveToNewHint =
+      'Сохраните карту — статус изменится на «Новое»; после этого станет доступно направление сведений при наличии резолюции областного или республиканского ЦГЭ.'
     if (hasStatusRight) {
       return {
-        config: { label: 'Перевести в Новое', action: 'to_new', hint: toNewHint },
-        comment: toNewHint,
+        config: null,
+        comment: saveToNewHint,
         closeConfig: { label: 'Закрытие карты', action: 'close', hint: hintClose },
       }
     }
     return {
-      config: { label: 'Перевести в Новое', action: 'to_new', disabled: true, hint: noSt },
-      comment: noSt,
+      config: null,
+      comment: saveToNewHint,
       closeConfig: { label: 'Закрытие карты', action: 'close', disabled: true, hint: noSt },
     }
   }
@@ -813,17 +814,18 @@ function outgoingStatusButtonDpa(
     }
   }
   if (s.includes('отправка не удалась') || s.includes('ошибка обработки')) {
-    const toNewHint = 'Перевод карты в статус «Новое»; после этого станет доступно направление сведений при наличии резолюции областного или республиканского ЦГЭ.'
+    const saveToNewHint =
+      'Сохраните карту — статус изменится на «Новое»; после этого станет доступно направление сведений при наличии резолюции областного или республиканского ЦГЭ.'
     if (hasStatusRight) {
       return {
-        config: { label: 'Перевести в Новое', action: 'to_new', hint: toNewHint },
-        comment: toNewHint,
+        config: null,
+        comment: saveToNewHint,
         closeConfig: { label: 'Закрытие карты', action: 'close', hint: hintClose },
       }
     }
     return {
-      config: { label: 'Перевести в Новое', action: 'to_new', disabled: true, hint: noSt },
-      comment: noSt,
+      config: null,
+      comment: saveToNewHint,
       closeConfig: { label: 'Закрытие карты', action: 'close', disabled: true, hint: noSt },
     }
   }

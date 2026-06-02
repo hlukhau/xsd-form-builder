@@ -18,16 +18,15 @@ import {
 } from '@/utils/referenceDataApi'
 import { isPpvApp } from '@/cards/config'
 
-const ALLOWED_DEP_KINDS = ['dep0601', 'dep0602', 'dep0603']
-/** PPV: по ТЗ добавление в доступ — только районный и областной ЦГЭ (без республиканского). */
-const PPV_ADD_DEP_KINDS = ['dep0601', 'dep0602']
+/** Ручное добавление/удаление в перечне доступа: только районный и областной ЦГЭ (dep0603 — системой). */
+const MANUAL_ACCESS_DEP_KINDS = ['dep0601', 'dep0602']
 
 function normalizeDepKind(code: string | undefined): string {
   return (code ?? '').trim().toLowerCase()
 }
 
-/** PPV: исключить из доступа можно только dep0601 / dep0602 (республиканские ЦГЭ из перечня по умолчанию не снимаются через форму). */
-function isPpvRemovableAccessDep(depKindCode: string | undefined): boolean {
+/** Исключить из доступа вручную можно только dep0601 / dep0602. */
+function isRemovableAccessDep(depKindCode: string | undefined): boolean {
   const k = normalizeDepKind(depKindCode)
   return k === 'dep0601' || k === 'dep0602'
 }
@@ -164,6 +163,13 @@ const AccessModal: React.FC<AccessModalProps> = ({
   const handleAddFromApi = async () => {
     if (!selectedDepId || !listKey) return
     const opt = depOptions.find((o) => o.id === selectedDepId)
+    if (opt && !MANUAL_ACCESS_DEP_KINDS.includes(normalizeDepKind(opt.depKindCode))) {
+      message.error(
+        'Добавление разрешено только для подразделений районного или областного уровня (dep0601 / dep0602). '
+          + 'Республиканский уровень (РЦГЭ) подключается системой.'
+      )
+      return
+    }
     if (accessList.some((a) => a.id === selectedDepId)) {
       message.warning('Это подразделение уже в списке')
       return
@@ -214,11 +220,10 @@ const AccessModal: React.FC<AccessModalProps> = ({
     onClose()
   }
 
-  const depKindsForAdd = isPpvApp() ? PPV_ADD_DEP_KINDS : ALLOWED_DEP_KINDS
   const addableDeps = fromApi
     ? depOptions.filter(
         (o) =>
-          depKindsForAdd.includes(normalizeDepKind(o.depKindCode)) &&
+          MANUAL_ACCESS_DEP_KINDS.includes(normalizeDepKind(o.depKindCode)) &&
           !accessList.some((a) => a.id === o.id)
       )
     : depOptions
@@ -226,11 +231,7 @@ const AccessModal: React.FC<AccessModalProps> = ({
   const addContent = fromApi ? (
     <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 8, width: '100%' }}>
       <Select
-        placeholder={
-          isPpvApp()
-            ? 'Выберите подразделение (районный или областной ЦГЭ — dep0601 / dep0602)'
-            : 'Выберите подразделение (районный / областной / республиканский ЦГЭ)'
-        }
+        placeholder="Выберите подразделение (районный или областной ЦГЭ — dep0601 / dep0602)"
         value={selectedDepId}
         onChange={setSelectedDepId}
         options={addableDeps.map((o) => ({
@@ -323,9 +324,7 @@ const AccessModal: React.FC<AccessModalProps> = ({
               dataSource={filteredList}
               renderItem={(item) => {
                 const showDelete =
-                  fromApi &&
-                  canManageAccess &&
-                  (!isPpvApp() || isPpvRemovableAccessDep(item.depKindCode))
+                  fromApi && canManageAccess && isRemovableAccessDep(item.depKindCode)
                 const levelLabel = getDepLevelLabel(item.depKindCode)
                 const depColor = getDepLevelColor(item.depKindCode)
                 const borderColor =

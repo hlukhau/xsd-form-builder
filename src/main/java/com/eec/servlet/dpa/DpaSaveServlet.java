@@ -1,6 +1,7 @@
 package com.eec.servlet.dpa;
 
 import com.eec.rights.RightsRegistryProvider;
+import com.eec.util.AccessRightService;
 import com.eec.util.DatabaseUtil;
 
 import javax.servlet.ServletException;
@@ -70,8 +71,9 @@ public class DpaSaveServlet extends HttpServlet {
 
     /** Обновить MODIFICATIONDATETIME, ENDDATE, AUTHORITYID, производителя, код ТН ВЭД и вид/наименование продукции в DPA при обновлении */
     private static final String SQL_UPDATE_DPA_MODIFIED = "UPDATE DPA SET MODIFICATIONDATETIME = SYSDATE, ENDDATE = ?, AUTHORITYID = ?, MANUFBUSENTNAME = ?, MANUFBUSENTBRIEFNAME = ?, COMMODITYCODE = ?, SANITARYPRODNAME = ?, SANITARYPRODTYPEID = ?, SANITARYPRODTYPENAME = ? WHERE DPAID = ?";
-    /** Текущий DPASTATUSID карты (при сохранении: только Отредактировано (12) → переход в «Новое»; остальные статусы не меняются) */
-    private static final String SQL_SELECT_DPASTATUSID = "SELECT DPASTATUSID FROM DPA WHERE DPAID = ?";
+    /** Текущий DPASTATUSID исходящей карты (при сохранении: Отредактировано / Отправка не удалась / Ошибка обработки → «Новое»). */
+    private static final String SQL_SELECT_DPA_STATUS = ""
+            + "SELECT DPASTATUSID FROM DPA WHERE DPAID = ? AND TRIM(TO_CHAR(DATASOURCEKINDCODE)) = ?";
     private static final int OUTGOING_NEW = 6, OUTGOING_FAILED = 9, OUTGOING_ERROR = 10, OUTGOING_EDITED = 12;
     private static final int OUTGOING_DELIVERED = 11;
 
@@ -310,21 +312,38 @@ public class DpaSaveServlet extends HttpServlet {
                     ps.executeUpdate();
                 }
                 int currentStatusId = -1;
-                try (PreparedStatement ps = conn.prepareStatement(SQL_SELECT_DPASTATUSID)) {
+                try (PreparedStatement ps = conn.prepareStatement(SQL_SELECT_DPA_STATUS)) {
                     ps.setLong(1, dpaid);
+                    ps.setString(2, DATASOURCEKINDCODE_OUTGOING);
                     try (ResultSet rs = ps.executeQuery()) {
-                        if (rs.next()) currentStatusId = rs.getInt(1);
+                        if (rs.next()) {
+                            currentStatusId = rs.getInt(1);
+                        }
                     }
                 }
-                // Только устаревший статус «Отредактировано» (12) при сохранении переводим в «Новое» (6). Отправка не удалась / Ошибка обработки не меняются при сохранении — переход в «Новое» только по кнопке.
-                if (currentStatusId == OUTGOING_EDITED) {
-                    try (PreparedStatement ps = conn.prepareStatement("UPDATE DPA SET DPASTATUSID = ? WHERE DPAID = ?")) {
+                boolean statusChangedToNew = false;
+                if (currentStatusId == OUTGOING_EDITED
+                        || currentStatusId == OUTGOING_FAILED
+                        || currentStatusId == OUTGOING_ERROR) {
+                    if (currentStatusId == OUTGOING_FAILED || currentStatusId == OUTGOING_ERROR) {
+                        String rightsJson = (guid != null && !guid.trim().isEmpty())
+                                ? RightsRegistryProvider.get().getRightsJson(guid.trim()) : null;
+                        if (!AccessRightService.hasDangerousProductOutEdit(rightsJson)) {
+                            sendJsonError(response, HttpServletResponse.SC_FORBIDDEN,
+                                    "Нет права на редактирование исходящих сведений (dangerousProductOut:edit)");
+                            return;
+                        }
+                    }
+                    try (PreparedStatement ps = conn.prepareStatement(
+                            "UPDATE DPA SET DPASTATUSID = ? WHERE DPAID = ? AND TRIM(TO_CHAR(DATASOURCEKINDCODE)) = ?")) {
                         ps.setInt(1, OUTGOING_NEW);
                         ps.setLong(2, dpaid);
+                        ps.setString(3, DATASOURCEKINDCODE_OUTGOING);
                         ps.executeUpdate();
                     }
                     if (userId == null) {
-                        sendJsonError(response, HttpServletResponse.SC_BAD_REQUEST, "Укажите guid в теле запроса (в карте прав должен быть атрибут userId)");
+                        sendJsonError(response, HttpServletResponse.SC_BAD_REQUEST,
+                                "Укажите guid в теле запроса (в карте прав должен быть атрибут userId)");
                         return;
                     }
                     try (PreparedStatement ps = conn.prepareStatement(SQL_INSERT_DPASTATUSHIST)) {
@@ -333,11 +352,18 @@ public class DpaSaveServlet extends HttpServlet {
                         ps.setInt(3, userId);
                         ps.executeUpdate();
                     }
+                    statusChangedToNew = true;
+                    System.out.println("[DpaSaveServlet] Save: DPAID=" + dpaid + " status " + currentStatusId + " -> " + OUTGOING_NEW);
                 }
                 conn.commit();
                 transactionEnded = true;
                 response.setStatus(HttpServletResponse.SC_OK);
-                response.getWriter().print("{\"success\":true,\"dpaid\":" + dpaid + "}");
+                StringBuilder respJson = new StringBuilder("{\"success\":true,\"dpaid\":").append(dpaid);
+                if (statusChangedToNew) {
+                    respJson.append(",\"newStatusId\":").append(OUTGOING_NEW).append(",\"newStatus\":\"Новое\"");
+                }
+                respJson.append("}");
+                response.getWriter().print(respJson);
                 System.out.println("[DpaSaveServlet] Updated DPA: DPAID=" + dpaid);
             }
         } catch (SQLException e) {

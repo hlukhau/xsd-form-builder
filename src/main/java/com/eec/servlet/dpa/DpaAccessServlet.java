@@ -46,6 +46,10 @@ public class DpaAccessServlet extends HttpServlet {
     private static final String SQL_ONE_DEP = "SELECT d.DEPID, d.DEPNAME, dk.DEPKINDCODE FROM TB_DEP d LEFT JOIN TB_DEPKIND dk ON d.DEPKINDID = dk.DEPKINDID WHERE d.DEPID = ?";
     private static final String SQL_ADD = "INSERT INTO DPADEPPERMIS (DPAID, DEPID, GRANTDATETIME) VALUES (?, ?, SYSDATE)";
     private static final String SQL_DELETE = "DELETE FROM DPADEPPERMIS WHERE DPAID = ? AND DEPID = ?";
+    /** Ручное управление доступом: только районный / областной ЦГЭ (не республиканский dep0603). */
+    private static final String SQL_DEP_KIND_FOR_DEP = ""
+            + "SELECT UPPER(TRIM(dk.DEPKINDCODE)) FROM TB_DEP d "
+            + "LEFT JOIN TB_DEPKIND dk ON d.DEPKINDID = dk.DEPKINDID WHERE d.DEPID = ?";
 
     @Override
     protected void doGet(HttpServletRequest request, HttpServletResponse response)
@@ -188,6 +192,12 @@ public class DpaAccessServlet extends HttpServlet {
         PreparedStatement ps = null;
         try {
             conn = DatabaseUtil.getConnectionForRequest(request, guid);
+            if (!isDpaAccessAllowedDepKind(conn, depId.trim())) {
+                sendJsonError(response, HttpServletResponse.SC_BAD_REQUEST,
+                        "Добавление доступа разрешено только для подразделений с видом dep0601 или dep0602 (районный / областной ЦГЭ). "
+                                + "Республиканский уровень (dep0603) подключается системой автоматически.");
+                return;
+            }
             ps = conn.prepareStatement(SQL_ADD);
             bindDpaid(ps, 1, dpaid);
             ps.setString(2, depId.trim());
@@ -231,6 +241,12 @@ public class DpaAccessServlet extends HttpServlet {
         PreparedStatement ps = null;
         try {
             conn = DatabaseUtil.getConnectionForRequest(request, guid);
+            if (!isDpaAccessAllowedDepKind(conn, depId.trim())) {
+                sendJsonError(response, HttpServletResponse.SC_BAD_REQUEST,
+                        "Исключение из доступа разрешено только для подразделений с видом dep0601 или dep0602. "
+                                + "Республиканский уровень (dep0603) исключается системой, вручную удалить его нельзя.");
+                return;
+            }
             ps = conn.prepareStatement(SQL_DELETE);
             bindDpaid(ps, 1, dpaid);
             ps.setString(2, depId.trim());
@@ -305,5 +321,31 @@ public class DpaAccessServlet extends HttpServlet {
         response.setContentType("application/json;charset=UTF-8");
         String escaped = message != null ? message.replace("\\", "\\\\").replace("\"", "\\\"") : "Unknown error";
         response.getWriter().print("{\"error\":\"" + escaped + "\"}");
+    }
+
+    /** dep0601 / dep0602 — ручное управление перечнем DPADEPPERMIS; dep0603 (РЦГЭ) только системой. */
+    private static boolean isDpaAccessAllowedDepKind(Connection conn, String depId) throws SQLException {
+        try (PreparedStatement ps = conn.prepareStatement(SQL_DEP_KIND_FOR_DEP)) {
+            bindDepIdForKindQuery(ps, 1, depId);
+            try (ResultSet rs = ps.executeQuery()) {
+                if (!rs.next()) {
+                    return false;
+                }
+                String k = rs.getString(1);
+                if (k == null) {
+                    return false;
+                }
+                String u = k.trim();
+                return "DEP0601".equalsIgnoreCase(u) || "DEP0602".equalsIgnoreCase(u);
+            }
+        }
+    }
+
+    private static void bindDepIdForKindQuery(PreparedStatement ps, int index, String depId) throws SQLException {
+        try {
+            ps.setLong(index, Long.parseLong(depId.trim()));
+        } catch (NumberFormatException e) {
+            ps.setString(index, depId.trim());
+        }
     }
 }

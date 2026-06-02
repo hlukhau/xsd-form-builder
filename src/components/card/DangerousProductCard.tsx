@@ -802,6 +802,11 @@ const DangerousProductCard: React.FC<DangerousProductCardProps> = ({
         message.success(`Карта сохранена в БД с ${getDpaLikeCardIdLabel()} ${res.dpaid}`)
         onSaveNewCard?.(res.dpaid)
       } else {
+        if (!isPpvApp() && res.newStatusId != null) {
+          const nextStatus = res.newStatus ?? 'Новое'
+          onUpdate({ ...editedData, status: nextStatus, statusId: res.newStatusId })
+          setEditedData((prev) => ({ ...prev, status: nextStatus, statusId: res.newStatusId }))
+        }
         message.success('Карта обновлена в БД')
       }
     } catch (err) {
