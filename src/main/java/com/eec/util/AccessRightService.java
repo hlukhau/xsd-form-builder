@@ -208,6 +208,48 @@ public final class AccessRightService {
         return hasAccessRightInJson(rightsJson, "dangerousProductOut", "edit");
     }
 
+    // ——— SMD (карта сведений о временной санитарной мере): sanitaryMeasureIn / Out / DB
+
+    public static boolean hasSanitaryMeasureInAccess(String rightsJson) {
+        return hasAccessRightInJson(rightsJson, "sanitaryMeasureIn", "access");
+    }
+
+    public static boolean hasSanitaryMeasureOutAccess(String rightsJson) {
+        return hasAccessRightInJson(rightsJson, "sanitaryMeasureOut", "access");
+    }
+
+    public static boolean hasSanitaryMeasureDBAccess(String rightsJson) {
+        return hasAccessRightInJson(rightsJson, "sanitaryMeasureDB", "access");
+    }
+
+    public static boolean hasSanitaryMeasureInStatus(String rightsJson) {
+        return hasAccessRightInJson(rightsJson, "sanitaryMeasureIn", "status");
+    }
+
+    public static boolean hasSanitaryMeasureInView(String rightsJson) {
+        return hasAccessRightInJson(rightsJson, "sanitaryMeasureIn", "view");
+    }
+
+    public static boolean hasSanitaryMeasureOutStatus(String rightsJson) {
+        return hasAccessRightInJson(rightsJson, "sanitaryMeasureOut", "status");
+    }
+
+    public static boolean hasSanitaryMeasureOutSend(String rightsJson) {
+        return hasAccessRightInJson(rightsJson, "sanitaryMeasureOut", "send");
+    }
+
+    public static boolean hasSanitaryMeasureOutEdit(String rightsJson) {
+        return hasAccessRightInJson(rightsJson, "sanitaryMeasureOut", "edit");
+    }
+
+    public static boolean hasSanitaryMeasureOutView(String rightsJson) {
+        return hasAccessRightInJson(rightsJson, "sanitaryMeasureOut", "view");
+    }
+
+    public static boolean hasSanitaryMeasureDBView(String rightsJson) {
+        return hasAccessRightInJson(rightsJson, "sanitaryMeasureDB", "view");
+    }
+
     // ——— PPV (карта сведений о выявленных нарушениях): те же роли, блоки JSON violationDetected*
 
     public static boolean hasViolationDetectedInAccess(String rightsJson) {

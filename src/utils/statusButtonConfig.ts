@@ -649,20 +649,16 @@ function outgoingStatusButtonDpa(
     }
   }
   if (statusId === OUTGOING_FAILED || statusId === OUTGOING_ERROR) {
-    const saveToNewHint =
-      'Сохраните карту — статус изменится на «Новое»; после этого станет доступно направление сведений при наличии резолюции областного или республиканского ЦГЭ.'
-    if (hasStatusRight) {
-      return {
-        config: null,
-        comment: saveToNewHint,
-        closeConfig: { label: 'Закрытие карты', action: 'close', hint: hintClose },
-      }
-    }
-    return {
-      config: null,
-      comment: saveToNewHint,
-      closeConfig: { label: 'Закрытие карты', action: 'close', disabled: true, hint: noSt },
-    }
+    return outgoingDpaFailedErrorStatusButtons(
+      hasStatusRight,
+      hasSendRight,
+      hasRegionalOrRepublicanResolution,
+      hintSend,
+      hintClose,
+      NEED_REGIONAL_OR_REPUBLICAN_HINT,
+      noSt,
+      noSn
+    )
   }
   if (statusId === OUTGOING_DELIVERED) {
     if (!hasStatusRight) {
@@ -814,20 +810,16 @@ function outgoingStatusButtonDpa(
     }
   }
   if (s.includes('отправка не удалась') || s.includes('ошибка обработки')) {
-    const saveToNewHint =
-      'Сохраните карту — статус изменится на «Новое»; после этого станет доступно направление сведений при наличии резолюции областного или республиканского ЦГЭ.'
-    if (hasStatusRight) {
-      return {
-        config: null,
-        comment: saveToNewHint,
-        closeConfig: { label: 'Закрытие карты', action: 'close', hint: hintClose },
-      }
-    }
-    return {
-      config: null,
-      comment: saveToNewHint,
-      closeConfig: { label: 'Закрытие карты', action: 'close', disabled: true, hint: noSt },
-    }
+    return outgoingDpaFailedErrorStatusButtons(
+      hasStatusRight,
+      hasSendRight,
+      hasRegionalOrRepublicanResolution,
+      hintSend,
+      hintClose,
+      NEED_REGIONAL_OR_REPUBLICAN_HINT,
+      noSt,
+      noSn
+    )
   }
   if (s.includes('доставлено')) {
     if (!hasStatusRight) {
@@ -856,6 +848,61 @@ function outgoingStatusButtonDpa(
   return {
     config: null,
     comment: 'Кнопка смены статуса не отображается: для текущего статуса исходящей карты действие не определено.',
+  }
+}
+
+/** DPA: «Отправка не удалась» / «Ошибка обработки» — направление сведений (без «Перевести в Новое»). */
+function outgoingDpaFailedErrorStatusButtons(
+  hasStatusRight: boolean,
+  hasSendRight: boolean,
+  hasRegionalOrRepublicanResolution: boolean,
+  hintSend: string,
+  hintClose: string,
+  needRegionalHint: string,
+  noSt: string,
+  noSn: string
+): StatusButtonResult {
+  const failedComment =
+    'Повторное направление сведений в ЕЭК из статуса «Отправка не удалась» или «Ошибка обработки» (при резолюции областного или республиканского ЦГЭ).'
+  const closeCfg = hasStatusRight
+    ? { label: 'Закрытие карты', action: 'close' as const, hint: hintClose }
+    : { label: 'Закрытие карты', action: 'close' as const, disabled: true, hint: noSt }
+
+  if (hasSendRight && hasRegionalOrRepublicanResolution) {
+    return {
+      config: { label: 'Направление сведений', action: 'send', hint: hintSend },
+      comment: failedComment,
+      closeConfig: closeCfg,
+    }
+  }
+  if (hasSendRight && !hasRegionalOrRepublicanResolution) {
+    return {
+      config: {
+        label: 'Направление сведений',
+        action: 'send',
+        hint: needRegionalHint,
+        disabled: true,
+      },
+      comment: needRegionalHint,
+      closeConfig: closeCfg,
+    }
+  }
+  if (!hasSendRight && hasStatusRight) {
+    return {
+      config: {
+        label: 'Направление сведений',
+        action: 'send',
+        disabled: true,
+        hint: noSn,
+      },
+      comment: noSn,
+      closeConfig: closeCfg,
+    }
+  }
+  return {
+    config: null,
+    comment: noSt,
+    closeConfig: closeCfg,
   }
 }
 

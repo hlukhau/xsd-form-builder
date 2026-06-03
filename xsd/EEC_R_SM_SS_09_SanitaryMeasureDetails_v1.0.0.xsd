@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema" xmlns:ccdo="urn:EEC:M:ComplexDataObjects:v0.4.12" xmlns:csdo="urn:EEC:M:SimpleDataObjects:v0.4.12" xmlns:doc="urn:EEC:R:SM:SS:09:SanitaryMeasureDetails:v1.0.0" xmlns:smcdo="urn:EEC:M:SM:ComplexDataObjects:v0.3.9" xmlns:smsdo="urn:EEC:M:SM:SimpleDataObjects:v0.3.9" elementFormDefault="qualified" targetNamespace="urn:EEC:R:SM:SS:09:SanitaryMeasureDetails:v1.0.0" version="1.0.0">
+    <xs:import namespace="urn:EEC:M:SM:SimpleDataObjects:v0.3.9" schemaLocation="EEC_M_SM_SimpleDataObjects_v0.3.9.xsd"/>
+    <xs:import namespace="urn:EEC:M:SM:ComplexDataObjects:v0.3.9" schemaLocation="EEC_M_SM_ComplexDataObjects_v0.3.9.xsd"/>
+    <xs:import namespace="urn:EEC:M:SimpleDataObjects:v0.4.12" schemaLocation="EEC_M_SimpleDataObjects_v0.4.12.xsd"/>
+    <xs:import namespace="urn:EEC:M:ComplexDataObjects:v0.4.12" schemaLocation="EEC_M_ComplexDataObjects_v0.4.12.xsd"/>
+    <!--содержит сведения о временной санитарной мере-->
+    <!-- R.SM.SS.09.001.NSP: Сведения о временной санитарной мере (Сведения о временной санитарной мере) -->
+    <!-- R.SM.SS.09.001: Сведения о временной санитарной мере (Сведения о временной санитарной мере. Детали) -->
+    <xs:element name="SanitaryMeasureDetails" type="doc:SanitaryMeasureDetailsType">
+        <xs:annotation>
+            <xs:documentation>содержит сведения о введении, изменении или отмене временных санитарных мер</xs:documentation>
+        </xs:annotation>
+    </xs:element>
+    <!-- R.SM.SS.09.001.CDT: Сведения о временной санитарной мере (Сведения о временной санитарной мере_ Детали. Тип) -->
+    <xs:complexType name="SanitaryMeasureDetailsType">
+        <xs:annotation>
+            <xs:documentation>содержит сведения о временной санитарной мере</xs:documentation>
+        </xs:annotation>
+        <xs:sequence>
+            <xs:element ref="ccdo:EDocHeader"/>
+            <xs:element maxOccurs="unbounded" ref="smcdo:SanitaryMeasureDetails"/>
+        </xs:sequence>
+    </xs:complexType>
+</xs:schema>

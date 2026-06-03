@@ -19,7 +19,7 @@ export function sanitizeValidationMessageForDisplay(raw: string): string {
   return s
 }
 
-export type XsdDocumentType = 'dpa' | 'pha' | 'ppv' | 'dpr'
+export type XsdDocumentType = 'dpa' | 'pha' | 'ppv' | 'dpr' | 'smd'
 
 /**
  * Возвращает список замечаний XSD (пустой — документ соответствует схеме с учётом исключений на сервере).

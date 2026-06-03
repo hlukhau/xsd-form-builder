@@ -20,7 +20,7 @@ import java.io.OutputStream;
 import java.nio.charset.StandardCharsets;
 /**
  * Сервлет для работы с XSD Form Builder.
- * POST /dpa_card, /pha_card или /ppv_card — принимает JSON с GUID и сохраняет в мапу (контекст приложения).
+ * POST /dpa_card, /pha_card, /ppv_card, /dpr_card, /smd_card — принимает JSON с GUID (и db-креды) в реестр прав.
  * GET .../{DPAID|PPVID|PHAID} — возвращает HTML форму (SPA) для отображения карты
  * GET .../{id}/{GUID} — возвращает HTML форму (SPA) с проверкой GUID в мапе
  * Форма загружает XML из базы через /api/dpa/xml/{id}, /api/ppv/xml/{id} или /api/pha/xml/{id} (в зависимости от контекста WAR)
@@ -160,7 +160,47 @@ public class XsdFormBuilderServlet extends HttpServlet {
                     "      \"status\": {\n" +
                     "        \"522\": {}\n" +
                     "      }\n" +
-                    "    }\n" +
+                    "    },\n" +
+                    "    \"sanitaryMeasureOut\": {\n" +
+                    "      \"view\": {\n" +
+                    "        \"522\": {}\n" +
+                    "      },\n" +
+                    "      \"access\": {\n" +
+                    "        \"522\": {}\n" +
+                    "      },\n" +
+                    "      \"edit\": {\n" +
+                    "        \"522\": {}\n" +
+                    "      },\n" +
+                    "      \"send\": {\n" +
+                    "        \"522\": {}\n" +
+                    "      },\n" +
+                    "      \"status\": {\n" +
+                    "        \"522\": {}\n" +
+                    "      },\n" +
+                    "      \"create\": {\n" +
+                    "        \"132\": {},\n" +
+                    "        \"522\": {}\n" +
+                    "      }\n" +
+                    "    },\n" +
+                    "    \"sanitaryMeasureDB\": {\n" +
+                    "      \"view\": {\n" +
+                    "        \"522\": {}\n" +
+                    "      },\n" +
+                    "      \"access\": {\n" +
+                    "        \"522\": {}\n" +
+                    "      }\n" +
+                    "    },\n" +
+                    "    \"sanitaryMeasureIn\": {\n" +
+                    "      \"view\": {\n" +
+                    "        \"522\": {}\n" +
+                    "      },\n" +
+                    "      \"access\": {\n" +
+                    "        \"522\": {}\n" +
+                    "      },\n" +
+                    "      \"status\": {\n" +
+                    "        \"522\": {}\n" +
+                    "      }\n" +
+                    "    },\n" +
                     "  }\n" +
                     "}";
 

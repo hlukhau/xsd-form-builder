@@ -8,6 +8,7 @@
 |-------|------------|
 | **`dpa/`** | Карта сведений об **опасной продукции** (DPA). Компонент, точка входа, перечень зависимостей (вкладки, API, типы). |
 | **`pha/`** | Карта сведений об **обнаружении болезней** (PHA). Компонент, API-клиент, в будущем — свои вкладки и справочники. |
+| **`smd/`** | Карта сведений о **временной санитарной мере** (SMD). Компонент, API, вкладки. |
 | **`shared/`** | Общие компоненты карт: заголовок (CardHeader), панель действий (CardActions). Используются и в DPA, и в PHA. |
 
 ## DPA (карта опасной продукции)
@@ -25,7 +26,15 @@
 - **API:** `/api/pha/xml`, `/api/pha/metadata` (собственные сервлеты).
 - **Бэкенд:** сервлеты `Pha*` в `com.eec.servlet.pha`, таблицы PHA, PHAXML.
 
-Тип приложения (DPA/PHA) задаётся в `cards/config.ts` по `BASE_URL` (он берётся из base path при сборке).
+## SMD (карта сведений о временной санитарной мере)
+
+- **Путь приложения:** `http://localhost:8083/smd_card/{SMDID}/{GUID}`
+- **Компонент:** `cards/smd` → `SmdCard`
+- **API:** `/api/smd/xml`, `/api/smd/metadata`, `/api/smd/status-history`, `/api/smd/access`
+- **Бэкенд:** сервлеты `Smd*` в `com.eec.servlet.smd`, права `sanitaryMeasureIn`, `sanitaryMeasureOut`, `sanitaryMeasureDB`
+- **XSD:** `EEC_R_SM_SS_09_SanitaryMeasureDetails_v1.0.0.xsd`
+
+Тип приложения (DPA/PHA/PPV/DPR/SMD) задаётся в `cards/config.ts` по `BASE_URL` (он берётся из base path при сборке).
 
 ## Как загрузить вторую карту (PHA)
 
@@ -62,6 +71,7 @@ VITE_APP_BASE=/pha_card/ npm run build
 - **PHA:** `http://localhost:8083/pha_card/`
 - **PPV:** `http://localhost:8083/ppv_card/`
 - **DPR:** `http://localhost:8083/dpr_card/`
+- **SMD:** `http://localhost:8083/smd_card/`
 
 Соберите и разверните каждое приложение отдельно (в любом порядке):
 
@@ -70,9 +80,16 @@ VITE_APP_BASE=/pha_card/ npm run build
 ./build-and-deploy-pha.sh    # PHA → http://localhost:PORT/pha_card/
 ./build-and-deploy-ppv.sh    # PPV → http://localhost:PORT/ppv_card/
 ./build-and-deploy-dpr.sh    # DPR → http://localhost:PORT/dpr_card/
+./build-and-deploy-smd.sh    # SMD → http://localhost:PORT/smd_card/
 ```
 
-WAR попадают в `webapps`; Tomcat поднимает контексты. Удалённо: `./deploy-dpa-to-remote.sh`, `./deploy-pha-to-remote.sh`, `./deploy-ppv-to-remote.sh`, `./deploy-dpr-to-remote.sh` (опция `--build` при необходимости). В Cursor: **Terminal → Run Task…** — задачи сборки/деплоя DPA, PHA, PPV, DPR.
+WAR попадают в `webapps`; Tomcat поднимает контексты. Удалённо: `./deploy-dpa-to-remote.sh`, `./deploy-pha-to-remote.sh`, `./deploy-ppv-to-remote.sh`, `./deploy-dpr-to-remote.sh`, `./deploy-smd-to-remote.sh` (опция `--build` при необходимости). В Cursor: **Terminal → Run Task…** — задачи сборки/деплоя DPA, PHA, PPV, DPR, SMD.
+
+```bash
+npm run build:smd
+# или dev:
+npm run dev -- --base=/smd_card/
+```
 
 ## Общие ресурсы (CSS и др.)
 

@@ -1,10 +1,12 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { Routes, Route, useParams, useSearchParams, useNavigate, useLocation } from 'react-router-dom'
 import { message, Spin } from 'antd'
-import { isPhaApp, isPpvApp, isDprApp, getDpaLikeCardSessionKeys } from './cards/config'
+import { isPhaApp, isPpvApp, isDprApp, isSmdApp, getDpaLikeCardSessionKeys } from './cards/config'
 import { DangerousProductCard } from './cards/dpa'
 import { PhaCard } from './cards/pha'
 import { DprCard, DprCreateCard } from './cards/dpr'
+import { SmdCard, fetchSmdMetadata, fetchSmdXml, smdSourceToViewRight, createMockSmdCardData } from './cards/smd'
+import type { SmdMetadata } from './types/smdCard'
 import type { CardData } from './types/card'
 import type { DprMetadataView, DprPrepareContext } from './types/dprCard'
 import {
@@ -413,6 +415,173 @@ function AppContent() {
 
 /** Контент приложения для карты PHA (путь /pha_card/{PHAID}/{GUID}) */
 const PHA_COPY_FROM_SESSION_KEY = 'pha_card_copy_from_phaid'
+
+function SmdAppContent() {
+  const [cardData, setCardData] = useState<CardData | null>(null)
+  const [meta, setMeta] = useState<SmdMetadata | null>(null)
+  const [smdXmlBody, setSmdXmlBody] = useState<string | null>(null)
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const [viewDenied, setViewDenied] = useState(false)
+  const { dpaid: smdidParam, guid: guidFromRoute } = useParams<{ dpaid: string; guid?: string }>()
+  const [searchParams] = useSearchParams()
+  const location = useLocation()
+  const smdid = smdidParam ?? ''
+  const guid =
+    guidFromRoute?.trim() ||
+    searchParams.get('guid')?.trim() ||
+    getPersistedReferenceGuid() ||
+    undefined
+
+  useEffect(() => {
+    setReferenceGuidContext(guid)
+  }, [guid])
+
+  useEffect(() => {
+    document.title = 'Карта сведений о временной санитарной мере'
+  }, [])
+
+  const loadSeqRef = useRef(0)
+
+  useEffect(() => {
+    const seq = ++loadSeqRef.current
+    if (!smdid) {
+      setCardData(null)
+      setMeta(null)
+      setSmdXmlBody(null)
+      setError(null)
+      setViewDenied(false)
+      setLoading(false)
+      return
+    }
+    if (smdid === '-') {
+      setMeta(null)
+      setCardData(createMockSmdCardData())
+      setSmdXmlBody(null)
+      setViewDenied(false)
+      setError(null)
+      setLoading(false)
+      return
+    }
+    setLoading(true)
+    setError(null)
+    setViewDenied(false)
+    setCardData(null)
+    setMeta(null)
+    setSmdXmlBody(null)
+    ;(async () => {
+      try {
+        const [metadata, xmlText] = await Promise.all([
+          fetchSmdMetadata(smdid, guid),
+          fetchSmdXml(smdid, guid).catch(() => ''),
+        ])
+        if (seq !== loadSeqRef.current) return
+        if (guid?.trim()) {
+          const viewRight = smdSourceToViewRight(metadata.dataSourceKindCode ?? metadata.dataSourceKindName)
+          const allowed = await checkAccessRight(guid.trim(), viewRight)
+          if (!allowed) {
+            setViewDenied(true)
+            setLoading(false)
+            return
+          }
+        }
+        let body = createMockSmdCardData()
+        if (xmlText && xmlText.trim() && !xmlText.includes('<empty/>')) {
+          try {
+            const parsed = parseXMLToCardData(xmlText)
+            body = { ...body, ...parsed, smdProductBatches: parsed.smdProductBatches ?? body.smdProductBatches }
+          } catch {
+            /* XML SS.09 parser — позже */
+          }
+        }
+        const enriched: CardData = {
+          ...body,
+          country: metadata.docCountryCode ?? body.country,
+          registrationNumber: metadata.docId ?? body.registrationNumber,
+          version: metadata.smdVersion ?? body.version,
+          source: metadata.dataSourceKindName ?? body.source,
+          datasourceKindCode: metadata.dataSourceKindCode ?? body.datasourceKindCode,
+          createdAt: metadata.creationDateTime ?? body.createdAt,
+          modifiedAt: metadata.modificationDateTime ?? body.modifiedAt,
+          status: metadata.smdStatusName ?? body.status,
+          electronicDocument: {
+            ...body.electronicDocument,
+            messageCode: metadata.messageCode ?? body.electronicDocument.messageCode,
+          },
+          notification: body.notification
+            ? {
+                ...body.notification,
+                country: metadata.docCountryCode ?? body.notification.country,
+                registrationNumber: metadata.docId ?? body.notification.registrationNumber,
+                formationDate: metadata.docCreationDate ?? body.notification.formationDate,
+                type: metadata.messageName ?? body.notification.type,
+              }
+            : body.notification,
+        }
+        setMeta(metadata)
+        setCardData(enriched)
+        setSmdXmlBody(xmlText?.trim() && !xmlText.includes('<empty/>') ? xmlText : null)
+        setLoading(false)
+      } catch (err) {
+        if (seq !== loadSeqRef.current) return
+        const msg = err instanceof Error ? err.message : 'Не удалось загрузить карту SMD'
+        setError(msg)
+        setLoading(false)
+      }
+    })()
+  }, [smdid, guid, location.key])
+
+  const showDeleted = useCardDeletedBanner(location, Boolean(cardData && meta))
+
+  if (showDeleted) {
+    return (
+      <div className="empty-state">
+        <div style={{ fontSize: '18px', fontWeight: 500, color: '#595959' }}>Карта успешно удалена</div>
+      </div>
+    )
+  }
+
+  if (!smdid) {
+    return (
+      <div className="empty-state">
+        <div style={{ fontSize: '48px', marginBottom: '16px', opacity: 0.3 }}>📄</div>
+        <div style={{ fontSize: '18px', fontWeight: 500, color: '#595959' }}>Откройте карту по SMDID</div>
+      </div>
+    )
+  }
+
+  if (viewDenied) {
+    return (
+      <div className="empty-state" style={{ padding: 24 }}>
+        <div style={{ color: '#ff4d4f', maxWidth: 560, margin: '0 auto', textAlign: 'center' }}>
+          Нет права на просмотр карты сведений о временной санитарной мере
+        </div>
+      </div>
+    )
+  }
+
+  if (loading) {
+    return (
+      <div style={{ textAlign: 'center', padding: 24 }}>
+        <Spin size="large" tip="Загрузка карты SMD..." />
+      </div>
+    )
+  }
+
+  if (error) {
+    return (
+      <div className="empty-state" style={{ padding: 24 }}>
+        <div style={{ color: '#ff4d4f', maxWidth: 560, margin: '0 auto', textAlign: 'center' }}>{error}</div>
+      </div>
+    )
+  }
+
+  if (cardData && meta) {
+    return <SmdCard data={cardData} meta={meta} smdid={smdid} guid={guid} xmlBody={smdXmlBody} />
+  }
+
+  return null
+}
 
 function PhaAppContent() {
   const [cardData, setCardData] = useState<CardData | null>(null)
@@ -848,6 +1017,15 @@ function DprAppContent() {
 }
 
 function App() {
+  if (isSmdApp()) {
+    return (
+      <Routes>
+        <Route path="/" element={<SmdAppContent />} />
+        <Route path="/:dpaid" element={<SmdAppContent />} />
+        <Route path="/:dpaid/:guid" element={<SmdAppContent />} />
+      </Routes>
+    )
+  }
   if (isPhaApp()) {
     return (
       <Routes>

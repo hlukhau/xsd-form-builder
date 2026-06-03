@@ -30,7 +30,7 @@ import java.util.regex.Pattern;
 /**
  * Валидация тела XML по XSD ЕЭК (DPA / PHA / DPR).
  * POST /api/xml/validate-schema
- * Заголовок X-Document-Type: dpa | pha | ppv (ppv — та же XSD, что и dpa) | dpr (ответ DangerousProductAlertResponse).
+ * Заголовок X-Document-Type: dpa | pha | ppv | smd | dpr (ppv — та же XSD, что и dpa).
  * Тело: application/xml (сырой XML документа).
  * Ответ: application/json UTF-8 — {"errors":["…"]} (пустой массив при успехе).
  * Ошибки в блоках ccdo:EDocHeader и ccdo:ResourceItemStatusDetails в ответ не включаются.
@@ -42,6 +42,7 @@ public class XmlSchemaValidateServlet extends HttpServlet {
     private volatile Schema schemaDpa;
     private volatile Schema schemaPha;
     private volatile Schema schemaDpr;
+    private volatile Schema schemaSmd;
 
     @Override
     public void init() throws ServletException {
@@ -59,6 +60,13 @@ public class XmlSchemaValidateServlet extends HttpServlet {
         } catch (Exception e) {
             schemaDpr = null;
             System.err.println("[XmlSchemaValidateServlet] DPR XSD not loaded: " + e.getMessage());
+        }
+        try {
+            schemaSmd = loadSchema("EEC_R_SM_SS_09_SanitaryMeasureDetails_v1.0.0.xsd");
+            System.out.println("[XmlSchemaValidateServlet] XSD schema loaded (SMD)");
+        } catch (Exception e) {
+            schemaSmd = null;
+            System.err.println("[XmlSchemaValidateServlet] SMD XSD not loaded: " + e.getMessage());
         }
     }
 
@@ -132,11 +140,13 @@ public class XmlSchemaValidateServlet extends HttpServlet {
             schema = schemaPha;
         } else if ("dpr".equals(docType)) {
             schema = schemaDpr;
+        } else if ("smd".equals(docType)) {
+            schema = schemaSmd;
         } else {
             response.setStatus(HttpServletResponse.SC_BAD_REQUEST);
             response.setContentType("application/json;charset=UTF-8");
             writeJsonErrors(response.getWriter(), Collections.singletonList(
-                    "Укажите заголовок " + HDR_TYPE + ": dpa, pha, ppv или dpr"));
+                    "Укажите заголовок " + HDR_TYPE + ": dpa, pha, ppv, smd или dpr"));
             return;
         }
         if (schema == null) {

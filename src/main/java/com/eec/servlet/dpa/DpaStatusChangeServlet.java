@@ -347,8 +347,9 @@ public class DpaStatusChangeServlet extends HttpServlet {
                 sendJsonError(response, HttpServletResponse.SC_FORBIDDEN, "Нет права на направление исходящих сведений (dangerousProductOut:send)");
                 return;
             }
-            if (currentStatusId != OUTGOING_NEW) {
-                sendJsonError(response, HttpServletResponse.SC_BAD_REQUEST, "Действие «Направление сведений» возможно только при статусе «Новое» (при наличии резолюции областного или республиканского ЦГЭ)");
+            if (currentStatusId != OUTGOING_NEW && currentStatusId != OUTGOING_FAILED && currentStatusId != OUTGOING_ERROR) {
+                sendJsonError(response, HttpServletResponse.SC_BAD_REQUEST,
+                        "Действие «Направление сведений» возможно при статусе «Новое», «Отправка не удалась» или «Ошибка обработки» (при наличии резолюции областного или республиканского ЦГЭ)");
                 return;
             }
             {

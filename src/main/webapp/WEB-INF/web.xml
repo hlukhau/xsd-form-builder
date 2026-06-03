@@ -729,6 +729,43 @@
         <url-pattern>/api/rights</url-pattern>
     </servlet-mapping>
 
+    <!-- SMD: карта сведений о временной санитарной мере -->
+    <servlet>
+        <servlet-name>SmdMetadataServlet</servlet-name>
+        <servlet-class>com.eec.servlet.smd.SmdMetadataServlet</servlet-class>
+    </servlet>
+    <servlet-mapping>
+        <servlet-name>SmdMetadataServlet</servlet-name>
+        <url-pattern>/api/smd/metadata/*</url-pattern>
+    </servlet-mapping>
+
+    <servlet>
+        <servlet-name>SmdXmlServlet</servlet-name>
+        <servlet-class>com.eec.servlet.smd.SmdXmlServlet</servlet-class>
+    </servlet>
+    <servlet-mapping>
+        <servlet-name>SmdXmlServlet</servlet-name>
+        <url-pattern>/api/smd/xml/*</url-pattern>
+    </servlet-mapping>
+
+    <servlet>
+        <servlet-name>SmdStatusHistoryServlet</servlet-name>
+        <servlet-class>com.eec.servlet.smd.SmdStatusHistoryServlet</servlet-class>
+    </servlet>
+    <servlet-mapping>
+        <servlet-name>SmdStatusHistoryServlet</servlet-name>
+        <url-pattern>/api/smd/status-history/*</url-pattern>
+    </servlet-mapping>
+
+    <servlet>
+        <servlet-name>SmdAccessServlet</servlet-name>
+        <servlet-class>com.eec.servlet.smd.SmdAccessServlet</servlet-class>
+    </servlet>
+    <servlet-mapping>
+        <servlet-name>SmdAccessServlet</servlet-name>
+        <url-pattern>/api/smd/access</url-pattern>
+    </servlet-mapping>
+
     <!-- XSD Form Builder Servlet для работы с GUID и DPAID -->
     <!-- Обрабатывает только запросы формата /{DPAID}/{GUID} внутри контекста приложения -->
     <!-- Должен быть ПЕРЕД SpaServlet, чтобы обрабатывать API запросы первым -->

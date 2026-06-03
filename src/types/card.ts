@@ -69,6 +69,21 @@ export interface CardData {
    * PPV: идентификаторы PPVACTOR без EDOCID — при сохранении удаляются из БД (DELETE).
    */
   ppvActorRemovalIds?: number[]
+
+  /**
+   * SMD: партии продукции (smcdo:NonCompliantSanitaryProductBatchDetails).
+   * Каждая строка — отдельная детализация (вкладки Продукция / ТСД / …).
+   */
+  smdProductBatches?: SmdProductBatchItem[]
+}
+
+/** SMD: одна строка таблицы «Продукция» с данными для детализации. */
+export interface SmdProductBatchItem {
+  key: string
+  /** Краткое наименование для заголовка панели в списке. */
+  summaryLabel?: string
+  product?: ProductData
+  tsd?: TSDData
 }
 
 /** PHA: группа пациентов (smcdo:PatientGroupDetails). */

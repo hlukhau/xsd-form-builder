@@ -148,7 +148,7 @@ function withGuidParams(params: URLSearchParams, guid?: string): URLSearchParams
   return params
 }
 
-function withGuidUrl(url: string, guid?: string): string {
+export function withGuidUrl(url: string, guid?: string): string {
   const resolvedGuid = resolveGuid(guid)
   if (!resolvedGuid) return url
   const separator = url.includes('?') ? '&' : '?'

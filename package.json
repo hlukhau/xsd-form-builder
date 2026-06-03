@@ -7,9 +7,10 @@
     "dev": "vite",
     "build": "vite build",
     "build:dpa": "vite build",
-    "build:pha": "cross-env VITE_APP_BASE=/pha_card/ vite build",
-    "build:ppv": "cross-env VITE_APP_BASE=/ppv_card/ vite build",
-    "build:dpr": "cross-env VITE_APP_BASE=/dpr_card/ vite build",
+    "build:pha": "VITE_APP_BASE=/pha_card/ vite build",
+    "build:ppv": "VITE_APP_BASE=/ppv_card/ vite build",
+    "build:dpr": "VITE_APP_BASE=/dpr_card/ vite build",
+    "build:smd": "VITE_APP_BASE=/smd_card/ vite build",
     "build:check": "tsc && vite build",
     "preview": "vite preview",
     "lint": "eslint . --ext ts,tsx --report-unused-disable-directives --max-warnings 0"

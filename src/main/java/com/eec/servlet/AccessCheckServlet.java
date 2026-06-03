@@ -13,7 +13,8 @@ import java.io.PrintWriter;
 /**
  * API проверки прав доступа.
  * GET /api/access/check?id=...&right=... — id опционален (GUID для JSON прав); right — код права
- * (dangerousProductIn/Out/DB:access|status|send|edit; violationDetectedIn/Out/DB — то же для PPV;
+ * (dangerousProductIn/Out/DB:access|status|send|edit; sanitaryMeasureIn/Out/DB — то же для SMD;
+ *  violationDetectedIn/Out/DB — то же для PPV;
  *  publicHealthIn:view, … для PHA).
  * Ответ: { "allowed": true }
  */
@@ -54,6 +55,36 @@ public class AccessCheckServlet extends HttpServlet {
                     break;
                 case "dangerousProductOut:edit":
                     allowed = AccessRightService.hasDangerousProductOutEdit(rightsJson);
+                    break;
+                case "sanitaryMeasureIn:access":
+                    allowed = AccessRightService.hasSanitaryMeasureInAccess(rightsJson);
+                    break;
+                case "sanitaryMeasureOut:access":
+                    allowed = AccessRightService.hasSanitaryMeasureOutAccess(rightsJson);
+                    break;
+                case "sanitaryMeasureDB:access":
+                    allowed = AccessRightService.hasSanitaryMeasureDBAccess(rightsJson);
+                    break;
+                case "sanitaryMeasureIn:status":
+                    allowed = AccessRightService.hasSanitaryMeasureInStatus(rightsJson);
+                    break;
+                case "sanitaryMeasureIn:view":
+                    allowed = AccessRightService.hasSanitaryMeasureInView(rightsJson);
+                    break;
+                case "sanitaryMeasureOut:status":
+                    allowed = AccessRightService.hasSanitaryMeasureOutStatus(rightsJson);
+                    break;
+                case "sanitaryMeasureOut:send":
+                    allowed = AccessRightService.hasSanitaryMeasureOutSend(rightsJson);
+                    break;
+                case "sanitaryMeasureOut:edit":
+                    allowed = AccessRightService.hasSanitaryMeasureOutEdit(rightsJson);
+                    break;
+                case "sanitaryMeasureOut:view":
+                    allowed = AccessRightService.hasSanitaryMeasureOutView(rightsJson);
+                    break;
+                case "sanitaryMeasureDB:view":
+                    allowed = AccessRightService.hasSanitaryMeasureDBView(rightsJson);
                     break;
                 case "violationDetectedIn:access":
                     allowed = AccessRightService.hasViolationDetectedInAccess(rightsJson);
