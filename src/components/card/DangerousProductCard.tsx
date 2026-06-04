@@ -394,8 +394,10 @@ const DangerousProductCard: React.FC<DangerousProductCardProps> = ({
     effectiveHasSaveRight &&
     !!guid
 
+  /** «Создать новую версию» — только исходящие DPA в статусе «Доставлено» (DPASTATUSID=11). Для PPV не показываем. */
   const copyButtonEligible = useMemo(
     () =>
+      !isPpvApp() &&
       isOutgoingSource &&
       effectiveHasSaveRight &&
       effectiveDpaid !== '-' &&
@@ -505,7 +507,7 @@ const DangerousProductCard: React.FC<DangerousProductCardProps> = ({
   }
 
   const handleCopy = async () => {
-    if (!effectiveDpaid || !guid || !onMakeCopy) return
+    if (!copyButtonEligible || !effectiveDpaid || !guid || !onMakeCopy) return
     if (copyButtonDisabled) return
     try {
       const res = await canCreateNewVersion(String(effectiveDpaid), guid)
