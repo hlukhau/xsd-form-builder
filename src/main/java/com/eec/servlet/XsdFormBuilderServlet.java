@@ -200,7 +200,7 @@ public class XsdFormBuilderServlet extends HttpServlet {
                     "      \"status\": {\n" +
                     "        \"522\": {}\n" +
                     "      }\n" +
-                    "    },\n" +
+                    "    }\n" +
                     "  }\n" +
                     "}";
 

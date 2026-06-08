@@ -170,6 +170,8 @@ export function DprCard({ dprid, guid, meta, parsed, onDataRefresh }: DprCardPro
   const [rightsDebugLoading, setRightsDebugLoading] = useState(false)
   const [rightsDebugError, setRightsDebugError] = useState<string | null>(null)
   const [rightsDebugRawText, setRightsDebugRawText] = useState<string | null>(null)
+  const [rightsDebugDraft, setRightsDebugDraft] = useState('')
+  const [rightsOverride, setRightsOverride] = useState<RightsJson | null>(null)
   const [measuresEdit, setMeasuresEdit] = useState<MeasuresData>({ measures: [] })
   const [documentsEdit, setDocumentsEdit] = useState<DprResultDocRow[]>([])
   const [comparisonModalVisible, setComparisonModalVisible] = useState(false)
@@ -258,6 +260,10 @@ export function DprCard({ dprid, guid, meta, parsed, onDataRefresh }: DprCardPro
       setAuthorityFilterDepIds(null)
       return
     }
+    if (rightsOverride) {
+      setAuthorityFilterDepIds(getDprAuthorityFilterDepIdsFromRights(rightsOverride))
+      return
+    }
     let cancelled = false
     fetchRightsByGuid(guid.trim())
       .then((rights) => {
@@ -271,7 +277,7 @@ export function DprCard({ dprid, guid, meta, parsed, onDataRefresh }: DprCardPro
     return () => {
       cancelled = true
     }
-  }, [guid, outgoing])
+  }, [guid, outgoing, rightsOverride])
 
   const authCountryDisplay =
     (parsed.notifyingAuthority.country ?? '').trim()
@@ -549,6 +555,39 @@ export function DprCard({ dprid, guid, meta, parsed, onDataRefresh }: DprCardPro
       userDepKindName,
     ]
   )
+
+  const openRightsDebug = useCallback(() => {
+    setRightsDebugVisible(true)
+    setRightsDebugError(null)
+    setRightsDebugRawText(null)
+    setRightsDebugData(null)
+    const g = guid?.trim()
+    if (!g) {
+      setRightsDebugError('GUID не задан')
+      setRightsDebugLoading(false)
+      return
+    }
+    setRightsDebugLoading(true)
+    fetchRightsByGuid(g)
+      .then((data) => {
+        const effective = rightsOverride ?? data
+        setRightsDebugData(effective)
+        setRightsDebugDraft(JSON.stringify(effective, null, 2))
+        setRightsDebugError(null)
+        setRightsDebugRawText(null)
+      })
+      .catch(async (e) => {
+        setRightsDebugError(e instanceof Error ? e.message : 'Ошибка загрузки')
+        setRightsDebugData(null)
+        try {
+          const raw = await fetchRightsByGuidRaw(g)
+          setRightsDebugRawText(raw.text)
+        } catch {
+          setRightsDebugRawText(null)
+        }
+      })
+      .finally(() => setRightsDebugLoading(false))
+  }, [guid, rightsOverride])
 
   const requestDeleteDraft = useCallback(() => {
     const g = guid?.trim()
@@ -869,7 +908,15 @@ export function DprCard({ dprid, guid, meta, parsed, onDataRefresh }: DprCardPro
           <Descriptions.Item label="Дата изменения">{formatDt(meta.modificationDateTime)}</Descriptions.Item>
         </Descriptions>
 
-        {!isEditMode ? (
+        {isEditMode ? (
+          <CardActions
+            onShowRightsDebug={openRightsDebug}
+            statusButton={null}
+            closeButton={null}
+            onStatusAction={() => {}}
+            onElectronicDocumentClick={() => setEdocOpen(true)}
+          />
+        ) : (
           <CardActions
             onDefineAccess={
               accessPpvid && guid?.trim()
@@ -878,41 +925,10 @@ export function DprCard({ dprid, guid, meta, parsed, onDataRefresh }: DprCardPro
                   }
                 : undefined
             }
-            onShowRightsDebug={() => {
-              setRightsDebugVisible(true)
-              setRightsDebugError(null)
-              setRightsDebugRawText(null)
-              setRightsDebugData(null)
-              const g = guid?.trim()
-              if (g) {
-                setRightsDebugLoading(true)
-                fetchRightsByGuid(g)
-                  .then((data) => {
-                    setRightsDebugData(data)
-                    setRightsDebugError(null)
-                    setRightsDebugRawText(null)
-                  })
-                  .catch(async (e) => {
-                    setRightsDebugError(e instanceof Error ? e.message : 'Ошибка загрузки')
-                    setRightsDebugData(null)
-                    try {
-                      const raw = await fetchRightsByGuidRaw(g)
-                      setRightsDebugRawText(raw.text)
-                    } catch {
-                      setRightsDebugRawText(null)
-                    }
-                  })
-                  .finally(() => setRightsDebugLoading(false))
-              } else {
-                setRightsDebugError('GUID не задан')
-                setRightsDebugLoading(false)
-              }
-            }}
+            onShowRightsDebug={openRightsDebug}
             showDeleteButton={canDeleteDraft}
             deleteButtonDisabled={!ppvHref}
-            deleteButtonHint={
-              !ppvHref ? 'Нет связанной карты PPV — удаление недоступно' : undefined
-            }
+            deleteButtonHint={!ppvHref ? 'Нет связанной карты PPV — удаление недоступно' : undefined}
             onDelete={() => void requestDeleteDraft()}
             statusButton={cardActionsPrimaryStatus}
             statusButtonComment={cardActionsStatusComment}
@@ -921,7 +937,7 @@ export function DprCard({ dprid, guid, meta, parsed, onDataRefresh }: DprCardPro
             onElectronicDocumentClick={() => setEdocOpen(true)}
             statusButtonsLoading={statusActionLoading}
           />
-        ) : null}
+        )}
 
         <div className="card-tabs-wrapper">
           <Tabs
@@ -1055,6 +1071,7 @@ export function DprCard({ dprid, guid, meta, parsed, onDataRefresh }: DprCardPro
           setRightsDebugData(null)
           setRightsDebugError(null)
           setRightsDebugRawText(null)
+          setRightsDebugDraft('')
         }}
         footer={[
           <Button
@@ -1064,16 +1081,46 @@ export function DprCard({ dprid, guid, meta, parsed, onDataRefresh }: DprCardPro
               setRightsDebugData(null)
               setRightsDebugError(null)
               setRightsDebugRawText(null)
+              setRightsDebugDraft('')
             }}
           >
             Закрыть
           </Button>,
           rightsDebugData != null && (
             <Button
+              key="apply"
+              onClick={() => {
+                try {
+                  const parsed = JSON.parse(rightsDebugDraft) as RightsJson
+                  setRightsOverride(parsed)
+                  setRightsDebugData(parsed)
+                  setRightsDebugError(null)
+                  message.success('Мапа прав перезаписана из JSON.')
+                } catch (e) {
+                  message.error(`Некорректный JSON: ${e instanceof Error ? e.message : String(e)}`)
+                }
+              }}
+            >
+              Применить JSON
+            </Button>
+          ),
+          rightsOverride != null && (
+            <Button
+              key="resetOverride"
+              onClick={() => {
+                setRightsOverride(null)
+                message.success('Переопределение мапы прав сброшено.')
+              }}
+            >
+              Сбросить переопределение
+            </Button>
+          ),
+          rightsDebugData != null && (
+            <Button
               key="copy"
               type="primary"
               onClick={() => {
-                navigator.clipboard.writeText(JSON.stringify(rightsDebugData, null, 2)).then(
+                navigator.clipboard.writeText(rightsDebugDraft || JSON.stringify(rightsDebugData, null, 2)).then(
                   () => message.success('Скопировано в буфер обмена'),
                   () => message.error('Не удалось скопировать')
                 )
@@ -1124,8 +1171,8 @@ export function DprCard({ dprid, guid, meta, parsed, onDataRefresh }: DprCardPro
           </div>
         ) : rightsDebugData != null ? (
           <Input.TextArea
-            readOnly
-            value={JSON.stringify(rightsDebugData, null, 2)}
+            value={rightsDebugDraft}
+            onChange={(e) => setRightsDebugDraft(e.target.value)}
             autoSize={{ minRows: 14, maxRows: 22 }}
             style={{ fontFamily: 'monospace' }}
           />

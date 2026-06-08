@@ -1,14 +1,17 @@
 import { useCallback, useEffect, useState, type CSSProperties } from 'react'
-import { Typography, Tabs, Descriptions, Button, Input, Space, message, Modal } from 'antd'
+import { Typography, Tabs, Descriptions, Button, Input, Space, message, Modal, Spin } from 'antd'
 import type { DprPrepareContext, DprResultDocRow } from '@/types/dprCard'
 import type { MeasuresData } from '@/types/card'
 import {
   getIncidentAlertKindNameByCode,
   postDprCreateSave,
   fetchRightsByGuid,
+  fetchRightsByGuidRaw,
   getDprAuthorityFilterDepIdsFromRights,
+  type RightsJson,
 } from '@/utils/referenceDataApi'
 import { useCountryOptions } from '@/hooks/shared/useCountryOptions'
+import { CardActions } from '@/cards/shared'
 import { DprNotifyingAuthorityEdit } from '@/cards/dpr/DprNotifyingAuthorityEdit'
 import { DprResultDocumentsEdit } from '@/cards/dpr/DprResultDocumentsEdit'
 import MeasuresTabEdit from '@/components/tabs/dpa/MeasuresTabEdit'
@@ -74,6 +77,13 @@ export function DprCreateCard({ eligibility, ppvid, guid }: DprCreateCardProps) 
   const [measuresEdit, setMeasuresEdit] = useState<MeasuresData>({ measures: [] })
   const [documentsEdit, setDocumentsEdit] = useState<DprResultDocRow[]>([])
   const [incidentKindLabel, setIncidentKindLabel] = useState<string>('')
+  const [rightsDebugVisible, setRightsDebugVisible] = useState(false)
+  const [rightsDebugData, setRightsDebugData] = useState<RightsJson | null>(null)
+  const [rightsDebugLoading, setRightsDebugLoading] = useState(false)
+  const [rightsDebugError, setRightsDebugError] = useState<string | null>(null)
+  const [rightsDebugRawText, setRightsDebugRawText] = useState<string | null>(null)
+  const [rightsDebugDraft, setRightsDebugDraft] = useState('')
+  const [rightsOverride, setRightsOverride] = useState<RightsJson | null>(null)
 
   const rc = eligibility.responseCountryCode ?? 'BY'
   const rn = eligibility.responseCountryName ?? ''
@@ -111,6 +121,10 @@ export function DprCreateCard({ eligibility, ppvid, guid }: DprCreateCardProps) 
       setAuthorityFilterDepIds(null)
       return
     }
+    if (rightsOverride) {
+      setAuthorityFilterDepIds(getDprAuthorityFilterDepIdsFromRights(rightsOverride))
+      return
+    }
     let cancelled = false
     fetchRightsByGuid(guid.trim())
       .then((rights) => {
@@ -124,7 +138,40 @@ export function DprCreateCard({ eligibility, ppvid, guid }: DprCreateCardProps) 
     return () => {
       cancelled = true
     }
-  }, [guid])
+  }, [guid, rightsOverride])
+
+  const openRightsDebug = useCallback(() => {
+    setRightsDebugVisible(true)
+    setRightsDebugError(null)
+    setRightsDebugRawText(null)
+    setRightsDebugData(null)
+    const g = guid?.trim()
+    if (!g) {
+      setRightsDebugError('GUID не задан')
+      setRightsDebugLoading(false)
+      return
+    }
+    setRightsDebugLoading(true)
+    fetchRightsByGuid(g)
+      .then((data) => {
+        const effective = rightsOverride ?? data
+        setRightsDebugData(effective)
+        setRightsDebugDraft(JSON.stringify(effective, null, 2))
+        setRightsDebugError(null)
+        setRightsDebugRawText(null)
+      })
+      .catch(async (e) => {
+        setRightsDebugError(e instanceof Error ? e.message : 'Ошибка загрузки')
+        setRightsDebugData(null)
+        try {
+          const raw = await fetchRightsByGuidRaw(g)
+          setRightsDebugRawText(raw.text)
+        } catch {
+          setRightsDebugRawText(null)
+        }
+      })
+      .finally(() => setRightsDebugLoading(false))
+  }, [guid, rightsOverride])
 
   const goBackToPpv = useCallback(() => {
     const ppvBase = (import.meta.env.VITE_PPV_CARD_BASE as string | undefined)?.replace(/\/$/, '') || '/ppv_card'
@@ -225,6 +272,13 @@ export function DprCreateCard({ eligibility, ppvid, guid }: DprCreateCardProps) 
           <Descriptions.Item label="Дата создания">будет присвоена при сохранении</Descriptions.Item>
           <Descriptions.Item label="Дата изменения">будет присвоена при сохранении</Descriptions.Item>
         </Descriptions>
+        <CardActions
+          onShowRightsDebug={openRightsDebug}
+          statusButton={null}
+          closeButton={null}
+          onStatusAction={() => {}}
+          onElectronicDocumentClick={() => message.info('Электронный документ будет доступен после сохранения карты')}
+        />
         <div style={{ flexShrink: 0, marginTop: 2 }}>
           <Text type="secondary" style={{ fontSize: 12 }}>
             Заполните уведомление, принятые меры и описание результатов. Реквизиты исходной карты PPV подставляются
@@ -311,6 +365,111 @@ export function DprCreateCard({ eligibility, ppvid, guid }: DprCreateCardProps) 
           />
         </div>
       </div>
+
+      <Modal
+        title="Карта прав доступа (отладка)"
+        open={rightsDebugVisible}
+        onCancel={() => {
+          setRightsDebugVisible(false)
+          setRightsDebugData(null)
+          setRightsDebugError(null)
+          setRightsDebugRawText(null)
+          setRightsDebugDraft('')
+        }}
+        footer={[
+          <Button
+            key="close"
+            onClick={() => {
+              setRightsDebugVisible(false)
+              setRightsDebugData(null)
+              setRightsDebugError(null)
+              setRightsDebugRawText(null)
+              setRightsDebugDraft('')
+            }}
+          >
+            Закрыть
+          </Button>,
+          rightsDebugData != null && (
+            <Button
+              key="apply"
+              onClick={() => {
+                try {
+                  const parsed = JSON.parse(rightsDebugDraft) as RightsJson
+                  setRightsOverride(parsed)
+                  setRightsDebugData(parsed)
+                  setRightsDebugError(null)
+                  message.success('Мапа прав перезаписана из JSON.')
+                } catch (e) {
+                  message.error(`Некорректный JSON: ${e instanceof Error ? e.message : String(e)}`)
+                }
+              }}
+            >
+              Применить JSON
+            </Button>
+          ),
+          rightsOverride != null && (
+            <Button
+              key="resetOverride"
+              onClick={() => {
+                setRightsOverride(null)
+                message.success('Переопределение мапы прав сброшено.')
+              }}
+            >
+              Сбросить переопределение
+            </Button>
+          ),
+          rightsDebugData != null && (
+            <Button
+              key="copy"
+              type="primary"
+              onClick={() => {
+                navigator.clipboard.writeText(rightsDebugDraft || JSON.stringify(rightsDebugData, null, 2)).then(
+                  () => message.success('Скопировано в буфер обмена'),
+                  () => message.error('Не удалось скопировать')
+                )
+              }}
+            >
+              Копировать JSON
+            </Button>
+          ),
+        ].filter(Boolean)}
+        width={640}
+        destroyOnClose
+      >
+        {rightsDebugLoading ? (
+          <div style={{ textAlign: 'center', padding: 24 }}>
+            <Spin tip="Загрузка карты прав..." />
+          </div>
+        ) : rightsDebugError != null ? (
+          <div>
+            <div style={{ color: '#ff4d4f', marginBottom: 8 }}>{rightsDebugError}</div>
+            {rightsDebugRawText != null && (
+              <pre
+                style={{
+                  margin: 0,
+                  padding: 12,
+                  background: '#fff2f0',
+                  borderRadius: 4,
+                  maxHeight: 360,
+                  overflow: 'auto',
+                  fontSize: 11,
+                }}
+              >
+                {rightsDebugRawText}
+              </pre>
+            )}
+          </div>
+        ) : rightsDebugData != null ? (
+          <Input.TextArea
+            value={rightsDebugDraft}
+            onChange={(e) => setRightsDebugDraft(e.target.value)}
+            autoSize={{ minRows: 14, maxRows: 22 }}
+            style={{ fontFamily: 'monospace' }}
+          />
+        ) : (
+          <span>Нет данных</span>
+        )}
+      </Modal>
     </div>
   )
 }
