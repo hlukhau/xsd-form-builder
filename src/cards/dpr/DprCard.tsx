@@ -40,7 +40,7 @@ import { validateDprOutgoingCardFull } from '@/utils/dprCardValidation'
 import { compareDprResponseXml, exportDprParsedBundleToXml } from '@/utils/xmlExporter'
 import { DprResultDocumentsEdit } from '@/cards/dpr/DprResultDocumentsEdit'
 import { DprNotifyingAuthorityEdit } from '@/cards/dpr/DprNotifyingAuthorityEdit'
-import { getOutgoingAuthorityFilterDepIdsFromRights } from '@/utils/referenceDataApi'
+import { getDprAuthorityFilterDepIdsFromRights } from '@/utils/referenceDataApi'
 
 const { Text } = Typography
 
@@ -272,7 +272,7 @@ export function DprCard({ dprid, guid, meta, parsed, onDataRefresh }: DprCardPro
     fetchRightsByGuid(guid.trim())
       .then((rights) => {
         if (!cancelled) {
-          setAuthorityFilterDepIds(getOutgoingAuthorityFilterDepIdsFromRights(rights, true))
+          setAuthorityFilterDepIds(getDprAuthorityFilterDepIdsFromRights(rights))
         }
       })
       .catch(() => {
@@ -826,23 +826,36 @@ export function DprCard({ dprid, guid, meta, parsed, onDataRefresh }: DprCardPro
                 >
                   Сохранить
                 </Button>
+                {outgoing && canValidateOutgoingCard ? (
+                  <Button
+                    type="default"
+                    loading={validateLoading}
+                    disabled={saving || comparisonModalVisible}
+                    onClick={() => void runForcedCardValidation()}
+                  >
+                    Валидация карты
+                  </Button>
+                ) : null}
                 <Button onClick={cancelEdit} disabled={saving || comparisonModalVisible}>
                   Отменить
                 </Button>
               </>
-            ) : null}
-            {outgoing && canValidateOutgoingCard ? (
-              <Button type="default" loading={validateLoading} onClick={() => void runForcedCardValidation()}>
-                Валидация карты
-              </Button>
-            ) : null}
-            <Button
-              onClick={() => {
-                postMessageFromCardToParent({ code: 'exit' }, 'DPR: закрыть форму')
-              }}
-            >
-              Закрыть
-            </Button>
+            ) : (
+              <>
+                {outgoing && canValidateOutgoingCard ? (
+                  <Button type="default" loading={validateLoading} onClick={() => void runForcedCardValidation()}>
+                    Валидация карты
+                  </Button>
+                ) : null}
+                <Button
+                  onClick={() => {
+                    postMessageFromCardToParent({ code: 'exit' }, 'DPR: закрыть форму')
+                  }}
+                >
+                  Закрыть
+                </Button>
+              </>
+            )}
           </Space>
         </div>
         <Descriptions

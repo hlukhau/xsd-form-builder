@@ -80,6 +80,8 @@ export interface DprCreateEligibilityResponse {
 export interface DprCreateSaveRequest {
   guid: string
   ppvid: string
+  /** Полный XML DPR (UTF-8) в Base64; при наличии сохраняется в DPRXML вместо минимального черновика */
+  dprXmlB64?: string
   authorityId?: string
   authorityName?: string
   authorityBriefName?: string

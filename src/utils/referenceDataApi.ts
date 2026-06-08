@@ -1158,6 +1158,23 @@ export function getOutgoingAuthorityFilterDepIdsFromRights(
 }
 
 /**
+ * DEPID для фильтра УО при создании/редактировании исходящей DPR.
+ * Бэкенд: подготовка ответа и редактирование — {@code violationDetectedIn:status} ∩ PPVDEPPERMIS;
+ * дополнительно учитываются violationDetectedOut.create/edit (если заданы в JSON прав).
+ */
+export function getDprAuthorityFilterDepIdsFromRights(rights: RightsJson | null | undefined): string[] {
+  const up = rights?.up
+  const parts = [
+    depIdsFromRightsBlock(up?.violationDetectedIn?.status),
+    depIdsFromRightsBlock(up?.violationDetectedOut?.create),
+    depIdsFromRightsBlock(up?.violationDetectedOut?.edit),
+    depIdsFromRightsBlock(up?.violationDetectedOut?.violations),
+    depIdsFromRightsBlock(up?.violationDetectedOut?.temporarySanitaryMeasures),
+  ]
+  return [...new Set(parts.flat())]
+}
+
+/**
  * @deprecated Используйте {@link getOutgoingAuthorityFilterDepIdsFromRights} — учитывает все объекты прав для фильтра УО.
  */
 export function getCreateAuthorityIdsFromRights(rights: RightsJson | null | undefined): string[] {

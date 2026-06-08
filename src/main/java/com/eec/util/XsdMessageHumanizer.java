@@ -101,7 +101,13 @@ public final class XsdMessageHumanizer {
         LABEL.put("SupplyChainPartyDetails", "участник цепи поставки");
         LABEL.put("SupplyChainPartyKindCode", "код вида участника цепи поставки");
         LABEL.put("EventDate", "дата первого случая");
+        LABEL.put("StartDate", "начальная дата");
         LABEL.put("EndDate", "дата окончания");
+        LABEL.put("DocStartDate", "дата начала срока действия");
+        LABEL.put("DocValidityDate", "дата окончания срока действия");
+        LABEL.put("FormationDate", "дата формирования");
+        LABEL.put("ManufactureDate", "дата производства");
+        LABEL.put("ProductShelfLifeEndDate", "дата окончания срока годности");
         LABEL.put("BusinessEntityId", "идентификатор хозяйствующего субъекта (ОГРН/ИНН и т.п.)");
         LABEL.put("BusinessEntityName", "полное наименование хозяйствующего субъекта");
         LABEL.put("BusinessEntityBriefName", "краткое наименование хозяйствующего субъекта");
@@ -159,6 +165,32 @@ public final class XsdMessageHumanizer {
      * @param documentXml  полный XML для контекста вкладки/блока
      * @param docType      {@code dpa} или {@code pha}
      */
+    /**
+     * Убирает дубли замечаний по одному полю: Xerces часто сообщает об одной ошибке дважды
+     * (cvc-datatype-valid и cvc-type.3.1.3). Оставляется наиболее понятная русская формулировка.
+     */
+    public static List<String> deduplicateHumanizedMessages(List<String> messages) {
+        if (messages == null || messages.isEmpty()) {
+            return messages;
+        }
+        List<String> out = new ArrayList<String>();
+        List<String> keys = new ArrayList<String>();
+        for (String msg : messages) {
+            if (msg == null || msg.isEmpty()) {
+                continue;
+            }
+            String key = dedupeKey(msg);
+            int idx = keys.indexOf(key);
+            if (idx < 0) {
+                keys.add(key);
+                out.add(msg);
+            } else if (messageQualityScore(msg) > messageQualityScore(out.get(idx))) {
+                out.set(idx, msg);
+            }
+        }
+        return out;
+    }
+
     public static String humanizeFull(String rawMessage, int lineNumber, String documentXml, String docType) {
         if (rawMessage == null || rawMessage.isEmpty()) {
             return "";
@@ -496,8 +528,14 @@ public final class XsdMessageHumanizer {
                 Pattern.CASE_INSENSITIVE | Pattern.DOTALL)
                 .matcher(s);
         if (type313.find()) {
-            return "Значение «" + type313.group(1) + "» в поле «" + label(type313.group(2)) + "» недопустимо для ожидаемого типа данных «"
-                    + type313.group(3) + "».";
+            return humanizeElementValueInvalid(type313.group(1), type313.group(2), type313.group(3));
+        }
+        Matcher type313Short = Pattern.compile(
+                "cvc-type\\.3\\.1\\.3:\\s*The value '([^']*)' of element '([^']*)' is not valid\\.?",
+                Pattern.CASE_INSENSITIVE | Pattern.DOTALL)
+                .matcher(s);
+        if (type313Short.find()) {
+            return humanizeElementValueInvalid(type313Short.group(1), type313Short.group(2), null);
         }
         Matcher attrRequired = Pattern.compile(
                 "cvc-complex-type\\.4:\\s*Attribute\\s+'([^']+)'\\s+must\\s+appear\\s+on\\s+element\\s+'([^']+)'\\.",
@@ -558,9 +596,96 @@ public final class XsdMessageHumanizer {
 
         String t = s.replaceAll("(?i)cvc-[a-z0-9.-]+:\\s*", "");
         t = t.replaceAll("(?i)However, the attribute[^.]+\\.", "");
+        Matcher valueInvalid = Pattern.compile(
+                "The value '([^']*)' of element '([^']*)' is not valid\\.?",
+                Pattern.CASE_INSENSITIVE | Pattern.DOTALL)
+                .matcher(t);
+        if (valueInvalid.find()) {
+            return humanizeElementValueInvalid(valueInvalid.group(1), valueInvalid.group(2), null);
+        }
         t = replaceQuotedElements(t);
         t = polishEnglishValidationFragments(t);
         return t.trim();
+    }
+
+    private static String humanizeElementValueInvalid(String literal, String elementRef, String xsdType) {
+        String v = literal == null ? "" : literal;
+        String el = elementLocalName(elementRef);
+        String type = xsdType == null ? "" : xsdType.trim();
+        if ("date".equalsIgnoreCase(type) || isDateElementName(el) || looksLikeInvalidDateLiteral(v)) {
+            return humanizeSimpleTypeValueMessage(v, "date");
+        }
+        if ("dateTime".equalsIgnoreCase(type)) {
+            return humanizeSimpleTypeValueMessage(v, "dateTime");
+        }
+        if (!type.isEmpty()) {
+            return "Значение «" + v + "» в поле «" + label(elementRef) + "» недопустимо для ожидаемого типа данных «" + type + "».";
+        }
+        return "Значение «" + v + "» в поле «" + label(elementRef) + "» недопустимо.";
+    }
+
+    private static boolean isDateElementName(String localName) {
+        if (localName == null || localName.isEmpty()) {
+            return false;
+        }
+        if (localName.endsWith("Date") || localName.endsWith("DateTime")) {
+            return true;
+        }
+        return "EventDate".equalsIgnoreCase(localName)
+                || "FormationDate".equalsIgnoreCase(localName)
+                || "ManufactureDate".equalsIgnoreCase(localName);
+    }
+
+    private static boolean looksLikeInvalidDateLiteral(String v) {
+        if (v == null || v.isEmpty()) {
+            return false;
+        }
+        return Pattern.compile("^\\d{4}-\\d{2}-\\d{2}$").matcher(v).matches();
+    }
+
+    private static String dedupeKey(String message) {
+        String hint = "";
+        String body = message;
+        int paren = message.lastIndexOf(" (");
+        if (paren > 0 && message.endsWith(")")) {
+            hint = message.substring(paren);
+            body = message.substring(0, paren);
+        }
+        return extractQuotedLiteral(body) + "|" + hint;
+    }
+
+    private static String extractQuotedLiteral(String s) {
+        Matcher guillemet = Pattern.compile("«([^»]*)»").matcher(s);
+        if (guillemet.find()) {
+            return guillemet.group(1);
+        }
+        Matcher apostrophe = Pattern.compile("'([^']*)'").matcher(s);
+        if (apostrophe.find()) {
+            return apostrophe.group(1);
+        }
+        return s.trim();
+    }
+
+    private static int messageQualityScore(String msg) {
+        if (msg == null || msg.isEmpty()) {
+            return -1;
+        }
+        int score = 0;
+        if (msg.contains("The value") || msg.contains(" of element ") || msg.contains(" is not ")) {
+            score -= 200;
+        }
+        if (msg.contains("не является допустимой датой")) {
+            score += 80;
+        }
+        if (msg.contains("недопустимо")) {
+            score += 20;
+        }
+        for (int i = 0; i < msg.length(); i++) {
+            if (Character.UnicodeBlock.of(msg.charAt(i)) == Character.UnicodeBlock.CYRILLIC) {
+                score++;
+            }
+        }
+        return score;
     }
 
     /**
@@ -605,11 +730,19 @@ public final class XsdMessageHumanizer {
             return t;
         }
         String r = t;
-        // The value '…' of блок «…» is not valid.
+        // The value '…' of блок «…» is not valid. (в т.ч. вложенные «» в подписи поля)
         r = replaceAllQuoted(
                 r,
-                Pattern.compile("The value '([^']*)' of (блок «[^»]+»)\\s+is\\s+not\\s+valid\\.?", Pattern.CASE_INSENSITIVE | Pattern.DOTALL),
-                (m) -> "Недопустимое значение «" + m.group(1) + "» в " + m.group(2) + ".");
+                Pattern.compile(
+                        "The value '([^']*)' of (блок «(?:[^»]|«[^»]*»)*»)\\s+is\\s+not\\s+valid\\.?",
+                        Pattern.CASE_INSENSITIVE | Pattern.DOTALL),
+                (m) -> {
+                    String block = m.group(2);
+                    if (looksLikeInvalidDateLiteral(m.group(1))) {
+                        return humanizeSimpleTypeValueMessage(m.group(1), "date");
+                    }
+                    return "Недопустимое значение «" + m.group(1) + "» в " + block + ".";
+                });
         // '…' is not a valid value for 'date'. (после снятия префикса cvc-datatype-valid)
         r = replaceAllQuoted(
                 r,

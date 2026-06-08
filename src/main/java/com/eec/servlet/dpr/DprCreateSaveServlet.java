@@ -15,13 +15,16 @@ import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
+import java.nio.charset.StandardCharsets;
+import java.util.Base64;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 /**
  * Первое сохранение черновика DPR (ответ на входящую PPV) в одной транзакции: DPR, DPRXML, DPRSTATUSHIST.
  * POST /api/dpr/create-save
- * Тело JSON: {@code guid}, {@code ppvid}; опционально {@code authorityId}, {@code authorityName}, {@code authorityBriefName}, {@code descriptionText}.
+ * Тело JSON: {@code guid}, {@code ppvid}; опционально {@code dprXmlB64} (полный XML UTF-8 в Base64),
+ * иначе минимальный черновик по {@code authorityId}, {@code authorityName}, {@code authorityBriefName}, {@code descriptionText}.
  */
 public class DprCreateSaveServlet extends HttpServlet {
 
@@ -70,6 +73,7 @@ public class DprCreateSaveServlet extends HttpServlet {
             return;
         }
 
+        String dprXmlB64 = jsonStringField(body, "dprXmlB64");
         String authorityId = jsonStringField(body, "authorityId");
         String authorityName = jsonStringField(body, "authorityName");
         String authorityBriefName = jsonStringField(body, "authorityBriefName");
@@ -100,16 +104,31 @@ public class DprCreateSaveServlet extends HttpServlet {
                 dprId = rs.getLong("N");
             }
 
-            String xml = DprDraftXmlBuilder.buildDraftXml(
-                    gate.incidentId,
-                    gate.alertCountryCode,
-                    gate.incidentKindCode,
-                    gate.docCreationDate,
-                    authorityId,
-                    authorityName,
-                    authorityBriefName,
-                    descriptionText
-            );
+            String xml;
+            if (dprXmlB64 != null && !dprXmlB64.trim().isEmpty()) {
+                try {
+                    xml = new String(Base64.getDecoder().decode(dprXmlB64.trim()), StandardCharsets.UTF_8);
+                } catch (IllegalArgumentException e) {
+                    sendErr(response, HttpServletResponse.SC_BAD_REQUEST, "Некорректный Base64 в dprXmlB64");
+                    return;
+                }
+                if (xml.trim().isEmpty() || !xml.contains("DangerousProductAlertResponseDetails")) {
+                    sendErr(response, HttpServletResponse.SC_BAD_REQUEST,
+                            "В dprXmlB64 ожидается полный XML документа DPR (корень DangerousProductAlertResponseDetails)");
+                    return;
+                }
+            } else {
+                xml = DprDraftXmlBuilder.buildDraftXml(
+                        gate.incidentId,
+                        gate.alertCountryCode,
+                        gate.incidentKindCode,
+                        gate.docCreationDate,
+                        authorityId,
+                        authorityName,
+                        authorityBriefName,
+                        descriptionText
+                );
+            }
 
             conn.setAutoCommit(false);
             try {

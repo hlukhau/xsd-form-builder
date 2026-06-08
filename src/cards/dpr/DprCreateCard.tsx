@@ -1,14 +1,19 @@
 import { useCallback, useEffect, useState, type CSSProperties } from 'react'
 import { Typography, Tabs, Descriptions, Button, Input, Space, message } from 'antd'
-import type { DprPrepareContext } from '@/types/dprCard'
+import type { DprPrepareContext, DprResultDocRow } from '@/types/dprCard'
+import type { MeasuresData } from '@/types/card'
 import {
   getIncidentAlertKindNameByCode,
   postDprCreateSave,
   fetchRightsByGuid,
-  getOutgoingAuthorityFilterDepIdsFromRights,
+  getDprAuthorityFilterDepIdsFromRights,
 } from '@/utils/referenceDataApi'
 import { useCountryOptions } from '@/hooks/shared/useCountryOptions'
 import { DprNotifyingAuthorityEdit } from '@/cards/dpr/DprNotifyingAuthorityEdit'
+import { DprResultDocumentsEdit } from '@/cards/dpr/DprResultDocumentsEdit'
+import MeasuresTabEdit from '@/components/tabs/dpa/MeasuresTabEdit'
+import { exportDprParsedBundleToXml } from '@/utils/xmlExporter'
+import { buildDprCreateBundle } from '@/cards/dpr/dprCreateBundle'
 
 const { Text } = Typography
 
@@ -41,6 +46,10 @@ function formatDateRu(iso: string | null | undefined): string {
   return `${d}.${m}.${y}`
 }
 
+function utf8ToBase64(s: string): string {
+  return btoa(unescape(encodeURIComponent(s)))
+}
+
 export interface DprCreateCardProps {
   eligibility: DprPrepareContext
   ppvid: string
@@ -58,6 +67,8 @@ export function DprCreateCard({ eligibility, ppvid, guid }: DprCreateCardProps) 
   })
   const [authorityFilterDepIds, setAuthorityFilterDepIds] = useState<string[] | null>(null)
   const [descriptionText, setDescriptionText] = useState('')
+  const [measuresEdit, setMeasuresEdit] = useState<MeasuresData>({ measures: [] })
+  const [documentsEdit, setDocumentsEdit] = useState<DprResultDocRow[]>([])
   const [incidentKindLabel, setIncidentKindLabel] = useState<string>('')
 
   const rc = eligibility.responseCountryCode ?? 'BY'
@@ -66,6 +77,10 @@ export function DprCreateCard({ eligibility, ppvid, guid }: DprCreateCardProps) 
 
   const ac = eligibility.alertCountryCode ?? ''
   const alertCountryDisplay = ac ? `${ac} — ${countryLabel(ac) || ac}` : '—'
+
+  useEffect(() => {
+    setAuthEdit((prev) => ({ ...prev, country: rc || prev.country || 'BY' }))
+  }, [rc])
 
   useEffect(() => {
     const code = eligibility.incidentKindCode?.trim()
@@ -96,7 +111,7 @@ export function DprCreateCard({ eligibility, ppvid, guid }: DprCreateCardProps) 
     fetchRightsByGuid(guid.trim())
       .then((rights) => {
         if (!cancelled) {
-          setAuthorityFilterDepIds(getOutgoingAuthorityFilterDepIdsFromRights(rights, true))
+          setAuthorityFilterDepIds(getDprAuthorityFilterDepIdsFromRights(rights))
         }
       })
       .catch(() => {
@@ -115,9 +130,19 @@ export function DprCreateCard({ eligibility, ppvid, guid }: DprCreateCardProps) 
   const handleSave = useCallback(async () => {
     setSaving(true)
     try {
+      const bundle = buildDprCreateBundle(
+        eligibility,
+        authEdit,
+        descriptionText,
+        measuresEdit,
+        documentsEdit
+      )
+      const xml = exportDprParsedBundleToXml(bundle)
       const { dprid } = await postDprCreateSave({
         guid: guid.trim(),
         ppvid,
+        dprXmlB64: utf8ToBase64(xml),
+        authorityId: authEdit.authorityUid?.trim() || undefined,
         authorityName: authEdit.name.trim() || undefined,
         authorityBriefName: authEdit.shortName.trim() || undefined,
         descriptionText: descriptionText.trim() || undefined,
@@ -130,7 +155,7 @@ export function DprCreateCard({ eligibility, ppvid, guid }: DprCreateCardProps) 
     } finally {
       setSaving(false)
     }
-  }, [guid, ppvid, authEdit.name, authEdit.shortName, descriptionText])
+  }, [guid, ppvid, eligibility, authEdit, descriptionText, measuresEdit, documentsEdit])
 
   const draftName = eligibility.draftDprStatusName ?? 'Черновик'
 
@@ -165,92 +190,88 @@ export function DprCreateCard({ eligibility, ppvid, guid }: DprCreateCardProps) 
         </Descriptions>
         <div style={{ flexShrink: 0, marginTop: 2 }}>
           <Text type="secondary" style={{ fontSize: 12 }}>
-            Черновик: допускается неполный ввод. Обязательные реквизиты шапки и исходной карты подставляются из PPV и
-            справочников автоматически при сохранении.
+            Заполните уведомление, принятые меры и описание результатов. Реквизиты исходной карты PPV подставляются
+            автоматически при сохранении.
           </Text>
         </div>
 
         <div className="card-tabs-wrapper">
-        <Tabs
-          defaultActiveKey="notification"
-          items={[
-            {
-              key: 'notification',
-              label: 'Уведомление',
-              children: (
-                <div style={{ padding: 16 }}>
-                  <Typography.Title level={5}>Уполномоченный орган</Typography.Title>
-                  <Descriptions column={1} bordered size="small" style={{ marginBottom: 16 }}>
-                    <Descriptions.Item label="Страна">{responseCountryDisplay}</Descriptions.Item>
-                  </Descriptions>
-                  <Typography.Paragraph type="secondary" style={{ marginBottom: 8 }}>
-                    Уполномоченный орган выбирается из справочника (по правам пользователя). Наименования
-                    подставляются автоматически; в черновике поля можно оставить пустыми.
-                  </Typography.Paragraph>
-                  <DprNotifyingAuthorityEdit
-                    value={{
-                      country: authEdit.country || rc || 'BY',
-                      authorityUid: authEdit.authorityUid,
-                      name: authEdit.name,
-                      shortName: authEdit.shortName,
-                    }}
-                    onChange={(next) =>
-                      setAuthEdit({
-                        country: next.country,
-                        authorityUid: next.authorityUid,
-                        name: next.name,
-                        shortName: next.shortName,
-                      })
-                    }
-                    countryDisplay={responseCountryDisplay}
-                    isDraft
-                    allowedAuthorityIds={authorityFilterDepIds}
-                  />
-                  <Typography.Title level={5} style={{ marginTop: 24 }}>
-                    Исходная карта сведений о выявленных нарушениях
-                  </Typography.Title>
-                  <Descriptions column={1} bordered size="small">
-                    <Descriptions.Item label="Страна">{alertCountryDisplay}</Descriptions.Item>
-                    <Descriptions.Item label="Регистрационный номер">{dash(eligibility.incidentId)}</Descriptions.Item>
-                    <Descriptions.Item label="Вид уведомления">
-                      {incidentKindLabel || dash(eligibility.incidentKindCode)}
-                    </Descriptions.Item>
-                    <Descriptions.Item label="Дата формирования">
-                      {formatDateRu(eligibility.docCreationDate)}
-                    </Descriptions.Item>
-                  </Descriptions>
-                </div>
-              ),
-            },
-            {
-              key: 'measures',
-              label: 'Принятые меры',
-              children: (
-                <div style={{ padding: 16 }}>
-                  <Typography.Paragraph>
-                    В черновике блок «Принятые меры» в XML пока не заполняется (XSD требует расширенной структуры меры).
-                    Код языка для мер при полном заполнении будет <strong>ru</strong> (формируется автоматически).
-                  </Typography.Paragraph>
-                </div>
-              ),
-            },
-            {
-              key: 'results',
-              label: 'Описание результатов',
-              children: (
-                <div style={{ padding: 16 }}>
-                  <Typography.Title level={5}>Описание результатов рассмотрения</Typography.Title>
-                  <Input.TextArea
-                    value={descriptionText}
-                    onChange={(e) => setDescriptionText(e.target.value)}
-                    placeholder="Необязательно для черновика"
-                    autoSize={{ minRows: 4, maxRows: 18 }}
-                  />
-                </div>
-              ),
-            },
-          ]}
-        />
+          <Tabs
+            defaultActiveKey="notification"
+            items={[
+              {
+                key: 'notification',
+                label: 'Уведомление',
+                children: (
+                  <div style={{ padding: 16 }}>
+                    <Typography.Title level={5}>Уполномоченный орган</Typography.Title>
+                    <Descriptions column={1} bordered size="small" style={{ marginBottom: 16 }}>
+                      <Descriptions.Item label="Страна">{responseCountryDisplay}</Descriptions.Item>
+                    </Descriptions>
+                    <DprNotifyingAuthorityEdit
+                      value={{
+                        country: authEdit.country || rc || 'BY',
+                        authorityUid: authEdit.authorityUid,
+                        name: authEdit.name,
+                        shortName: authEdit.shortName,
+                      }}
+                      onChange={(next) =>
+                        setAuthEdit({
+                          country: next.country,
+                          authorityUid: next.authorityUid,
+                          name: next.name,
+                          shortName: next.shortName,
+                        })
+                      }
+                      countryDisplay={responseCountryDisplay}
+                      isDraft
+                      allowedAuthorityIds={authorityFilterDepIds}
+                    />
+                    <Typography.Title level={5} style={{ marginTop: 24 }}>
+                      Исходная карта сведений о выявленных нарушениях
+                    </Typography.Title>
+                    <Descriptions column={1} bordered size="small">
+                      <Descriptions.Item label="Страна">{alertCountryDisplay}</Descriptions.Item>
+                      <Descriptions.Item label="Регистрационный номер">{dash(eligibility.incidentId)}</Descriptions.Item>
+                      <Descriptions.Item label="Вид уведомления">
+                        {incidentKindLabel || dash(eligibility.incidentKindCode)}
+                      </Descriptions.Item>
+                      <Descriptions.Item label="Дата формирования">
+                        {formatDateRu(eligibility.docCreationDate)}
+                      </Descriptions.Item>
+                    </Descriptions>
+                  </div>
+                ),
+              },
+              {
+                key: 'measures',
+                label: 'Принятые меры',
+                children: (
+                  <div style={{ padding: 16 }}>
+                    <MeasuresTabEdit data={measuresEdit} onChange={setMeasuresEdit} />
+                  </div>
+                ),
+              },
+              {
+                key: 'results',
+                label: 'Описание результатов',
+                children: (
+                  <div style={{ padding: 16 }}>
+                    <Typography.Title level={5}>Описание результатов рассмотрения</Typography.Title>
+                    <Input.TextArea
+                      value={descriptionText}
+                      onChange={(e) => setDescriptionText(e.target.value)}
+                      placeholder="Текст описания результатов рассмотрения"
+                      autoSize={{ minRows: 4, maxRows: 18 }}
+                      style={{ marginBottom: 16 }}
+                    />
+                    <Typography.Title level={5}>Документы</Typography.Title>
+                    <DprResultDocumentsEdit documents={documentsEdit} onChange={setDocumentsEdit} />
+                  </div>
+                ),
+              },
+            ]}
+          />
         </div>
       </div>
     </div>

@@ -19,7 +19,7 @@ export interface DprNotifyingAuthorityEditProps {
   countryDisplay: string
   /** Выпадающий список УО доступен только в статусе «Черновик». */
   isDraft: boolean
-  /** DEPID из прав пользователя (violationDetectedOut и др.) — фильтр списка УО. */
+  /** DEPID из прав пользователя (violationDetectedIn:status и др.) — фильтр списка УО. */
   allowedAuthorityIds?: string[] | null
 }
 

@@ -211,10 +211,11 @@ public class XmlSchemaValidateServlet extends HttpServlet {
         for (int i = 0; i < errorMsgs.size(); i++) {
             int ln = errorLines.get(i);
             String h = XsdMessageHumanizer.humanizeFull(errorMsgs.get(i), ln, xml, docType);
-            if (!shouldSkipValidationMessage(h, -1, skipRanges) && !out.contains(h)) {
+            if (!shouldSkipValidationMessage(h, -1, skipRanges) && !h.isEmpty()) {
                 out.add(h);
             }
         }
+        out = XsdMessageHumanizer.deduplicateHumanizedMessages(out);
         response.setStatus(HttpServletResponse.SC_OK);
         response.setContentType("application/json;charset=UTF-8");
         writeJsonErrors(response.getWriter(), out);
