@@ -18,6 +18,8 @@ export interface FieldConstraint {
   fractionDigits?: number
   /** Сообщение об ошибке при превышении maxLength. */
   messageMaxLength?: string
+  /** Сообщение об ошибке при недостаточной minLength. */
+  messageMinLength?: string
   /** Сообщение об ошибке при несоответствии pattern. */
   messagePattern?: string
   /** Подсказка формата: показывается при ошибке и опционально под полем (например: «Формат: 2, 4, 6 или 8–10 цифр»). */
@@ -48,6 +50,13 @@ export const XSD_FIELD_CONSTRAINTS: Record<string, FieldConstraint> = {
     messageMaxLength: 'Не более 300 символов (csdo:Name300Type, smsdo:SanitaryProductTypeName)',
   },
   description: { maxLength: 4000, messageMaxLength: 'Не более 4000 символов (csdo:Text4000Type)' },
+  /** DPR: корневой csdo:DescriptionText (необязателен в черновике; при заполнении — от 1 до 4000 символов). */
+  dprResultDescription: {
+    minLength: 1,
+    maxLength: 4000,
+    messageMaxLength: 'Не более 4000 символов (csdo:Text4000Type)',
+    messageMinLength: 'Не менее 1 символа (csdo:Text4000Type)',
+  },
   commodityCode: {
     pattern: COMMODITY_CODE_PATTERN,
     messagePattern: 'Код ТН ВЭД ЕАЭС: укажите 2, 4, 6 или 8–10 цифр',
@@ -286,13 +295,16 @@ export function validateFieldValue(fieldKey: string, value: string | undefined):
   if (value == null || value === '') return null
   const c = XSD_FIELD_CONSTRAINTS[fieldKey]
   if (!c) return null
+  if (c.maxLength != null && value.length > c.maxLength) {
+    return c.messageMaxLength ?? `Не более ${c.maxLength} символов`
+  }
   const trimmed = value.trim()
+  if (c.minLength != null && value.length > 0 && trimmed.length < c.minLength) {
+    return c.messageMinLength ?? `Не менее ${c.minLength} символов`
+  }
   if (trimmed === '') return null
   if (trimmed.includes(',') && (NUMERIC_DECIMAL_FIELD_KEYS.has(fieldKey) || c.fractionDigits != null)) {
     return DECIMAL_SEPARATOR_COMMA_MESSAGE
-  }
-  if (c.maxLength != null && value.length > c.maxLength) {
-    return c.messageMaxLength ?? `Не более ${c.maxLength} символов`
   }
   if (c.pattern && !c.pattern.test(value)) {
     return c.messagePattern ?? 'Неверный формат'

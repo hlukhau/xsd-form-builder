@@ -73,7 +73,6 @@ export function DprResultDocumentsEdit({ documents, onChange }: DprResultDocumen
         getMediaTypeSelectOptions={getMediaTypeSelectOptions}
         getMediaTypeNameByCode={getMediaTypeNameByCode}
         getMediaTypeCodeByName={getMediaTypeCodeByName}
-        showAuthorityId
         hideInternalRemove
       />
     ),

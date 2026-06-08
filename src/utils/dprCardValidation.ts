@@ -83,9 +83,9 @@ export function collectDprFormatValidationErrors(parsed: DprParsedBundle): strin
     pushFormatError(errors, 'Уполномоченный орган → Идентификатор', 'authorityId', auth?.identifier)
   }
 
-  const desc = parsed.resultDescription?.trim()
-  if (desc) {
-    pushFormatError(errors, 'Описание результатов', 'description', desc)
+  const rawDesc = parsed.resultDescription ?? ''
+  if (rawDesc.length > 0) {
+    pushFormatError(errors, 'Описание результатов', 'dprResultDescription', rawDesc)
   }
 
   ;(parsed.resultDocuments ?? []).forEach((row, i) => {

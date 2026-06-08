@@ -43,6 +43,7 @@ import {
 } from '@/utils/dprCardValidation'
 import { compareDprResponseXml, exportDprParsedBundleToXml } from '@/utils/xmlExporter'
 import { DprResultDocumentsEdit } from '@/cards/dpr/DprResultDocumentsEdit'
+import { DprResultDescriptionField } from '@/cards/dpr/DprResultDescriptionField'
 import { DprNotifyingAuthorityEdit } from '@/cards/dpr/DprNotifyingAuthorityEdit'
 import { getDprAuthorityFilterDepIdsFromRights } from '@/utils/referenceDataApi'
 
@@ -749,7 +750,6 @@ export function DprCard({ dprid, guid, meta, parsed, onDataRefresh }: DprCardPro
             <Descriptions.Item label="Срок действия. Начало">{formatDateOnly(row.docStartDate)}</Descriptions.Item>
             <Descriptions.Item label="Срок действия. Окончание">{formatDateOnly(row.docValidityDate)}</Descriptions.Item>
             <Descriptions.Item label="Срок действия">{dash(row.docValidityDuration)}</Descriptions.Item>
-            <Descriptions.Item label="Уполномоченный орган. Идентификатор">{dash(row.authorityId)}</Descriptions.Item>
             <Descriptions.Item label="Уполномоченный орган. Наименование">{dash(row.authorityName)}</Descriptions.Item>
             <Descriptions.Item label="Описание">{dash(row.descriptionText)}</Descriptions.Item>
             <Descriptions.Item label="Количество листов">{dash(row.pageQuantity)}</Descriptions.Item>
@@ -1009,15 +1009,10 @@ export function DprCard({ dprid, guid, meta, parsed, onDataRefresh }: DprCardPro
                 label: 'Описание результатов',
                 children: (
                   <div style={{ padding: 16 }}>
-                    <Typography.Title level={5}>Описание результатов рассмотрения</Typography.Title>
-                    <Input.TextArea
-                      readOnly={!isEditMode}
-                      disabled={!isEditMode}
+                    <DprResultDescriptionField
                       value={isEditMode ? descText : parsed.resultDescription ?? ''}
-                      onChange={isEditMode ? (e) => setDescText(e.target.value) : undefined}
-                      placeholder="—"
-                      autoSize={{ minRows: 3, maxRows: 16 }}
-                      style={{ marginBottom: 16 }}
+                      onChange={isEditMode ? setDescText : undefined}
+                      readOnly={!isEditMode}
                     />
                     <Typography.Title level={5}>Документы</Typography.Title>
                     {isEditMode ? (

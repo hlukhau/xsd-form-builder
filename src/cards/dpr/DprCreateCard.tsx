@@ -14,6 +14,7 @@ import { useCountryOptions } from '@/hooks/shared/useCountryOptions'
 import { CardActions } from '@/cards/shared'
 import { DprNotifyingAuthorityEdit } from '@/cards/dpr/DprNotifyingAuthorityEdit'
 import { DprResultDocumentsEdit } from '@/cards/dpr/DprResultDocumentsEdit'
+import { DprResultDescriptionField } from '@/cards/dpr/DprResultDescriptionField'
 import MeasuresTabEdit from '@/components/tabs/dpa/MeasuresTabEdit'
 import { exportDprParsedBundleToXml } from '@/utils/xmlExporter'
 import { buildDprCreateBundle } from '@/cards/dpr/dprCreateBundle'
@@ -348,14 +349,7 @@ export function DprCreateCard({ eligibility, ppvid, guid }: DprCreateCardProps) 
                 label: 'Описание результатов',
                 children: (
                   <div style={{ padding: 16 }}>
-                    <Typography.Title level={5}>Описание результатов рассмотрения</Typography.Title>
-                    <Input.TextArea
-                      value={descriptionText}
-                      onChange={(e) => setDescriptionText(e.target.value)}
-                      placeholder="Текст описания результатов рассмотрения"
-                      autoSize={{ minRows: 4, maxRows: 18 }}
-                      style={{ marginBottom: 16 }}
-                    />
+                    <DprResultDescriptionField value={descriptionText} onChange={setDescriptionText} />
                     <Typography.Title level={5}>Документы</Typography.Title>
                     <DprResultDocumentsEdit documents={documentsEdit} onChange={setDocumentsEdit} />
                   </div>
