@@ -24,7 +24,7 @@ import type {
 } from '@/types/card'
 import { mergeComplianceDocumentsFromBatches } from '@/utils/xmlParser'
 import { getAddressListFromParty, getAddressListFromSubject } from '@/utils/addressFormatUtils'
-import { validateFieldValue } from '@/constants/xsdFieldConstraints'
+import { getFormatHint, validateFieldValue } from '@/constants/xsdFieldConstraints'
 import { exportCardDataToXML, hasMeasureImplementationEntryContent } from '@/utils/xmlExporter'
 import { fetchSchemaValidationErrors } from '@/utils/schemaValidationApi'
 import { isPpvApp } from '@/cards/config'
@@ -334,6 +334,16 @@ function appendOutgoingMeasuresLikeDpaValidation(
     const impls = m?.measureImplementationDetails ?? []
     for (let ii = 0; ii < impls.length; ii++) {
       const impl = impls[ii]
+      const place = impl?.placeDetails
+      if (place) {
+        const hasCheckpointCode = (place.borderCheckpointCode ?? '').trim() !== ''
+        const hasCheckpointName = (place.borderCheckpointName ?? '').trim() !== ''
+        if (hasCheckpointCode !== hasCheckpointName) {
+          add(
+            'В блоке «Место проведения мероприятия» должны быть указаны оба атрибута: код вида пункта пропуска и наименование пункта пропуска (или оба пусты).'
+          )
+        }
+      }
       const subjects = getSubjects(impl)
       for (let si = 0; si < subjects.length; si++) {
         const subj = subjects[si]
@@ -825,8 +835,14 @@ function getFieldLabel(fieldKey: string): string {
 }
 
 function pushFormatError(errors: string[], path: string, fieldKey: string, value: string | undefined): void {
-  const msg = validateFieldValue(fieldKey, value ?? '')
+  let msg = validateFieldValue(fieldKey, value ?? '')
   if (!msg) return
+  if (fieldKey === 'postCode') {
+    const hint = getFormatHint('postCode')
+    if (hint && !msg.includes(hint)) {
+      msg = `${msg} (${hint})`
+    }
+  }
   // Не дублировать название поля: если путь уже заканчивается им (например «→ Почтовый индекс»), убрать его из начала сообщения
   const lastSegment = path.split(' → ').pop()?.trim() ?? ''
   const prefix = lastSegment ? `${lastSegment}: ` : ''
@@ -976,6 +992,90 @@ function phaSpreadingZonesList(data: CardData): DetectionPlaceData[] {
   return []
 }
 
+const MEASURE_PLACE_CHECKPOINT_PAIRING_HINT =
+  'Укажите оба атрибута: код вида пункта пропуска и наименование пункта пропуска (или оставьте оба пустыми).'
+
+function getMeasureImplementationSubjects(impl: MeasureImplementationItem): SubjectDetails[] {
+  if (impl.subjectDetailsList && impl.subjectDetailsList.length > 0) return impl.subjectDetailsList
+  return impl.subjectDetails ? [impl.subjectDetails] : []
+}
+
+/** Форматные проверки раздела «Принятые меры» (адрес субъекта-исполнителя, пункт пропуска места мероприятия и т.д.). */
+function pushMeasuresFormatErrors(errors: string[], measures: MeasuresData | null | undefined): void {
+  if (!measures?.measures?.length) return
+  measures.measures.forEach((m, mi) => {
+    const mPath = `Принятые меры → Мера ${mi + 1}`
+    pushFormatError(errors, `${mPath} → Наименование меры`, 'measureName', m.measureName)
+    pushFormatError(errors, `${mPath} → Обоснование`, 'measureJustification', m.measureJustificationText)
+    pushFormatError(errors, `${mPath} → Описание`, 'description', m.description)
+    if (m.measureDocDetails) {
+      pushFormatError(errors, `${mPath} → Документ меры → Наименование`, 'measureDocDetailsDocName', m.measureDocDetails.docName)
+      pushFormatError(errors, `${mPath} → Документ меры → Серия`, 'measureDocDetailsDocSeriesId', m.measureDocDetails.docSeriesId)
+      pushFormatError(errors, `${mPath} → Документ меры → Количество листов`, 'measureDocPageQuantity', m.measureDocDetails.pageQuantity)
+      pushFormatError(errors, `${mPath} → Документ меры → Номер`, 'docId', m.measureDocDetails.docId)
+    }
+    if (m.initialMeasureDocDetails) {
+      pushFormatError(
+        errors,
+        `${mPath} → Документ исходной меры → Наименование`,
+        'measureDocDetailsDocName',
+        m.initialMeasureDocDetails.docName,
+      )
+      pushFormatError(
+        errors,
+        `${mPath} → Документ исходной меры → Серия`,
+        'measureDocDetailsDocSeriesId',
+        m.initialMeasureDocDetails.docSeriesId,
+      )
+      pushFormatError(
+        errors,
+        `${mPath} → Документ исходной меры → Количество листов`,
+        'measureDocPageQuantity',
+        m.initialMeasureDocDetails.pageQuantity,
+      )
+    }
+    ;(m.measureInitiationBasisDetails ?? []).forEach((b, i) => {
+      pushFormatError(errors, `${mPath} → Основание ${i + 1} → Вид`, 'measureInitiationBasisDocKind', b.docKindName)
+      pushFormatError(errors, `${mPath} → Основание ${i + 1} → Наименование`, 'measureInitiationBasisDocName', b.docName)
+      pushFormatError(errors, `${mPath} → Основание ${i + 1} → Номер`, 'docId', b.docId)
+    })
+    ;(m.measureImplementationDetails ?? []).forEach((impl, ii) => {
+      const implPath = `${mPath} → Мероприятие ${ii + 1}`
+      const doc = impl.documentDetails
+      if (doc) {
+        pushFormatError(errors, `${implPath} → Наименование документа`, 'docName500', doc.docName)
+        pushFormatError(errors, `${implPath} → Номер`, 'docId', doc.docId)
+      }
+      const place = impl.placeDetails
+      if (place) {
+        const hasCheckpointCode = (place.borderCheckpointCode ?? '').trim() !== ''
+        const hasCheckpointName = (place.borderCheckpointName ?? '').trim() !== ''
+        if (hasCheckpointCode !== hasCheckpointName) {
+          errors.push(`${implPath} → Место проведения → Пункт пропуска: ${MEASURE_PLACE_CHECKPOINT_PAIRING_HINT}`)
+        }
+        pushFormatError(errors, `${implPath} → Место проведения → Пункт пропуска → Код`, 'checkpointCode', place.borderCheckpointCode)
+        pushFormatError(
+          errors,
+          `${implPath} → Место проведения → Пункт пропуска → Наименование`,
+          'checkpointName',
+          place.borderCheckpointName,
+        )
+        pushFormatError(errors, `${implPath} → Место проведения → Регион`, 'regionName', place.regionName)
+      }
+      const subjects = getMeasureImplementationSubjects(impl)
+      subjects.forEach((subj, si) => {
+        if (!subj) return
+        const subjPath =
+          subjects.length > 1 ? `${implPath} → Субъект-исполнитель ${si + 1}` : `${implPath} → Субъект-исполнитель`
+        const addrList = getMeasureExecutorSubjectAddressList(subj).filter((a) => measureExecutorAddressRowHasContent(a))
+        if (addrList.length > 0) {
+          checkAddressList(errors, `${subjPath} → Адрес`, addrList)
+        }
+      })
+    })
+  })
+}
+
 /**
  * Собирает все несоответствия данных формату (длина, шаблоны) по полям с валидацией XSD.
  * Используется перед сохранением: если список не пуст, сохранение блокируется.
@@ -1105,53 +1205,7 @@ export function collectFormatValidationErrors(data: CardData): FormatValidationE
 
   pushDetectionPlaceFormatErrors(errors, 'Место обнаружения', data.detectionPlace)
 
-  const measures: MeasuresData | undefined = data.measures
-  if (measures?.measures?.length) {
-    measures.measures.forEach((m, mi) => {
-      const mPath = `Принятые меры → Мера ${mi + 1}`
-      pushFormatError(errors, `${mPath} → Наименование меры`, 'measureName', m.measureName)
-      pushFormatError(errors, `${mPath} → Обоснование`, 'measureJustification', m.measureJustificationText)
-      pushFormatError(errors, `${mPath} → Описание`, 'description', m.description)
-      if (m.measureDocDetails) {
-        pushFormatError(errors, `${mPath} → Документ меры → Наименование`, 'measureDocDetailsDocName', m.measureDocDetails.docName)
-        pushFormatError(errors, `${mPath} → Документ меры → Серия`, 'measureDocDetailsDocSeriesId', m.measureDocDetails.docSeriesId)
-        pushFormatError(errors, `${mPath} → Документ меры → Количество листов`, 'measureDocPageQuantity', m.measureDocDetails.pageQuantity)
-        pushFormatError(errors, `${mPath} → Документ меры → Номер`, 'docId', m.measureDocDetails.docId)
-      }
-      if (m.initialMeasureDocDetails) {
-        pushFormatError(
-          errors,
-          `${mPath} → Документ исходной меры → Наименование`,
-          'measureDocDetailsDocName',
-          m.initialMeasureDocDetails.docName,
-        )
-        pushFormatError(
-          errors,
-          `${mPath} → Документ исходной меры → Серия`,
-          'measureDocDetailsDocSeriesId',
-          m.initialMeasureDocDetails.docSeriesId,
-        )
-        pushFormatError(
-          errors,
-          `${mPath} → Документ исходной меры → Количество листов`,
-          'measureDocPageQuantity',
-          m.initialMeasureDocDetails.pageQuantity,
-        )
-      }
-      ;(m.measureInitiationBasisDetails ?? []).forEach((b, i) => {
-        pushFormatError(errors, `${mPath} → Основание ${i + 1} → Вид`, 'measureInitiationBasisDocKind', b.docKindName)
-        pushFormatError(errors, `${mPath} → Основание ${i + 1} → Наименование`, 'measureInitiationBasisDocName', b.docName)
-        pushFormatError(errors, `${mPath} → Основание ${i + 1} → Номер`, 'docId', b.docId)
-      })
-      ;(m.measureImplementationDetails ?? []).forEach((impl, i) => {
-        const doc = impl.documentDetails
-        if (doc) {
-          pushFormatError(errors, `${mPath} → Реализация ${i + 1} → Наименование документа`, 'docName500', doc.docName)
-          pushFormatError(errors, `${mPath} → Реализация ${i + 1} → Номер`, 'docId', doc.docId)
-        }
-      })
-    })
-  }
+  pushMeasuresFormatErrors(errors, data.measures)
 
   pushPhaXsdFormatErrors(errors, data)
 

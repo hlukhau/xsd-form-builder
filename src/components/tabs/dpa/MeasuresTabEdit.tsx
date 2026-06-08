@@ -968,6 +968,12 @@ const MeasureImplementationDetailsEdit: React.FC<{
     useBorderCheckpointOptions()
   const authorities = item.authorities?.length ? item.authorities : (item.authority ? [item.authority] : [])
   const subjects = item.subjectDetailsList?.length ? item.subjectDetailsList : (item.subjectDetails ? [item.subjectDetails] : [])
+  const hasCheckpointCode = (item.placeDetails?.borderCheckpointCode ?? '').trim() !== ''
+  const hasCheckpointName = (item.placeDetails?.borderCheckpointName ?? '').trim() !== ''
+  const checkpointValidationError =
+    item.placeDetails && ((hasCheckpointCode && !hasCheckpointName) || (!hasCheckpointCode && hasCheckpointName))
+      ? 'Укажите оба атрибута: код вида пункта пропуска и наименование пункта пропуска (или оставьте оба пустыми).'
+      : undefined
 
   return (
     <div style={{ marginTop: '16px', padding: '12px', border: '1px solid #d9d9d9', borderRadius: '4px' }}>
@@ -1192,7 +1198,11 @@ const MeasureImplementationDetailsEdit: React.FC<{
                     showCount
                   />
                 </Form.Item>
-                <Form.Item label="Код вида пункта пропуска">
+                <Form.Item
+                  label="Код вида пункта пропуска"
+                  validateStatus={checkpointValidationError ? 'error' : undefined}
+                  help={checkpointValidationError}
+                >
                   <Select
                     showSearch
                     allowClear
@@ -1205,11 +1215,13 @@ const MeasureImplementationDetailsEdit: React.FC<{
                         onChange('placeDetails', {
                           ...item.placeDetails,
                           borderCheckpointCode: undefined,
+                          borderCheckpointName: undefined,
                         })
                       } else {
                         onChange('placeDetails', {
                           ...item.placeDetails,
                           borderCheckpointCode: code,
+                          borderCheckpointName: item.placeDetails?.borderCheckpointName ?? '',
                         })
                       }
                     }}
@@ -1219,7 +1231,11 @@ const MeasureImplementationDetailsEdit: React.FC<{
                     style={{ maxWidth: 520, width: '100%' }}
                   />
                 </Form.Item>
-                <Form.Item label="Наименование пункта пропуска">
+                <Form.Item
+                  label="Наименование пункта пропуска"
+                  validateStatus={checkpointValidationError ? 'error' : undefined}
+                  help={checkpointValidationError}
+                >
                   <Input
                     value={item.placeDetails.borderCheckpointName ?? ''}
                     onChange={(e) =>
