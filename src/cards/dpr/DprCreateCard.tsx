@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState, type CSSProperties } from 'react'
-import { Typography, Tabs, Descriptions, Button, Input, Space, message } from 'antd'
+import { Typography, Tabs, Descriptions, Button, Input, Space, message, Modal } from 'antd'
 import type { DprPrepareContext, DprResultDocRow } from '@/types/dprCard'
 import type { MeasuresData } from '@/types/card'
 import {
@@ -14,6 +14,10 @@ import { DprResultDocumentsEdit } from '@/cards/dpr/DprResultDocumentsEdit'
 import MeasuresTabEdit from '@/components/tabs/dpa/MeasuresTabEdit'
 import { exportDprParsedBundleToXml } from '@/utils/xmlExporter'
 import { buildDprCreateBundle } from '@/cards/dpr/dprCreateBundle'
+import {
+  collectDprFormatValidationErrors,
+  collectDprSaveLogicalErrors,
+} from '@/utils/dprCardValidation'
 
 const { Text } = Typography
 
@@ -137,6 +141,39 @@ export function DprCreateCard({ eligibility, ppvid, guid }: DprCreateCardProps) 
         measuresEdit,
         documentsEdit
       )
+      const formatErrors = collectDprFormatValidationErrors(bundle)
+      const logicalErrors = collectDprSaveLogicalErrors(bundle)
+      if (formatErrors.length > 0 || logicalErrors.length > 0) {
+        Modal.error({
+          title: 'Сохранение невозможно',
+          width: 640,
+          content: (
+            <div>
+              {formatErrors.length > 0 && (
+                <div style={{ marginBottom: 12 }}>
+                  <Typography.Text strong>Несоответствие данных формату</Typography.Text>
+                  <ul style={{ marginTop: 4, paddingLeft: 20 }}>
+                    {formatErrors.map((e) => (
+                      <li key={e}>{e}</li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+              {logicalErrors.length > 0 && (
+                <div>
+                  <Typography.Text strong>Логические замечания</Typography.Text>
+                  <ul style={{ marginTop: 4, paddingLeft: 20 }}>
+                    {logicalErrors.map((e) => (
+                      <li key={e}>{e}</li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+            </div>
+          ),
+        })
+        return
+      }
       const xml = exportDprParsedBundleToXml(bundle)
       const { dprid } = await postDprCreateSave({
         guid: guid.trim(),

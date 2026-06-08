@@ -12,7 +12,7 @@ import XMLComparisonModal, { type ComparisonResultShape } from '@/components/mod
 import { CardActions } from '@/cards/shared'
 import type { DprMetadataView, DprParsedBundle, DprResultDocRow } from '@/types/dprCard'
 import type { StatusHistoryItem } from '@/types/card'
-import { OUTGOING_MEASURE_START_DATE_REQUIRED_REMARK, type ValidationResult } from '@/utils/cardValidation'
+import type { ValidationResult } from '@/utils/cardValidation'
 import {
   fetchDprStatusHistory,
   getIncidentAlertKindNameByCode,
@@ -36,7 +36,11 @@ import { DATE_TIME_DISPLAY_FORMAT_DATEFNS } from '@/constants/dateFormat'
 import { postMessageFromCardToParent } from '@/utils/parentPostMessage'
 import { outgoingDprStatusButton, incomingDprCompleteProcessingButton } from '@/utils/dprStatusButtonConfig'
 import { visibleStatusButton, type StatusButtonResult } from '@/utils/statusButtonConfig'
-import { validateDprOutgoingCardFull } from '@/utils/dprCardValidation'
+import {
+  collectDprFormatValidationErrors,
+  collectDprSaveLogicalErrors,
+  validateDprOutgoingCardFull,
+} from '@/utils/dprCardValidation'
 import { compareDprResponseXml, exportDprParsedBundleToXml } from '@/utils/xmlExporter'
 import { DprResultDocumentsEdit } from '@/cards/dpr/DprResultDocumentsEdit'
 import { DprNotifyingAuthorityEdit } from '@/cards/dpr/DprNotifyingAuthorityEdit'
@@ -103,20 +107,6 @@ function readinessLevelForMarkReadyDialog(
   if (rightsDepKindId === 74) return 'республиканского уровня'
   const t = depKindName?.trim()
   return t || 'подразделения'
-}
-
-/** Разбивка результата валидации DPR для модалки «Проверка перед сохранением» (XSD отдельно от прочих разделов). */
-function splitDprValidationForModal(vr: ValidationResult): { format: string[]; logical: string[] } {
-  const format: string[] = []
-  const logical: string[] = []
-  for (const sec of vr.sections) {
-    const isXsd = sec.sectionName === 'Ошибки структуры (XSD)'
-    for (const r of sec.remarks) {
-      if (isXsd) format.push(r)
-      else logical.push(`${sec.sectionName}: ${r}`)
-    }
-  }
-  return { format, logical }
 }
 
 function dprValidationReportContent(vr: ValidationResult): ReactNode {
@@ -348,21 +338,15 @@ export function DprCard({ dprid, guid, meta, parsed, onDataRefresh }: DprCardPro
       }
       const fullXml = exportDprParsedBundleToXml(bundle)
       const originalXml = await fetchDprXml(dprid, g)
-      const vr = await validateDprOutgoingCardFull(bundle, fullXml)
-      const { format: fmt, logical: logRaw } = splitDprValidationForModal(vr)
-      const measureStartDateHints = logRaw.filter((line) =>
-        line.includes(OUTGOING_MEASURE_START_DATE_REQUIRED_REMARK)
-      )
-      const log = logRaw.filter((line) => !line.includes(OUTGOING_MEASURE_START_DATE_REQUIRED_REMARK))
       const cmp = compareDprResponseXml(originalXml, fullXml)
       setComparisonResult({
         isIdentical: cmp.isIdentical,
         differences: cmp.differences,
-        warnings: [...cmp.warnings, ...measureStartDateHints],
+        warnings: cmp.warnings,
         added: [],
       })
-      setComparisonFormatErrors(fmt)
-      setComparisonLogicalErrors(log)
+      setComparisonFormatErrors(collectDprFormatValidationErrors(bundle))
+      setComparisonLogicalErrors(collectDprSaveLogicalErrors(bundle))
       setPendingDprXmlB64(utf8ToBase64(fullXml))
       setComparisonModalVisible(true)
     } catch (e) {
@@ -383,6 +367,10 @@ export function DprCard({ dprid, guid, meta, parsed, onDataRefresh }: DprCardPro
   const handleSaveToDbFromModal = useCallback(async () => {
     const g = guid?.trim()
     if (!g || !pendingDprXmlB64) return
+    if (comparisonFormatErrors.length > 0 || comparisonLogicalErrors.length > 0) {
+      message.error('Сохранение невозможно: исправьте замечания в окне проверки.')
+      return
+    }
     setSaving(true)
     try {
       await postDprSave({
@@ -403,7 +391,7 @@ export function DprCard({ dprid, guid, meta, parsed, onDataRefresh }: DprCardPro
     } finally {
       setSaving(false)
     }
-  }, [guid, dprid, pendingDprXmlB64, onDataRefresh])
+  }, [guid, dprid, pendingDprXmlB64, onDataRefresh, comparisonFormatErrors, comparisonLogicalErrors])
 
   const runForcedCardValidation = useCallback(async () => {
     const g = guid?.trim()
@@ -413,7 +401,7 @@ export function DprCard({ dprid, guid, meta, parsed, onDataRefresh }: DprCardPro
     }
     setValidateLoading(true)
     try {
-      const xml = await fetchDprXml(dprid, g)
+      const xml = exportDprParsedBundleToXml(parsedForValidation)
       const vr = await validateDprOutgoingCardFull(parsedForValidation, xml)
       if (!vr.success) {
         Modal.info({
@@ -481,24 +469,6 @@ export function DprCard({ dprid, guid, meta, parsed, onDataRefresh }: DprCardPro
           onOk: async () => {
             setStatusActionLoading(true)
             try {
-              const xml = await fetchDprXml(dprid, g)
-              const vr = await validateDprOutgoingCardFull(parsed, xml)
-              if (!vr.success) {
-                Modal.error({
-                  title: 'Отметка о готовности недоступна',
-                  width: 640,
-                  content: (
-                    <div>
-                      <Typography.Paragraph style={{ marginBottom: 8 }}>
-                        Заполните обязательные поля карты, в том числе наименование уполномоченного органа
-                        (csdo:AuthorityName), и повторите попытку.
-                      </Typography.Paragraph>
-                      {dprValidationReportContent(vr)}
-                    </div>
-                  ),
-                })
-                return
-              }
               const res = await changeDprStatus(dprid, 'mark_ready', { guid: g })
               message.success(res.newStatus ? `Статус: ${res.newStatus}` : 'Выполнено')
               await onDataRefresh?.()
@@ -523,7 +493,7 @@ export function DprCard({ dprid, guid, meta, parsed, onDataRefresh }: DprCardPro
           onOk: async () => {
             setStatusActionLoading(true)
             try {
-              const xml = await fetchDprXml(dprid, g)
+              const xml = exportDprParsedBundleToXml(parsedForValidation)
               const vr = await validateDprOutgoingCardFull(parsedForValidation, xml)
               if (!vr.success) {
                 Modal.error({

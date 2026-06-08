@@ -1,23 +1,133 @@
 /**
- * Валидация исходящей карты DPR: форматно-логические контроли (в т.ч. «Принятые меры» как у DPA), затем XSD
- * EEC_R_SM_SS_08_DangerousProductAlertResponse (на сервере блок EDocHeader исключается из отчёта).
+ * Валидация исходящей карты DPR.
+ * Перед сохранением: только несоответствия формата заполненных полей и логика SES2025-314 (идентификатор ↔ метод).
+ * «Валидация карты» и направление в ОП 57: форматно-логический контроль → несоответствие формату → XSD.
  */
 import type { DprParsedBundle } from '@/types/dprCard'
+import type { CardData, MeasureImplementationItem, MeasuresData, SubjectDetails } from '@/types/card'
 import type { ValidationResult } from '@/utils/cardValidation'
-import { validateOutgoingMeasuresLikeDpa } from '@/utils/cardValidation'
+import { collectFormatValidationErrors, validateOutgoingMeasuresLikeDpa } from '@/utils/cardValidation'
+import { validateFieldValue } from '@/constants/xsdFieldConstraints'
 import { fetchSchemaValidationErrors } from '@/utils/schemaValidationApi'
 
 function empty(s: string | null | undefined): boolean {
   return s == null || String(s).trim() === ''
 }
 
-/** Форматно-логические контроли по разделам (без XSD). */
+function pushFormatError(errors: string[], path: string, fieldKey: string, value: string | undefined): void {
+  const msg = validateFieldValue(fieldKey, value ?? '')
+  if (!msg) return
+  const lastSegment = path.split(' → ').pop()?.trim() ?? ''
+  const prefix = lastSegment ? `${lastSegment}: ` : ''
+  const displayMsg = prefix && msg.startsWith(prefix) ? msg.slice(prefix.length) : msg
+  errors.push(path ? `${path}: ${displayMsg}` : displayMsg)
+}
+
+function getMeasureImplementationSubjects(impl: MeasureImplementationItem): SubjectDetails[] {
+  if (impl.subjectDetailsList && impl.subjectDetailsList.length > 0) {
+    return impl.subjectDetailsList
+  }
+  return impl.subjectDetails ? [impl.subjectDetails] : []
+}
+
+/**
+ * SES2025-314: идентификатор субъекта и метод идентификации заполняются одновременно или оба отсутствуют.
+ */
+export function collectDprSubjectIdentifierPairingErrors(measures: MeasuresData | null | undefined): string[] {
+  const errors: string[] = []
+  const measuresList = measures?.measures ?? []
+  for (let mi = 0; mi < measuresList.length; mi++) {
+    const impls = measuresList[mi]?.measureImplementationDetails ?? []
+    for (let ii = 0; ii < impls.length; ii++) {
+      const subjects = getMeasureImplementationSubjects(impls[ii])
+      for (let si = 0; si < subjects.length; si++) {
+        const entity = subjects[si]?.businessEntity
+        if (!entity) continue
+        const id = (entity.businessEntityId ?? '').trim()
+        const method = (entity.identificationMethod ?? '').trim()
+        if (!id && !method) continue
+        const scope =
+          subjects.length > 1
+            ? `Принятые меры → Мера ${mi + 1} → Реализация ${ii + 1} → Субъект ${si + 1}`
+            : `Принятые меры → Мера ${mi + 1} → Реализация ${ii + 1} → Субъект-исполнитель`
+        if (id && !method) {
+          errors.push(`${scope}: если указан идентификатор субъекта, должен быть указан метод идентификации`)
+        }
+        if (method && !id) {
+          errors.push(`${scope}: если указан метод идентификации, должен быть указан идентификатор субъекта`)
+        }
+      }
+    }
+  }
+  return errors
+}
+
+/** Перед сохранением в БД: только логика SES2025-314 (без прочих обязательных полей «Валидация карты»). */
+export function collectDprSaveLogicalErrors(parsed: DprParsedBundle): string[] {
+  return collectDprSubjectIdentifierPairingErrors(parsed.measures)
+}
+
+/**
+ * Перед сохранением в БД: несоответствия типов, длины и шаблонов XSD для заполненных полей.
+ */
+export function collectDprFormatValidationErrors(parsed: DprParsedBundle): string[] {
+  const errors: string[] = []
+
+  const measuresOnly = collectFormatValidationErrors({ measures: parsed.measures } as CardData).errors
+  errors.push(...measuresOnly)
+
+  const auth = parsed.notifyingAuthority
+  pushFormatError(errors, 'Уполномоченный орган → Наименование', 'authorityName', auth?.name)
+  pushFormatError(errors, 'Уполномоченный орган → Краткое наименование', 'authorityBriefName', auth?.shortName)
+  if ((auth?.identifier ?? '').trim()) {
+    pushFormatError(errors, 'Уполномоченный орган → Идентификатор', 'authorityId', auth?.identifier)
+  }
+
+  const desc = parsed.resultDescription?.trim()
+  if (desc) {
+    pushFormatError(errors, 'Описание результатов', 'description', desc)
+  }
+
+  ;(parsed.resultDocuments ?? []).forEach((row, i) => {
+    const p = `Документы с описанием результатов → Документ ${i + 1}`
+    pushFormatError(errors, `${p} → Наименование`, 'docName', row.docName)
+    pushFormatError(errors, `${p} → Номер`, 'docId', row.docId)
+    pushFormatError(errors, `${p} → Серия`, 'measureDocDetailsDocSeriesId', row.docSeriesId)
+    pushFormatError(errors, `${p} → Количество листов`, 'measureDocPageQuantity', row.pageQuantity)
+    pushFormatError(errors, `${p} → Описание`, 'description', row.descriptionText)
+    if ((row.authorityName ?? '').trim()) {
+      pushFormatError(errors, `${p} → Наименование органа`, 'authorityName', row.authorityName)
+    }
+    if ((row.authorityId ?? '').trim()) {
+      pushFormatError(errors, `${p} → Идентификатор органа`, 'authorityId', row.authorityId)
+    }
+  })
+
+  const seen = new Set<string>()
+  return errors.filter((e) => {
+    if (seen.has(e)) return false
+    seen.add(e)
+    return true
+  })
+}
+
+/** Форматно-логические контроли по разделам (без XSD). Используется в «Валидация карты» и перед направлением в ОП 57. */
 export function validateDprFormatLogical(parsed: DprParsedBundle): ValidationResult {
   const sections: { sectionName: string; remarks: string[] }[] = []
 
   const measuresRes = validateOutgoingMeasuresLikeDpa(parsed.measures)
   if (!measuresRes.success) {
     sections.push(...measuresRes.sections)
+  }
+
+  const pairing = collectDprSubjectIdentifierPairingErrors(parsed.measures)
+  if (pairing.length > 0) {
+    const measuresSection = sections.find((s) => s.sectionName === 'Принятые меры')
+    if (measuresSection) {
+      measuresSection.remarks.push(...pairing)
+    } else {
+      sections.push({ sectionName: 'Принятые меры', remarks: pairing })
+    }
   }
 
   const auth = parsed.notifyingAuthority
@@ -69,13 +179,23 @@ export function validateDprFormatLogical(parsed: DprParsedBundle): ValidationRes
 }
 
 /**
- * Полная проверка: сначала форматно-логический контроль, при успехе — структурный (XSD), раздел «Ошибки структуры (XSD)».
+ * Полная проверка («Валидация карты», направление в ОП 57):
+ * форматно-логический → несоответствие формату → структурный (XSD).
  */
 export async function validateDprOutgoingCardFull(parsed: DprParsedBundle, xml: string): Promise<ValidationResult> {
   const logical = validateDprFormatLogical(parsed)
   if (!logical.success) {
     return logical
   }
+
+  const formatErrors = collectDprFormatValidationErrors(parsed)
+  if (formatErrors.length > 0) {
+    return {
+      success: false,
+      sections: [{ sectionName: 'Несоответствие данных формату', remarks: formatErrors }],
+    }
+  }
+
   let xsdRemarks: string[] = []
   try {
     xsdRemarks = await fetchSchemaValidationErrors(xml, 'dpr')

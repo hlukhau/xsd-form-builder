@@ -37,6 +37,14 @@ function findFirstChildByLocalName(parent: Element, localName: string): Element 
   return null
 }
 
+/** Текст только у прямого потомка (не у вложенных мер/документов). */
+function getDirectChildText(parent: Element, localName: string): string | null {
+  const child = findFirstChildByLocalName(parent, localName)
+  if (!child) return null
+  const text = child.textContent?.trim()
+  return text || null
+}
+
 function parseEdocHeader(edocHeader: Element | null): ElectronicDocument {
   const electronicDocument: ElectronicDocument = {
     messageCode: getTextContent(edocHeader, 'InfEnvelopeCode') || '',
@@ -177,7 +185,8 @@ export function parseDprXmlToBundle(xmlText: string): DprParsedBundle {
 
   const measuresBlock: MeasuresData = parseMeasures(root, root) ?? { measures: [] }
 
-  const desc = getTextContent(root, 'DescriptionText')?.trim() || null
+  // Описание результатов — прямой потомок корня; getTextContent находил бы DescriptionText из мер/документов.
+  const desc = getDirectChildText(root, 'DescriptionText')
 
   const resultDocuments: DprResultDocRow[] = []
   try {
