@@ -147,12 +147,16 @@ function shippingProductDetailsHasContentAsideFromName(p: ProductDetails | undef
 function appendOutgoingMeasuresLikeDpaValidation(
   sectionMeasures: { sectionName: string; remarks: string[] },
   measures: MeasuresData | null | undefined,
-  applyDpaExecutorSubjectRules: boolean
+  applyDpaExecutorSubjectRules: boolean,
+  forDpr = false
 ): void {
   const add = (msg: string) => {
     sectionMeasures.remarks.push(msg)
   }
   const measuresList = measures?.measures ?? []
+  if (forDpr && measuresList.length === 0) {
+    add('Должен быть указан хотя бы один набор сведений о принятой мере')
+  }
   for (const m of measuresList) {
     if (empty(m?.startDate)) {
       add(OUTGOING_MEASURE_START_DATE_REQUIRED_REMARK)
@@ -200,9 +204,11 @@ function appendOutgoingMeasuresLikeDpaValidation(
       }
     }
   }
-  for (const m of measuresList) {
-    if (empty(m?.measureAffectedObjectKindCode)) {
-      add('В составе каждого набора сведений о принятой мере должен быть указан хотя один вид объекта действия меры')
+  if (!forDpr) {
+    for (const m of measuresList) {
+      if (empty(m?.measureAffectedObjectKindCode)) {
+        add('В составе каждого набора сведений о принятой мере должен быть указан хотя один вид объекта действия меры')
+      }
     }
   }
   const implList = measuresList.flatMap((m) => m?.measureImplementationDetails ?? [])
@@ -252,13 +258,15 @@ function appendOutgoingMeasuresLikeDpaValidation(
       add('В составе каждого набора сведений об исполнителе мероприятия, обеспечивающего соблюдение меры, должен быть указан один из следующих реквизитов: "Уполномоченный орган", "Субъект"')
     }
   }
-  for (const impl of implList) {
-    for (const authority of getAuthorities(impl)) {
-      if (empty(authority.country)) {
-        add('Страна уполномоченного органа, обеспечивающего соблюдение меры должна быть указана')
-      }
-      if (empty(authority.authorityName)) {
-        add('Наименование уполномоченного органа, обеспечивающего соблюдение меры должно быть указано')
+  if (!forDpr) {
+    for (const impl of implList) {
+      for (const authority of getAuthorities(impl)) {
+        if (empty(authority.country)) {
+          add('Страна уполномоченного органа, обеспечивающего соблюдение меры должна быть указана')
+        }
+        if (empty(authority.authorityName)) {
+          add('Наименование уполномоченного органа, обеспечивающего соблюдение меры должно быть указано')
+        }
       }
     }
   }
@@ -338,7 +346,18 @@ function appendOutgoingMeasuresLikeDpaValidation(
       if (place) {
         const hasCheckpointCode = (place.borderCheckpointCode ?? '').trim() !== ''
         const hasCheckpointName = (place.borderCheckpointName ?? '').trim() !== ''
-        if (hasCheckpointCode !== hasCheckpointName) {
+        if (forDpr) {
+          if (hasCheckpointName && !hasCheckpointCode) {
+            add(
+              'В составе сведений о пункте пропуска, в котором проводится мероприятие должен быть указан код вида пункта пропуска'
+            )
+          }
+          if (hasCheckpointCode && !hasCheckpointName) {
+            add(
+              'В составе сведений о пункте пропуска, в котором проводится мероприятие должно быть указано наименование пункта пропуска'
+            )
+          }
+        } else if (hasCheckpointCode !== hasCheckpointName) {
           add(
             'В блоке «Место проведения мероприятия» должны быть указаны оба атрибута: код вида пункта пропуска и наименование пункта пропуска (или оба пусты).'
           )
@@ -363,6 +382,16 @@ function appendOutgoingMeasuresLikeDpaValidation(
 export function validateOutgoingMeasuresLikeDpa(measures: MeasuresData | null | undefined): ValidationResult {
   const sectionMeasures = { sectionName: 'Принятые меры', remarks: [] as string[] }
   appendOutgoingMeasuresLikeDpaValidation(sectionMeasures, measures, true)
+  if (sectionMeasures.remarks.length === 0) {
+    return { success: true, sections: [] }
+  }
+  return { success: false, sections: [sectionMeasures] }
+}
+
+/** Форматно-логические контроли «Принятые меры» для исходящей DPR (отличаются от DPA). */
+export function validateDprMeasuresFormatLogical(measures: MeasuresData | null | undefined): ValidationResult {
+  const sectionMeasures = { sectionName: 'Принятые меры', remarks: [] as string[] }
+  appendOutgoingMeasuresLikeDpaValidation(sectionMeasures, measures, false, true)
   if (sectionMeasures.remarks.length === 0) {
     return { success: true, sections: [] }
   }

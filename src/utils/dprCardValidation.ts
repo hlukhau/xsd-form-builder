@@ -6,7 +6,7 @@
 import type { DprParsedBundle } from '@/types/dprCard'
 import type { CardData, MeasureImplementationItem, MeasuresData, SubjectDetails } from '@/types/card'
 import type { ValidationResult } from '@/utils/cardValidation'
-import { collectFormatValidationErrors, validateOutgoingMeasuresLikeDpa } from '@/utils/cardValidation'
+import { collectFormatValidationErrors, validateDprMeasuresFormatLogical } from '@/utils/cardValidation'
 import { validateFieldValue } from '@/constants/xsdFieldConstraints'
 import { fetchSchemaValidationErrors } from '@/utils/schemaValidationApi'
 
@@ -78,30 +78,9 @@ export function collectDprFormatValidationErrors(parsed: DprParsedBundle): strin
 
   const auth = parsed.notifyingAuthority
   pushFormatError(errors, 'Уполномоченный орган → Наименование', 'authorityName', auth?.name)
-  pushFormatError(errors, 'Уполномоченный орган → Краткое наименование', 'authorityBriefName', auth?.shortName)
   if ((auth?.identifier ?? '').trim()) {
     pushFormatError(errors, 'Уполномоченный орган → Идентификатор', 'authorityId', auth?.identifier)
   }
-
-  const rawDesc = parsed.resultDescription ?? ''
-  if (rawDesc.length > 0) {
-    pushFormatError(errors, 'Описание результатов', 'dprResultDescription', rawDesc)
-  }
-
-  ;(parsed.resultDocuments ?? []).forEach((row, i) => {
-    const p = `Документы с описанием результатов → Документ ${i + 1}`
-    pushFormatError(errors, `${p} → Наименование`, 'docName', row.docName)
-    pushFormatError(errors, `${p} → Номер`, 'docId', row.docId)
-    pushFormatError(errors, `${p} → Серия`, 'measureDocDetailsDocSeriesId', row.docSeriesId)
-    pushFormatError(errors, `${p} → Количество листов`, 'measureDocPageQuantity', row.pageQuantity)
-    pushFormatError(errors, `${p} → Описание`, 'description', row.descriptionText)
-    if ((row.authorityName ?? '').trim()) {
-      pushFormatError(errors, `${p} → Наименование органа`, 'authorityName', row.authorityName)
-    }
-    if ((row.authorityId ?? '').trim()) {
-      pushFormatError(errors, `${p} → Идентификатор органа`, 'authorityId', row.authorityId)
-    }
-  })
 
   const seen = new Set<string>()
   return errors.filter((e) => {
@@ -115,7 +94,7 @@ export function collectDprFormatValidationErrors(parsed: DprParsedBundle): strin
 export function validateDprFormatLogical(parsed: DprParsedBundle): ValidationResult {
   const sections: { sectionName: string; remarks: string[] }[] = []
 
-  const measuresRes = validateOutgoingMeasuresLikeDpa(parsed.measures)
+  const measuresRes = validateDprMeasuresFormatLogical(parsed.measures)
   if (!measuresRes.success) {
     sections.push(...measuresRes.sections)
   }
@@ -136,10 +115,7 @@ export function validateDprFormatLogical(parsed: DprParsedBundle): ValidationRes
     secAuth.remarks.push('Должен быть указан код страны уполномоченного органа')
   }
   if (empty(auth?.name)) {
-    secAuth.remarks.push('Должно быть указано наименование уполномоченного органа (csdo:AuthorityName)')
-  }
-  if (empty(auth?.shortName)) {
-    secAuth.remarks.push('Должно быть указано краткое наименование уполномоченного органа')
+    secAuth.remarks.push('Наименование уполномоченного органа должно быть указано')
   }
   if (secAuth.remarks.length) sections.push(secAuth)
 
@@ -158,21 +134,6 @@ export function validateDprFormatLogical(parsed: DprParsedBundle): ValidationRes
     secInc.remarks.push('Должна быть указана дата формирования исходной карты')
   }
   if (secInc.remarks.length) sections.push(secInc)
-
-  const docs = parsed.resultDocuments ?? []
-  if (docs.length > 0) {
-    const secDoc = { sectionName: 'Документы с описанием результатов рассмотрения', remarks: [] as string[] }
-    for (let i = 0; i < docs.length; i++) {
-      const row = docs[i]
-      const pfx = `Документ ${i + 1}:`
-      if (empty(row.countryCode)) secDoc.remarks.push(`${pfx} должна быть указана страна`)
-      if (empty(row.languageCode)) secDoc.remarks.push(`${pfx} должен быть указан язык`)
-      if (empty(row.docName)) secDoc.remarks.push(`${pfx} должно быть указано наименование документа`)
-      if (empty(row.docId)) secDoc.remarks.push(`${pfx} должен быть указан номер документа`)
-      if (empty(row.docCreationDate)) secDoc.remarks.push(`${pfx} должна быть указана дата документа`)
-    }
-    if (secDoc.remarks.length) sections.push(secDoc)
-  }
 
   const total = sections.reduce((n, s) => n + s.remarks.length, 0)
   return { success: total === 0, sections }
