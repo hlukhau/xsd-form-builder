@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect, useMemo, type CSSProperties, type ReactNode } from 'react'
+import { useState, useCallback, useEffect, useMemo, type CSSProperties } from 'react'
 import { Typography, Tabs, Descriptions, Button, Input, Collapse, Space, message, Modal, Spin } from 'antd'
 import { LinkOutlined, DownloadOutlined } from '@ant-design/icons'
 import { format, parseISO } from 'date-fns'
@@ -12,7 +12,6 @@ import XMLComparisonModal, { type ComparisonResultShape } from '@/components/mod
 import { CardActions } from '@/cards/shared'
 import type { DprMetadataView, DprParsedBundle, DprResultDocRow } from '@/types/dprCard'
 import type { StatusHistoryItem } from '@/types/card'
-import type { ValidationResult } from '@/utils/cardValidation'
 import {
   fetchDprStatusHistory,
   getIncidentAlertKindNameByCode,
@@ -45,6 +44,7 @@ import { compareDprResponseXml, exportDprParsedBundleToXml } from '@/utils/xmlEx
 import { DprResultDocumentsEdit } from '@/cards/dpr/DprResultDocumentsEdit'
 import { DprResultDescriptionField } from '@/cards/dpr/DprResultDescriptionField'
 import { DprNotifyingAuthorityEdit } from '@/cards/dpr/DprNotifyingAuthorityEdit'
+import { dprValidationReportContent } from '@/cards/dpr/dprValidationReportContent'
 import { getDprAuthorityFilterDepIdsFromRights } from '@/utils/referenceDataApi'
 
 const { Text } = Typography
@@ -108,25 +108,6 @@ function readinessLevelForMarkReadyDialog(
   if (rightsDepKindId === 74) return 'республиканского уровня'
   const t = depKindName?.trim()
   return t || 'подразделения'
-}
-
-function dprValidationReportContent(vr: ValidationResult): ReactNode {
-  return (
-    <div>
-      {vr.sections.map((sec) => (
-        <div key={sec.sectionName} style={{ marginBottom: 12 }}>
-          <Text strong>{sec.sectionName}</Text>
-          <ul style={{ marginTop: 4, marginBottom: 0, paddingLeft: 20 }}>
-            {sec.remarks.map((r, i) => (
-              <li key={`${sec.sectionName}-${i}`}>
-                <Text>{r}</Text>
-              </li>
-            ))}
-          </ul>
-        </div>
-      ))}
-    </div>
-  )
 }
 
 export interface DprCardProps {
@@ -835,7 +816,7 @@ export function DprCard({ dprid, guid, meta, parsed, onDataRefresh }: DprCardPro
                 >
                   Сохранить
                 </Button>
-                {outgoing && canValidateOutgoingCard ? (
+                {outgoing ? (
                   <Button
                     type="default"
                     loading={validateLoading}
@@ -845,7 +826,7 @@ export function DprCard({ dprid, guid, meta, parsed, onDataRefresh }: DprCardPro
                     Валидация карты
                   </Button>
                 ) : null}
-                <Button onClick={cancelEdit} disabled={saving || comparisonModalVisible}>
+                <Button onClick={cancelEdit} disabled={saving || comparisonModalVisible || validateLoading}>
                   Отменить
                 </Button>
               </>

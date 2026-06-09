@@ -18,9 +18,11 @@ import { DprResultDescriptionField } from '@/cards/dpr/DprResultDescriptionField
 import MeasuresTabEdit from '@/components/tabs/dpa/MeasuresTabEdit'
 import { exportDprParsedBundleToXml } from '@/utils/xmlExporter'
 import { buildDprCreateBundle } from '@/cards/dpr/dprCreateBundle'
+import { dprValidationReportContent } from '@/cards/dpr/dprValidationReportContent'
 import {
   collectDprFormatValidationErrors,
   collectDprSaveLogicalErrors,
+  validateDprOutgoingCardFull,
 } from '@/utils/dprCardValidation'
 
 const { Text } = Typography
@@ -67,6 +69,7 @@ export interface DprCreateCardProps {
 export function DprCreateCard({ eligibility, ppvid, guid }: DprCreateCardProps) {
   const { getDisplayLabel: countryLabel } = useCountryOptions()
   const [saving, setSaving] = useState(false)
+  const [validateLoading, setValidateLoading] = useState(false)
   const [authEdit, setAuthEdit] = useState({
     country: 'BY',
     authorityUid: undefined as string | undefined,
@@ -242,6 +245,41 @@ export function DprCreateCard({ eligibility, ppvid, guid }: DprCreateCardProps) 
     }
   }, [guid, ppvid, eligibility, authEdit, descriptionText, measuresEdit, documentsEdit])
 
+  const handleValidate = useCallback(async () => {
+    setValidateLoading(true)
+    try {
+      const bundle = buildDprCreateBundle(
+        eligibility,
+        authEdit,
+        descriptionText,
+        measuresEdit,
+        documentsEdit
+      )
+      const xml = exportDprParsedBundleToXml(bundle)
+      const vr = await validateDprOutgoingCardFull(bundle, xml)
+      if (!vr.success) {
+        Modal.info({
+          title: 'Результат валидации карты',
+          width: 640,
+          content: (
+            <div>
+              <Typography.Paragraph style={{ marginBottom: 8 }}>
+                Обнаружены замечания по результатам контроля:
+              </Typography.Paragraph>
+              {dprValidationReportContent(vr)}
+            </div>
+          ),
+        })
+      } else {
+        message.success('Все контроли пройдены успешно.')
+      }
+    } catch (e) {
+      message.error(e instanceof Error ? e.message : 'Ошибка валидации карты')
+    } finally {
+      setValidateLoading(false)
+    }
+  }, [eligibility, authEdit, descriptionText, measuresEdit, documentsEdit])
+
   const draftName = eligibility.draftDprStatusName ?? 'Черновик'
 
   return (
@@ -253,9 +291,19 @@ export function DprCreateCard({ eligibility, ppvid, guid }: DprCreateCardProps) 
         <div className="card-sticky-header-title-row">
           <span className="card-sticky-header-title">Создание карты сведений о результатах рассмотрения</span>
           <Space size="small" wrap>
-            <Button onClick={goBackToPpv}>Отменить создание</Button>
-            <Button type="primary" onClick={() => void handleSave()} loading={saving}>
+            <Button type="primary" onClick={() => void handleSave()} loading={saving} disabled={validateLoading}>
               Сохранить
+            </Button>
+            <Button
+              type="default"
+              loading={validateLoading}
+              disabled={saving}
+              onClick={() => void handleValidate()}
+            >
+              Валидация карты
+            </Button>
+            <Button onClick={goBackToPpv} disabled={saving || validateLoading}>
+              Отменить создание
             </Button>
           </Space>
         </div>
