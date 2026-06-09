@@ -524,10 +524,21 @@ const MeasuresTabEdit: React.FC<MeasuresTabEditProps> = ({ data, onChange }) => 
   const handleImplementationChange = (measureIndex: number, implIndex: number, field: string, value: any) => {
     const measure = data.measures[measureIndex]
     const updated = [...(measure.measureImplementationDetails || [])]
-    updated[implIndex] = {
-      ...updated[implIndex],
-      [field]: value,
+    const next: MeasureImplementationItem = { ...(updated[implIndex] ?? {}), [field]: value }
+    // Данные из XML могут быть в устаревших полях authority / subjectDetails; при правке списков их нужно сбрасывать.
+    if (field === 'authorities') {
+      delete next.authority
+      if (value == null || (Array.isArray(value) && value.length === 0)) {
+        delete next.authorities
+      }
     }
+    if (field === 'subjectDetailsList') {
+      delete next.subjectDetails
+      if (value == null || (Array.isArray(value) && value.length === 0)) {
+        delete next.subjectDetailsList
+      }
+    }
+    updated[implIndex] = next
     handleMeasureChange(measureIndex, 'measureImplementationDetails', updated)
   }
 
