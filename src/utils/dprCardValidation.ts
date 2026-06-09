@@ -164,13 +164,13 @@ export async function validateDprOutgoingCardFull(parsed: DprParsedBundle, xml: 
     const msg = e instanceof Error ? e.message : String(e)
     return {
       success: false,
-      sections: [{ sectionName: 'Ошибки структуры (XSD)', remarks: [`Не удалось выполнить структурный контроль: ${msg}`] }],
+      sections: [{ sectionName: 'Структурный контроль', remarks: [`Не удалось выполнить структурный контроль: ${msg}`] }],
     }
   }
   if (xsdRemarks.length > 0) {
     return {
       success: false,
-      sections: [{ sectionName: 'Ошибки структуры (XSD)', remarks: xsdRemarks }],
+      sections: [{ sectionName: 'Структурный контроль', remarks: xsdRemarks }],
     }
   }
   return { success: true, sections: [] }
