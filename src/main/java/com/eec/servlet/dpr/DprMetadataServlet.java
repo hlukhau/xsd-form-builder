@@ -1,8 +1,10 @@
 package com.eec.servlet.dpr;
 
+import com.eec.rights.RightsRegistryProvider;
 import com.eec.util.DatabaseUtil;
 import com.eec.util.DprAccessHelper;
 import com.eec.util.DprCreateSupport;
+import com.eec.util.DprIncomingStatusHelper;
 
 import javax.servlet.ServletException;
 import javax.servlet.http.HttpServlet;
@@ -14,11 +16,17 @@ import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
+import java.sql.Savepoint;
 import java.sql.Timestamp;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 /**
  * Метаданные карты DPR (шапка) из VW_DPR.
  * GET /api/dpr/metadata/{DPRID}?guid=...
+ * <p>
+ * Входящие (DATASOURCEKINDCODE=1): при первом открытии, если статус RECEIVED, в той же транзакции
+ * выполняется переход в PROCESSING и запись в DPRSTATUSHIST (USERID из JSON прав по guid).
  */
 public class DprMetadataServlet extends HttpServlet {
 
@@ -76,6 +84,22 @@ public class DprMetadataServlet extends HttpServlet {
             if (!DprAccessHelper.canViewDpr(conn, dprId, guid)) {
                 sendError(response, HttpServletResponse.SC_FORBIDDEN, "Нет доступа к просмотру карты DPR (требуется доступ к связанной карте PPV).");
                 return;
+            }
+
+            conn.setAutoCommit(false);
+            Savepoint beforeTransition = conn.setSavepoint("dpr_meta_before_incoming_open");
+            try {
+                if (DprIncomingStatusHelper.applyReceivedToProcessingOnFirstOpen(
+                        conn, dprId, resolveUserIdFromGuid(guid))) {
+                    System.out.println("[DprMetadataServlet] Incoming first open: DPRID=" + dprId + " RECEIVED→PROCESSING");
+                }
+            } catch (SQLException e) {
+                System.err.println("[DprMetadataServlet] Incoming RECEIVED→PROCESSING skipped: " + e.getMessage());
+                try {
+                    conn.rollback(beforeTransition);
+                } catch (SQLException rb) {
+                    DatabaseUtil.rollbackQuietly(conn);
+                }
             }
 
             try (PreparedStatement ps = conn.prepareStatement(SQL)) {
@@ -183,13 +207,48 @@ public class DprMetadataServlet extends HttpServlet {
                 out.print(",\"canCompleteIncomingProcessing\":" + (canCompleteIncomingProcessing ? "true" : "false"));
                 out.print("}");
                 out.flush();
+                conn.commit();
                 response.setStatus(HttpServletResponse.SC_OK);
             }
         } catch (SQLException e) {
+            DatabaseUtil.rollbackQuietly(conn);
             sendError(response, HttpServletResponse.SC_INTERNAL_SERVER_ERROR, "Ошибка БД: " + e.getMessage());
         } finally {
+            if (conn != null) {
+                try {
+                    conn.setAutoCommit(true);
+                } catch (SQLException ignored) {
+                }
+            }
             DatabaseUtil.closeConnection(conn);
         }
+    }
+
+    private static Integer resolveUserIdFromGuid(String guid) {
+        if (guid == null || guid.isEmpty()) {
+            return null;
+        }
+        String rightsJson = RightsRegistryProvider.get().getRightsJson(guid);
+        if (rightsJson == null || rightsJson.isEmpty()) {
+            return null;
+        }
+        Matcher m = Pattern.compile("\"userId\"\\s*:\\s*(-?\\d+)").matcher(rightsJson);
+        if (m.find()) {
+            try {
+                return Integer.parseInt(m.group(1));
+            } catch (NumberFormatException e) {
+                return null;
+            }
+        }
+        m = Pattern.compile("\"userId\"\\s*:\\s*\"(-?\\d+)\"").matcher(rightsJson);
+        if (m.find()) {
+            try {
+                return Integer.parseInt(m.group(1));
+            } catch (NumberFormatException e) {
+                return null;
+            }
+        }
+        return null;
     }
 
     private static String tsToIso(Timestamp ts) {
