@@ -69,8 +69,8 @@ public class DpaSaveServlet extends HttpServlet {
     /** UPDATE DPAXML при обновлении существующей карты */
     private static final String SQL_UPDATE_DPAXML = "UPDATE DPAXML SET DPAXMLBODY = ?, EDOCCODE = ?, EDOCVERSION = ? WHERE DPAID = ?";
 
-    /** Обновить MODIFICATIONDATETIME, ENDDATE, AUTHORITYID, производителя, код ТН ВЭД и вид/наименование продукции в DPA при обновлении */
-    private static final String SQL_UPDATE_DPA_MODIFIED = "UPDATE DPA SET MODIFICATIONDATETIME = SYSDATE, ENDDATE = ?, AUTHORITYID = ?, MANUFBUSENTNAME = ?, MANUFBUSENTBRIEFNAME = ?, COMMODITYCODE = ?, SANITARYPRODNAME = ?, SANITARYPRODTYPEID = ?, SANITARYPRODTYPENAME = ? WHERE DPAID = ?";
+    /** Обновить MODIFICATIONDATETIME, ENDDATE, AUTHORITYID, страну/производителя, код ТН ВЭД и вид/наименование продукции в DPA при обновлении */
+    private static final String SQL_UPDATE_DPA_MODIFIED = "UPDATE DPA SET MODIFICATIONDATETIME = SYSDATE, ENDDATE = ?, AUTHORITYID = ?, MANUFCOUNTRYID = ?, MANUFBUSENTNAME = ?, MANUFBUSENTBRIEFNAME = ?, COMMODITYCODE = ?, SANITARYPRODNAME = ?, SANITARYPRODTYPEID = ?, SANITARYPRODTYPENAME = ? WHERE DPAID = ?";
     /** Текущий DPASTATUSID исходящей карты (при сохранении: Отредактировано / Отправка не удалась / Ошибка обработки → «Новое»). */
     private static final String SQL_SELECT_DPA_STATUS = ""
             + "SELECT DPASTATUSID FROM DPA WHERE DPAID = ? AND TRIM(TO_CHAR(DATASOURCEKINDCODE)) = ?";
@@ -171,12 +171,7 @@ public class DpaSaveServlet extends HttpServlet {
                 if (alertCountryId == null && "RU".equalsIgnoreCase(countryCode != null ? countryCode.trim() : "")) {
                     alertCountryId = 191;
                 }
-                if (manufCountryId == null && manufCountryCode != null && !manufCountryCode.trim().isEmpty()) {
-                    manufCountryId = resolveCountryId(conn, manufCountryCode.trim());
-                }
-                if (manufCountryId == null) manufCountryId = alertCountryId;
-                if (manufCountryId == null && "RU".equalsIgnoreCase(countryCode != null ? countryCode.trim() : "")) manufCountryId = 191;
-                if (manufCountryId == null) manufCountryId = 191;
+                manufCountryId = resolveManufCountryId(conn, manufCountryCode);
 
                 String incId = incidentId != null ? incidentId.trim() : "";
                 if (incId.isEmpty()) {
@@ -298,10 +293,12 @@ public class DpaSaveServlet extends HttpServlet {
                 } else if (sanitaryProdTypeName != null && !sanitaryProdTypeName.trim().isEmpty()) {
                     sanitaryProdTypeNameValUpdate = sanitaryProdTypeName.trim();
                 }
+                manufCountryId = resolveManufCountryId(conn, manufCountryCode);
                 try (PreparedStatement ps = conn.prepareStatement(SQL_UPDATE_DPA_MODIFIED)) {
                     int idx = 1;
                     setDateOrNull(ps, idx++, endDate);
                     setIntOrNull(ps, idx++, authorityIdResolved);
+                    setIntOrNull(ps, idx++, manufCountryId);
                     ps.setString(idx++, manufBusEntName != null ? manufBusEntName : "");
                     ps.setString(idx++, manufBusEntBriefName != null ? manufBusEntBriefName : "");
                     ps.setString(idx++, commodityCode != null ? commodityCode : "");
@@ -592,6 +589,17 @@ public class DpaSaveServlet extends HttpServlet {
             }
         }
         return null;
+    }
+
+    /**
+     * MANUFCOUNTRYID по коду страны производителя (SupplyChainPartyDetails/UnifiedCountryCode).
+     * Если код не указан — NULL (без подстановки страны оповещения или значения по умолчанию).
+     */
+    private Integer resolveManufCountryId(Connection conn, String manufCountryCode) throws SQLException {
+        if (manufCountryCode == null || manufCountryCode.trim().isEmpty()) {
+            return null;
+        }
+        return resolveCountryId(conn, manufCountryCode.trim());
     }
 
     /**
