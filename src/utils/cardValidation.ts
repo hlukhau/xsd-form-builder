@@ -25,7 +25,7 @@ import type {
 import { mergeComplianceDocumentsFromBatches } from '@/utils/xmlParser'
 import { getAddressListFromParty, getAddressListFromSubject } from '@/utils/addressFormatUtils'
 import { getFormatHint, validateFieldValue } from '@/constants/xsdFieldConstraints'
-import { exportCardDataToXML, hasMeasureImplementationEntryContent } from '@/utils/xmlExporter'
+import { exportCardDataToXML, hasIdentityDocV3Content, hasMeasureImplementationEntryContent } from '@/utils/xmlExporter'
 import { fetchSchemaValidationErrors } from '@/utils/schemaValidationApi'
 import { isPpvApp } from '@/cards/config'
 import { remarkContactsIncomplete } from '@/utils/contactValidation'
@@ -275,6 +275,9 @@ function appendOutgoingMeasuresLikeDpaValidation(
       const identityDoc = subj?.identityDoc ?? (subj as { identityDoc?: { docId?: string } })?.identityDoc
       if (identityDoc && empty(identityDoc?.docId)) {
         add('В составе сведений об удостоверении личности субъекта, обеспечивающего соблюдение меры должен быть указан номер документа')
+      }
+      if (hasIdentityDocV3Content(identityDoc) && empty(identityDoc?.country)) {
+        add('В составе сведений об удостоверении личности субъекта, обеспечивающего соблюдение меры должна быть указана страна')
       }
     }
   }

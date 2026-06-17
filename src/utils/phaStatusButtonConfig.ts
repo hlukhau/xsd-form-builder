@@ -2,8 +2,8 @@
  * Кнопки смены статуса для карт PHA (справочник PHASTATUS, PHA.PHASTATUSID).
  * Входящие: Получено → В обработке (при открытии); В обработке → Обработано; Обработано → Завершено.
  * Исходящие: Новое (5) / Отправка не удалась (8) / Ошибка обработки (9) → Ожидает отправки (send); DATASOURCEKINDCODE=2;
- * Отправка не удалась/Ошибка → Новое (to_new); Новое/Отправка не удалась/Ошибка/Доставлено → Завершено (close).
- * Права: publicHealthIn:status (входящие); publicHealthOut:status (закрытие, to_new), publicHealthOut:send (направление).
+ * Отправка не удалась/Ошибка обработки → направление сведений (send) и закрытие (close); переход в «Новое» — при сохранении после редактирования.
+ * Права: publicHealthIn:status (входящие); publicHealthOut:status (закрытие), publicHealthOut:send (направление).
  */
 import type { StatusButtonConfig, StatusButtonResult } from '@/utils/statusButtonConfig'
 
@@ -195,13 +195,17 @@ export function outgoingPhaStatusButton(
     s.includes('не удалась') ||
     s.includes('ошибка обработки') ||
     s.includes('доставлено')
-  const canToNew = s.includes('не удалась') || s.includes('ошибка обработки')
+  const isFailedOrError =
+    statusId === 8 ||
+    statusId === 9 ||
+    s.includes('не удалась') ||
+    s.includes('ошибка обработки')
   const closeUi = () => outgoingCloseUi(statusId, status, hasStatusRight, endFilled)
 
   const sendCfg = (): StatusButtonConfig => ({
-    label: 'Направить сведения',
+    label: 'Направление сведений',
     action: 'pha_send',
-    hint: 'Направить сведения участникам ОП 57 (переход в «Ожидает отправки»).',
+    hint: 'Направление сведений участникам ОП 57 (переход в «Ожидает отправки»).',
     disabled: false,
   })
 
@@ -212,33 +216,28 @@ export function outgoingPhaStatusButton(
     disabled: false,
   })
 
-  if (canToNew) {
+  if (isFailedOrError) {
     const cu = closeUi()
-    const toNewBtn: StatusButtonConfig | null = hasStatusRight
-      ? {
-          label: 'Перевести в Новое',
-          action: 'pha_to_new',
-          hint: 'Перевод в статус «Новое» после редактирования сведений.',
-          disabled: false,
-        }
-      : null
     const closeSecondary =
       canClose && !cu.disabled && hasStatusRight ? closeCfg(cu.hint) : undefined
-
-    let comment: string
-    if (toNewBtn && closeSecondary) {
-      comment = 'Доступны перевод в «Новое» и закрытие карты.'
-    } else if (toNewBtn) {
-      comment = 'Перевести в Новое после редактирования.'
-    } else if (closeSecondary) {
-      comment = 'Закрытие карты.'
-    } else {
-      comment = cu.disabled ? (cu.hint ?? HINT_NO_STATUS_RIGHT_OUT) : HINT_NO_STATUS_RIGHT_OUT
+    if (hasSendRight) {
+      return {
+        config: sendCfg(),
+        closeConfig: closeSecondary,
+        comment: closeSecondary
+          ? 'Направление сведений участникам ОП 57; доступно закрытие карты.'
+          : 'Направление сведений участникам ОП 57.',
+      }
+    }
+    if (closeSecondary) {
+      return {
+        config: closeSecondary,
+        comment: 'Закрытие карты.',
+      }
     }
     return {
-      config: toNewBtn,
-      closeConfig: closeSecondary,
-      comment,
+      config: null,
+      comment: cu.disabled ? (cu.hint ?? HINT_NO_STATUS_RIGHT_OUT) : HINT_NO_SEND_RIGHT,
     }
   }
 
@@ -250,13 +249,13 @@ export function outgoingPhaStatusButton(
       return {
         config: sendCfg(),
         closeConfig: closeCfg(cu.hint),
-        comment: 'Направить сведения участникам ОП 57; доступно закрытие карты.',
+        comment: 'Направление сведений участникам ОП 57; доступно закрытие карты.',
       }
     }
     if (showSend) {
       return {
         config: sendCfg(),
-        comment: 'Направить сведения участникам ОП 57.',
+        comment: 'Направление сведений участникам ОП 57.',
       }
     }
     if (showClose) {

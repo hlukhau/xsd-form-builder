@@ -19,7 +19,7 @@ public final class XsdMessageHumanizer {
 
     /** Вместо XSD «DocSeriesId не на месте / ожидается код страны» в удостоверении личности субъекта реализации меры. */
     private static final String MEASURE_SUBJECT_IDENTITY_DOC_COUNTRY_REMARK =
-            "В удостоверении личности субъекта-исполнителя должна быть указана страна";
+            "В составе сведений об удостоверении личности субъекта, обеспечивающего соблюдение меры должна быть указана страна";
 
     private static final Map<String, String> LABEL = new LinkedHashMap<String, String>();
 

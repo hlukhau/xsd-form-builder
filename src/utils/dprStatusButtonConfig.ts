@@ -103,9 +103,6 @@ const hintSendOp57 =
 const hintNewToPending =
   'Новое при резолюции областного уровня (dep0602) → Ожидает отправки (направление в ОП 57 после валидации).'
 
-const hintToNew =
-  'Перевод в «Новое» из «Отправка не удалась» или «Ошибка обработки»; при необходимости доступно также направление в ОП 57 после валидации.'
-
 const NEED_REGIONAL_DEP0602_HINT =
   'Ожидается резолюция областного уровня (в DPRRESOLUTION — запись по уровню dep0602).'
 
@@ -193,16 +190,7 @@ export function outgoingDprStatusButton(
       if (hasSendRight) {
         return {
           config: sendOp57Button,
-          closeConfig: hasStatusRight
-            ? { label: 'Перевести в Новое', action: 'to_new', hint: hintToNew }
-            : null,
           comment: hintSendOp57,
-        }
-      }
-      if (hasStatusRight) {
-        return {
-          config: { label: 'Перевести в Новое', action: 'to_new', hint: hintToNew },
-          comment: hintToNew,
         }
       }
       return { config: null, comment: noSend }
@@ -250,16 +238,7 @@ export function outgoingDprStatusButton(
     if (hasSendRight) {
       return {
         config: sendOp57Button,
-        closeConfig: hasStatusRight
-          ? { label: 'Перевести в Новое', action: 'to_new', hint: hintToNew }
-          : null,
         comment: hintSendOp57,
-      }
-    }
-    if (hasStatusRight) {
-      return {
-        config: { label: 'Перевести в Новое', action: 'to_new', hint: hintToNew },
-        comment: hintToNew,
       }
     }
     return { config: null, comment: noSend }
@@ -297,16 +276,7 @@ export function outgoingDprStatusButton(
     if (hasSendRight) {
       return {
         config: sendOp57Button,
-        closeConfig: hasStatusRight
-          ? { label: 'Перевести в Новое', action: 'to_new', hint: hintToNew }
-          : null,
         comment: hintSendOp57,
-      }
-    }
-    if (hasStatusRight) {
-      return {
-        config: { label: 'Перевести в Новое', action: 'to_new', hint: hintToNew },
-        comment: hintToNew,
       }
     }
     return { config: null, comment: noSend }

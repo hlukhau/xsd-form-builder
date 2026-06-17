@@ -714,7 +714,7 @@ function hasDocumentReferenceContent(doc: DocumentReferenceDetails | undefined):
   return !!(s(doc.docKindCode) || s(doc.docKindName) || s(doc.docName) || s(doc.docId) || s(doc.docCreationDate) || s(doc.docStartDate))
 }
 
-function hasIdentityDocV3Content(id: IdentityDocDetails | undefined): boolean {
+export function hasIdentityDocV3Content(id: IdentityDocDetails | undefined): boolean {
   if (!id) return false
   const s = (v: string | undefined) => (v ?? '').trim()
   return !!(
