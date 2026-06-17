@@ -13,6 +13,9 @@ import java.util.Set;
  * Просмотр карты PPV (как в приложении карты нарушений): по {@code DATASOURCEKINDCODE} карты —
  * {@code violationDetectedIn:access}, {@code violationDetectedOut:access} или {@code violationDetectedDB:access},
  * с пересечением ключей JSON с активными {@code PPVDEPPERMIS} ({@code REVOKEDATETIME IS NULL}).
+ * <p>
+ * Для входящей DPR при связи с исходящей PPV — {@link #canViewOutgoingPpvForLinkedIncomingDpr}
+ * ({@code violationDetectedOut:view}, без {@code violationDetectedOut:access}).
  */
 public final class PpvViewAccessHelper {
 
@@ -123,6 +126,43 @@ public final class PpvViewAccessHelper {
             return false;
         }
         Set<String> viewKeys = AccessRightService.violationDetectedInViewDepKeys(rightsJson);
+        if (viewKeys.isEmpty()) {
+            return false;
+        }
+        return PpvDepPermisUtil.hasOverlap(conn, ppvid, viewKeys);
+    }
+
+    /**
+     * Просмотр входящей DPR, связанной с исходящей PPV ({@code DATASOURCEKINDCODE=2}):
+     * {@code violationDetectedOut:view} ∩ {@code PPVDEPPERMIS}; {@code violationDetectedOut:access} не требуется.
+     */
+    public static boolean canViewOutgoingPpvForLinkedIncomingDpr(Connection conn, long ppvid, String guid)
+            throws SQLException {
+        if (guid == null || guid.trim().isEmpty() || ppvid <= 0) {
+            return false;
+        }
+        guid = guid.trim();
+        String dsc = null;
+        try (PreparedStatement ps = conn.prepareStatement(SQL_PPV_DSC)) {
+            ps.setLong(1, ppvid);
+            try (ResultSet rs = ps.executeQuery()) {
+                if (!rs.next()) {
+                    return false;
+                }
+                dsc = rs.getString("DSC");
+            }
+        }
+        if (!"2".equals(dsc != null ? dsc.trim() : "")) {
+            return false;
+        }
+        String rightsJson = RightsRegistryProvider.get().getRightsJson(guid);
+        if (rightsJson == null || rightsJson.isEmpty()) {
+            return false;
+        }
+        if (!AccessRightService.hasViolationDetectedOutView(rightsJson)) {
+            return false;
+        }
+        Set<String> viewKeys = AccessRightService.violationDetectedOutViewDepKeys(rightsJson);
         if (viewKeys.isEmpty()) {
             return false;
         }

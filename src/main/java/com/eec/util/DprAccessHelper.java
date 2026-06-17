@@ -7,11 +7,19 @@ import java.sql.SQLException;
 
 /**
  * Доступ к карте DPR: по связи {@code DPR.PPVID} (предпочтительно) или по {@code INCIDENTID} → PPV.
- * Для входящей PPV допускается просмотр по {@link PpvViewAccessHelper#canViewIncomingPpvForLinkedDpr}.
+ * <ul>
+ *   <li>входящая DPR + исходящая PPV — {@link PpvViewAccessHelper#canViewOutgoingPpvForLinkedIncomingDpr}
+ *       ({@code violationDetectedOut:view} ∩ PPVDEPPERMIS);</li>
+ *   <li>входящая PPV — {@link PpvViewAccessHelper#canViewIncomingPpvForLinkedDpr};</li>
+ *   <li>прочие — {@link PpvViewAccessHelper#canViewPpv}.</li>
+ * </ul>
  */
 public final class DprAccessHelper {
 
     private static final String SQL_PPVID_BY_DPR = "SELECT PPVID FROM DPR WHERE DPRID = ?";
+
+    private static final String SQL_DPR_DSC = ""
+            + "SELECT TRIM(TO_CHAR(DATASOURCEKINDCODE)) AS DSC FROM DPR WHERE DPRID = ?";
 
     private static final String SQL_INCIDENT = "SELECT TRIM(vw.INCIDENTID) AS INCIDENTID FROM VW_DPR vw WHERE vw.DPRID = ?";
 
@@ -54,7 +62,7 @@ public final class DprAccessHelper {
         }
 
         if (ppvid > 0) {
-            return canViewDprForPpvid(conn, ppvid, guid);
+            return canViewDprForPpvid(conn, dprId, ppvid, guid);
         }
 
         String incidentId = null;
@@ -81,22 +89,46 @@ public final class DprAccessHelper {
             return false;
         }
 
-        return canViewDprForPpvid(conn, ppvidByInc, guid);
+        return canViewDprForPpvid(conn, dprId, ppvidByInc, guid);
     }
 
-    private static boolean canViewDprForPpvid(Connection conn, long ppvid, String guid) throws SQLException {
-        String dsc = null;
+    private static boolean canViewDprForPpvid(Connection conn, long dprId, long ppvid, String guid)
+            throws SQLException {
+        String ppvDsc = loadPpvDatasourceKind(conn, ppvid);
+        if (ppvDsc == null) {
+            return false;
+        }
+        String dprDsc = loadDprDatasourceKind(conn, dprId);
+        if ("1".equals(dprDsc) && "2".equals(ppvDsc)) {
+            return PpvViewAccessHelper.canViewOutgoingPpvForLinkedIncomingDpr(conn, ppvid, guid);
+        }
+        if ("1".equals(ppvDsc)) {
+            return PpvViewAccessHelper.canViewIncomingPpvForLinkedDpr(conn, ppvid, guid);
+        }
+        return PpvViewAccessHelper.canViewPpv(conn, ppvid, guid);
+    }
+
+    private static String loadPpvDatasourceKind(Connection conn, long ppvid) throws SQLException {
         try (PreparedStatement ps = conn.prepareStatement(SQL_PPV_DSC)) {
             ps.setLong(1, ppvid);
             try (ResultSet rs = ps.executeQuery()) {
                 if (rs.next()) {
-                    dsc = rs.getString("DSC");
+                    return rs.getString("DSC");
                 }
             }
         }
-        if ("1".equals(dsc != null ? dsc.trim() : "")) {
-            return PpvViewAccessHelper.canViewIncomingPpvForLinkedDpr(conn, ppvid, guid);
+        return null;
+    }
+
+    private static String loadDprDatasourceKind(Connection conn, long dprId) throws SQLException {
+        try (PreparedStatement ps = conn.prepareStatement(SQL_DPR_DSC)) {
+            ps.setLong(1, dprId);
+            try (ResultSet rs = ps.executeQuery()) {
+                if (rs.next()) {
+                    return rs.getString("DSC");
+                }
+            }
         }
-        return PpvViewAccessHelper.canViewPpv(conn, ppvid, guid);
+        return null;
     }
 }
