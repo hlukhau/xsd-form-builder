@@ -12,7 +12,7 @@ import java.util.regex.Pattern;
 
 /**
  * Проверка заполнения уполномоченного органа (csdo:AuthorityName в UnifiedAuthorityDetails)
- * перед отметкой готовности исходящих DPA/PPV.
+ * перед отметкой готовности исходящих DPA/PPV/DPR.
  */
 public final class OutgoingMarkReadyAuthorityCheck {
 
@@ -21,6 +21,10 @@ public final class OutgoingMarkReadyAuthorityCheck {
 
     private static final Pattern AUTHORITY_NAME_IN_XML = Pattern.compile(
             "<(?:\\w+:)?AuthorityName[^>]*>([^<]*)</(?:\\w+:)?AuthorityName>",
+            Pattern.CASE_INSENSITIVE);
+
+    private static final Pattern DPR_UNIFIED_AUTHORITY_BLOCK = Pattern.compile(
+            "<(?:\\w+:)?UnifiedAuthorityDetails\\b[^>]*>([\\s\\S]*?)</(?:\\w+:)?UnifiedAuthorityDetails>",
             Pattern.CASE_INSENSITIVE);
 
     private OutgoingMarkReadyAuthorityCheck() {
@@ -48,6 +52,51 @@ public final class OutgoingMarkReadyAuthorityCheck {
         }
         sendJsonError(response, HttpServletResponse.SC_BAD_REQUEST, ERROR_MESSAGE);
         return false;
+    }
+
+    /**
+     * DPR: AuthorityName в первом блоке UnifiedAuthorityDetails (DPRXML.DPRXMLBODY).
+     */
+    public static boolean ensureDprAuthorityNamePresent(Connection conn, HttpServletResponse response, long dprId)
+            throws IOException, SQLException {
+        String nameFromXml = loadDprNotifyingAuthorityNameFromXml(conn, dprId);
+        if (isNonBlank(nameFromXml)) {
+            return true;
+        }
+        sendJsonError(response, HttpServletResponse.SC_BAD_REQUEST, ERROR_MESSAGE);
+        return false;
+    }
+
+    private static String loadDprNotifyingAuthorityNameFromXml(Connection conn, long dprId) throws SQLException {
+        String sql = "SELECT DPRXMLBODY FROM DPRXML WHERE DPRID = ?";
+        try (PreparedStatement ps = conn.prepareStatement(sql)) {
+            ps.setLong(1, dprId);
+            try (ResultSet rs = ps.executeQuery()) {
+                if (!rs.next()) {
+                    return null;
+                }
+                Clob clob = rs.getClob(1);
+                if (clob == null) {
+                    return null;
+                }
+                String xml = clob.getSubString(1, (int) clob.length());
+                if (xml == null || xml.isEmpty()) {
+                    return null;
+                }
+                Matcher block = DPR_UNIFIED_AUTHORITY_BLOCK.matcher(xml);
+                if (!block.find()) {
+                    return null;
+                }
+                Matcher nameM = AUTHORITY_NAME_IN_XML.matcher(block.group(1));
+                if (nameM.find()) {
+                    String val = nameM.group(1);
+                    if (isNonBlank(val)) {
+                        return val.trim();
+                    }
+                }
+            }
+        }
+        return null;
     }
 
     private static String loadAuthorityNameFromDb(Connection conn, long cardId,

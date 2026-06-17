@@ -5,6 +5,7 @@ import com.eec.util.DatabaseUtil;
 import com.eec.util.DprCreateSupport;
 import com.eec.util.DprIncomingStatusHelper;
 import com.eec.util.DprOutgoingStatusHelper;
+import com.eec.util.OutgoingMarkReadyAuthorityCheck;
 import com.eec.util.RightsDepartmentDepKindId;
 
 import javax.servlet.ServletException;
@@ -176,6 +177,9 @@ public class DprStatusChangeServlet extends HttpServlet {
         if (!"DRAFT".equals(currentStatusCode) && !"NEW".equals(currentStatusCode)) {
             fail(conn, response, HttpServletResponse.SC_BAD_REQUEST,
                     "Отметка готовности возможна при статусе «Черновик» или «Новое»");
+            return;
+        }
+        if (!OutgoingMarkReadyAuthorityCheck.ensureDprAuthorityNamePresent(conn, response, dprId)) {
             return;
         }
         Integer newStatusIdObj = DprOutgoingStatusHelper.resolveOutgoingStatusId(conn, "NEW");

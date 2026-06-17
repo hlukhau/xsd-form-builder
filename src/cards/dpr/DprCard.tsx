@@ -46,6 +46,10 @@ import { DprResultDescriptionField } from '@/cards/dpr/DprResultDescriptionField
 import { DprNotifyingAuthorityEdit } from '@/cards/dpr/DprNotifyingAuthorityEdit'
 import { dprValidationReportContent } from '@/cards/dpr/dprValidationReportContent'
 import { getDprAuthorityFilterDepIdsFromRights } from '@/utils/referenceDataApi'
+import {
+  isDprNotifyingAuthorityNameFilled,
+  MARK_READY_AUTHORITY_REQUIRED_MESSAGE,
+} from '@/utils/markReadyAuthorityValidation'
 
 const { Text } = Typography
 
@@ -447,6 +451,10 @@ export function DprCard({ dprid, guid, meta, parsed, onDataRefresh }: DprCardPro
         return
       }
       if (action === 'mark_ready') {
+        if (!isDprNotifyingAuthorityNameFilled(parsedForValidation)) {
+          message.error(MARK_READY_AUTHORITY_REQUIRED_MESSAGE)
+          return
+        }
         const ppvRegNumber = (meta.incidentId ?? parsed.incidentAlert.registrationNumber ?? '').trim() || '—'
         const levelLabel = readinessLevelForMarkReadyDialog(userRightsDepKindId, userDepKindName)
         Modal.confirm({
