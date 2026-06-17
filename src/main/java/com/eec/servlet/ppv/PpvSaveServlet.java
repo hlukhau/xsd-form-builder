@@ -3,6 +3,7 @@ package com.eec.servlet.ppv;
 import com.eec.rights.RightsRegistryProvider;
 import com.eec.util.DatabaseUtil;
 import com.eec.util.PpvIncomingDefaultDepPermis;
+import com.eec.util.PpvOutgoingEditAccessHelper;
 
 import javax.servlet.ServletException;
 import javax.servlet.http.HttpServlet;
@@ -44,6 +45,9 @@ public class PpvSaveServlet extends HttpServlet {
     private static final String DATASOURCEKINDCODE_EEC = "3";
     private static final String EDOCCODE_DEFAULT = "R.SM.SS.08.002";
     private static final String EDOCVERSION_DEFAULT = "1.0.0";
+
+    private static final String SQL_PPV_DSC = ""
+            + "SELECT TRIM(TO_CHAR(DATASOURCEKINDCODE)) AS DSC FROM PPV WHERE PPVID = ?";
 
     /** Получить следующий PPVID (последовательность sqdpa или fallback) */
     private static final String SQL_NEXT_DPAID = "SELECT SQPPV.NEXTVAL FROM DUAL";
@@ -303,6 +307,21 @@ public class PpvSaveServlet extends HttpServlet {
                 }
                 long dpaid = dpaidParam;
                 System.out.println("[PpvSaveServlet] Update: PPVID=" + dpaid);
+
+                if (guid == null || guid.trim().isEmpty()) {
+                    sendJsonError(response, HttpServletResponse.SC_BAD_REQUEST,
+                            "Укажите guid в теле запроса для проверки права на редактирование");
+                    return;
+                }
+                String ppvDatasourceKind = loadPpvDatasourceKind(conn, dpaid);
+                if (DATASOURCEKINDCODE_OUTGOING.equals(ppvDatasourceKind)) {
+                    PpvOutgoingEditAccessHelper.GateResult editGate =
+                            PpvOutgoingEditAccessHelper.evaluateEditGate(conn, dpaid, guid.trim());
+                    if (!editGate.allowed) {
+                        sendJsonError(response, HttpServletResponse.SC_FORBIDDEN, editGate.reason);
+                        return;
+                    }
+                }
 
                 try (PreparedStatement ps = conn.prepareStatement(SQL_UPDATE_PPVXML)) {
                     Clob clob = conn.createClob();
@@ -694,6 +713,19 @@ public class PpvSaveServlet extends HttpServlet {
             }
         }
         return null;
+    }
+
+    private static String loadPpvDatasourceKind(Connection conn, long ppvid) throws SQLException {
+        try (PreparedStatement ps = conn.prepareStatement(SQL_PPV_DSC)) {
+            ps.setLong(1, ppvid);
+            try (ResultSet rs = ps.executeQuery()) {
+                if (rs.next()) {
+                    String dsc = rs.getString("DSC");
+                    return dsc != null ? dsc.trim() : "";
+                }
+            }
+        }
+        return "";
     }
 
     private Integer resolveCountryId(Connection conn, String countryCode) throws SQLException {

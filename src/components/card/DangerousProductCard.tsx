@@ -73,8 +73,10 @@ import type { DprPpvIncomingActionsResponse } from '@/types/dprCard'
 import { isPpvApp, getDpaLikeCardSessionKeys, getDpaLikeCardIdLabel } from '@/cards/config'
 import { format } from 'date-fns'
 
-/** Статусы исходящей карты, при которых разрешено редактирование (DPASTATUSID). */
-const EDITABLE_OUTGOING_STATUS_IDS = [5, 6, 9, 10, 12] // DRAFT, NEW, FAILED, ERROR, EDITED
+/** Статусы исходящей DPA, при которых разрешено редактирование (DPASTATUSID). */
+const EDITABLE_OUTGOING_STATUS_IDS_DPA = [5, 6, 9, 10, 12] // DRAFT, NEW, FAILED, ERROR, EDITED
+/** Исходящая PPV: только Черновик и Новое (PPVSTATUSID / PPVSTATUSCODE DRAFT, NEW). */
+const EDITABLE_OUTGOING_STATUS_IDS_PPV = [5, 6]
 
 interface DangerousProductCardProps {
   data: CardData
@@ -187,8 +189,11 @@ const DangerousProductCard: React.FC<DangerousProductCardProps> = ({
   const effectiveHasSaveRight = rightsOverride ? overrideHasByMap(upOutBlock?.edit) : hasSaveRight
 
   const currentStatusId = editedData.statusId ?? data.statusId ?? undefined
+  const editableOutgoingStatusIds = isPpvApp() ? EDITABLE_OUTGOING_STATUS_IDS_PPV : EDITABLE_OUTGOING_STATUS_IDS_DPA
   const canEditByStatus =
-    !isOutgoingSource || currentStatusId === undefined || EDITABLE_OUTGOING_STATUS_IDS.includes(currentStatusId)
+    !isOutgoingSource ||
+    effectiveDpaid === '-' ||
+    (currentStatusId !== undefined && editableOutgoingStatusIds.includes(currentStatusId))
 
   const datasourceKindForEditPolicy =
     editedData.datasourceKindCode != null ? String(editedData.datasourceKindCode) : datasourceKindCode
