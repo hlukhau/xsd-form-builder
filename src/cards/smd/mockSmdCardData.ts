@@ -1,6 +1,60 @@
 import type { CardData } from '@/types/card'
+import { createDefaultSmdPrimaryMeasure, ensureSmdCardStructure } from './smdSanitaryMeasureModel'
 
 /** Демо-данные тела карты SMD до подключения парсера XML SS.09. */
+export const SMD_NEW_STATUS_NAME = 'Новое' as const
+
+export function createNewSmdCardData(partial?: Partial<CardData>): CardData {
+  const now = new Date()
+  const dateTime = now.toISOString()
+  return ensureSmdCardStructure(
+    createMockSmdCardData({
+      country: 'BY',
+      registrationNumber: '',
+      version: 1,
+      source: 'Исходящие сведения',
+      datasourceKindCode: '2',
+      status: SMD_NEW_STATUS_NAME,
+      createdAt: dateTime,
+      modifiedAt: dateTime,
+      electronicDocument: {
+        messageCode: 'P.SS.09.MSG.001',
+        documentCode: 'R.SM.SS.09.001',
+        documentId: '',
+        documentDate: dateTime,
+        language: 'ru',
+        sourceDocumentId: '',
+        validityPeriod: { start: '', end: '' },
+        updateDateTime: dateTime,
+      },
+      notification: {
+        country: 'BY',
+        registrationNumber: '',
+        type: 'Сведения о введении временной санитарной мере',
+        formationDate: '',
+        endDate: null,
+        authorizedBody: {
+          country: 'BY',
+          identifier: '',
+          name: '',
+          shortName: '',
+        },
+      },
+      measures: { measures: [createDefaultSmdPrimaryMeasure()] },
+      smdProductBatches: [],
+      smdIncidentAlerts: [],
+      phaDisease: {
+        diseaseName: '',
+        firstCaseDate: '',
+        lastCaseDate: '',
+        crossborderSpreadRiskIndicator: null,
+        pathogens: [],
+      },
+      ...partial,
+    })
+  )
+}
+
 export function createMockSmdCardData(partial?: Partial<CardData>): CardData {
   const base: CardData = {
     country: 'BY',

@@ -36,13 +36,13 @@ public class SmdAccessServlet extends HttpServlet {
             + "LEFT JOIN TB_DEPKIND dk ON d.DEPKINDID = dk.DEPKINDID "
             + "WHERE dp.SMDID = ? "
             + "ORDER BY d.DEPNAME";
-    /** ЦГЭ по умолчанию для входящих и ЕЭК: 006, 101, 201, 301, 401, 501, 601, 700 */
-    private static final String[] DEFAULT_DEP_IDS = { "006", "101", "201", "301", "401", "501", "601", "700" };
+    /** По умолчанию для входящих и ЕЭК: республиканский ЦГЭ (DEPID 006). */
+    private static final String[] DEFAULT_DEP_IDS = { "006" };
     private static final String SQL_DEFAULT_LIST = ""
             + "SELECT d.DEPID, d.DEPNAME, dk.DEPKINDCODE "
             + "FROM TB_DEP d "
             + "LEFT JOIN TB_DEPKIND dk ON d.DEPKINDID = dk.DEPKINDID "
-            + "WHERE d.DEPID IN (?,?,?,?,?,?,?,?) ORDER BY d.DEPID";
+            + "WHERE d.DEPID = ? ORDER BY d.DEPID";
     private static final String SQL_SOURCE = "SELECT t.DATASOURCEKINDNAME FROM VW_SMD vw LEFT JOIN DATASOURCEKIND t ON vw.DATASOURCEKINDCODE = t.DATASOURCEKINDCODE WHERE vw.SMDID = ?";
     /** Один ЦГЭ по DEPID — для списка по умолчанию (исходящие: ЦГЭ создателя) */
     private static final String SQL_ONE_DEP = "SELECT d.DEPID, d.DEPNAME, dk.DEPKINDCODE FROM TB_DEP d LEFT JOIN TB_DEPKIND dk ON d.DEPKINDID = dk.DEPKINDID WHERE d.DEPID = ?";
@@ -101,9 +101,7 @@ public class SmdAccessServlet extends HttpServlet {
                 String src = source.trim().toLowerCase();
                 if ("incoming".equals(src) || "eec".equals(src)) {
                     ps = conn.prepareStatement(SQL_DEFAULT_LIST);
-                    for (int i = 0; i < DEFAULT_DEP_IDS.length; i++) {
-                        ps.setString(i + 1, DEFAULT_DEP_IDS[i]);
-                    }
+                    ps.setString(1, DEFAULT_DEP_IDS[0]);
                     rs = ps.executeQuery();
                     while (rs.next()) {
                         rows.add(new String[]{

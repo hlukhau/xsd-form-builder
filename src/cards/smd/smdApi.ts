@@ -1,5 +1,13 @@
-import type { StatusHistoryItem } from '@/types/card'
-import type { SmdMetadata } from '@/types/smdCard'
+import type { CardData, StatusHistoryItem } from '@/types/card'
+import { getSmdMessageName } from '@/constants/smdCard'
+import { resolveSmdMeasureStartDate, resolveSmdMeasureEndDate } from './smdMeasureDates'
+import { getSmdRegulatoryDocCreationDate, getSmdRegulatoryDocId, getSmdRegulatoryMeasureDoc } from './smdMeasureDoc'
+import type {
+  SmdInfoRequestApiRow,
+  SmdMetadata,
+  SmdRelatedActions,
+  SmdReviewResultRow,
+} from '@/types/smdCard'
 import { withGuidUrl } from '@/utils/referenceDataApi'
 
 const BASE = import.meta.env.BASE_URL || '/'
@@ -24,6 +32,31 @@ export function smdSourceToViewRight(dataSourceKindCode: string | null | undefin
   if (lower.includes('исходящ')) return 'sanitaryMeasureOut:view'
   if (lower.includes('еэк')) return 'sanitaryMeasureDB:view'
   return 'sanitaryMeasureIn:view'
+}
+
+/** Право управления доступом к карте SMD по коду/подписи источника. */
+export function smdSourceToAccessRight(
+  dataSourceKindCode: string | null | undefined,
+  sourceLabel?: string | null
+): 'sanitaryMeasureIn:access' | 'sanitaryMeasureOut:access' | 'sanitaryMeasureDB:access' | undefined {
+  const c = String(dataSourceKindCode ?? '').trim()
+  if (c === '1') return 'sanitaryMeasureIn:access'
+  if (c === '2') return 'sanitaryMeasureOut:access'
+  if (c === '3') return 'sanitaryMeasureDB:access'
+  const s = (sourceLabel ?? c).trim().toLowerCase()
+  if (s.includes('входящ')) return 'sanitaryMeasureIn:access'
+  if (s.includes('исходящ')) return 'sanitaryMeasureOut:access'
+  if (s.includes('еэк') || s.includes('данные еэк')) return 'sanitaryMeasureDB:access'
+  return undefined
+}
+
+export function smdApiSourceToAccessRight(
+  api: 'incoming' | 'outgoing' | 'eec' | undefined
+): 'sanitaryMeasureIn:access' | 'sanitaryMeasureOut:access' | 'sanitaryMeasureDB:access' | undefined {
+  if (api === 'incoming') return 'sanitaryMeasureIn:access'
+  if (api === 'outgoing') return 'sanitaryMeasureOut:access'
+  if (api === 'eec') return 'sanitaryMeasureDB:access'
+  return undefined
 }
 
 export async function fetchSmdMetadata(smdid: string, guid?: string): Promise<SmdMetadata> {
@@ -75,4 +108,168 @@ export async function fetchSmdStatusHistory(smdid: string, guid?: string): Promi
     dateTime: r.dateTime ?? '',
     employee: r.employee ?? null,
   }))
+}
+
+export async function fetchSmdInfoRequests(
+  smdid: string,
+  guid?: string
+): Promise<SmdInfoRequestApiRow[]> {
+  const url = withGuidUrl(getApiUrl(`/api/smd/info-requests/${encodeURIComponent(smdid)}`), guid)
+  const response = await fetch(url, {
+    headers: withGuidHeaders(guid),
+    credentials: 'same-origin',
+  })
+  if (!response.ok) {
+    const text = await response.text()
+    let msg = text
+    try {
+      const j = JSON.parse(text) as { error?: string }
+      if (j.error) msg = j.error
+    } catch {
+      /* ignore */
+    }
+    throw new Error(msg || `Ошибка загрузки запросов сведений (${response.status})`)
+  }
+  const data = (await response.json()) as { requests?: SmdInfoRequestApiRow[] }
+  return data.requests ?? []
+}
+
+export async function fetchSmdReviewResults(
+  smdid: string,
+  guid?: string
+): Promise<SmdReviewResultRow[]> {
+  const url = withGuidUrl(getApiUrl(`/api/smd/review-results/${encodeURIComponent(smdid)}`), guid)
+  const response = await fetch(url, {
+    headers: withGuidHeaders(guid),
+    credentials: 'same-origin',
+  })
+  if (!response.ok) {
+    const text = await response.text()
+    let msg = text
+    try {
+      const j = JSON.parse(text) as { error?: string }
+      if (j.error) msg = j.error
+    } catch {
+      /* ignore */
+    }
+    throw new Error(msg || `Ошибка загрузки результатов рассмотрения (${response.status})`)
+  }
+  const data = (await response.json()) as { results?: SmdReviewResultRow[] }
+  return data.results ?? []
+}
+
+export async function fetchSmdRelatedActions(
+  smdid: string,
+  guid?: string
+): Promise<SmdRelatedActions> {
+  const url = withGuidUrl(getApiUrl(`/api/smd/related-actions/${encodeURIComponent(smdid)}`), guid)
+  const response = await fetch(url, {
+    headers: withGuidHeaders(guid),
+    credentials: 'same-origin',
+  })
+  if (!response.ok) {
+    const text = await response.text()
+    let msg = text
+    try {
+      const j = JSON.parse(text) as { error?: string }
+      if (j.error) msg = j.error
+    } catch {
+      /* ignore */
+    }
+    throw new Error(msg || `Ошибка загрузки действий SMD (${response.status})`)
+  }
+  return response.json() as Promise<SmdRelatedActions>
+}
+
+export interface SmdSaveMetadata {
+  docId: string | null
+  docCreationDate: string | null
+  sanitaryMeasureStartDate: string | null
+  sanitaryMeasureEndDate: string | null
+  countryCode: string | null
+  messageCode: string | null
+  edocCode: string | null
+  edocVersion: string | null
+}
+
+export function buildSmdSaveMetadataFromCardData(data: CardData): SmdSaveMetadata {
+  const doc = getSmdRegulatoryMeasureDoc(data)
+  const docId = getSmdRegulatoryDocId(data)
+  const docCreationDate = getSmdRegulatoryDocCreationDate(data)
+  return {
+    docId,
+    docCreationDate,
+    sanitaryMeasureStartDate: resolveSmdMeasureStartDate(data),
+    sanitaryMeasureEndDate: resolveSmdMeasureEndDate(data),
+    countryCode: (doc?.country || data.country || data.notification?.country || 'BY')
+      .trim()
+      .toUpperCase()
+      .slice(0, 2),
+    messageCode: data.electronicDocument?.messageCode?.trim() || 'P.SS.09.MSG.001',
+    edocCode: data.electronicDocument?.documentCode?.trim() || 'R.SM.SS.09.001',
+    edocVersion: '1.0.0',
+  }
+}
+
+/** Синтетические метаданные шапки для формы создания (до сохранения в БД). */
+export function buildCreateSmdMetadata(data: CardData, countryName?: string | null): SmdMetadata {
+  const now = data.createdAt || new Date().toISOString()
+  const saveMeta = buildSmdSaveMetadataFromCardData(data)
+  return {
+    docCountryCode: saveMeta.countryCode,
+    docCountryName: countryName ?? 'Беларусь',
+    docId: saveMeta.docId,
+    docCreationDate: saveMeta.docCreationDate,
+    smdVersion: 1,
+    dataSourceKindCode: '2',
+    dataSourceKindName: 'Исходящие сведения',
+    creationDateTime: now,
+    modificationDateTime: data.modifiedAt || now,
+    smdStatusName: data.status || 'Новое',
+    smdStatusCode: 'NEW',
+    smdStatusDesc: null,
+    smrStatusDesc: null,
+    messageName:
+      getSmdMessageName(saveMeta.messageCode, data.version) ??
+      data.notification?.type ??
+      'Сведения о введении временной санитарной мере',
+    messageCode: saveMeta.messageCode,
+  }
+}
+
+export async function saveSmdCard(payload: {
+  isNew: boolean
+  xmlBody: string
+  metadata: SmdSaveMetadata
+  guid?: string
+}): Promise<{ success: boolean; smdid: number }> {
+  const url = getApiUrl('/api/smd/save')
+  const body: Record<string, unknown> = {
+    isNew: payload.isNew,
+    xmlBody: payload.xmlBody,
+    metadata: payload.metadata,
+  }
+  if (payload.guid) body.guid = payload.guid
+
+  const response = await fetch(url, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json; charset=UTF-8',
+      ...(payload.guid ? { 'X-GUID': payload.guid.trim() } : {}),
+    },
+    credentials: 'same-origin',
+    body: JSON.stringify(body),
+  })
+  const text = await response.text()
+  if (!response.ok) {
+    let errMsg = text
+    try {
+      const j = JSON.parse(text) as { error?: string }
+      if (j.error) errMsg = j.error
+    } catch {
+      /* ignore */
+    }
+    throw new Error(errMsg || `Ошибка сохранения SMD (${response.status})`)
+  }
+  return JSON.parse(text) as { success: boolean; smdid: number }
 }

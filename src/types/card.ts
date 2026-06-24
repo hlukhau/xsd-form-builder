@@ -77,6 +77,12 @@ export interface CardData {
    * Каждая строка — отдельная детализация (вкладки Продукция / ТСД / …).
    */
   smdProductBatches?: SmdProductBatchItem[]
+
+  /** SMD: дата начала действия временной меры (csdo:StartDate). */
+  smdMeasureStartDate?: string
+
+  /** SMD: уведомления о нежелательной ситуации (smcdo:IncidentAlertIdDetails). */
+  smdIncidentAlerts?: PhaCauseNotificationItem[]
 }
 
 /** SMD: одна строка таблицы «Продукция» с данными для детализации. */
@@ -459,6 +465,10 @@ export interface SanitaryMeasure {
   initialMeasureDocDetails?: MeasureDocDetails // InitialMeasureDocDetails
   measureInitiationBasisDetails?: MeasureInitiationBasisItem[] // MeasureInitiationBasisDetails (массив)
   measureImplementationDetails?: MeasureImplementationItem[] // MeasureImplementationDetails (массив)
+  /** SMD / SS.09: код причины введения меры (smsdo:MeasureReasonCode). */
+  measureReasonCode?: string
+  /** SMD / SS.09: условие снятия меры (smsdo:MeasureRepealConditionText). */
+  measureRepealConditionText?: string
 }
 
 export interface MeasureDocDetails {

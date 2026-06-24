@@ -5,7 +5,7 @@ import { isPhaApp, isPpvApp, isDprApp, isSmdApp, getDpaLikeCardSessionKeys } fro
 import { DangerousProductCard } from './cards/dpa'
 import { PhaCard } from './cards/pha'
 import { DprCard, DprCreateCard } from './cards/dpr'
-import { SmdCard, fetchSmdMetadata, fetchSmdXml, smdSourceToViewRight, createMockSmdCardData } from './cards/smd'
+import { SmdCard, fetchSmdMetadata, fetchSmdXml, smdSourceToViewRight, createMockSmdCardData, createNewSmdCardData, buildCreateSmdMetadata, ensureSmdCardStructure } from './cards/smd'
 import type { SmdMetadata } from './types/smdCard'
 import type { CardData } from './types/card'
 import type { DprMetadataView, DprPrepareContext } from './types/dprCard'
@@ -420,13 +420,16 @@ const PHA_COPY_FROM_SESSION_KEY = 'pha_card_copy_from_phaid'
 function SmdAppContent() {
   const [cardData, setCardData] = useState<CardData | null>(null)
   const [meta, setMeta] = useState<SmdMetadata | null>(null)
+  const [createMeta, setCreateMeta] = useState<SmdMetadata | null>(null)
   const [smdXmlBody, setSmdXmlBody] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [viewDenied, setViewDenied] = useState(false)
+  const [createDenied, setCreateDenied] = useState(false)
   const { dpaid: smdidParam, guid: guidFromRoute } = useParams<{ dpaid: string; guid?: string }>()
   const [searchParams] = useSearchParams()
   const location = useLocation()
+  const navigate = useNavigate()
   const smdid = smdidParam ?? ''
   const guid =
     guidFromRoute?.trim() ||
@@ -457,13 +460,31 @@ function SmdAppContent() {
     }
     if (smdid === '-') {
       setMeta(null)
-      setCardData(createMockSmdCardData())
       setSmdXmlBody(null)
       setViewDenied(false)
       setError(null)
-      setLoading(false)
+      setCreateDenied(false)
+      setLoading(true)
+      void (async () => {
+        if (guid?.trim()) {
+          const allowed = await checkAccessRight(guid.trim(), 'sanitaryMeasureOut:edit')
+          if (!allowed) {
+            setCreateDenied(true)
+            setCardData(null)
+            setCreateMeta(null)
+            setLoading(false)
+            return
+          }
+        }
+        const initial = createNewSmdCardData()
+        setCardData(initial)
+        setCreateMeta(buildCreateSmdMetadata(initial))
+        setLoading(false)
+      })()
       return
     }
+    setCreateMeta(null)
+    setCreateDenied(false)
     setLoading(true)
     setError(null)
     setViewDenied(false)
@@ -495,7 +516,7 @@ function SmdAppContent() {
             /* XML SS.09 parser — позже */
           }
         }
-        const enriched: CardData = {
+        const enriched: CardData = ensureSmdCardStructure({
           ...body,
           country: metadata.docCountryCode ?? body.country,
           registrationNumber: metadata.docId ?? body.registrationNumber,
@@ -518,7 +539,25 @@ function SmdAppContent() {
                 type: metadata.messageName ?? body.notification.type,
               }
             : body.notification,
-        }
+          measures: {
+            measures: [
+              {
+                ...(body.measures?.measures?.[0] ?? { languageCode: 'ru' }),
+                measureDocDetails: {
+                  country: metadata.docCountryCode ?? body.measures?.measures?.[0]?.measureDocDetails?.country ?? 'BY',
+                  languageCode: body.measures?.measures?.[0]?.measureDocDetails?.languageCode ?? 'ru',
+                  ...body.measures?.measures?.[0]?.measureDocDetails,
+                  docId: metadata.docId ?? body.measures?.measures?.[0]?.measureDocDetails?.docId ?? '',
+                  docCreationDate:
+                    metadata.docCreationDate ??
+                    body.measures?.measures?.[0]?.measureDocDetails?.docCreationDate ??
+                    '',
+                },
+              },
+              ...(body.measures?.measures?.slice(1) ?? []),
+            ],
+          },
+        })
         setMeta(metadata)
         setCardData(enriched)
         setSmdXmlBody(xmlText?.trim() && !xmlText.includes('<empty/>') ? xmlText : null)
@@ -561,6 +600,16 @@ function SmdAppContent() {
     )
   }
 
+  if (createDenied) {
+    return (
+      <div className="empty-state" style={{ padding: 24 }}>
+        <div style={{ color: '#ff4d4f', maxWidth: 560, margin: '0 auto', textAlign: 'center' }}>
+          Нет права sanitaryMeasureOut:edit на создание карты сведений о временной санитарной мере
+        </div>
+      </div>
+    )
+  }
+
   if (loading) {
     return (
       <div style={{ textAlign: 'center', padding: 24 }}>
@@ -577,8 +626,24 @@ function SmdAppContent() {
     )
   }
 
-  if (cardData && meta) {
-    return <SmdCard data={cardData} meta={meta} smdid={smdid} guid={guid} xmlBody={smdXmlBody} />
+  if (cardData && (meta || createMeta)) {
+    const displayMeta = meta ?? createMeta!
+    return (
+      <SmdCard
+        data={cardData}
+        meta={displayMeta}
+        smdid={smdid}
+        guid={guid}
+        xmlBody={smdXmlBody}
+        onUpdate={(next) => {
+          setCardData(next)
+          if (smdid === '-') setCreateMeta(buildCreateSmdMetadata(next, displayMeta.docCountryName))
+        }}
+        onSaveNewCard={(newSmdid) => {
+          navigate(`/${newSmdid}/${guid ?? ''}`, { replace: true })
+        }}
+      />
+    )
   }
 
   return null

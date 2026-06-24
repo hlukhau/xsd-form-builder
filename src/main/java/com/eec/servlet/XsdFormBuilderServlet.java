@@ -432,24 +432,51 @@ public class XsdFormBuilderServlet extends HttpServlet {
     }
 
     /**
-     * Возвращает index.html для SPA роутов
+     * Возвращает index.html для SPA роутов.
+     * Файл должен лежать в корне WAR (копируется из dist/ при сборке build:smd + build-manual.sh smd_card).
      */
     private void forwardToSpa(HttpServletRequest request, HttpServletResponse response)
             throws ServletException, IOException {
         System.out.println("[XsdFormBuilderServlet] Returning index.html for SPA: " + request.getPathInfo());
-        
-        // Возвращаем index.html напрямую для SPA роутов
+
         InputStream is = getServletContext().getResourceAsStream("/index.html");
+        if (is == null) {
+            is = getServletContext().getResourceAsStream("index.html");
+        }
         if (is != null) {
             response.setContentType("text/html;charset=UTF-8");
             response.setStatus(HttpServletResponse.SC_OK);
-            
             copyStreamToResponse(is, response.getOutputStream());
-        } else {
-            response.setStatus(HttpServletResponse.SC_NOT_FOUND);
-            response.setContentType("text/plain;charset=UTF-8");
-            response.getWriter().print("index.html not found");
+            return;
         }
+
+        javax.servlet.RequestDispatcher rd = getServletContext().getRequestDispatcher("/index.html");
+        if (rd != null) {
+            try {
+                rd.forward(request, response);
+                return;
+            } catch (Exception e) {
+                System.err.println("[XsdFormBuilderServlet] forward /index.html failed: " + e.getMessage());
+            }
+        }
+
+        String ctx = request.getContextPath();
+        response.setStatus(HttpServletResponse.SC_NOT_FOUND);
+        response.setContentType("text/html;charset=UTF-8");
+        response.getWriter().print(
+                "<!DOCTYPE html><html><head><meta charset='UTF-8'><title>index.html not found</title></head><body>"
+                + "<h1>index.html not found</h1>"
+                + "<p>В развёртывании <code>" + escapeHtml(ctx) + "</code> отсутствует фронтенд (index.html в корне WAR).</p>"
+                + "<p>Соберите и разверните приложение:</p>"
+                + "<pre>npm run build:smd\n./build-and-deploy-smd.sh</pre>"
+                + "<p>Либо: <code>./build-manual.sh smd_card</code> после <code>npm run build:smd</code>.</p>"
+                + "<p>Не используйте только <code>mvn compile</code> — в WAR нужна папка <code>dist/</code>.</p>"
+                + "</body></html>");
+    }
+
+    private static String escapeHtml(String s) {
+        if (s == null) return "";
+        return s.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;");
     }
 
     /**

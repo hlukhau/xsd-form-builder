@@ -1,16 +1,26 @@
-import { Descriptions } from 'antd'
+import { Descriptions, Select } from 'antd'
 import { format } from 'date-fns'
 import { ru } from 'date-fns/locale'
 import type { SmdMetadata } from '@/types/smdCard'
 import { useCountryOptions } from '@/hooks/shared/useCountryOptions'
 import { DATE_TIME_DISPLAY_FORMAT_DATEFNS } from '@/constants/dateFormat'
+import { getSmdMessageName, getSmdMessageOptionsForVersion } from '@/constants/smdCard'
 
 interface SmdCardHeaderProps {
   meta: SmdMetadata
   onStatusClick: () => void
+  isCreateMode?: boolean
+  messageCode?: string | null
+  onMessageCodeChange?: (code: string) => void
 }
 
-const SmdCardHeader: React.FC<SmdCardHeaderProps> = ({ meta, onStatusClick }) => {
+const SmdCardHeader: React.FC<SmdCardHeaderProps> = ({
+  meta,
+  onStatusClick,
+  isCreateMode,
+  messageCode,
+  onMessageCodeChange,
+}) => {
   const { getDisplayLabel: getCountryDisplayLabel } = useCountryOptions()
 
   const formatDateTime = (dateTime: string | null | undefined) => {
@@ -21,8 +31,8 @@ const SmdCardHeader: React.FC<SmdCardHeaderProps> = ({ meta, onStatusClick }) =>
   }
 
   const formatDocDate = (d: string | null | undefined) => {
-    if (!d) return '—'
-    const date = new Date(d)
+    if (!d?.trim()) return isCreateMode ? '—' : '—'
+    const date = new Date(d.slice(0, 10))
     if (isNaN(date.getTime())) return d
     return format(date, 'dd.MM.yyyy', { locale: ru })
   }
@@ -35,6 +45,12 @@ const SmdCardHeader: React.FC<SmdCardHeaderProps> = ({ meta, onStatusClick }) =>
         : meta.docCountryName ?? '—'
 
   const isEecSource = String(meta.dataSourceKindCode ?? '').trim() === '3'
+  const version = meta.smdVersion ?? 1
+  const messageOptions = getSmdMessageOptionsForVersion(version).map((o) => ({
+    value: o.code,
+    label: o.name,
+  }))
+  const effectiveMessageCode = messageCode ?? meta.messageCode ?? 'P.SS.09.MSG.001'
 
   return (
     <Descriptions
@@ -45,7 +61,7 @@ const SmdCardHeader: React.FC<SmdCardHeaderProps> = ({ meta, onStatusClick }) =>
       className="card-header-descriptions"
     >
       <Descriptions.Item label="Страна">{countryLabel}</Descriptions.Item>
-      <Descriptions.Item label="Номер">{meta.docId ?? '—'}</Descriptions.Item>
+      <Descriptions.Item label="Номер">{meta.docId?.trim() ? meta.docId : '—'}</Descriptions.Item>
       <Descriptions.Item label="Дата">{formatDocDate(meta.docCreationDate)}</Descriptions.Item>
       <Descriptions.Item label="Версия">{meta.smdVersion ?? '—'}</Descriptions.Item>
       <Descriptions.Item label="Источник">{meta.dataSourceKindName ?? '—'}</Descriptions.Item>
@@ -60,7 +76,19 @@ const SmdCardHeader: React.FC<SmdCardHeaderProps> = ({ meta, onStatusClick }) =>
       )}
       <Descriptions.Item label="Дополнительные сведения">{meta.smdStatusDesc?.trim() || '—'}</Descriptions.Item>
       <Descriptions.Item label="Результаты рассмотрения">{meta.smrStatusDesc?.trim() || '—'}</Descriptions.Item>
-      <Descriptions.Item label="Вид сообщения">{meta.messageName ?? meta.messageCode ?? '—'}</Descriptions.Item>
+      <Descriptions.Item label="Вид сообщения">
+        {isCreateMode && onMessageCodeChange ? (
+          <Select
+            size="small"
+            style={{ minWidth: 280, width: '100%' }}
+            value={effectiveMessageCode}
+            options={messageOptions}
+            onChange={onMessageCodeChange}
+          />
+        ) : (
+          meta.messageName ?? getSmdMessageName(meta.messageCode, version) ?? meta.messageCode ?? '—'
+        )}
+      </Descriptions.Item>
       <Descriptions.Item label="Дата и время создания">{formatDateTime(meta.creationDateTime)}</Descriptions.Item>
       <Descriptions.Item label="Дата и время изменения">{formatDateTime(meta.modificationDateTime)}</Descriptions.Item>
     </Descriptions>

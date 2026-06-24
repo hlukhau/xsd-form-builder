@@ -5,18 +5,22 @@ import type { AccessItem } from '@/types/card'
 import {
   fetchDpaAccess,
   fetchPpvDepPermisAccess,
+  fetchSmdAccess,
   fetchRightsByGuid,
   addDpaAccess,
   addPpvDepPermisAccess,
+  addSmdAccess,
   removeDpaAccess,
   removePpvDepPermisAccess,
+  removeSmdAccess,
   fetchDepOptions,
   checkAccessRight,
   cardApiSourceToAccessRight,
   resolveCardAccessApiSource,
   type DepOption,
 } from '@/utils/referenceDataApi'
-import { isPpvApp } from '@/cards/config'
+import { isPpvApp, isSmdApp } from '@/cards/config'
+import { smdApiSourceToAccessRight } from '@/cards/smd/smdApi'
 
 /** Ручное добавление/удаление в перечне доступа: только районный и областной ЦГЭ (dep0603 — системой). */
 const MANUAL_ACCESS_DEP_KINDS = ['dep0601', 'dep0602']
@@ -57,6 +61,8 @@ export interface AccessModalProps {
   dpaid?: string
   /** Карта PPV: идентификатор для PPVDEPPERMIS через `/api/ppv/access` (в запросе поле `dpaid`). */
   ppvid?: string
+  /** Карта SMD: идентификатор для SMDDEPPERMIS через `/api/smd/access`. */
+  smdid?: string
   /** Источник сведений карты (Входящие / Исходящие / Данные ЕЭК) — для прав и списка по умолчанию */
   source?: string
   /** Код вида источника из метаданных (1/2/3), если подпись source пустая или не распознаётся */
@@ -73,6 +79,7 @@ const AccessModal: React.FC<AccessModalProps> = ({
   onUpdate,
   dpaid,
   ppvid,
+  smdid,
   source,
   datasourceKindCode,
   guid,
@@ -88,10 +95,42 @@ const AccessModal: React.FC<AccessModalProps> = ({
   const [canManageAccess, setCanManageAccess] = useState(true)
 
   const trimmedPpvid = (ppvid ?? '').trim()
+  const trimmedSmdid = (smdid ?? '').trim()
   const trimmedDpaid = (dpaid ?? '').trim()
-  const usePpvApi = trimmedPpvid.length > 0
-  const listKey = usePpvApi ? trimmedPpvid : trimmedDpaid
+  const useSmdApi = trimmedSmdid.length > 0
+  const usePpvApi = !useSmdApi && trimmedPpvid.length > 0
+  const listKey = useSmdApi ? trimmedSmdid : usePpvApi ? trimmedPpvid : trimmedDpaid
   const fromApi = listKey.length > 0
+
+  function resolveManageAccessRight():
+    | ReturnType<typeof cardApiSourceToAccessRight>
+    | ReturnType<typeof smdApiSourceToAccessRight>
+    | undefined {
+    const apiSource = resolveCardAccessApiSource(source, datasourceKindCode)
+    if (isSmdApp()) return smdApiSourceToAccessRight(apiSource)
+    return cardApiSourceToAccessRight(apiSource, isPpvApp())
+  }
+
+  function fetchAccessList(
+    id: string,
+    creatorDepId?: string | number
+  ): Promise<AccessItem[]> {
+    if (useSmdApi) return fetchSmdAccess(id, source, creatorDepId, guid, datasourceKindCode)
+    if (usePpvApi) return fetchPpvDepPermisAccess(id, source, creatorDepId, guid, datasourceKindCode)
+    return fetchDpaAccess(id, source, creatorDepId, guid, datasourceKindCode)
+  }
+
+  async function addAccessRecord(id: string, depId: string): Promise<void> {
+    if (useSmdApi) await addSmdAccess(id, depId, guid)
+    else if (usePpvApi) await addPpvDepPermisAccess(id, depId, guid)
+    else await addDpaAccess(id, depId, guid)
+  }
+
+  async function removeAccessRecord(id: string, depId: string): Promise<void> {
+    if (useSmdApi) await removeSmdAccess(id, depId, guid)
+    else if (usePpvApi) await removePpvDepPermisAccess(id, depId, guid)
+    else await removeDpaAccess(id, depId, guid)
+  }
 
   useEffect(() => {
     if (!visible) return
@@ -101,10 +140,7 @@ const AccessModal: React.FC<AccessModalProps> = ({
       const apiSource = resolveCardAccessApiSource(source, datasourceKindCode)
       const isOutgoing = apiSource === 'outgoing'
       const loadList = (creatorDepId?: string | number) =>
-        (usePpvApi
-          ? fetchPpvDepPermisAccess(listKey, source, creatorDepId, guid, datasourceKindCode)
-          : fetchDpaAccess(listKey, source, creatorDepId, guid, datasourceKindCode)
-        ).then((list) => setAccessList(list))
+        fetchAccessList(listKey, creatorDepId).then((list) => setAccessList(list))
       const promise =
         isOutgoing && guid
           ? fetchRightsByGuid(guid)
@@ -118,7 +154,7 @@ const AccessModal: React.FC<AccessModalProps> = ({
         })
         .finally(() => setLoadingList(false))
     }
-  }, [visible, listKey, usePpvApi, source, datasourceKindCode, data, fromApi, guid])
+  }, [visible, listKey, usePpvApi, useSmdApi, source, datasourceKindCode, data, fromApi, guid])
 
   useEffect(() => {
     if (!visible || !fromApi || !listKey) return
@@ -126,10 +162,7 @@ const AccessModal: React.FC<AccessModalProps> = ({
       setCanManageAccess(false)
       return
     }
-    const right = cardApiSourceToAccessRight(
-      resolveCardAccessApiSource(source, datasourceKindCode),
-      isPpvApp()
-    )
+    const right = resolveManageAccessRight()
     if (!right) {
       setCanManageAccess(true)
       return
@@ -176,8 +209,7 @@ const AccessModal: React.FC<AccessModalProps> = ({
     }
     setAdding(true)
     try {
-      if (usePpvApi) await addPpvDepPermisAccess(listKey, selectedDepId, guid)
-      else await addDpaAccess(listKey, selectedDepId, guid)
+      await addAccessRecord(listKey, selectedDepId)
       setAccessList([
         ...accessList,
         { id: selectedDepId, name: opt ? opt.name : selectedDepId, depKindCode: opt?.depKindCode },
@@ -195,8 +227,7 @@ const AccessModal: React.FC<AccessModalProps> = ({
   const handleDelete = async (id: string) => {
     if (fromApi && listKey) {
       try {
-        if (usePpvApi) await removePpvDepPermisAccess(listKey, id, guid)
-        else await removeDpaAccess(listKey, id, guid)
+        await removeAccessRecord(listKey, id)
         setAccessList(accessList.filter((item) => item.id !== id))
       } catch (e) {
         message.error('Ошибка удаления: ' + (e instanceof Error ? e.message : ''))

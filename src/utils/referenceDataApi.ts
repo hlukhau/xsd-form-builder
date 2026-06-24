@@ -1463,6 +1463,68 @@ export async function removePpvDepPermisAccess(ppvid: string, depId: string, gui
   }
 }
 
+/** Список SMDDEPPERMIS для карты SMD. GET /api/smd/access?smdid=… */
+export async function fetchSmdAccess(
+  smdid: string,
+  source?: string,
+  creatorDepId?: string | number,
+  guid?: string,
+  datasourceKindCode?: string | null
+): Promise<AccessItemDto[]> {
+  const params = withGuidParams(new URLSearchParams({ smdid }), guid)
+  const apiSource = resolveCardAccessApiSource(source, datasourceKindCode)
+  if (apiSource) params.set('source', apiSource)
+  if (creatorDepId != null && String(creatorDepId).trim()) params.set('creatorDepId', String(creatorDepId).trim())
+  const response = await fetch(`${BASE_URL}api/smd/access?${params.toString()}`)
+  if (!response.ok) {
+    const text = await response.text()
+    let errMsg = response.statusText
+    try {
+      const json = JSON.parse(text)
+      if (json.error) errMsg = json.error
+    } catch {
+      if (text) errMsg = text.slice(0, 200)
+    }
+    throw new Error(errMsg)
+  }
+  return response.json()
+}
+
+export async function addSmdAccess(smdid: string, depId: string, guid?: string): Promise<void> {
+  const response = await fetch(`${BASE_URL}api/smd/access`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(withGuidBody({ smdid, depId }, guid)),
+  })
+  if (!response.ok) {
+    const text = await response.text()
+    let errMsg = response.statusText
+    try {
+      const json = JSON.parse(text)
+      if (json.error) errMsg = json.error
+    } catch {
+      if (text) errMsg = text.slice(0, 200)
+    }
+    throw new Error(errMsg)
+  }
+}
+
+export async function removeSmdAccess(smdid: string, depId: string, guid?: string): Promise<void> {
+  const params = withGuidParams(new URLSearchParams({ smdid, depId }), guid)
+  const response = await fetch(`${BASE_URL}api/smd/access?${params.toString()}`, { method: 'DELETE' })
+  if (!response.ok) {
+    const text = await response.text()
+    let errMsg = response.statusText
+    try {
+      const json = JSON.parse(text)
+      if (json.error) errMsg = json.error
+    } catch {
+      if (text) errMsg = text.slice(0, 200)
+    }
+    throw new Error(errMsg)
+  }
+}
+
 /** Уровень ЦГЭ (depKindCode + depKindName). Для текущего пользователя и для уровня по depid из карты прав. */
 export interface DepKindLevel {
   depKindCode: string | null

@@ -89,6 +89,37 @@ final class SmdDbSupport {
             + "WHERE hs.SMDID = ? "
             + "ORDER BY 2";
 
+    /** Запросы дополнительных сведений (SMAQ) и ответы (SMAR) по карте SMD. */
+    static final String SQL_INFO_REQUESTS = ""
+            + "SELECT SQ.SMDID, SQ.SMAQID, "
+            + "       NVL(C.COUNTRYNAME, 'Комиссия') AS COUNTRYNAME, "
+            + "       SQ.CREATIONDATETIME, SQ.SMAQVERSION, STQ.SMAQSTATUSNAME, "
+            + "       SR.SMARID, SR.SMARVERSION, SR.CREATIONDATETIME AS RCREATIONDATETIME, "
+            + "       STR.SMARSTATUSNAME, SRX.EDOCCODE "
+            + "FROM SMAQ SQ "
+            + "JOIN SMAQSTATUS STQ ON STQ.SMAQSTATUSID = SQ.SMAQSTATUSID "
+            + "LEFT JOIN COUNTRY C ON C.COUNTRYID = SQ.REQUESTCOUNTRYID "
+            + "LEFT JOIN SMAR SR ON SQ.SMAQID = SR.SMAQID "
+            + "LEFT JOIN SMARSTATUS STR ON STR.SMARSTATUSID = SR.SMARSTATUSID "
+            + "LEFT JOIN SMARXML SRX ON SRX.SMARID = SR.SMARID "
+            + "WHERE SQ.SMDID = ? "
+            + "ORDER BY SQ.SMAQID, SR.SMARID NULLS LAST";
+
+    /** Результаты рассмотрения меры (SMR) по карте SMD. */
+    static final String SQL_REVIEW_RESULTS = ""
+            + "SELECT SMR.SMDID, COUNTRY.COUNTRYCODE, COUNTRY.COUNTRYNAME, "
+            + "       SMR.SMRID, SMR.CREATIONDATETIME, SMRSTATUS.SMRSTATUSNAME "
+            + "FROM SMR "
+            + "JOIN COUNTRY ON COUNTRY.COUNTRYID = SMR.RESPONSECOUNTRYID "
+            + "JOIN SMRSTATUS ON SMRSTATUS.SMRSTATUSID = SMR.SMRSTATUSID "
+            + "WHERE SMR.SMDID = ? "
+            + "ORDER BY SMR.CREATIONDATETIME DESC NULLS LAST, SMR.SMRID DESC";
+
+    static final String SQL_SMD_DATASOURCE = ""
+            + "SELECT TRIM(TO_CHAR(DATASOURCEKINDCODE)) AS DSC FROM SMD WHERE SMDID = ?";
+
+    static final String SQL_SMR_COUNT = "SELECT COUNT(*) AS CNT FROM SMR WHERE SMDID = ?";
+
     private SmdDbSupport() {
     }
 

@@ -1,6 +1,6 @@
-import { useState, useEffect, useMemo, useCallback } from 'react'
+import { useState, useEffect, useMemo, useCallback, type CSSProperties } from 'react'
 import { Tabs, Button, Space, message, Modal } from 'antd'
-import type { CardData, StatusHistoryItem } from '@/types/card'
+import type { CardData, StatusHistoryItem, AccessItem } from '@/types/card'
 import type { SmdMetadata } from '@/types/smdCard'
 import { CardActions } from '@/cards/shared'
 import SmdCardHeader from './SmdCardHeader'
@@ -10,8 +10,12 @@ import SmdProductsTab from './tabs/SmdProductsTab'
 import SmdDiseaseTab from './tabs/SmdDiseaseTab'
 import SmdInfoRequestsTab from './tabs/SmdInfoRequestsTab'
 import SmdReviewResultsTab from './tabs/SmdReviewResultsTab'
-import { fetchSmdStatusHistory, fetchSmdXml } from './smdApi'
+import { fetchSmdStatusHistory, fetchSmdXml, fetchSmdRelatedActions, saveSmdCard, buildSmdSaveMetadataFromCardData } from './smdApi'
+import { exportSmdCardDataToXML } from './smdXmlExporter'
+import type { SmdRelatedActions } from '@/types/smdCard'
+import { validateSmdCardBeforeSave } from './smdSaveValidation'
 import { validateSmdCardXml } from './smdValidation'
+import { syncSmdCardFromPrimaryMeasure } from './smdSanitaryMeasureModel'
 import {
   incomingSmdStatusButton,
   outgoingSmdStatusButton,
@@ -21,10 +25,13 @@ import {
 } from './smdStatusButtonConfig'
 import StatusHistoryModal from '@/components/modals/dpa/StatusHistoryModal'
 import ValidationResultModal from '@/components/modals/dpa/ValidationResultModal'
-import { checkAccessRight, fetchRightsByGuidRaw } from '@/utils/referenceDataApi'
+import AccessModal from '@/components/modals/dpa/AccessModal'
+import { checkAccessRight, fetchRightsByGuidRaw, resolveCardAccessApiSource } from '@/utils/referenceDataApi'
+import { smdApiSourceToAccessRight } from './smdApi'
 import type { ValidationResult } from '@/utils/cardValidation'
 import { useParentActivityPing } from '@/hooks/shared/useParentActivityPing'
 import { postMessageFromCardToParent } from '@/utils/parentPostMessage'
+import { getSmdMessageName } from '@/constants/smdCard'
 
 interface SmdCardProps {
   data: CardData
@@ -34,17 +41,48 @@ interface SmdCardProps {
   /** XML из SMDXML (для «Валидация карты» без повторного запроса). */
   xmlBody?: string | null
   onCardDeleted?: () => void
+  onUpdate?: (data: CardData) => void
+  onSaveNewCard?: (smdid: number) => void
 }
 
-const SmdCard: React.FC<SmdCardProps> = ({ data, meta, smdid, guid, xmlBody, onCardDeleted }) => {
+const CARD_STICKY_HEADER_STYLE: CSSProperties = {
+  position: 'sticky',
+  top: 0,
+  zIndex: 100,
+  background: '#ffffff',
+  boxShadow: '0 1px 2px rgba(0,0,0,0.06)',
+  padding: '0 24px 2px 24px',
+  isolation: 'isolate',
+  display: 'flex',
+  flexDirection: 'column',
+  height: '100vh',
+  maxHeight: '100vh',
+  overflow: 'hidden',
+}
+
+const SmdCard: React.FC<SmdCardProps> = ({
+  data,
+  meta,
+  smdid,
+  guid,
+  xmlBody,
+  onCardDeleted,
+  onUpdate,
+  onSaveNewCard,
+}) => {
   const [editedData, setEditedData] = useState<CardData>(data)
-  const [isEditMode, setIsEditMode] = useState(false)
+  const isCreateMode = (smdid ?? '').trim() === '-'
+  const [isEditMode, setIsEditMode] = useState(isCreateMode)
+  const [saving, setSaving] = useState(false)
   const [statusHistoryVisible, setStatusHistoryVisible] = useState(false)
   const [statusHistoryModalData, setStatusHistoryModalData] = useState<StatusHistoryItem[]>([])
   const [statusHistoryLoading, setStatusHistoryLoading] = useState(false)
-  const [hasAccessRight, setHasAccessRight] = useState(false)
+  const [hasManageAccessRight, setHasManageAccessRight] = useState(false)
   const [hasEditRight, setHasEditRight] = useState(false)
   const [hasSendRight, setHasSendRight] = useState(false)
+  const [accessModalVisible, setAccessModalVisible] = useState(false)
+  const [accessList, setAccessList] = useState<AccessItem[]>([])
+  const [relatedActions, setRelatedActions] = useState<SmdRelatedActions | null>(null)
   const [validationModalVisible, setValidationModalVisible] = useState(false)
   const [validationResult, setValidationResult] = useState<ValidationResult | null>(null)
   const [validating, setValidating] = useState(false)
@@ -53,8 +91,8 @@ const SmdCard: React.FC<SmdCardProps> = ({ data, meta, smdid, guid, xmlBody, onC
 
   useEffect(() => {
     setEditedData(data)
-    setIsEditMode(false)
-  }, [data])
+    if (!isCreateMode) setIsEditMode(false)
+  }, [data, isCreateMode])
 
   const effectiveSmdid = (smdid ?? '').trim()
   const hasPersisted = effectiveSmdid.length > 0 && effectiveSmdid !== '-'
@@ -64,9 +102,17 @@ const SmdCard: React.FC<SmdCardProps> = ({ data, meta, smdid, guid, xmlBody, onC
 
   const currentData = isEditMode ? editedData : data
 
+  const manageAccessRight = useMemo(() => {
+    const api = resolveCardAccessApiSource(
+      meta.dataSourceKindName ?? data.source,
+      meta.dataSourceKindCode
+    )
+    return smdApiSourceToAccessRight(api)
+  }, [meta.dataSourceKindName, meta.dataSourceKindCode, data.source])
+
   useEffect(() => {
     if (!guid?.trim()) {
-      setHasAccessRight(false)
+      setHasManageAccessRight(false)
       setHasEditRight(false)
       setHasSendRight(false)
       return
@@ -74,24 +120,56 @@ const SmdCard: React.FC<SmdCardProps> = ({ data, meta, smdid, guid, xmlBody, onC
     const g = guid.trim()
     void (async () => {
       try {
-        const [access, edit, send] = await Promise.all([
-          checkAccessRight(g, 'sanitaryMeasureOut:access'),
+        const checks: Promise<boolean>[] = [
           checkAccessRight(g, 'sanitaryMeasureOut:edit'),
           checkAccessRight(g, 'sanitaryMeasureOut:send'),
-        ])
-        setHasAccessRight(access)
-        setHasEditRight(edit)
-        setHasSendRight(send)
+        ]
+        if (manageAccessRight) {
+          checks.unshift(checkAccessRight(g, manageAccessRight))
+        }
+        const results = await Promise.all(checks)
+        if (manageAccessRight) {
+          setHasManageAccessRight(results[0] ?? false)
+          setHasEditRight(results[1] ?? false)
+          setHasSendRight(results[2] ?? false)
+        } else {
+          setHasManageAccessRight(false)
+          setHasEditRight(results[0] ?? false)
+          setHasSendRight(results[1] ?? false)
+        }
       } catch {
-        setHasAccessRight(false)
+        setHasManageAccessRight(false)
         setHasEditRight(false)
         setHasSendRight(false)
       }
     })()
-  }, [guid])
+  }, [guid, manageAccessRight])
 
-  const showEditButton = isOutgoing && !isEec && hasEditRight
-  const showValidationButton = isOutgoing && !isEec
+  useEffect(() => {
+    if (!hasPersisted || !effectiveSmdid || !guid?.trim()) {
+      setRelatedActions(null)
+      return
+    }
+    let cancelled = false
+    void fetchSmdRelatedActions(effectiveSmdid, guid)
+      .then((actions) => {
+        if (!cancelled) setRelatedActions(actions)
+      })
+      .catch(() => {
+        if (!cancelled) setRelatedActions(null)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [effectiveSmdid, guid, hasPersisted])
+
+  const canAddInfoRequest = relatedActions?.canAddInfoRequest ?? false
+  const canAddResponse =
+    (relatedActions?.isOutgoing && relatedActions?.hasOutgoingEditRight) ?? false
+  const canPrepareReviewResult = relatedActions?.canPrepareReviewResult ?? false
+
+  const showEditButton = (isOutgoing && !isEec && hasEditRight) || isCreateMode
+  const showValidationButton = isOutgoing && !isEec && !isCreateMode
 
   const statusButton = useMemo(() => {
     if (isEec) return null
@@ -171,12 +249,49 @@ const SmdCard: React.FC<SmdCardProps> = ({ data, meta, smdid, guid, xmlBody, onC
     setIsEditMode(false)
   }
 
-  const handleSave = () => {
-    message.info('Сохранение карты SMD в БД (API save) — в следующей итерации; правки в форме пока не записываются в XML.')
+  const handleSave = async () => {
+    if (!isCreateMode) {
+      message.info('Сохранение существующей карты SMD — в следующей итерации')
+      return
+    }
+    const synced = syncSmdCardFromPrimaryMeasure(currentData)
+    const validationErrors = validateSmdCardBeforeSave(synced)
+    if (validationErrors.length > 0) {
+      message.error(validationErrors[0])
+      return
+    }
+    setSaving(true)
+    try {
+      const xml = exportSmdCardDataToXML(synced)
+      const metadata = buildSmdSaveMetadataFromCardData(synced)
+      const res = await saveSmdCard({ isNew: true, xmlBody: xml, metadata, guid })
+      message.success('Карта сведений о временной санитарной мере сохранена')
+      onSaveNewCard?.(res.smdid)
+    } catch (e) {
+      message.error(e instanceof Error ? e.message : 'Ошибка сохранения карты')
+    } finally {
+      setSaving(false)
+    }
   }
 
   const onCardChange = (next: CardData) => {
-    setEditedData(next)
+    const synced = syncSmdCardFromPrimaryMeasure(next)
+    setEditedData(synced)
+    onUpdate?.(synced)
+  }
+
+  const handleMessageCodeChange = (code: string) => {
+    onCardChange({
+      ...currentData,
+      electronicDocument: {
+        ...currentData.electronicDocument!,
+        messageCode: code,
+      },
+      notification: {
+        ...currentData.notification!,
+        type: getSmdMessageName(code, currentData.version) ?? code,
+      },
+    })
   }
 
   const tabProps = { editMode: isEditMode, onChange: isEditMode ? onCardChange : undefined }
@@ -185,25 +300,72 @@ const SmdCard: React.FC<SmdCardProps> = ({ data, meta, smdid, guid, xmlBody, onC
     {
       key: 'sanitary',
       label: 'Санитарная мера',
-      children: <SmdSanitaryMeasureTab data={currentData} {...tabProps} />,
+      children: (
+        <div style={{ padding: 16 }}>
+          <SmdSanitaryMeasureTab data={currentData} {...tabProps} />
+        </div>
+      ),
     },
     {
       key: 'implementation',
       label: 'Мероприятия',
-      children: <SmdMeasuresTab data={currentData} {...tabProps} />,
-    },
-    { key: 'products', label: 'Продукция', children: <SmdProductsTab data={currentData} /> },
-    { key: 'disease', label: 'Болезнь', children: <SmdDiseaseTab data={currentData} /> },
-    {
-      key: 'info',
-      label: 'Сведения',
-      children: <SmdInfoRequestsTab smdid={effectiveSmdid} hasPersisted={hasPersisted} />,
+      children: (
+        <div style={{ padding: 16 }}>
+          <SmdMeasuresTab data={currentData} {...tabProps} />
+        </div>
+      ),
     },
     {
-      key: 'review',
-      label: 'Результаты рассмотрения',
-      children: <SmdReviewResultsTab smdid={effectiveSmdid} hasPersisted={hasPersisted} />,
+      key: 'products',
+      label: 'Продукция',
+      children: (
+        <div style={{ padding: 16 }}>
+          <SmdProductsTab data={currentData} />
+        </div>
+      ),
     },
+    {
+      key: 'disease',
+      label: 'Болезнь',
+      children: (
+        <div style={{ padding: 16 }}>
+          <SmdDiseaseTab data={currentData} {...tabProps} />
+        </div>
+      ),
+    },
+    ...(isCreateMode
+      ? []
+      : [
+          {
+            key: 'info',
+            label: 'Запрос сведений',
+            children: (
+              <div style={{ padding: 16 }}>
+                <SmdInfoRequestsTab
+                  smdid={effectiveSmdid}
+                  guid={guid}
+                  hasPersisted={hasPersisted}
+                  canAddInfoRequest={canAddInfoRequest}
+                  canAddResponse={canAddResponse}
+                />
+              </div>
+            ),
+          },
+          {
+            key: 'review',
+            label: 'Результаты рассмотрения',
+            children: (
+              <div style={{ padding: 16 }}>
+                <SmdReviewResultsTab
+                  smdid={effectiveSmdid}
+                  guid={guid}
+                  hasPersisted={hasPersisted}
+                  canPrepareReviewResult={canPrepareReviewResult}
+                />
+              </div>
+            ),
+          },
+        ]),
   ]
 
   return (
@@ -211,19 +373,8 @@ const SmdCard: React.FC<SmdCardProps> = ({ data, meta, smdid, guid, xmlBody, onC
       className="smd-card pha-card fade-in card-page-layout"
       style={{ padding: 0, display: 'flex', flexDirection: 'column', minHeight: '100vh' }}
     >
-      <div
-        className="card-sticky-header"
-        style={{
-          position: 'sticky',
-          top: 0,
-          zIndex: 100,
-          background: '#fff',
-          boxShadow: '0 1px 2px rgba(0,0,0,0.06)',
-          padding: '0 24px 8px',
-          isolation: 'isolate',
-        }}
-      >
-        <div className="card-sticky-header-title-row" style={{ marginBottom: 8 }}>
+      <div className="card-sticky-header" style={CARD_STICKY_HEADER_STYLE}>
+        <div className="card-sticky-header-title-row" style={{ marginBottom: 8, marginTop: 8 }}>
           <span className="card-sticky-header-title" style={{ fontSize: 16, fontWeight: 600 }}>
             Карта сведений о временной санитарной мере
             {hasPersisted ? ` (SMDID ${effectiveSmdid})` : ''}
@@ -248,8 +399,8 @@ const SmdCard: React.FC<SmdCardProps> = ({ data, meta, smdid, guid, xmlBody, onC
             )}
             {isEditMode && (
               <>
-                {showEditButton && (
-                  <Button type="primary" onClick={handleSave}>
+                {(showEditButton || isCreateMode) && (
+                  <Button type="primary" onClick={() => void handleSave()} loading={saving}>
                     Сохранить
                   </Button>
                 )}
@@ -258,10 +409,10 @@ const SmdCard: React.FC<SmdCardProps> = ({ data, meta, smdid, guid, xmlBody, onC
                     Валидация карты
                   </Button>
                 )}
-                {hasPersisted && (
+                {hasPersisted && !isCreateMode && (
                   <Button onClick={handleCancelEdit}>Отменить</Button>
                 )}
-                {!hasPersisted && (
+                {(!hasPersisted || isCreateMode) && (
                   <Button onClick={handleCloseForm}>Отменить создание</Button>
                 )}
               </>
@@ -269,11 +420,18 @@ const SmdCard: React.FC<SmdCardProps> = ({ data, meta, smdid, guid, xmlBody, onC
           </Space>
         </div>
 
-        <SmdCardHeader meta={meta} onStatusClick={handleStatusClick} />
+        <SmdCardHeader
+          meta={meta}
+          onStatusClick={handleStatusClick}
+          isCreateMode={isCreateMode}
+          messageCode={currentData.electronicDocument?.messageCode}
+          onMessageCodeChange={isCreateMode && isEditMode ? handleMessageCodeChange : undefined}
+        />
+        {!isCreateMode && (
         <CardActions
           onDefineAccess={
-            hasAccessRight && hasPersisted
-              ? () => message.info('Модальное окно доступа SMD — в разработке')
+            hasManageAccessRight && hasPersisted
+              ? () => setAccessModalVisible(true)
               : undefined
           }
           onOpenAllVersions={
@@ -326,10 +484,10 @@ const SmdCard: React.FC<SmdCardProps> = ({ data, meta, smdid, guid, xmlBody, onC
               : undefined
           }
         />
-      </div>
-
-      <div style={{ padding: '0 24px 16px', flex: 1 }}>
-        <Tabs defaultActiveKey="sanitary" items={tabItems} style={{ marginTop: 8 }} />
+        )}
+        <div className="card-tabs-wrapper">
+          <Tabs defaultActiveKey="sanitary" items={tabItems} />
+        </div>
       </div>
 
       <StatusHistoryModal
@@ -345,6 +503,16 @@ const SmdCard: React.FC<SmdCardProps> = ({ data, meta, smdid, guid, xmlBody, onC
           setValidationModalVisible(false)
           setValidationResult(null)
         }}
+      />
+      <AccessModal
+        visible={accessModalVisible}
+        data={accessList}
+        onClose={() => setAccessModalVisible(false)}
+        onUpdate={setAccessList}
+        smdid={hasPersisted ? effectiveSmdid : undefined}
+        source={meta.dataSourceKindName ?? data.source}
+        datasourceKindCode={meta.dataSourceKindCode}
+        guid={guid}
       />
     </div>
   )

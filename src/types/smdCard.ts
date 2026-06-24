@@ -19,20 +19,44 @@ export interface SmdMetadata {
   smdAccessibleDepIds?: string[]
 }
 
-/** Строка таблицы «Сведения» / запросы (заготовка под API). */
-export interface SmdInfoRequestRow {
-  id?: number
-  countryName?: string | null
-  requestDateTime?: string | null
-  statusName?: string | null
-  description?: string | null
+/** Строка API «Запрос сведений» (SMAQ/SMAR). */
+export interface SmdInfoRequestApiRow {
+  smaqId: number
+  countryName: string | null
+  requestDateTime: string | null
+  requestVersion: number | null
+  requestStatusName: string | null
+  smarId: number | null
+  responseVersion: number | null
+  responseDateTime: string | null
+  responseStatusName: string | null
+  edocCode: string | null
 }
 
-/** Строка «Результаты рассмотрения» (заготовка под API). */
+/** Строка таблицы «Запрос сведений» с группировкой ответов по запросу. */
+export interface SmdInfoRequestTableRow extends SmdInfoRequestApiRow {
+  key: string
+  requestRowSpan: number
+  hasAnyResponseForRequest: boolean
+}
+
+/** Строка «Результаты рассмотрения» (SMR). */
 export interface SmdReviewResultRow {
-  id?: number
-  countryName?: string | null
-  responseDateTime?: string | null
-  resultName?: string | null
-  comment?: string | null
+  smrId: number
+  countryCode: string | null
+  countryName: string | null
+  creationDateTime: string | null
+  statusName: string | null
+}
+
+/** Доступность действий на реляционных вкладках SMD. */
+export interface SmdRelatedActions {
+  dataSourceKindCode: string | null
+  canAddInfoRequest: boolean
+  canPrepareReviewResult: boolean
+  hasIncomingStatusRight: boolean
+  hasOutgoingEditRight: boolean
+  isIncoming: boolean
+  isOutgoing: boolean
+  hasLinkedReviewResult: boolean
 }

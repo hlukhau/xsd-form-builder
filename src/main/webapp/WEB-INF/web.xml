@@ -766,6 +766,42 @@
         <url-pattern>/api/smd/access</url-pattern>
     </servlet-mapping>
 
+    <servlet>
+        <servlet-name>SmdInfoRequestsServlet</servlet-name>
+        <servlet-class>com.eec.servlet.smd.SmdInfoRequestsServlet</servlet-class>
+    </servlet>
+    <servlet-mapping>
+        <servlet-name>SmdInfoRequestsServlet</servlet-name>
+        <url-pattern>/api/smd/info-requests/*</url-pattern>
+    </servlet-mapping>
+
+    <servlet>
+        <servlet-name>SmdReviewResultsServlet</servlet-name>
+        <servlet-class>com.eec.servlet.smd.SmdReviewResultsServlet</servlet-class>
+    </servlet>
+    <servlet-mapping>
+        <servlet-name>SmdReviewResultsServlet</servlet-name>
+        <url-pattern>/api/smd/review-results/*</url-pattern>
+    </servlet-mapping>
+
+    <servlet>
+        <servlet-name>SmdRelatedActionsServlet</servlet-name>
+        <servlet-class>com.eec.servlet.smd.SmdRelatedActionsServlet</servlet-class>
+    </servlet>
+    <servlet-mapping>
+        <servlet-name>SmdRelatedActionsServlet</servlet-name>
+        <url-pattern>/api/smd/related-actions/*</url-pattern>
+    </servlet-mapping>
+
+    <servlet>
+        <servlet-name>SmdSaveServlet</servlet-name>
+        <servlet-class>com.eec.servlet.smd.SmdSaveServlet</servlet-class>
+    </servlet>
+    <servlet-mapping>
+        <servlet-name>SmdSaveServlet</servlet-name>
+        <url-pattern>/api/smd/save</url-pattern>
+    </servlet-mapping>
+
     <!-- XSD Form Builder Servlet для работы с GUID и DPAID -->
     <!-- Обрабатывает только запросы формата /{DPAID}/{GUID} внутри контекста приложения -->
     <!-- Должен быть ПЕРЕД SpaServlet, чтобы обрабатывать API запросы первым -->

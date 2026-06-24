@@ -1,0 +1,125 @@
+package com.eec.servlet.smd;
+
+import com.eec.rights.RightsRegistryProvider;
+import com.eec.util.AccessRightService;
+import com.eec.util.DatabaseUtil;
+import com.eec.util.ServletRequestGuid;
+
+import javax.servlet.ServletException;
+import javax.servlet.http.HttpServlet;
+import javax.servlet.http.HttpServletRequest;
+import javax.servlet.http.HttpServletResponse;
+import java.io.IOException;
+import java.io.PrintWriter;
+import java.sql.Connection;
+import java.sql.PreparedStatement;
+import java.sql.ResultSet;
+import java.sql.SQLException;
+
+/**
+ * Доступность действий на вкладках «Запрос сведений» и «Результаты рассмотрения».
+ * GET /api/smd/related-actions/{SMDID}?guid=...
+ */
+public class SmdRelatedActionsServlet extends HttpServlet {
+
+    @Override
+    protected void doGet(HttpServletRequest request, HttpServletResponse response)
+            throws ServletException, IOException {
+
+        String pathInfo = request.getPathInfo();
+        if (pathInfo == null || pathInfo.isEmpty() || "/".equals(pathInfo)) {
+            sendJsonError(response, HttpServletResponse.SC_BAD_REQUEST,
+                    "Укажите SMDID: /api/smd/related-actions/{SMDID}");
+            return;
+        }
+
+        String smdidStr = pathInfo.startsWith("/") ? pathInfo.substring(1).trim() : pathInfo.trim();
+        String guid = ServletRequestGuid.resolve(request);
+        if (guid == null) {
+            sendJsonError(response, HttpServletResponse.SC_BAD_REQUEST,
+                    "Укажите guid в query (?guid=...) или заголовок X-GUID");
+            return;
+        }
+
+        response.setContentType("application/json;charset=UTF-8");
+        response.setCharacterEncoding("UTF-8");
+        response.setHeader("Access-Control-Allow-Origin", "*");
+
+        try (Connection conn = DatabaseUtil.getConnectionForRequest(request, guid)) {
+            long smdid = Long.parseLong(smdidStr);
+            String rightsJson = RightsRegistryProvider.get().getRightsJson(guid);
+            if (rightsJson == null) {
+                rightsJson = "";
+            }
+            String dsc = loadDatasourceKind(conn, smdid);
+            boolean incoming = "1".equals(dsc);
+            boolean outgoing = "2".equals(dsc);
+            boolean hasInStatus = AccessRightService.hasSanitaryMeasureInStatus(rightsJson);
+            boolean hasOutEdit = AccessRightService.hasSanitaryMeasureOutEdit(rightsJson);
+            int smrCount = countSmr(conn, smdid);
+
+            boolean canAddInfoRequest = incoming && hasInStatus;
+            boolean canPrepareReviewResult = incoming && hasInStatus && smrCount == 0;
+
+            StringBuilder json = new StringBuilder();
+            json.append("{");
+            json.append("\"dataSourceKindCode\":").append(quote(dsc));
+            json.append(",\"canAddInfoRequest\":").append(canAddInfoRequest);
+            json.append(",\"canPrepareReviewResult\":").append(canPrepareReviewResult);
+            json.append(",\"hasIncomingStatusRight\":").append(hasInStatus);
+            json.append(",\"hasOutgoingEditRight\":").append(hasOutEdit);
+            json.append(",\"isIncoming\":").append(incoming);
+            json.append(",\"isOutgoing\":").append(outgoing);
+            json.append(",\"hasLinkedReviewResult\":").append(smrCount > 0);
+            json.append("}");
+
+            response.setStatus(HttpServletResponse.SC_OK);
+            PrintWriter out = response.getWriter();
+            out.write(json.toString());
+            out.flush();
+        } catch (NumberFormatException e) {
+            sendJsonError(response, HttpServletResponse.SC_BAD_REQUEST, "Некорректный SMDID");
+        } catch (SQLException e) {
+            System.err.println("[SmdRelatedActionsServlet] DB error: " + e.getMessage());
+            e.printStackTrace();
+            sendJsonError(response, HttpServletResponse.SC_INTERNAL_SERVER_ERROR, "Ошибка БД: " + e.getMessage());
+        }
+    }
+
+    private static String loadDatasourceKind(Connection conn, long smdid) throws SQLException {
+        try (PreparedStatement ps = conn.prepareStatement(SmdDbSupport.SQL_SMD_DATASOURCE)) {
+            ps.setLong(1, smdid);
+            try (ResultSet rs = ps.executeQuery()) {
+                if (rs.next()) {
+                    String dsc = rs.getString("DSC");
+                    return dsc != null ? dsc.trim() : "";
+                }
+            }
+        }
+        return "";
+    }
+
+    private static int countSmr(Connection conn, long smdid) throws SQLException {
+        try (PreparedStatement ps = conn.prepareStatement(SmdDbSupport.SQL_SMR_COUNT)) {
+            ps.setLong(1, smdid);
+            try (ResultSet rs = ps.executeQuery()) {
+                if (rs.next()) {
+                    return rs.getInt("CNT");
+                }
+            }
+        }
+        return 0;
+    }
+
+    private static String quote(String s) {
+        if (s == null) return "null";
+        return "\"" + s.replace("\\", "\\\\").replace("\"", "\\\"") + "\"";
+    }
+
+    private static void sendJsonError(HttpServletResponse response, int status, String message) throws IOException {
+        response.setStatus(status);
+        response.setContentType("application/json;charset=UTF-8");
+        String escaped = message != null ? message.replace("\\", "\\\\").replace("\"", "\\\"") : "Unknown error";
+        response.getWriter().print("{\"error\":\"" + escaped + "\"}");
+    }
+}
