@@ -838,6 +838,15 @@
         <url-pattern>/api/smd/status</url-pattern>
     </servlet-mapping>
 
+    <servlet>
+        <servlet-name>SmdElectronicDocsServlet</servlet-name>
+        <servlet-class>com.eec.servlet.smd.SmdElectronicDocsServlet</servlet-class>
+    </servlet>
+    <servlet-mapping>
+        <servlet-name>SmdElectronicDocsServlet</servlet-name>
+        <url-pattern>/api/smd/electronic-docs/*</url-pattern>
+    </servlet-mapping>
+
     <!-- XSD Form Builder Servlet для работы с GUID и DPAID -->
     <!-- Обрабатывает только запросы формата /{DPAID}/{GUID} внутри контекста приложения -->
     <!-- Должен быть ПЕРЕД SpaServlet, чтобы обрабатывать API запросы первым -->

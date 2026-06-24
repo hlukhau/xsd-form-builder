@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo, useCallback, useRef, type CSSProperties } from 'react'
 import { Tabs, Button, Space, message, Modal } from 'antd'
-import type { CardData, StatusHistoryItem, AccessItem } from '@/types/card'
+import type { CardData, StatusHistoryItem, AccessItem, ElectronicDocument } from '@/types/card'
 import type { SmdMetadata } from '@/types/smdCard'
 import { CardActions } from '@/cards/shared'
 import SmdCardHeader from './SmdCardHeader'
@@ -10,7 +10,7 @@ import SmdProductsTab from './tabs/SmdProductsTab'
 import SmdDiseaseTab from './tabs/SmdDiseaseTab'
 import SmdInfoRequestsTab from './tabs/SmdInfoRequestsTab'
 import SmdReviewResultsTab from './tabs/SmdReviewResultsTab'
-import { fetchSmdStatusHistory, fetchSmdXml, fetchSmdRelatedActions, saveSmdCard, buildSmdSaveMetadataFromCardData, canCreateSmdNewVersion, fetchSmdMetadata, postSmdStatus, fetchSmdIncomingCompletePreview } from './smdApi'
+import { fetchSmdStatusHistory, fetchSmdXml, fetchSmdRelatedActions, saveSmdCard, buildSmdSaveMetadataFromCardData, canCreateSmdNewVersion, fetchSmdMetadata, postSmdStatus, fetchSmdIncomingCompletePreview, fetchSmdElectronicDocs } from './smdApi'
 import { confirmDeleteSmdCard } from './smdDeleteActions'
 import { exportSmdCardDataToXML } from './smdXmlExporter'
 import type { SmdRelatedActions } from '@/types/smdCard'
@@ -24,6 +24,7 @@ import {
   isSmdOutgoingSource,
 } from './smdStatusButtonConfig'
 import StatusHistoryModal from '@/components/modals/dpa/StatusHistoryModal'
+import ElectronicDocumentModal from '@/components/modals/dpa/ElectronicDocumentModal'
 import ValidationResultModal from '@/components/modals/dpa/ValidationResultModal'
 import AccessModal from '@/components/modals/dpa/AccessModal'
 import { checkAccessRight, fetchRightsByGuidRaw, resolveCardAccessApiSource } from '@/utils/referenceDataApi'
@@ -32,6 +33,7 @@ import type { ValidationResult } from '@/utils/cardValidation'
 import { useParentActivityPing } from '@/hooks/shared/useParentActivityPing'
 import { postMessageFromCardToParent } from '@/utils/parentPostMessage'
 import { getSmdMessageName, SMD_MESSAGE_CANCEL } from '@/constants/smdCard'
+import { parseElectronicDocContentBody } from '@/utils/xmlParser'
 
 interface SmdCardProps {
   data: CardData
@@ -119,6 +121,9 @@ const SmdCard: React.FC<SmdCardProps> = ({
   const [sending, setSending] = useState(false)
   const [completingProcessing, setCompletingProcessing] = useState(false)
   const [closingCard, setClosingCard] = useState(false)
+  const [electronicDocumentVisible, setElectronicDocumentVisible] = useState(false)
+  const [electronicDocList, setElectronicDocList] = useState<ElectronicDocument[]>([])
+  const [electronicDocLoading, setElectronicDocLoading] = useState(false)
 
   useParentActivityPing()
 
@@ -367,6 +372,40 @@ const SmdCard: React.FC<SmdCardProps> = ({
       return
     }
     message.info(`Действие «${action}» для SMD будет реализовано в следующей итерации`)
+  }
+
+  const handleElectronicDocumentClick = () => {
+    if (!hasPersisted || !effectiveSmdid) {
+      message.info('Сведения об электронных документах доступны после сохранения карты')
+      return
+    }
+    setElectronicDocLoading(true)
+    setElectronicDocumentVisible(true)
+    setElectronicDocList([])
+    void fetchSmdElectronicDocs(effectiveSmdid, guid)
+      .then((rawList) => {
+        const docs: ElectronicDocument[] = rawList.map((raw) => {
+          const resource = raw.contentBody
+            ? parseElectronicDocContentBody(raw.contentBody)
+            : { validityPeriod: { start: '', end: '' }, updateDateTime: '' }
+          return {
+            messageCode: raw.messageCode ?? '',
+            documentCode: raw.documentCode ?? '',
+            documentId: raw.documentId ?? '',
+            documentDate: raw.documentDate ?? '',
+            language: raw.language ?? '',
+            sourceDocumentId: raw.sourceDocumentId ?? '',
+            validityPeriod: resource.validityPeriod,
+            updateDateTime: resource.updateDateTime,
+          }
+        })
+        setElectronicDocList(docs)
+      })
+      .catch((e) => {
+        message.error(e instanceof Error ? e.message : 'Ошибка загрузки сведений об электронных документах')
+        setElectronicDocList([])
+      })
+      .finally(() => setElectronicDocLoading(false))
   }
 
   const resolveXmlForValidation = useCallback(async (): Promise<string | null> => {
@@ -739,7 +778,7 @@ const SmdCard: React.FC<SmdCardProps> = ({
           closeButton={smdStatusResult.closeConfig}
           onStatusAction={handleStatusAction}
           statusButtonsLoading={completingProcessing || closingCard}
-          onElectronicDocumentClick={() => message.info('Электронные документы SMD — в разработке')}
+          onElectronicDocumentClick={handleElectronicDocumentClick}
           showDeleteButton={isOutgoing && hasPersisted && canDeleteCard}
           onDelete={handleDelete}
           showCopyButton={canShowCopyButton}
@@ -780,6 +819,12 @@ const SmdCard: React.FC<SmdCardProps> = ({
         data={statusHistoryModalData}
         onClose={() => setStatusHistoryVisible(false)}
         hideEmployeeWhenMissing
+      />
+      <ElectronicDocumentModal
+        visible={electronicDocumentVisible}
+        data={electronicDocList}
+        onClose={() => setElectronicDocumentVisible(false)}
+        loading={electronicDocLoading}
       />
       <ValidationResultModal
         visible={validationModalVisible}

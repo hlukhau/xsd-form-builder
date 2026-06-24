@@ -437,3 +437,38 @@ export async function fetchSmdIncomingCompletePreview(
   }
   return JSON.parse(text) as { reviewOutcomeSent: boolean }
 }
+
+/** Элемент из API электронных документов SMD (EDOC + contentBody). */
+export interface SmdElectronicDocRaw {
+  messageCode: string | null
+  documentCode: string | null
+  documentId: string | null
+  documentDate: string | null
+  language: string | null
+  sourceDocumentId: string | null
+  contentBody: string | null
+}
+
+/** GET /api/smd/electronic-docs/{SMDID} */
+export async function fetchSmdElectronicDocs(
+  smdid: string,
+  guid?: string
+): Promise<SmdElectronicDocRaw[]> {
+  const url = withGuidUrl(getApiUrl(`/api/smd/electronic-docs/${encodeURIComponent(smdid)}`), guid)
+  const res = await fetch(url, {
+    headers: withGuidHeaders(guid),
+    credentials: 'same-origin',
+  })
+  const text = await res.text()
+  if (!res.ok) {
+    let msg = res.statusText
+    try {
+      const j = JSON.parse(text) as { error?: string }
+      if (j.error) msg = j.error
+    } catch {
+      if (text) msg = text.slice(0, 200)
+    }
+    throw new Error(msg)
+  }
+  return JSON.parse(text) as SmdElectronicDocRaw[]
+}
