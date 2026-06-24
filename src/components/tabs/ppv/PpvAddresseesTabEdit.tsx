@@ -1,5 +1,5 @@
 import { useEffect, useState, useMemo, useCallback } from 'react'
-import { Table, Spin, Alert, Space, Typography, Select, Button, Tooltip, message } from 'antd'
+import { Table, Spin, Alert, Space, Select, Button, Tooltip, message } from 'antd'
 import { FileTextOutlined, DeleteOutlined, PlusOutlined } from '@ant-design/icons'
 import type { ColumnsType } from 'antd/es/table'
 import {
@@ -317,11 +317,6 @@ const PpvAddresseesTabEdit: React.FC<PpvAddresseesTabEditProps> = ({
   return (
     <div style={{ padding: 16 }}>
       <Space direction="vertical" size="middle" style={{ width: '100%' }}>
-        <Typography.Text type="secondary">
-          Добавление — только выбор страны; код участника и признак актуальности задаются при сохранении. Запись без
-          ответа можно удалить из БД (кнопка удаления); при наличии ответа (карта DPR по стране или EDOCID) удаление
-          заблокировано.
-        </Typography.Text>
         {error ? <Alert type="warning" message={error} showIcon /> : null}
         <Space wrap align="start">
           <Select

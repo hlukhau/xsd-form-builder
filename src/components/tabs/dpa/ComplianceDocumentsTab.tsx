@@ -205,7 +205,7 @@ const ComplianceDocumentsTab: React.FC<ComplianceDocumentsTabProps> = ({
   const handleRequestProtocols = async (doc: ComplianceDocument) => {
     const docId = doc.docId ?? doc.registrationCertificateId
     if (!docId || !String(docId).trim()) {
-      message.warning('Номер документа (csdo:DocId) не указан')
+      message.warning('Номер документа не указан')
       return
     }
     const countryCode = doc.authority?.country?.trim()

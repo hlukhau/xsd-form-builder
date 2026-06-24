@@ -25,8 +25,6 @@ import {
   validateDprOutgoingCardFull,
 } from '@/utils/dprCardValidation'
 
-const { Text } = Typography
-
 const CARD_STICKY_HEADER_STYLE: CSSProperties = {
   position: 'sticky',
   top: 0,
@@ -328,13 +326,6 @@ export function DprCreateCard({ eligibility, ppvid, guid }: DprCreateCardProps) 
           onStatusAction={() => {}}
           onElectronicDocumentClick={() => message.info('Электронный документ будет доступен после сохранения карты')}
         />
-        <div style={{ flexShrink: 0, marginTop: 2 }}>
-          <Text type="secondary" style={{ fontSize: 12 }}>
-            Заполните уведомление, принятые меры и описание результатов. Реквизиты исходной карты PPV подставляются
-            автоматически при сохранении.
-          </Text>
-        </div>
-
         <div className="card-tabs-wrapper">
           <Tabs
             defaultActiveKey="notification"

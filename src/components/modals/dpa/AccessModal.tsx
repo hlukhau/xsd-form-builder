@@ -231,7 +231,7 @@ const AccessModal: React.FC<AccessModalProps> = ({
   const addContent = fromApi ? (
     <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 8, width: '100%' }}>
       <Select
-        placeholder="Выберите подразделение (районный или областной ЦГЭ — dep0601 / dep0602)"
+        placeholder="Выберите подразделение"
         value={selectedDepId}
         onChange={setSelectedDepId}
         options={addableDeps.map((o) => ({
