@@ -50,12 +50,10 @@ export const XSD_FIELD_CONSTRAINTS: Record<string, FieldConstraint> = {
     messageMaxLength: 'Не более 300 символов (csdo:Name300Type, smsdo:SanitaryProductTypeName)',
   },
   description: { maxLength: 4000, messageMaxLength: 'Не более 4000 символов (csdo:Text4000Type)' },
-  /** DPR: корневой csdo:DescriptionText (необязателен в черновике; при заполнении — от 1 до 4000 символов). */
+  /** DPR: корневой csdo:DescriptionText (необязателен; при заполнении — до 4000 символов). */
   dprResultDescription: {
-    minLength: 1,
     maxLength: 4000,
     messageMaxLength: 'Не более 4000 символов (csdo:Text4000Type)',
-    messageMinLength: 'Не менее 1 символа (csdo:Text4000Type)',
   },
   commodityCode: {
     pattern: COMMODITY_CODE_PATTERN,

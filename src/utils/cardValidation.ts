@@ -1033,7 +1033,11 @@ function getMeasureImplementationSubjects(impl: MeasureImplementationItem): Subj
 }
 
 /** Форматные проверки раздела «Принятые меры» (адрес субъекта-исполнителя, пункт пропуска места мероприятия и т.д.). */
-function pushMeasuresFormatErrors(errors: string[], measures: MeasuresData | null | undefined): void {
+export function pushMeasuresFormatErrors(
+  errors: string[],
+  measures: MeasuresData | null | undefined,
+  forDpr = false
+): void {
   if (!measures?.measures?.length) return
   measures.measures.forEach((m, mi) => {
     const mPath = `Принятые меры → Мера ${mi + 1}`
@@ -1082,7 +1086,18 @@ function pushMeasuresFormatErrors(errors: string[], measures: MeasuresData | nul
       if (place) {
         const hasCheckpointCode = (place.borderCheckpointCode ?? '').trim() !== ''
         const hasCheckpointName = (place.borderCheckpointName ?? '').trim() !== ''
-        if (hasCheckpointCode !== hasCheckpointName) {
+        if (forDpr) {
+          if (hasCheckpointName && !hasCheckpointCode) {
+            errors.push(
+              'В составе сведений о пункте пропуска, в котором проводится мероприятие должен быть указан код вида пункта пропуска'
+            )
+          }
+          if (hasCheckpointCode && !hasCheckpointName) {
+            errors.push(
+              'В составе сведений о пункте пропуска, в котором проводится мероприятие должно быть указано наименование пункта пропуска'
+            )
+          }
+        } else if (hasCheckpointCode !== hasCheckpointName) {
           errors.push(`${implPath} → Место проведения → Пункт пропуска: ${MEASURE_PLACE_CHECKPOINT_PAIRING_HINT}`)
         }
         pushFormatError(errors, `${implPath} → Место проведения → Пункт пропуска → Код`, 'checkpointCode', place.borderCheckpointCode)

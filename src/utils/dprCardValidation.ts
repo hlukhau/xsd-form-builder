@@ -4,9 +4,9 @@
  * «Валидация карты» и направление в ОП 57: форматно-логический контроль → несоответствие формату → XSD.
  */
 import type { DprParsedBundle } from '@/types/dprCard'
-import type { CardData, MeasureImplementationItem, MeasuresData, SubjectDetails } from '@/types/card'
+import type { MeasureImplementationItem, MeasuresData, SubjectDetails } from '@/types/card'
 import type { ValidationResult } from '@/utils/cardValidation'
-import { collectFormatValidationErrors, validateDprMeasuresFormatLogical } from '@/utils/cardValidation'
+import { pushMeasuresFormatErrors, validateDprMeasuresFormatLogical } from '@/utils/cardValidation'
 import { validateFieldValue } from '@/constants/xsdFieldConstraints'
 import { fetchSchemaValidationErrors } from '@/utils/schemaValidationApi'
 
@@ -73,11 +73,10 @@ export function collectDprSaveLogicalErrors(parsed: DprParsedBundle): string[] {
 export function collectDprFormatValidationErrors(parsed: DprParsedBundle): string[] {
   const errors: string[] = []
 
-  const measuresOnly = collectFormatValidationErrors({ measures: parsed.measures } as CardData).errors
-  errors.push(...measuresOnly)
+  pushMeasuresFormatErrors(errors, parsed.measures, true)
 
   const auth = parsed.notifyingAuthority
-  pushFormatError(errors, 'Уполномоченный орган → Наименование', 'authorityName', auth?.name)
+  pushFormatError(errors, 'Уведомление → Уполномоченный орган → Наименование', 'authorityName', auth?.name)
   if ((auth?.identifier ?? '').trim()) {
     pushFormatError(errors, 'Уполномоченный орган → Идентификатор', 'authorityId', auth?.identifier)
   }
@@ -110,14 +109,14 @@ export function validateDprFormatLogical(parsed: DprParsedBundle): ValidationRes
   }
 
   const auth = parsed.notifyingAuthority
-  const secAuth = { sectionName: 'Уполномоченный орган', remarks: [] as string[] }
+  const secNotification = { sectionName: 'Уведомление', remarks: [] as string[] }
   if (empty(auth?.country)) {
-    secAuth.remarks.push('Должен быть указан код страны уполномоченного органа')
+    secNotification.remarks.push('Должен быть указан код страны уполномоченного органа')
   }
   if (empty(auth?.name)) {
-    secAuth.remarks.push('Наименование уполномоченного органа должно быть указано')
+    secNotification.remarks.push('Наименование уполномоченного органа должно быть указано')
   }
-  if (secAuth.remarks.length) sections.push(secAuth)
+  if (secNotification.remarks.length) sections.push(secNotification)
 
   const inc = parsed.incidentAlert
   const secInc = { sectionName: 'Исходная карта сведений о выявленных нарушениях', remarks: [] as string[] }
@@ -137,6 +136,41 @@ export function validateDprFormatLogical(parsed: DprParsedBundle): ValidationRes
 
   const total = sections.reduce((n, s) => n + s.remarks.length, 0)
   return { success: total === 0, sections }
+}
+
+/** Замечания структурного контроля по разделу «Описание результатов» для DPR не показываем (ФЛК по ТЗ не задан). */
+function isDprResultSectionStructuralRemark(remark: string): boolean {
+  const s = remark.toLowerCase()
+  if (s.includes('doccontentdetails')) return true
+  if (s.includes('описание результатов')) return true
+  if (s.includes('descriptiontext') && !s.includes('мероприят')) return true
+  if (s.includes('текстовое описание') && !s.includes('мероприят')) return true
+  return false
+}
+
+/** Краткое наименование УО для DPR не контролируется; замечания XSD по AuthorityBriefName скрываем. */
+function isDprAuthorityBriefNameRemark(remark: string): boolean {
+  const s = remark.toLowerCase()
+  return (
+    s.includes('authoritybriefname') ||
+    s.includes('краткое наименование уполномоченного') ||
+    s.includes('краткое наименование органа')
+  )
+}
+
+function normalizeDprStructuralRemark(remark: string): string | null {
+  const t = remark.trim()
+  if (!t) return null
+  if (isDprResultSectionStructuralRemark(t)) return null
+  if (isDprAuthorityBriefNameRemark(t)) return null
+  if (
+    /наименование уполномоченного органа должно быть указано/i.test(t) ||
+    /должно быть указано.*наименование.*уполномоченн/i.test(t) ||
+    (/authorityname|наименование органа/i.test(t) && /уполномоченн/i.test(t))
+  ) {
+    return 'Наименование уполномоченного органа должно быть указано'
+  }
+  return t.replace(/\s*\([^)]*authorityname[^)]*\)/gi, '').trim() || null
 }
 
 /**
@@ -168,9 +202,15 @@ export async function validateDprOutgoingCardFull(parsed: DprParsedBundle, xml: 
     }
   }
   if (xsdRemarks.length > 0) {
-    return {
-      success: false,
-      sections: [{ sectionName: 'Структурный контроль', remarks: xsdRemarks }],
+    const filtered = xsdRemarks
+      .map((r) => normalizeDprStructuralRemark(r))
+      .filter((r): r is string => !!r)
+    const unique = [...new Set(filtered)]
+    if (unique.length > 0) {
+      return {
+        success: false,
+        sections: [{ sectionName: 'Структурный контроль', remarks: unique }],
+      }
     }
   }
   return { success: true, sections: [] }

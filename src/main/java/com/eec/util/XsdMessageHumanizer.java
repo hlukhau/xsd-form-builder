@@ -3,6 +3,7 @@ package com.eec.util;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -43,6 +44,7 @@ public final class XsdMessageHumanizer {
         FORM_SECTION.put("MeasurePlaceDetails", "место реализации меры");
         FORM_SECTION.put("SubjectDetails", "субъект");
         FORM_SECTION.put("ConformityDocDetails", "документ соответствия");
+        FORM_SECTION.put("DangerousProductAlertResponseDetails", "вкладка «Уведомление»");
         FORM_SECTION.put("DangerousProductAlertDetails", "уведомление");
         FORM_SECTION.put("PublicHealthAlertDetails", "уведомление PHA");
         FORM_SECTION.put("PublicHealthIncidentDetails", "нежелательная ситуация");
@@ -218,6 +220,12 @@ public final class XsdMessageHumanizer {
             }
             return MEASURE_SUBJECT_IDENTITY_DOC_COUNTRY_REMARK + " (" + hint + ")";
         }
+        if ("dpr".equals(docType) && isDprUnifiedAuthorityNameMissingMessage(human, body, hint)) {
+            return "Наименование уполномоченного органа должно быть указано";
+        }
+        if ("dpr".equals(docType) && isDprUnifiedAuthorityBriefNameMessage(human, body, hint)) {
+            return "";
+        }
         if (hint.isEmpty()) {
             return human;
         }
@@ -282,6 +290,47 @@ public final class XsdMessageHumanizer {
                     && rb.contains("UnifiedCountryCode")) {
                 return true;
             }
+        }
+        return false;
+    }
+
+    /** DPR: отсутствует csdo:AuthorityName в UnifiedAuthorityDetails (вкладка «Уведомление»). */
+    private static boolean isDprUnifiedAuthorityNameMissingMessage(String human, String rawBody, String hint) {
+        if (human == null || human.isEmpty()) {
+            return false;
+        }
+        String h = human.toLowerCase(Locale.ROOT);
+        if (h.contains("authoritybriefname")) {
+            return false;
+        }
+        if (h.contains("наименование уполномоченного органа должно быть указано")) {
+            return true;
+        }
+        if (h.contains("authorityname") || h.contains("наименование органа")) {
+            if (hint != null && hint.toLowerCase(Locale.ROOT).contains("уведомление")) {
+                return true;
+            }
+            if (hint != null && hint.toLowerCase(Locale.ROOT).contains("уполномоченный орган")) {
+                return true;
+            }
+            if (rawBody != null && rawBody.contains("AuthorityName")) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /** DPR: краткое наименование УО (AuthorityBriefName) не контролируется. */
+    private static boolean isDprUnifiedAuthorityBriefNameMessage(String human, String rawBody, String hint) {
+        if (human == null || human.isEmpty()) {
+            return false;
+        }
+        String h = human.toLowerCase(Locale.ROOT);
+        if (h.contains("authoritybriefname") || h.contains("краткое наименование")) {
+            return true;
+        }
+        if (rawBody != null && rawBody.contains("AuthorityBriefName")) {
+            return true;
         }
         return false;
     }
