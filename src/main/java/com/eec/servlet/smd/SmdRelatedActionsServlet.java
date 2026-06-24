@@ -65,6 +65,8 @@ public class SmdRelatedActionsServlet extends HttpServlet {
             String canDeleteReason = null;
             boolean canSend = false;
             String canSendReason = null;
+            boolean canValidate = false;
+            String canValidateReason = null;
             if (outgoing) {
                 SmdDeleteSupport.Eligibility deleteEligibility =
                         SmdDeleteSupport.checkEligibility(conn, smdid, rightsJson);
@@ -75,6 +77,11 @@ public class SmdRelatedActionsServlet extends HttpServlet {
                         SmdSendSupport.checkEligibility(conn, smdid, rightsJson);
                 canSend = sendEligibility.allowed;
                 canSendReason = sendEligibility.reason;
+
+                SmdViewSupport.Eligibility validateEligibility =
+                        SmdViewSupport.checkValidateEligibility(conn, smdid, rightsJson);
+                canValidate = validateEligibility.allowed;
+                canValidateReason = validateEligibility.reason;
             }
 
             StringBuilder json = new StringBuilder();
@@ -94,6 +101,10 @@ public class SmdRelatedActionsServlet extends HttpServlet {
             json.append(",\"canSend\":").append(canSend);
             if (canSendReason != null) {
                 json.append(",\"canSendReason\":").append(quote(canSendReason));
+            }
+            json.append(",\"canValidate\":").append(canValidate);
+            if (canValidateReason != null) {
+                json.append(",\"canValidateReason\":").append(quote(canValidateReason));
             }
             json.append("}");
 

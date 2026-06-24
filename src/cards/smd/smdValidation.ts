@@ -1,7 +1,7 @@
 import type { CardData } from '@/types/card'
 import type { ValidationResult } from '@/utils/cardValidation'
 import { fetchSchemaValidationErrors } from '@/utils/schemaValidationApi'
-import { validateSmdCardBeforeSave } from './smdSaveValidation'
+import { validateSmdFormatLogical } from './smdFormatLogicalValidation'
 import { syncSmdCardFromPrimaryMeasure } from './smdSanitaryMeasureModel'
 
 function emptyXmlBody(xml: string | null | undefined): boolean {
@@ -45,21 +45,30 @@ export async function validateSmdCardXml(xml: string | null | undefined): Promis
   return { success: true, sections: [] }
 }
 
+/** Форматно-логические контроли исходящей карты SMD. */
+export function validateSmdOutgoingCardFull(data: CardData): ValidationResult {
+  const synced = syncSmdCardFromPrimaryMeasure(data)
+  return validateSmdFormatLogical(synced)
+}
+
+/**
+ * Полная валидация: сначала форматно-логический контроль, затем структурный (XSD).
+ */
+export async function validateSmdOutgoingCardFullWithSchema(
+  data: CardData,
+  xml: string | null | undefined
+): Promise<ValidationResult> {
+  const logical = validateSmdOutgoingCardFull(data)
+  if (!logical.success) {
+    return logical
+  }
+  return validateSmdCardXml(xml)
+}
+
 /** Валидация карты перед направлением сведений (логика + XSD). */
 export async function validateSmdCardForSend(
   data: CardData,
   xml: string | null | undefined
 ): Promise<ValidationResult> {
-  const synced = syncSmdCardFromPrimaryMeasure(data)
-  const version = synced.version ?? 1
-  const logicalErrors = validateSmdCardBeforeSave(synced, {
-    requireMessageForNewVersion: version > 1,
-  })
-  if (logicalErrors.length > 0) {
-    return {
-      success: false,
-      sections: [{ sectionName: 'Обязательные поля', remarks: logicalErrors }],
-    }
-  }
-  return validateSmdCardXml(xml)
+  return validateSmdOutgoingCardFullWithSchema(data, xml)
 }

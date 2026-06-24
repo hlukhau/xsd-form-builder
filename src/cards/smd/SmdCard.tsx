@@ -15,7 +15,7 @@ import { confirmDeleteSmdCard } from './smdDeleteActions'
 import { exportSmdCardDataToXML } from './smdXmlExporter'
 import type { SmdRelatedActions } from '@/types/smdCard'
 import { validateSmdCardBeforeSave } from './smdSaveValidation'
-import { validateSmdCardXml, validateSmdCardForSend } from './smdValidation'
+import { validateSmdOutgoingCardFullWithSchema, validateSmdCardForSend } from './smdValidation'
 import { syncSmdCardFromPrimaryMeasure } from './smdSanitaryMeasureModel'
 import {
   incomingSmdStatusButton,
@@ -110,6 +110,7 @@ const SmdCard: React.FC<SmdCardProps> = ({
   const [statusHistoryLoading, setStatusHistoryLoading] = useState(false)
   const [hasManageAccessRight, setHasManageAccessRight] = useState(false)
   const [hasEditRight, setHasEditRight] = useState(false)
+  const [hasViewRight, setHasViewRight] = useState(false)
   const [accessModalVisible, setAccessModalVisible] = useState(false)
   const [accessList, setAccessList] = useState<AccessItem[]>([])
   const [relatedActions, setRelatedActions] = useState<SmdRelatedActions | null>(null)
@@ -145,12 +146,16 @@ const SmdCard: React.FC<SmdCardProps> = ({
     if (!guid?.trim()) {
       setHasManageAccessRight(false)
       setHasEditRight(false)
+      setHasViewRight(false)
       return
     }
     const g = guid.trim()
     void (async () => {
       try {
-        const checks: Promise<boolean>[] = [checkAccessRight(g, 'sanitaryMeasureOut:edit')]
+        const checks: Promise<boolean>[] = [
+          checkAccessRight(g, 'sanitaryMeasureOut:edit'),
+          checkAccessRight(g, 'sanitaryMeasureOut:view'),
+        ]
         if (manageAccessRight) {
           checks.unshift(checkAccessRight(g, manageAccessRight))
         }
@@ -158,13 +163,16 @@ const SmdCard: React.FC<SmdCardProps> = ({
         if (manageAccessRight) {
           setHasManageAccessRight(results[0] ?? false)
           setHasEditRight(results[1] ?? false)
+          setHasViewRight(results[2] ?? false)
         } else {
           setHasManageAccessRight(false)
           setHasEditRight(results[0] ?? false)
+          setHasViewRight(results[1] ?? false)
         }
       } catch {
         setHasManageAccessRight(false)
         setHasEditRight(false)
+        setHasViewRight(false)
       }
     })()
   }, [guid, manageAccessRight])
@@ -189,14 +197,15 @@ const SmdCard: React.FC<SmdCardProps> = ({
 
   const canDeleteCard = relatedActions?.canDelete ?? false
   const canSendCard = relatedActions?.canSend ?? false
+  const canValidateCard =
+    (relatedActions?.canValidate ?? false) || (isCreateMode && isOutgoing && hasViewRight)
   const canAddInfoRequest = relatedActions?.canAddInfoRequest ?? false
   const canAddResponse =
     (relatedActions?.isOutgoing && relatedActions?.hasOutgoingEditRight) ?? false
   const canPrepareReviewResult = relatedActions?.canPrepareReviewResult ?? false
 
   const showEditButton = (isOutgoing && !isEec && hasEditRight && !isNewVersionCopy) || (isCreateMode && !isNewVersionCopy)
-  const showValidationButton =
-    (isOutgoing && !isEec && !isCreateMode) || isNewVersionCopy
+  const showValidationButton = isOutgoing && !isEec && canValidateCard
 
   const canShowCopyButton =
     isOutgoing &&
@@ -265,10 +274,12 @@ const SmdCard: React.FC<SmdCardProps> = ({
     setValidating(true)
     try {
       const xml = await resolveXmlForValidation()
-      const r = await validateSmdCardXml(xml)
+      const r = await validateSmdOutgoingCardFullWithSchema(currentData, xml)
       setValidationResult(r)
       setValidationModalVisible(true)
-      if (!r.success) {
+      if (r.success) {
+        message.success('Все контроли пройдены успешно')
+      } else {
         message.warning('Валидация выявила замечания')
       }
     } finally {
@@ -350,7 +361,7 @@ const SmdCard: React.FC<SmdCardProps> = ({
         setSending(true)
         try {
           const xml = await resolveXmlForValidation()
-          const validation = await validateSmdCardForSend(data, xml)
+          const validation = await validateSmdCardForSend(currentData, xml)
           if (!validation.success) {
             setValidationResult(validation)
             setValidationModalVisible(true)

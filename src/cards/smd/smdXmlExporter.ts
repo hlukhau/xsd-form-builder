@@ -36,7 +36,7 @@ function toISODateTimeForXml(dateTime: string | null | undefined): string {
   return d.toISOString().replace('Z', '')
 }
 
-function hasMeasureDocDetailsContent(doc: MeasureDocDetails | undefined): boolean {
+export function hasMeasureDocDetailsContent(doc: MeasureDocDetails | undefined): boolean {
   if (!doc) return false
   return !!(
     doc.country?.trim() ||
