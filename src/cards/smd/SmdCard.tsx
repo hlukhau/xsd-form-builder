@@ -592,6 +592,7 @@ const SmdCard: React.FC<SmdCardProps> = ({
         <SmdCardHeader
           meta={meta}
           onStatusClick={handleStatusClick}
+          statusClickable={!isEditMode && hasPersisted && !isEec}
           isCreateMode={isCreateMode}
           messageCode={currentData.electronicDocument?.messageCode}
           onMessageCodeChange={isCreateMode && isEditMode ? handleMessageCodeChange : undefined}
@@ -663,6 +664,7 @@ const SmdCard: React.FC<SmdCardProps> = ({
         loading={statusHistoryLoading}
         data={statusHistoryModalData}
         onClose={() => setStatusHistoryVisible(false)}
+        hideEmployeeWhenMissing
       />
       <ValidationResultModal
         visible={validationModalVisible}

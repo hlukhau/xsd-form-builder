@@ -1,4 +1,4 @@
-import { Descriptions, Select } from 'antd'
+import { Descriptions, Select, Button } from 'antd'
 import { format } from 'date-fns'
 import { ru } from 'date-fns/locale'
 import type { SmdMetadata } from '@/types/smdCard'
@@ -9,6 +9,8 @@ import { getSmdMessageName, getSmdMessageOptionsForVersion } from '@/constants/s
 interface SmdCardHeaderProps {
   meta: SmdMetadata
   onStatusClick: () => void
+  /** На форме просмотра сохранённой карты статус кликабелен (история смены статусов). */
+  statusClickable?: boolean
   isCreateMode?: boolean
   messageCode?: string | null
   onMessageCodeChange?: (code: string) => void
@@ -19,6 +21,7 @@ interface SmdCardHeaderProps {
 const SmdCardHeader: React.FC<SmdCardHeaderProps> = ({
   meta,
   onStatusClick,
+  statusClickable = false,
   isCreateMode,
   messageCode,
   onMessageCodeChange,
@@ -72,9 +75,18 @@ const SmdCardHeader: React.FC<SmdCardHeaderProps> = ({
       <Descriptions.Item label="Источник">{meta.dataSourceKindName ?? '—'}</Descriptions.Item>
       {!isEecSource ? (
         <Descriptions.Item label="Статус">
-          <a onClick={onStatusClick} style={{ cursor: 'pointer' }}>
-            {meta.smdStatusName ?? '—'}
-          </a>
+          {statusClickable ? (
+            <Button
+              type="link"
+              className="card-header-status-link"
+              style={{ padding: 0, height: 'auto' }}
+              onClick={onStatusClick}
+            >
+              {meta.smdStatusName ?? '—'}
+            </Button>
+          ) : (
+            meta.smdStatusName ?? '—'
+          )}
         </Descriptions.Item>
       ) : (
         <Descriptions.Item label="Статус">—</Descriptions.Item>

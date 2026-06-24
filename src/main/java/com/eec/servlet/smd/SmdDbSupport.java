@@ -69,7 +69,7 @@ final class SmdDbSupport {
             + "LEFT JOIN TB_USER us ON hs.USERID = us.USERID "
             + "LEFT JOIN TB_EMP ep ON ep.EMPID = us.EMPID "
             + "WHERE hs.SMDID = ? "
-            + "ORDER BY 2";
+            + "ORDER BY hs.SMDSTATUSDATETIME";
 
     /** Таблицы в схеме SESINT; пользователи — SESDEV (см. FK SMDSTATUSHIST_FK3). */
     static final String SQL_STATUS_HISTORY_SESINT = ""
@@ -79,7 +79,7 @@ final class SmdDbSupport {
             + "LEFT JOIN SESDEV.TB_USER us ON hs.USERID = us.USERID "
             + "LEFT JOIN SESDEV.TB_EMP ep ON ep.EMPID = us.EMPID "
             + "WHERE hs.SMDID = ? "
-            + "ORDER BY 2";
+            + "ORDER BY hs.SMDSTATUSDATETIME";
 
     /** Без join к TB_USER/TB_EMP, если нет прав на SESDEV. */
     static final String SQL_STATUS_HISTORY_SESINT_MINIMAL = ""
@@ -87,7 +87,7 @@ final class SmdDbSupport {
             + "FROM SESINT.SMDSTATUSHIST hs "
             + "JOIN SESINT.SMDSTATUS st ON st.SMDSTATUSID = hs.SMDSTATUSID "
             + "WHERE hs.SMDID = ? "
-            + "ORDER BY 2";
+            + "ORDER BY hs.SMDSTATUSDATETIME";
 
     /** Запросы дополнительных сведений (SMAQ) и ответы (SMAR) по карте SMD. */
     static final String SQL_INFO_REQUESTS = ""

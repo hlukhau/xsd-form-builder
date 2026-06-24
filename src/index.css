@@ -944,12 +944,14 @@ body {
   font-style: italic;
 }
 
-/* DPR: текущий статус в шапке — явно кликабелен (история статусов) */
+/* Текущий статус в шапке карты — явно кликабелен (история смены статусов) */
+.card-header-status-link.ant-btn-link,
 .dpr-card-header-status-link.ant-btn-link {
   text-decoration: underline;
   text-underline-offset: 2px;
   font-weight: 600;
 }
+.card-header-status-link.ant-btn-link:hover,
 .dpr-card-header-status-link.ant-btn-link:hover {
   text-decoration: underline;
 }
