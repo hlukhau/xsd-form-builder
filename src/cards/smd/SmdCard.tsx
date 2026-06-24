@@ -11,6 +11,7 @@ import SmdDiseaseTab from './tabs/SmdDiseaseTab'
 import SmdInfoRequestsTab from './tabs/SmdInfoRequestsTab'
 import SmdReviewResultsTab from './tabs/SmdReviewResultsTab'
 import { fetchSmdStatusHistory, fetchSmdXml, fetchSmdRelatedActions, saveSmdCard, buildSmdSaveMetadataFromCardData, canCreateSmdNewVersion } from './smdApi'
+import { confirmDeleteSmdCard } from './smdDeleteActions'
 import { exportSmdCardDataToXML } from './smdXmlExporter'
 import type { SmdRelatedActions } from '@/types/smdCard'
 import { validateSmdCardBeforeSave } from './smdSaveValidation'
@@ -191,6 +192,7 @@ const SmdCard: React.FC<SmdCardProps> = ({
     }
   }, [effectiveSmdid, guid, hasPersisted])
 
+  const canDeleteCard = relatedActions?.canDelete ?? false
   const canAddInfoRequest = relatedActions?.canAddInfoRequest ?? false
   const canAddResponse =
     (relatedActions?.isOutgoing && relatedActions?.hasOutgoingEditRight) ?? false
@@ -326,6 +328,18 @@ const SmdCard: React.FC<SmdCardProps> = ({
   const handleCancelEdit = () => {
     setEditedData(data)
     setIsEditMode(false)
+  }
+
+  const handleDelete = () => {
+    if (!effectiveSmdid || !guid) return
+    confirmDeleteSmdCard({
+      smdid: effectiveSmdid,
+      docId: meta.docId ?? data.registrationNumber ?? data.notification?.registrationNumber,
+      docCreationDate: meta.docCreationDate ?? data.notification?.formationDate,
+      guid,
+      fromCardView: true,
+      onDeleted: () => onCardDeleted?.(),
+    })
   }
 
   const handleSave = async () => {
@@ -558,11 +572,8 @@ const SmdCard: React.FC<SmdCardProps> = ({
           closeButton={closeButton}
           onStatusAction={handleStatusAction}
           onElectronicDocumentClick={() => message.info('Электронные документы SMD — в разработке')}
-          showDeleteButton={isOutgoing && hasEditRight && hasPersisted}
-          onDelete={() => {
-            message.info('Удаление карты SMD — в разработке')
-            onCardDeleted?.()
-          }}
+          showDeleteButton={isOutgoing && hasPersisted && canDeleteCard}
+          onDelete={handleDelete}
           showCopyButton={canShowCopyButton}
           onCopy={() => void handleCopy()}
           nextToStatusButtons={

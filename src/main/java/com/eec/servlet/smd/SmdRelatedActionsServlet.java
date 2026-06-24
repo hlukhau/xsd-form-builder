@@ -61,6 +61,15 @@ public class SmdRelatedActionsServlet extends HttpServlet {
             boolean canAddInfoRequest = incoming && hasInStatus;
             boolean canPrepareReviewResult = incoming && hasInStatus && smrCount == 0;
 
+            boolean canDelete = false;
+            String canDeleteReason = null;
+            if (outgoing) {
+                SmdDeleteSupport.Eligibility deleteEligibility =
+                        SmdDeleteSupport.checkEligibility(conn, smdid, rightsJson);
+                canDelete = deleteEligibility.allowed;
+                canDeleteReason = deleteEligibility.reason;
+            }
+
             StringBuilder json = new StringBuilder();
             json.append("{");
             json.append("\"dataSourceKindCode\":").append(quote(dsc));
@@ -71,6 +80,10 @@ public class SmdRelatedActionsServlet extends HttpServlet {
             json.append(",\"isIncoming\":").append(incoming);
             json.append(",\"isOutgoing\":").append(outgoing);
             json.append(",\"hasLinkedReviewResult\":").append(smrCount > 0);
+            json.append(",\"canDelete\":").append(canDelete);
+            if (canDeleteReason != null) {
+                json.append(",\"canDeleteReason\":").append(quote(canDeleteReason));
+            }
             json.append("}");
 
             response.setStatus(HttpServletResponse.SC_OK);

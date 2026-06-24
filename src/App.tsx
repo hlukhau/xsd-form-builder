@@ -688,6 +688,14 @@ function SmdAppContent() {
           }
           navigate(`/-/${guid ?? ''}`, { state: { newVersionFrom: sourceSmdid, initialCardData } })
         }}
+        onCardDeleted={() => {
+          markCardDeletedInSession()
+          setCardData(null)
+          setMeta(null)
+          setCreateMeta(null)
+          setSmdXmlBody(null)
+          navigate('/', { replace: true, state: { cardDeleted: true } })
+        }}
       />
     )
   }

@@ -306,3 +306,66 @@ export async function saveSmdCard(payload: {
   }
   return JSON.parse(text) as { success: boolean; smdid: number }
 }
+
+export interface SmdDeleteResponse {
+  success: boolean
+  docId?: string
+}
+
+export interface CanDeleteSmdResponse {
+  allowed: boolean
+  reason?: string
+}
+
+/** Проверка возможности удаления новой исходящей карты SMD. */
+export async function canDeleteSmdCard(smdid: string, guid?: string): Promise<CanDeleteSmdResponse> {
+  const params = new URLSearchParams({ smdid })
+  if (guid?.trim()) params.set('guid', guid.trim())
+  const url = getApiUrl(`/api/smd/can-delete?${params.toString()}`)
+  const res = await fetch(url, {
+    method: 'GET',
+    headers: withGuidHeaders(guid),
+    credentials: 'same-origin',
+  })
+  const text = await res.text()
+  if (!res.ok) {
+    return { allowed: false, reason: text || res.statusText }
+  }
+  try {
+    return JSON.parse(text) as CanDeleteSmdResponse
+  } catch {
+    return { allowed: false, reason: text || 'Не удалось проверить условия удаления' }
+  }
+}
+
+/**
+ * Удалить новую исходящую карту SMD.
+ * POST /api/smd/delete — тело { smdid, guid }.
+ */
+export async function deleteSmdCard(smdid: number | string, guid?: string): Promise<SmdDeleteResponse> {
+  const url = getApiUrl('/api/smd/delete')
+  const response = await fetch(url, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json; charset=UTF-8',
+      ...(guid ? { 'X-GUID': guid.trim() } : {}),
+    },
+    credentials: 'same-origin',
+    body: JSON.stringify({
+      smdid: Number(smdid),
+      ...(guid?.trim() ? { guid: guid.trim() } : {}),
+    }),
+  })
+  const text = await response.text()
+  if (!response.ok) {
+    let errMsg = text
+    try {
+      const j = JSON.parse(text) as { error?: string }
+      if (j.error) errMsg = j.error
+    } catch {
+      /* ignore */
+    }
+    throw new Error(errMsg || `Ошибка удаления SMD (${response.status})`)
+  }
+  return JSON.parse(text) as SmdDeleteResponse
+}

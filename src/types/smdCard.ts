@@ -59,4 +59,6 @@ export interface SmdRelatedActions {
   isIncoming: boolean
   isOutgoing: boolean
   hasLinkedReviewResult: boolean
+  canDelete?: boolean
+  canDeleteReason?: string | null
 }
