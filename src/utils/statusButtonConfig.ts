@@ -61,6 +61,54 @@ function outgoingPpvCloseAllowedByStatusName(status: string | undefined): boolea
   return false
 }
 
+const PPV_CLOSE_STATUS_CODES = new Set(['PROCESSED', 'AWAITING', 'PARTIAL', 'FULFIELD', 'FULFILLED'])
+
+function normStatusCode(code: string | null | undefined): string {
+  return (code ?? '').trim().toUpperCase()
+}
+
+/** Допуск закрытия исходящей PPV по PPVSTATUSCODE (приоритет над устаревшим сопоставлению DPASTATUSID). */
+function outgoingPpvCloseAllowedByStatusCode(statusCode: string | null | undefined): boolean {
+  return PPV_CLOSE_STATUS_CODES.has(normStatusCode(statusCode))
+}
+
+function outgoingPpvCloseAllowed(
+  status: string | undefined,
+  statusCode: string | null | undefined
+): boolean {
+  return outgoingPpvCloseAllowedByStatusCode(statusCode) || outgoingPpvCloseAllowedByStatusName(status)
+}
+
+/** «Ожидает отправки» (PENDING) — без кнопок; не путать с AWAITING («Ожидаются ответы»). */
+function outgoingPpvIsPendingSendStatus(
+  statusId: number | null | undefined,
+  status: string,
+  statusCode: string | null | undefined
+): boolean {
+  if (outgoingPpvCloseAllowed(status, statusCode)) return false
+  const code = normStatusCode(statusCode)
+  if (code === 'PENDING') return true
+  const s = norm(status)
+  if (s.includes('ожидает отправки')) return true
+  return statusId === OUTGOING_PENDING && code !== 'AWAITING' && !s.includes('ответ')
+}
+
+/** «Отправлено» / «Завершено» без действий; не блокировать AWAITING/PARTIAL/FULFIELD при совпадении legacy statusId. */
+function outgoingPpvIsSentOrCompletedNoActions(
+  statusId: number | null | undefined,
+  status: string,
+  statusCode: string | null | undefined
+): boolean {
+  if (outgoingPpvCloseAllowed(status, statusCode)) return false
+  const code = normStatusCode(statusCode)
+  if (code === 'SENT' || code === 'COMPLETED') return true
+  const s = norm(status)
+  if (s === 'отправлено' || s === 'завершено') return true
+  if (statusId === OUTGOING_SENT && code === 'SENT') return true
+  if (statusId === 13 && (code === 'COMPLETED' || s === 'завершено')) return true
+  return false
+}
+
 /** department.depkindid в карте прав (ТЗ на отметку готовности исходящей PPV). */
 const RIGHTS_DEPKIND_DISTRICT = 72
 const RIGHTS_DEPKIND_REGIONAL = 73
@@ -270,14 +318,15 @@ function outgoingPpvNewStatusButtons(
   }
 }
 
-/** Кнопка «Закрытие карты» для статусов AWAITING / PARTIAL / FULFIELD (исходящая PPV). */
+/** Кнопка «Закрытие карты» для статусов AWAITING / PARTIAL / FULFIELD / PROCESSED (исходящая PPV). */
 function outgoingPpvCloseOnlyResult(
   status: string,
+  statusCode: string | null | undefined,
   hasStatusRight: boolean,
   noSt: string,
   hintClose: string
 ): StatusButtonResult | null {
-  if (!outgoingPpvCloseAllowedByStatusName(status)) return null
+  if (!outgoingPpvCloseAllowed(status, statusCode)) return null
   if (!hasStatusRight) {
     return {
       config: { label: 'Закрытие карты', action: 'close', disabled: true, hint: noSt },
@@ -909,6 +958,7 @@ function outgoingDpaFailedErrorStatusButtons(
 function outgoingStatusButtonPpv(
   statusId: number | null | undefined,
   status: string,
+  statusCode: string | null | undefined,
   hasStatusRight: boolean,
   hasSendRight: boolean,
   hasResolution: boolean,
@@ -939,7 +989,13 @@ function outgoingStatusButtonPpv(
   const hasDistrictRes = hasDistrictResolution(existingResolutionDepKindCodes)
   const hasRegionalRes = hasRegionalResolution(existingResolutionDepKindCodes)
 
-  // По DPASTATUSID (исходящие 5–13)
+  // Закрытие из AWAITING|PARTIAL|FULFIELD|PROCESSED — до проверок legacy DPASTATUSID (7/8/13).
+  {
+    const closeOnly = outgoingPpvCloseOnlyResult(status, statusCode, hasStatusRight, noSt, hintClose)
+    if (closeOnly) return closeOnly
+  }
+
+  // По DPASTATUSID (исходящие 5–13; для PPV дополняется ppvStatusCode)
   if (statusId === OUTGOING_DRAFT) {
     if (!hasStatusRight) {
       return {
@@ -975,12 +1031,8 @@ function outgoingStatusButtonPpv(
       rightsDepKindId
     )
   }
-  if (statusId === OUTGOING_PENDING) {
+  if (outgoingPpvIsPendingSendStatus(statusId, status, statusCode)) {
     return { config: null, comment: '' }
-  }
-  {
-    const closeOnly = outgoingPpvCloseOnlyResult(status, hasStatusRight, noSt, hintClose)
-    if (closeOnly) return closeOnly
   }
   // Статус «Отредактировано» (12) более не используется: переходы из него отключены; сохраните карту — статус изменится на «Новое».
   if (statusId === OUTGOING_EDITED) {
@@ -1016,14 +1068,14 @@ function outgoingStatusButtonPpv(
         'Закрытие карты в статусе «Доставлено» не предусмотрено: закрытие доступно из «Новое» (с резолюцией областного или республиканского ЦГЭ) или из статусов ожидания/частичных/полных ответов.',
     }
   }
-  if (statusId === OUTGOING_SENT || statusId === 13) {
+  if (outgoingPpvIsSentOrCompletedNoActions(statusId, status, statusCode)) {
     return { config: null, comment: '' }
   }
 
   // Запасная проверка по названию (карты без statusId, например из XML)
   const s = norm(status)
   {
-    const closeOnly = outgoingPpvCloseOnlyResult(status, hasStatusRight, noSt, hintClose)
+    const closeOnly = outgoingPpvCloseOnlyResult(status, statusCode, hasStatusRight, noSt, hintClose)
     if (closeOnly) return closeOnly
   }
   if (s.includes('черновик') || s.includes('создан')) {
@@ -1061,7 +1113,7 @@ function outgoingStatusButtonPpv(
       rightsDepKindId
     )
   }
-  if (s.includes('ожидает отправки')) {
+  if (s.includes('ожидает отправки') || normStatusCode(statusCode) === 'PENDING') {
     return { config: null, comment: '' }
   }
   if (s.includes('отредактировано')) {
@@ -1097,10 +1149,10 @@ function outgoingStatusButtonPpv(
         'Закрытие карты в статусе «Доставлено» не предусмотрено: закрытие доступно из «Новое» (с резолюцией областного или республиканского ЦГЭ) или из статусов ожидания/частичных/полных ответов.',
     }
   }
-  if (s === 'отправлено') {
+  if (s === 'отправлено' || normStatusCode(statusCode) === 'SENT') {
     return { config: null, comment: '' }
   }
-  if (s === 'завершено') {
+  if (s === 'завершено' || normStatusCode(statusCode) === 'COMPLETED') {
     return { config: null, comment: '' }
   }
   return {
@@ -1112,6 +1164,7 @@ function outgoingStatusButtonPpv(
 function outgoingStatusButton(
   statusId: number | null | undefined,
   status: string,
+  statusCode: string | null | undefined,
   hasStatusRight: boolean,
   hasSendRight: boolean,
   hasResolution: boolean,
@@ -1126,6 +1179,7 @@ function outgoingStatusButton(
     return outgoingStatusButtonPpv(
       statusId,
       status,
+      statusCode,
       hasStatusRight,
       hasSendRight,
       hasResolution,
@@ -1175,11 +1229,14 @@ export function getStatusButtonConfig(
   /** PPV: в подсказках указывать violationDetected* вместо dangerousProduct* */
   usePpvRightsHints?: boolean,
   /** department.depkindid из карты прав (72/73/74) — отметка готовности исходящей PPV */
-  rightsDepKindId?: number | null
+  rightsDepKindId?: number | null,
+  /** PPVSTATUSCODE из метаданных (AWAITING, PARTIAL, …) — для исходящих PPV */
+  statusCode?: string | null
 ): StatusButtonResult {
   const code = datasourceKindCode != null ? String(datasourceKindCode).trim() : ''
   const src = norm(source)
   const ppvHints = usePpvRightsHints === true
+  const ppvStatusCode = statusCode ?? null
 
   // Тип карты по метаданным DATASOURCEKINDCODE (1 = входящие, 2 = исходящие)
   if (code === '1') {
@@ -1189,6 +1246,7 @@ export function getStatusButtonConfig(
     return outgoingStatusButton(
       statusId,
       status ?? '',
+      ppvStatusCode,
       hasStatusRight,
       hasSendRight ?? false,
       hasResolution ?? false,
@@ -1212,6 +1270,7 @@ export function getStatusButtonConfig(
     return outgoingStatusButton(
       statusId,
       status ?? '',
+      ppvStatusCode,
       hasStatusRight,
       hasSendRight ?? false,
       hasResolution ?? false,

@@ -755,6 +755,8 @@ export interface DpaMetadata {
   modificationDateTime: string | null
   dpaStatusId: number | null
   dpaStatusName: string | null
+  /** Код статуса из PPVSTATUS (только PPV); для логики кнопок исходящих карт */
+  ppvStatusCode?: string | null
   /** Уполномоченный орган (Уведомление): из БД AUTHORITY */
   authorityUid: string | null
   authorityName: string | null

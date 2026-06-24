@@ -15,6 +15,8 @@ export interface CardData {
   status: string // DPASTATUSNAME для отображения
   /** DPASTATUSID из таблицы DPASTATUS — для логики кнопок по коду */
   statusId?: number | null
+  /** PPVSTATUSCODE из справочника PPVSTATUS (исходящие PPV: AWAITING, PARTIAL, …) */
+  statusCode?: string | null
 
   // Электронный документ
   electronicDocument: ElectronicDocument

@@ -362,6 +362,8 @@ const DangerousProductCard: React.FC<DangerousProductCardProps> = ({
   // Новая карта (/-/) всегда исходящая — подставляем код "2", т.к. метаданные ещё могут быть не заполнены
   const effectiveDatasourceKindCode =
     editedData.datasourceKindCode ?? data.datasourceKindCode ?? (effectiveDpaid === '-' ? '2' : undefined)
+  const effectiveStatusCode =
+    editedData.statusCode ?? data.statusCode ?? null
   const statusButtonResult = getStatusButtonConfig(
     editedData.source,
     editedData.status,
@@ -375,7 +377,8 @@ const DangerousProductCard: React.FC<DangerousProductCardProps> = ({
     currentUserDepKindName ?? rightsDepKindName,
     editedData.notification?.endDate ?? data.notification?.endDate ?? null,
     isPpvApp(),
-    userRightsDepKindId
+    userRightsDepKindId,
+    effectiveStatusCode
   )
   const statusButton = statusButtonResult.config
   const statusButtonComment = statusButtonResult.comment

@@ -34,9 +34,11 @@ public class PpvMetadataServlet extends HttpServlet {
     private static final String SQL = ""
             + "SELECT vw.INCIDENTID, vw.ALERTCOUNTRYNAME, vw.ALERTCOUNTRYID, vw.DATASOURCEKINDCODE, t1.DATASOURCEKINDNAME, "
             + "       vw.CREATIONDATETIME, vw.MODIFICATIONDATETIME, vw.PPVSTATUSID, vw.PPVSTATUSNAME, c.COUNTRYCODE AS ALERTCOUNTRYCODE, "
+            + "       TRIM(UPPER(NVL(pst.PPVSTATUSCODE, ''))) AS PPVSTATUSCODE, "
             + "       a.AUTHORITYUID AS AUTHORITY_UID, a.AUTHORITYNAME AS AUTHORITY_NAME, a.AUTHORITYBRIEFNAME AS AUTHORITY_BRIEFNAME, a.COUNTRYCODE AS AUTHORITY_COUNTRYCODE "
             + "FROM VW_PPV vw "
             + "LEFT JOIN DATASOURCEKIND t1 ON vw.DATASOURCEKINDCODE = t1.DATASOURCEKINDCODE "
+            + "LEFT JOIN PPVSTATUS pst ON pst.PPVSTATUSID = vw.PPVSTATUSID "
             + "LEFT JOIN COUNTRY c ON vw.ALERTCOUNTRYID = c.COUNTRYID AND c.COUNTRYSDATE <= SYSDATE AND c.COUNTRYEDATE >= SYSDATE "
             + "LEFT JOIN PPV d ON d.PPVID = vw.PPVID "
             + "LEFT JOIN AUTHORITY a ON a.AUTHORITYID = d.AUTHORITYID "
@@ -137,6 +139,13 @@ public class PpvMetadataServlet extends HttpServlet {
             String modificationDateTime = formatTimestamp(rs, "MODIFICATIONDATETIME");
             Integer dpaStatusId = getInt(rs, "PPVSTATUSID");
             String dpaStatusName = getString(rs, "PPVSTATUSNAME");
+            String ppvStatusCode = rs.getString("PPVSTATUSCODE");
+            if (ppvStatusCode != null) {
+                ppvStatusCode = ppvStatusCode.trim();
+                if (ppvStatusCode.isEmpty()) {
+                    ppvStatusCode = null;
+                }
+            }
             String authorityUid = getString(rs, "AUTHORITY_UID");
             String authorityName = getString(rs, "AUTHORITY_NAME");
             String authorityBriefName = getString(rs, "AUTHORITY_BRIEFNAME");
@@ -154,6 +163,7 @@ public class PpvMetadataServlet extends HttpServlet {
             json.append(",\"modificationDateTime\":").append(quote(modificationDateTime));
             json.append(",\"dpaStatusId\":").append(dpaStatusId != null ? dpaStatusId : "null");
             json.append(",\"dpaStatusName\":").append(quote(dpaStatusName));
+            json.append(",\"ppvStatusCode\":").append(quote(ppvStatusCode));
             json.append(",\"authorityUid\":").append(quote(authorityUid));
             json.append(",\"authorityName\":").append(quote(authorityName));
             json.append(",\"authorityBriefName\":").append(quote(authorityBriefName));

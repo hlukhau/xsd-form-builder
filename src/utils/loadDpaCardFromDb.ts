@@ -48,6 +48,7 @@ export async function loadDpaCardFromDb(dpaid: string, guid?: string): Promise<{
       modifiedAt: meta.modificationDateTime ?? card.modifiedAt,
       status: meta.dpaStatusName ?? card.status,
       statusId: meta.dpaStatusId ?? card.statusId,
+      statusCode: meta.ppvStatusCode ?? card.statusCode,
       notification: card.notification
         ? {
             ...card.notification,
