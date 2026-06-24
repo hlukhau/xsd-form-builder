@@ -1,5 +1,6 @@
 package com.eec.servlet.smd;
 
+import com.eec.rights.RightsRegistryProvider;
 import com.eec.util.DatabaseUtil;
 import com.eec.util.ServletRequestGuid;
 
@@ -13,13 +14,19 @@ import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
+import java.sql.Savepoint;
 import java.sql.Timestamp;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 /**
  * Метаданные карты SMD (шапка) из VW_SMD / SESINT.VW_SMD / таблицы SMD.
  * GET /api/smd/metadata/{SMDID}?guid=...
+ * <p>
+ * Входящие (DATASOURCEKINDCODE=1): при первом открытии, если статус RECEIVED, в той же транзакции
+ * выполняется переход в PROCESSING и запись в SMDSTATUSHIST (USERID из JSON прав по guid).
  */
 public class SmdMetadataServlet extends HttpServlet {
 
@@ -52,14 +59,34 @@ public class SmdMetadataServlet extends HttpServlet {
         response.setCharacterEncoding("UTF-8");
         response.setHeader("Access-Control-Allow-Origin", "*");
 
-        try (Connection conn = DatabaseUtil.getConnectionForRequest(request, guid)) {
+        Connection conn = null;
+        try {
+            conn = DatabaseUtil.getConnectionForRequest(request, guid);
             long smdid = parseSmdid(smdidStr, response);
             if (smdid < 0) {
                 return;
             }
 
+            conn.setAutoCommit(false);
+            Savepoint beforeTransition = conn.setSavepoint("smd_meta_before_incoming_open");
+            try {
+                if (SmdIncomingStatusHelper.applyReceivedToProcessingOnFirstOpen(
+                        conn, smdid, resolveUserIdFromGuid(guid))) {
+                    System.out.println("[SmdMetadataServlet] Incoming first open: SMDID=" + smdid
+                            + " RECEIVED→PROCESSING");
+                }
+            } catch (SQLException e) {
+                System.err.println("[SmdMetadataServlet] Incoming RECEIVED→PROCESSING skipped: " + e.getMessage());
+                try {
+                    conn.rollback(beforeTransition);
+                } catch (SQLException rb) {
+                    DatabaseUtil.rollbackQuietly(conn);
+                }
+            }
+
             MetadataRow row = loadMetadataRow(conn, smdid);
             if (row == null) {
+                DatabaseUtil.rollbackQuietly(conn);
                 sendJsonError(response, HttpServletResponse.SC_NOT_FOUND,
                         "Запись с SMDID " + smdidStr + " не найдена (VW_SMD / SMD)");
                 return;
@@ -68,13 +95,50 @@ public class SmdMetadataServlet extends HttpServlet {
             enrichOptionalFields(conn, row);
             List<String> depIds = loadAccessibleDepIds(conn, smdid);
             writeJson(response, row, depIds);
+            conn.commit();
             System.out.println("[SmdMetadataServlet] Served metadata for SMDID: " + smdid);
 
         } catch (SQLException e) {
+            DatabaseUtil.rollbackQuietly(conn);
             System.err.println("[SmdMetadataServlet] DB error for SMDID " + smdidStr + ": " + e.getMessage());
             e.printStackTrace();
             sendJsonError(response, HttpServletResponse.SC_INTERNAL_SERVER_ERROR, "Ошибка БД: " + e.getMessage());
+        } finally {
+            if (conn != null) {
+                try {
+                    conn.setAutoCommit(true);
+                } catch (SQLException ignored) {
+                }
+            }
+            DatabaseUtil.closeConnection(conn);
         }
+    }
+
+    private static Integer resolveUserIdFromGuid(String guid) {
+        if (guid == null || guid.isEmpty()) {
+            return null;
+        }
+        String rightsJson = RightsRegistryProvider.get().getRightsJson(guid);
+        if (rightsJson == null || rightsJson.isEmpty()) {
+            return null;
+        }
+        Matcher m = Pattern.compile("\"userId\"\\s*:\\s*(-?\\d+)").matcher(rightsJson);
+        if (m.find()) {
+            try {
+                return Integer.parseInt(m.group(1));
+            } catch (NumberFormatException e) {
+                return null;
+            }
+        }
+        m = Pattern.compile("\"userId\"\\s*:\\s*\"(-?\\d+)\"").matcher(rightsJson);
+        if (m.find()) {
+            try {
+                return Integer.parseInt(m.group(1));
+            } catch (NumberFormatException e) {
+                return null;
+            }
+        }
+        return null;
     }
 
     private static MetadataRow loadMetadataRow(Connection conn, long smdid) throws SQLException {

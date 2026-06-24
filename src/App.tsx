@@ -531,6 +531,8 @@ function SmdAppContent() {
           fetchSmdMetadata(smdid, guid),
           fetchSmdXml(smdid, guid).catch(() => ''),
         ])
+        /* Входящие SMD (DATASOURCEKINDCODE=1): переход RECEIVED→PROCESSING выполняется
+           в одной транзакции с GET /api/smd/metadata (SmdMetadataServlet). */
         if (seq !== loadSeqRef.current) return
         if (guid?.trim()) {
           const viewRight = smdSourceToViewRight(metadata.dataSourceKindCode ?? metadata.dataSourceKindName)
