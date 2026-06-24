@@ -369,3 +369,45 @@ export async function deleteSmdCard(smdid: number | string, guid?: string): Prom
   }
   return JSON.parse(text) as SmdDeleteResponse
 }
+
+export interface SmdStatusChangeResponse {
+  ok: boolean
+  changed?: boolean
+  newStatus?: string
+  newStatusId?: number
+  newStatusCode?: string
+}
+
+/** Направление сведений участникам ОП 58: смена статуса на PENDING. */
+export async function postSmdStatus(
+  smdid: string,
+  action: 'send',
+  guid?: string
+): Promise<SmdStatusChangeResponse> {
+  const url = getApiUrl('/api/smd/status')
+  const res = await fetch(url, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json; charset=UTF-8',
+      ...(guid ? { 'X-GUID': guid.trim() } : {}),
+    },
+    credentials: 'same-origin',
+    body: JSON.stringify({ smdid, action, guid }),
+  })
+  const text = await res.text()
+  if (!res.ok) {
+    let msg = text
+    try {
+      const j = JSON.parse(text) as { error?: string }
+      if (j.error) msg = j.error
+    } catch {
+      /* use text */
+    }
+    throw new Error(msg || res.statusText)
+  }
+  try {
+    return JSON.parse(text) as SmdStatusChangeResponse
+  } catch {
+    return { ok: true }
+  }
+}

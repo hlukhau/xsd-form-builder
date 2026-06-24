@@ -10,12 +10,12 @@ import SmdProductsTab from './tabs/SmdProductsTab'
 import SmdDiseaseTab from './tabs/SmdDiseaseTab'
 import SmdInfoRequestsTab from './tabs/SmdInfoRequestsTab'
 import SmdReviewResultsTab from './tabs/SmdReviewResultsTab'
-import { fetchSmdStatusHistory, fetchSmdXml, fetchSmdRelatedActions, saveSmdCard, buildSmdSaveMetadataFromCardData, canCreateSmdNewVersion } from './smdApi'
+import { fetchSmdStatusHistory, fetchSmdXml, fetchSmdRelatedActions, saveSmdCard, buildSmdSaveMetadataFromCardData, canCreateSmdNewVersion, fetchSmdMetadata, postSmdStatus } from './smdApi'
 import { confirmDeleteSmdCard } from './smdDeleteActions'
 import { exportSmdCardDataToXML } from './smdXmlExporter'
 import type { SmdRelatedActions } from '@/types/smdCard'
 import { validateSmdCardBeforeSave } from './smdSaveValidation'
-import { validateSmdCardXml } from './smdValidation'
+import { validateSmdCardXml, validateSmdCardForSend } from './smdValidation'
 import { syncSmdCardFromPrimaryMeasure } from './smdSanitaryMeasureModel'
 import {
   incomingSmdStatusButton,
@@ -46,6 +46,7 @@ interface SmdCardProps {
   onCardDeleted?: () => void
   onUpdate?: (data: CardData) => void
   onSaveNewCard?: (smdid: number) => void
+  onMetaUpdate?: (meta: SmdMetadata) => void
 }
 
 const CARD_STICKY_HEADER_STYLE: CSSProperties = {
@@ -76,6 +77,7 @@ const SmdCard: React.FC<SmdCardProps> = ({
   onCardDeleted,
   onUpdate,
   onSaveNewCard,
+  onMetaUpdate,
 }) => {
   const copyFromSmdidRef = useRef<number | undefined>(undefined)
   useEffect(() => {
@@ -108,13 +110,13 @@ const SmdCard: React.FC<SmdCardProps> = ({
   const [statusHistoryLoading, setStatusHistoryLoading] = useState(false)
   const [hasManageAccessRight, setHasManageAccessRight] = useState(false)
   const [hasEditRight, setHasEditRight] = useState(false)
-  const [hasSendRight, setHasSendRight] = useState(false)
   const [accessModalVisible, setAccessModalVisible] = useState(false)
   const [accessList, setAccessList] = useState<AccessItem[]>([])
   const [relatedActions, setRelatedActions] = useState<SmdRelatedActions | null>(null)
   const [validationModalVisible, setValidationModalVisible] = useState(false)
   const [validationResult, setValidationResult] = useState<ValidationResult | null>(null)
   const [validating, setValidating] = useState(false)
+  const [sending, setSending] = useState(false)
 
   useParentActivityPing()
 
@@ -143,16 +145,12 @@ const SmdCard: React.FC<SmdCardProps> = ({
     if (!guid?.trim()) {
       setHasManageAccessRight(false)
       setHasEditRight(false)
-      setHasSendRight(false)
       return
     }
     const g = guid.trim()
     void (async () => {
       try {
-        const checks: Promise<boolean>[] = [
-          checkAccessRight(g, 'sanitaryMeasureOut:edit'),
-          checkAccessRight(g, 'sanitaryMeasureOut:send'),
-        ]
+        const checks: Promise<boolean>[] = [checkAccessRight(g, 'sanitaryMeasureOut:edit')]
         if (manageAccessRight) {
           checks.unshift(checkAccessRight(g, manageAccessRight))
         }
@@ -160,16 +158,13 @@ const SmdCard: React.FC<SmdCardProps> = ({
         if (manageAccessRight) {
           setHasManageAccessRight(results[0] ?? false)
           setHasEditRight(results[1] ?? false)
-          setHasSendRight(results[2] ?? false)
         } else {
           setHasManageAccessRight(false)
           setHasEditRight(results[0] ?? false)
-          setHasSendRight(results[1] ?? false)
         }
       } catch {
         setHasManageAccessRight(false)
         setHasEditRight(false)
-        setHasSendRight(false)
       }
     })()
   }, [guid, manageAccessRight])
@@ -193,6 +188,7 @@ const SmdCard: React.FC<SmdCardProps> = ({
   }, [effectiveSmdid, guid, hasPersisted])
 
   const canDeleteCard = relatedActions?.canDelete ?? false
+  const canSendCard = relatedActions?.canSend ?? false
   const canAddInfoRequest = relatedActions?.canAddInfoRequest ?? false
   const canAddResponse =
     (relatedActions?.isOutgoing && relatedActions?.hasOutgoingEditRight) ?? false
@@ -339,6 +335,43 @@ const SmdCard: React.FC<SmdCardProps> = ({
       guid,
       fromCardView: true,
       onDeleted: () => onCardDeleted?.(),
+    })
+  }
+
+  const confirmSendSmdOp58 = () => {
+    if (!effectiveSmdid || !guid || !hasPersisted || isEditMode) return
+    const docNumber = meta.docId?.trim() || data.registrationNumber || effectiveSmdid
+    Modal.confirm({
+      title: 'Направление сведений участникам ОП 58',
+      content: `После подтверждения по карте ${docNumber} будут направлены сведения о временной санитарной мере участникам ОП 58; карта перейдёт в статус «Ожидает отправки». Продолжить?`,
+      okText: 'Направить сведения',
+      cancelText: 'Отмена',
+      onOk: async () => {
+        setSending(true)
+        try {
+          const xml = await resolveXmlForValidation()
+          const validation = await validateSmdCardForSend(data, xml)
+          if (!validation.success) {
+            setValidationResult(validation)
+            setValidationModalVisible(true)
+            message.error('Необходимо доработать карту исходящих сведений перед направлением.')
+            return
+          }
+          const res = await postSmdStatus(effectiveSmdid, 'send', guid)
+          const freshMeta = await fetchSmdMetadata(effectiveSmdid, guid)
+          onMetaUpdate?.(freshMeta)
+          onUpdate?.({
+            ...data,
+            status: res.newStatus ?? freshMeta.smdStatusName ?? 'Ожидает отправки',
+          })
+          message.success('Карта переведена в статус «Ожидает отправки».')
+          void fetchSmdRelatedActions(effectiveSmdid, guid).then(setRelatedActions).catch(() => {})
+        } catch (e) {
+          message.error(e instanceof Error ? e.message : 'Ошибка направления сведений')
+        } finally {
+          setSending(false)
+        }
+      },
     })
   }
 
@@ -578,11 +611,12 @@ const SmdCard: React.FC<SmdCardProps> = ({
           onCopy={() => void handleCopy()}
           nextToStatusButtons={
             <>
-              {isOutgoing && hasSendRight && hasPersisted && (
+              {isOutgoing && canSendCard && hasPersisted && !isEditMode && !isEec && (
                 <Button
                   size="small"
                   type="primary"
-                  onClick={() => message.info('Направление сведений — в разработке')}
+                  loading={sending}
+                  onClick={confirmSendSmdOp58}
                 >
                   Направить сведения
                 </Button>

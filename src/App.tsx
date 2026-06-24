@@ -688,6 +688,7 @@ function SmdAppContent() {
           }
           navigate(`/-/${guid ?? ''}`, { state: { newVersionFrom: sourceSmdid, initialCardData } })
         }}
+        onMetaUpdate={setMeta}
         onCardDeleted={() => {
           markCardDeletedInSession()
           setCardData(null)

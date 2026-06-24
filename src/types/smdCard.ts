@@ -61,4 +61,6 @@ export interface SmdRelatedActions {
   hasLinkedReviewResult: boolean
   canDelete?: boolean
   canDeleteReason?: string | null
+  canSend?: boolean
+  canSendReason?: string | null
 }
