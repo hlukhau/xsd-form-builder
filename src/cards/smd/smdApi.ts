@@ -378,10 +378,10 @@ export interface SmdStatusChangeResponse {
   newStatusCode?: string
 }
 
-/** Направление сведений участникам ОП 58: смена статуса на PENDING. */
+/** Направление сведений / завершение обработки: POST /api/smd/status */
 export async function postSmdStatus(
   smdid: string,
-  action: 'send',
+  action: 'send' | 'complete_processing',
   guid?: string
 ): Promise<SmdStatusChangeResponse> {
   const url = getApiUrl('/api/smd/status')
@@ -410,4 +410,30 @@ export async function postSmdStatus(
   } catch {
     return { ok: true }
   }
+}
+
+/** Входящие SMD: признак отправленной связанной карты SMR для диалога завершения обработки. */
+export async function fetchSmdIncomingCompletePreview(
+  smdid: string,
+  guid?: string
+): Promise<{ reviewOutcomeSent: boolean }> {
+  const params = new URLSearchParams({ preview: 'incoming_complete', smdid })
+  if (guid?.trim()) params.set('guid', guid.trim())
+  const url = getApiUrl(`/api/smd/status?${params.toString()}`)
+  const res = await fetch(url, {
+    headers: withGuidHeaders(guid),
+    credentials: 'same-origin',
+  })
+  const text = await res.text()
+  if (!res.ok) {
+    let msg = text
+    try {
+      const j = JSON.parse(text) as { error?: string }
+      if (j.error) msg = j.error
+    } catch {
+      /* use text */
+    }
+    throw new Error(msg || res.statusText)
+  }
+  return JSON.parse(text) as { reviewOutcomeSent: boolean }
 }

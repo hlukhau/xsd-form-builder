@@ -120,6 +120,29 @@ final class SmdDbSupport {
 
     static final String SQL_SMR_COUNT = "SELECT COUNT(*) AS CNT FROM SMR WHERE SMDID = ?";
 
+    /** Связанная карта SMR отправлена (код статуса SENT/DELIVERED). */
+    static final String SQL_SMR_REVIEW_OUTCOME_SENT_BY_STATUS = ""
+            + "SELECT 1 FROM SMR smr "
+            + "JOIN SMRSTATUS st ON st.SMRSTATUSID = smr.SMRSTATUSID "
+            + "WHERE smr.SMDID = ? "
+            + "AND TRIM(UPPER(st.SMRSTATUSCODE)) IN ('SENT', 'DELIVERED') "
+            + "AND ROWNUM = 1";
+
+    /** Связанная карта SMR отправлена (привязан электронный документ). */
+    static final String SQL_SMR_REVIEW_OUTCOME_SENT_BY_EDOC = ""
+            + "SELECT 1 FROM SMR smr "
+            + "JOIN SMRXML x ON x.SMRID = smr.SMRID "
+            + "WHERE smr.SMDID = ? "
+            + "AND x.EDOCID IS NOT NULL AND LENGTH(TRIM(TO_CHAR(x.EDOCID))) > 0 "
+            + "AND ROWNUM = 1";
+
+    static final String SQL_SMD_STATUS_ROW = ""
+            + "SELECT TRIM(UPPER(NVL(st.SMDSTATUSCODE, ''))) AS STATUSCODE, "
+            + "       TRIM(TO_CHAR(s.DATASOURCEKINDCODE)) AS DSC "
+            + "FROM SMD s "
+            + "LEFT JOIN SMDSTATUS st ON st.SMDSTATUSID = s.SMDSTATUSID "
+            + "WHERE s.SMDID = ?";
+
     private SmdDbSupport() {
     }
 

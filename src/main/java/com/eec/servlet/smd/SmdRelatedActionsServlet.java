@@ -67,6 +67,8 @@ public class SmdRelatedActionsServlet extends HttpServlet {
             String canSendReason = null;
             boolean canValidate = false;
             String canValidateReason = null;
+            boolean canCompleteIncomingProcessing = false;
+            String canCompleteIncomingProcessingReason = null;
             if (outgoing) {
                 SmdDeleteSupport.Eligibility deleteEligibility =
                         SmdDeleteSupport.checkEligibility(conn, smdid, rightsJson);
@@ -82,6 +84,12 @@ public class SmdRelatedActionsServlet extends HttpServlet {
                         SmdViewSupport.checkValidateEligibility(conn, smdid, rightsJson);
                 canValidate = validateEligibility.allowed;
                 canValidateReason = validateEligibility.reason;
+            }
+            if (incoming) {
+                SmdCompleteProcessingSupport.Eligibility completeEligibility =
+                        SmdCompleteProcessingSupport.checkEligibility(conn, smdid, rightsJson);
+                canCompleteIncomingProcessing = completeEligibility.allowed;
+                canCompleteIncomingProcessingReason = completeEligibility.reason;
             }
 
             StringBuilder json = new StringBuilder();
@@ -105,6 +113,11 @@ public class SmdRelatedActionsServlet extends HttpServlet {
             json.append(",\"canValidate\":").append(canValidate);
             if (canValidateReason != null) {
                 json.append(",\"canValidateReason\":").append(quote(canValidateReason));
+            }
+            json.append(",\"canCompleteIncomingProcessing\":").append(canCompleteIncomingProcessing);
+            if (canCompleteIncomingProcessingReason != null) {
+                json.append(",\"canCompleteIncomingProcessingReason\":")
+                        .append(quote(canCompleteIncomingProcessingReason));
             }
             json.append("}");
 

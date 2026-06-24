@@ -87,4 +87,63 @@ final class SmdIncomingStatusHelper {
         }
         return true;
     }
+
+    static String resolveIncomingStatusName(Connection conn, int smdStatusId) throws SQLException {
+        try (PreparedStatement ps = conn.prepareStatement(
+                "SELECT TRIM(SMDSTATUSNAME) AS NM FROM SMDSTATUS WHERE SMDSTATUSID = ? AND ROWNUM = 1")) {
+            ps.setInt(1, smdStatusId);
+            try (ResultSet rs = ps.executeQuery()) {
+                if (rs.next()) {
+                    String n = rs.getString("NM");
+                    return n != null && !n.trim().isEmpty() ? n.trim() : null;
+                }
+            }
+        }
+        return null;
+    }
+
+    /**
+     * В обработке (PROCESSING) → Обработано (PROCESSED) при завершении обработки входящей карты.
+     *
+     * @return {@code true}, если переход выполнен
+     */
+    static boolean applyProcessingToProcessedOnComplete(Connection conn, long smdid, Integer userId)
+            throws SQLException {
+        if (smdid <= 0) {
+            return false;
+        }
+        Integer processedId = resolveIncomingStatusId(conn, "PROCESSED");
+        Integer processingId = resolveIncomingStatusId(conn, "PROCESSING");
+        if (processedId == null || processingId == null) {
+            return false;
+        }
+        int updated;
+        try (PreparedStatement ps = conn.prepareStatement(
+                "UPDATE SMD SET SMDSTATUSID = ? "
+                        + "WHERE SMDID = ? "
+                        + "AND TRIM(TO_CHAR(DATASOURCEKINDCODE)) = ? "
+                        + "AND SMDSTATUSID = ?")) {
+            ps.setInt(1, processedId);
+            ps.setLong(2, smdid);
+            ps.setString(3, DATASOURCE_INCOMING);
+            ps.setInt(4, processingId);
+            updated = ps.executeUpdate();
+        }
+        if (updated == 0) {
+            return false;
+        }
+        try (PreparedStatement ps = conn.prepareStatement(
+                "INSERT INTO SMDSTATUSHIST (SMDID, SMDSTATUSID, SMDSTATUSDATETIME, USERID) "
+                        + "VALUES (?, ?, SYSDATE, ?)")) {
+            ps.setLong(1, smdid);
+            ps.setInt(2, processedId);
+            if (userId != null) {
+                ps.setInt(3, userId);
+            } else {
+                ps.setNull(3, java.sql.Types.INTEGER);
+            }
+            ps.executeUpdate();
+        }
+        return true;
+    }
 }

@@ -10,7 +10,7 @@ import SmdProductsTab from './tabs/SmdProductsTab'
 import SmdDiseaseTab from './tabs/SmdDiseaseTab'
 import SmdInfoRequestsTab from './tabs/SmdInfoRequestsTab'
 import SmdReviewResultsTab from './tabs/SmdReviewResultsTab'
-import { fetchSmdStatusHistory, fetchSmdXml, fetchSmdRelatedActions, saveSmdCard, buildSmdSaveMetadataFromCardData, canCreateSmdNewVersion, fetchSmdMetadata, postSmdStatus } from './smdApi'
+import { fetchSmdStatusHistory, fetchSmdXml, fetchSmdRelatedActions, saveSmdCard, buildSmdSaveMetadataFromCardData, canCreateSmdNewVersion, fetchSmdMetadata, postSmdStatus, fetchSmdIncomingCompletePreview } from './smdApi'
 import { confirmDeleteSmdCard } from './smdDeleteActions'
 import { exportSmdCardDataToXML } from './smdXmlExporter'
 import type { SmdRelatedActions } from '@/types/smdCard'
@@ -118,6 +118,7 @@ const SmdCard: React.FC<SmdCardProps> = ({
   const [validationResult, setValidationResult] = useState<ValidationResult | null>(null)
   const [validating, setValidating] = useState(false)
   const [sending, setSending] = useState(false)
+  const [completingProcessing, setCompletingProcessing] = useState(false)
 
   useParentActivityPing()
 
@@ -203,6 +204,8 @@ const SmdCard: React.FC<SmdCardProps> = ({
   const canAddResponse =
     (relatedActions?.isOutgoing && relatedActions?.hasOutgoingEditRight) ?? false
   const canPrepareReviewResult = relatedActions?.canPrepareReviewResult ?? false
+  const canCompleteIncomingProcessing = relatedActions?.canCompleteIncomingProcessing ?? false
+  const canCompleteIncomingProcessingReason = relatedActions?.canCompleteIncomingProcessingReason
 
   const showEditButton = (isOutgoing && !isEec && hasEditRight && !isNewVersionCopy) || (isCreateMode && !isNewVersionCopy)
   const showValidationButton = isOutgoing && !isEec && canValidateCard
@@ -214,13 +217,29 @@ const SmdCard: React.FC<SmdCardProps> = ({
     (meta.smdStatusCode ?? '').toUpperCase() === 'DELIVERED' &&
     (meta.messageCode ?? data.electronicDocument?.messageCode ?? '').trim().toUpperCase() !== SMD_MESSAGE_CANCEL
 
-  const statusButton = useMemo(() => {
-    if (isEec) return null
+  const smdStatusResult = useMemo(() => {
+    if (isEec) return { config: null, comment: '' }
     const code = meta.smdStatusCode ?? undefined
-    if (isIncoming) return incomingSmdStatusButton(code)
-    if (isOutgoing) return outgoingSmdStatusButton(code)
-    return null
-  }, [isEec, isIncoming, isOutgoing, meta.smdStatusCode])
+    const name = meta.smdStatusName ?? data.status
+    if (isIncoming) {
+      return incomingSmdStatusButton(
+        code,
+        name,
+        canCompleteIncomingProcessing,
+        canCompleteIncomingProcessingReason
+      )
+    }
+    const outgoingConfig = outgoingSmdStatusButton(code)
+    return { config: outgoingConfig, comment: '' }
+  }, [
+    isEec,
+    isIncoming,
+    meta.smdStatusCode,
+    meta.smdStatusName,
+    data.status,
+    canCompleteIncomingProcessing,
+    canCompleteIncomingProcessingReason,
+  ])
 
   const closeButton = smdCloseCardButton()
 
@@ -240,9 +259,70 @@ const SmdCard: React.FC<SmdCardProps> = ({
       .finally(() => setStatusHistoryLoading(false))
   }
 
+  const formatSmdDocDate = (d: string | null | undefined) => {
+    if (!d?.trim()) return '—'
+    const date = new Date(d.slice(0, 10))
+    if (isNaN(date.getTime())) return d
+    return date.toLocaleDateString('ru-RU')
+  }
+
+  const runCompleteIncomingProcessing = async () => {
+    if (!effectiveSmdid || !guid || !hasPersisted) return
+    setCompletingProcessing(true)
+    try {
+      const res = await postSmdStatus(effectiveSmdid, 'complete_processing', guid)
+      const freshMeta = await fetchSmdMetadata(effectiveSmdid, guid)
+      onMetaUpdate?.(freshMeta)
+      onUpdate?.({
+        ...data,
+        status: res.newStatus ?? freshMeta.smdStatusName ?? 'Обработано',
+      })
+      message.success('Карта переведена в статус «Обработано».')
+      void fetchSmdRelatedActions(effectiveSmdid, guid).then(setRelatedActions).catch(() => {})
+    } catch (e) {
+      message.error(e instanceof Error ? e.message : 'Ошибка смены статуса')
+    } finally {
+      setCompletingProcessing(false)
+    }
+  }
+
+  const confirmCompleteIncomingProcessing = () => {
+    if (!effectiveSmdid || !guid || !hasPersisted || isEditMode) return
+    const docNumber = meta.docId?.trim() || data.registrationNumber || effectiveSmdid
+    const docDate = formatSmdDocDate(meta.docCreationDate ?? data.notification?.formationDate)
+    void fetchSmdIncomingCompletePreview(effectiveSmdid, guid)
+      .then(({ reviewOutcomeSent }) => {
+        if (reviewOutcomeSent) {
+          Modal.confirm({
+            title: 'Завершение обработки',
+            content: `Карта ${docNumber} от ${docDate} будет переведена в статус „Обработано“. Продолжить?`,
+            okText: 'Завершить',
+            cancelText: 'Отмена',
+            okButtonProps: { type: 'primary' },
+            onOk: () => runCompleteIncomingProcessing(),
+          })
+        } else {
+          Modal.confirm({
+            title: 'Завершение обработки',
+            content: 'Результат рассмотрения не готов или не отправлен. Завершить обработку?',
+            okText: 'Завершить',
+            cancelText: 'Отмена',
+            okButtonProps: { type: 'default' },
+            cancelButtonProps: { type: 'primary' },
+            onOk: () => runCompleteIncomingProcessing(),
+          })
+        }
+      })
+      .catch((e) => message.error(e instanceof Error ? e.message : 'Не удалось проверить статус результата рассмотрения'))
+  }
+
   const handleStatusAction = (action: string) => {
     if (action === 'close_card') {
       postMessageFromCardToParent({ type: 'close_card' })
+      return
+    }
+    if (action === 'complete_processing') {
+      confirmCompleteIncomingProcessing()
       return
     }
     message.info(`Действие «${action}» для SMD будет реализовано в следующей итерации`)
@@ -613,9 +693,11 @@ const SmdCard: React.FC<SmdCardProps> = ({
                   )
               : undefined
           }
-          statusButton={statusButton}
+          statusButton={smdStatusResult.config}
+          statusButtonComment={smdStatusResult.comment || undefined}
           closeButton={closeButton}
           onStatusAction={handleStatusAction}
+          statusButtonsLoading={completingProcessing}
           onElectronicDocumentClick={() => message.info('Электронные документы SMD — в разработке')}
           showDeleteButton={isOutgoing && hasPersisted && canDeleteCard}
           onDelete={handleDelete}
@@ -631,14 +713,6 @@ const SmdCard: React.FC<SmdCardProps> = ({
                   onClick={confirmSendSmdOp58}
                 >
                   Направить сведения
-                </Button>
-              )}
-              {isIncoming && hasPersisted && (
-                <Button
-                  size="small"
-                  onClick={() => message.info('Завершение обработки — в разработке')}
-                >
-                  Завершить обработку
                 </Button>
               )}
             </>

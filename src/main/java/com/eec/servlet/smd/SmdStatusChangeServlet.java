@@ -8,6 +8,7 @@ import javax.servlet.http.HttpServlet;
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
 import java.io.IOException;
+import java.io.PrintWriter;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.SQLException;
@@ -17,9 +18,14 @@ import java.util.regex.Pattern;
 /**
  * Смена статуса карты SMD.
  * POST /api/smd/status — JSON { "smdid", "action", "guid" }.
+ * GET /api/smd/status?preview=incoming_complete&smdid=...&guid=... — { reviewOutcomeSent }.
  * <p>Исходящие:</p>
  * <ul>
- *   <li>{@code send} — NEW / FAILED / ERROR → PENDING («Ожидает отправки»); sanitaryMeasureOut:send ∩ SMDDEPPERMIS.</li>
+ *   <li>{@code send} — NEW / FAILED / ERROR → PENDING; sanitaryMeasureOut:send ∩ SMDDEPPERMIS.</li>
+ * </ul>
+ * <p>Входящие:</p>
+ * <ul>
+ *   <li>{@code complete_processing} — PROCESSING → PROCESSED; sanitaryMeasureIn:status ∩ SMDDEPPERMIS.</li>
  * </ul>
  */
 public class SmdStatusChangeServlet extends HttpServlet {
@@ -31,6 +37,54 @@ public class SmdStatusChangeServlet extends HttpServlet {
             + "INSERT INTO SMDSTATUSHIST (SMDID, SMDSTATUSID, SMDSTATUSDATETIME, USERID) VALUES (?, ?, SYSDATE, ?)";
 
     private static final String STATUS_PENDING_NAME = "Ожидает отправки";
+    private static final String STATUS_PROCESSED_NAME = "Обработано";
+
+    @Override
+    protected void doGet(HttpServletRequest request, HttpServletResponse response)
+            throws ServletException, IOException {
+        String preview = request.getParameter("preview");
+        if (!"incoming_complete".equals(preview)) {
+            sendJsonError(response, HttpServletResponse.SC_BAD_REQUEST, "Укажите preview=incoming_complete");
+            return;
+        }
+        String smdid = request.getParameter("smdid");
+        String guid = request.getParameter("guid");
+        if (smdid == null || smdid.trim().isEmpty()) {
+            sendJsonError(response, HttpServletResponse.SC_BAD_REQUEST, "Укажите smdid");
+            return;
+        }
+        if (guid == null || guid.trim().isEmpty()) {
+            sendJsonError(response, HttpServletResponse.SC_BAD_REQUEST, "Укажите guid");
+            return;
+        }
+        response.setContentType("application/json;charset=UTF-8");
+        response.setCharacterEncoding("UTF-8");
+        response.setHeader("Access-Control-Allow-Origin", "*");
+
+        long smdidNum;
+        try {
+            smdidNum = Long.parseLong(smdid.trim());
+            if (smdidNum <= 0) {
+                throw new NumberFormatException();
+            }
+        } catch (NumberFormatException e) {
+            sendJsonError(response, HttpServletResponse.SC_BAD_REQUEST, "Некорректный smdid");
+            return;
+        }
+
+        Connection conn = null;
+        try {
+            conn = DatabaseUtil.getConnectionForRequest(request, guid.trim());
+            boolean sent = SmdCompleteProcessingSupport.isReviewOutcomeSent(conn, smdidNum);
+            PrintWriter out = response.getWriter();
+            out.print("{\"reviewOutcomeSent\":" + sent + "}");
+            out.flush();
+        } catch (SQLException e) {
+            sendJsonError(response, HttpServletResponse.SC_INTERNAL_SERVER_ERROR, "Ошибка БД: " + e.getMessage());
+        } finally {
+            DatabaseUtil.closeConnection(conn);
+        }
+    }
 
     @Override
     protected void doPost(HttpServletRequest request, HttpServletResponse response)
@@ -75,11 +129,6 @@ public class SmdStatusChangeServlet extends HttpServlet {
             return;
         }
 
-        if (!"send".equals(action)) {
-            sendJsonError(response, HttpServletResponse.SC_BAD_REQUEST, "Неподдерживаемое действие: " + action);
-            return;
-        }
-
         String rightsJson = RightsRegistryProvider.get().getRightsJson(guid);
         Integer userId = getUserIdFromRights(rightsJson);
         if (userId == null) {
@@ -88,6 +137,20 @@ public class SmdStatusChangeServlet extends HttpServlet {
             return;
         }
 
+        if ("send".equals(action)) {
+            handleSend(response, request, guid, rightsJson, userId, smdidNum);
+            return;
+        }
+        if ("complete_processing".equals(action)) {
+            handleCompleteProcessing(response, request, guid, rightsJson, userId, smdidNum);
+            return;
+        }
+
+        sendJsonError(response, HttpServletResponse.SC_BAD_REQUEST, "Неподдерживаемое действие: " + action);
+    }
+
+    private void handleSend(HttpServletResponse response, HttpServletRequest request, String guid,
+                            String rightsJson, Integer userId, long smdidNum) throws IOException {
         Connection conn = null;
         boolean committed = false;
         try {
@@ -108,23 +171,7 @@ public class SmdStatusChangeServlet extends HttpServlet {
                 return;
             }
 
-            try (PreparedStatement ps = conn.prepareStatement(SQL_UPDATE_SMD)) {
-                ps.setInt(1, pendingStatusId);
-                ps.setLong(2, smdidNum);
-                int n = ps.executeUpdate();
-                if (n == 0) {
-                    conn.rollback();
-                    sendJsonError(response, HttpServletResponse.SC_INTERNAL_SERVER_ERROR, "Запись SMD не обновлена");
-                    return;
-                }
-            }
-
-            try (PreparedStatement ps = conn.prepareStatement(SQL_INSERT_HIST)) {
-                ps.setLong(1, smdidNum);
-                ps.setInt(2, pendingStatusId);
-                ps.setInt(3, userId);
-                ps.executeUpdate();
-            }
+            updateStatusAndHist(conn, smdidNum, pendingStatusId, userId);
 
             conn.commit();
             committed = true;
@@ -142,6 +189,78 @@ public class SmdStatusChangeServlet extends HttpServlet {
             sendJsonError(response, HttpServletResponse.SC_INTERNAL_SERVER_ERROR, "Ошибка БД: " + e.getMessage());
         } finally {
             DatabaseUtil.closeConnection(conn);
+        }
+    }
+
+    private void handleCompleteProcessing(HttpServletResponse response, HttpServletRequest request, String guid,
+                                          String rightsJson, Integer userId, long smdidNum) throws IOException {
+        Connection conn = null;
+        boolean committed = false;
+        try {
+            conn = DatabaseUtil.getConnectionForRequest(request, guid);
+            conn.setAutoCommit(false);
+
+            SmdCompleteProcessingSupport.Eligibility eligibility =
+                    SmdCompleteProcessingSupport.checkEligibility(conn, smdidNum, rightsJson);
+            if (!eligibility.allowed) {
+                sendJsonError(response, HttpServletResponse.SC_BAD_REQUEST,
+                        eligibility.reason != null ? eligibility.reason : "Завершение обработки недоступно");
+                return;
+            }
+
+            Integer processedId = SmdIncomingStatusHelper.resolveIncomingStatusId(conn, "PROCESSED");
+            if (processedId == null) {
+                sendJsonError(response, HttpServletResponse.SC_INTERNAL_SERVER_ERROR,
+                        "Не найден статус PROCESSED для входящих SMD");
+                return;
+            }
+
+            if (!SmdIncomingStatusHelper.applyProcessingToProcessedOnComplete(conn, smdidNum, userId)) {
+                conn.rollback();
+                sendJsonError(response, HttpServletResponse.SC_BAD_REQUEST,
+                        "Карта не в статусе «В обработке» или уже обновлена другим запросом");
+                return;
+            }
+
+            String displayName = SmdIncomingStatusHelper.resolveIncomingStatusName(conn, processedId);
+            if (displayName == null || displayName.isEmpty()) {
+                displayName = STATUS_PROCESSED_NAME;
+            }
+
+            conn.commit();
+            committed = true;
+            response.setStatus(HttpServletResponse.SC_OK);
+            response.getWriter().print("{\"ok\":true,\"changed\":true,\"newStatus\":\""
+                    + escapeJson(displayName) + "\",\"newStatusId\":" + processedId
+                    + ",\"newStatusCode\":\"PROCESSED\"}");
+        } catch (SQLException e) {
+            if (conn != null && !committed) {
+                try {
+                    conn.rollback();
+                } catch (SQLException ignored) {
+                }
+            }
+            sendJsonError(response, HttpServletResponse.SC_INTERNAL_SERVER_ERROR, "Ошибка БД: " + e.getMessage());
+        } finally {
+            DatabaseUtil.closeConnection(conn);
+        }
+    }
+
+    private static void updateStatusAndHist(Connection conn, long smdidNum, int statusId, Integer userId)
+            throws SQLException {
+        try (PreparedStatement ps = conn.prepareStatement(SQL_UPDATE_SMD)) {
+            ps.setInt(1, statusId);
+            ps.setLong(2, smdidNum);
+            int n = ps.executeUpdate();
+            if (n == 0) {
+                throw new SQLException("Запись SMD не обновлена");
+            }
+        }
+        try (PreparedStatement ps = conn.prepareStatement(SQL_INSERT_HIST)) {
+            ps.setLong(1, smdidNum);
+            ps.setInt(2, statusId);
+            ps.setInt(3, userId);
+            ps.executeUpdate();
         }
     }
 
