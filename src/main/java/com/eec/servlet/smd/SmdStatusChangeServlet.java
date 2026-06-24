@@ -11,6 +11,7 @@ import java.io.IOException;
 import java.io.PrintWriter;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
+import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -26,6 +27,7 @@ import java.util.regex.Pattern;
  * <p>Входящие:</p>
  * <ul>
  *   <li>{@code complete_processing} — PROCESSING → PROCESSED; sanitaryMeasureIn:status ∩ SMDDEPPERMIS.</li>
+ *   <li>{@code close} — входящие PROCESSED → COMPLETED; исходящие NEW|FAILED|ERROR|DELIVERED → COMPLETED.</li>
  * </ul>
  */
 public class SmdStatusChangeServlet extends HttpServlet {
@@ -38,6 +40,7 @@ public class SmdStatusChangeServlet extends HttpServlet {
 
     private static final String STATUS_PENDING_NAME = "Ожидает отправки";
     private static final String STATUS_PROCESSED_NAME = "Обработано";
+    private static final String STATUS_COMPLETED_NAME = "Завершено";
 
     @Override
     protected void doGet(HttpServletRequest request, HttpServletResponse response)
@@ -145,6 +148,10 @@ public class SmdStatusChangeServlet extends HttpServlet {
             handleCompleteProcessing(response, request, guid, rightsJson, userId, smdidNum);
             return;
         }
+        if ("close".equals(action)) {
+            handleClose(response, request, guid, rightsJson, userId, smdidNum);
+            return;
+        }
 
         sendJsonError(response, HttpServletResponse.SC_BAD_REQUEST, "Неподдерживаемое действие: " + action);
     }
@@ -233,6 +240,93 @@ public class SmdStatusChangeServlet extends HttpServlet {
             response.getWriter().print("{\"ok\":true,\"changed\":true,\"newStatus\":\""
                     + escapeJson(displayName) + "\",\"newStatusId\":" + processedId
                     + ",\"newStatusCode\":\"PROCESSED\"}");
+        } catch (SQLException e) {
+            if (conn != null && !committed) {
+                try {
+                    conn.rollback();
+                } catch (SQLException ignored) {
+                }
+            }
+            sendJsonError(response, HttpServletResponse.SC_INTERNAL_SERVER_ERROR, "Ошибка БД: " + e.getMessage());
+        } finally {
+            DatabaseUtil.closeConnection(conn);
+        }
+    }
+
+    private void handleClose(HttpServletResponse response, HttpServletRequest request, String guid,
+                             String rightsJson, Integer userId, long smdidNum) throws IOException {
+        Connection conn = null;
+        boolean committed = false;
+        try {
+            conn = DatabaseUtil.getConnectionForRequest(request, guid);
+            conn.setAutoCommit(false);
+
+            String dsc;
+            try (PreparedStatement ps = conn.prepareStatement(SmdDbSupport.SQL_SMD_DATASOURCE)) {
+                ps.setLong(1, smdidNum);
+                try (ResultSet rs = ps.executeQuery()) {
+                    dsc = rs.next() ? (rs.getString("DSC") != null ? rs.getString("DSC").trim() : "") : "";
+                }
+            }
+
+            boolean applied;
+            Integer completedId;
+            if (SmdIncomingStatusHelper.DATASOURCE_INCOMING.equals(dsc)) {
+                SmdCloseSupport.Eligibility eligibility =
+                        SmdCloseSupport.checkIncomingCloseEligibility(conn, smdidNum, rightsJson);
+                if (!eligibility.allowed) {
+                    sendJsonError(response, HttpServletResponse.SC_BAD_REQUEST,
+                            eligibility.reason != null ? eligibility.reason : "Закрытие карты недоступно");
+                    return;
+                }
+                completedId = SmdCloseSupport.resolveStatusId(conn,
+                        SmdIncomingStatusHelper.DATASOURCE_INCOMING, "COMPLETED");
+                if (completedId == null) {
+                    sendJsonError(response, HttpServletResponse.SC_INTERNAL_SERVER_ERROR,
+                            "Не найден статус COMPLETED для входящих SMD");
+                    return;
+                }
+                applied = SmdCloseSupport.applyIncomingClose(conn, smdidNum, userId);
+            } else if (SmdSendSupport.DATASOURCE_OUTGOING.equals(dsc)) {
+                SmdCloseSupport.Eligibility eligibility =
+                        SmdCloseSupport.checkOutgoingCloseEligibility(conn, smdidNum, rightsJson);
+                if (!eligibility.allowed) {
+                    sendJsonError(response, HttpServletResponse.SC_BAD_REQUEST,
+                            eligibility.reason != null ? eligibility.reason : "Закрытие карты недоступно");
+                    return;
+                }
+                completedId = SmdCloseSupport.resolveStatusId(conn,
+                        SmdSendSupport.DATASOURCE_OUTGOING, "COMPLETED");
+                if (completedId == null) {
+                    sendJsonError(response, HttpServletResponse.SC_INTERNAL_SERVER_ERROR,
+                            "Не найден статус COMPLETED для исходящих SMD");
+                    return;
+                }
+                applied = SmdCloseSupport.applyOutgoingClose(conn, smdidNum, userId);
+            } else {
+                sendJsonError(response, HttpServletResponse.SC_BAD_REQUEST,
+                        "Закрытие карты недоступно для данного типа источника");
+                return;
+            }
+
+            if (!applied) {
+                conn.rollback();
+                sendJsonError(response, HttpServletResponse.SC_BAD_REQUEST,
+                        "Карта не в допустимом статусе для закрытия или уже обновлена другим запросом");
+                return;
+            }
+
+            String displayName = SmdCloseSupport.resolveStatusName(conn, completedId);
+            if (displayName == null || displayName.isEmpty()) {
+                displayName = STATUS_COMPLETED_NAME;
+            }
+
+            conn.commit();
+            committed = true;
+            response.setStatus(HttpServletResponse.SC_OK);
+            response.getWriter().print("{\"ok\":true,\"changed\":true,\"newStatus\":\""
+                    + escapeJson(displayName) + "\",\"newStatusId\":" + completedId
+                    + ",\"newStatusCode\":\"COMPLETED\"}");
         } catch (SQLException e) {
             if (conn != null && !committed) {
                 try {

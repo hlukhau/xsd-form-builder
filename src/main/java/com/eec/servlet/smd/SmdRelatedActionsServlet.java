@@ -69,6 +69,8 @@ public class SmdRelatedActionsServlet extends HttpServlet {
             String canValidateReason = null;
             boolean canCompleteIncomingProcessing = false;
             String canCompleteIncomingProcessingReason = null;
+            boolean canCloseCard = false;
+            String canCloseCardReason = null;
             if (outgoing) {
                 SmdDeleteSupport.Eligibility deleteEligibility =
                         SmdDeleteSupport.checkEligibility(conn, smdid, rightsJson);
@@ -84,12 +86,22 @@ public class SmdRelatedActionsServlet extends HttpServlet {
                         SmdViewSupport.checkValidateEligibility(conn, smdid, rightsJson);
                 canValidate = validateEligibility.allowed;
                 canValidateReason = validateEligibility.reason;
+
+                SmdCloseSupport.Eligibility closeEligibility =
+                        SmdCloseSupport.checkOutgoingCloseEligibility(conn, smdid, rightsJson);
+                canCloseCard = closeEligibility.allowed;
+                canCloseCardReason = closeEligibility.reason;
             }
             if (incoming) {
                 SmdCompleteProcessingSupport.Eligibility completeEligibility =
                         SmdCompleteProcessingSupport.checkEligibility(conn, smdid, rightsJson);
                 canCompleteIncomingProcessing = completeEligibility.allowed;
                 canCompleteIncomingProcessingReason = completeEligibility.reason;
+
+                SmdCloseSupport.Eligibility closeEligibility =
+                        SmdCloseSupport.checkIncomingCloseEligibility(conn, smdid, rightsJson);
+                canCloseCard = closeEligibility.allowed;
+                canCloseCardReason = closeEligibility.reason;
             }
 
             StringBuilder json = new StringBuilder();
@@ -118,6 +130,10 @@ public class SmdRelatedActionsServlet extends HttpServlet {
             if (canCompleteIncomingProcessingReason != null) {
                 json.append(",\"canCompleteIncomingProcessingReason\":")
                         .append(quote(canCompleteIncomingProcessingReason));
+            }
+            json.append(",\"canCloseCard\":").append(canCloseCard);
+            if (canCloseCardReason != null) {
+                json.append(",\"canCloseCardReason\":").append(quote(canCloseCardReason));
             }
             json.append("}");
 

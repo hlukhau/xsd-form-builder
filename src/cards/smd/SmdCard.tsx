@@ -20,7 +20,6 @@ import { syncSmdCardFromPrimaryMeasure } from './smdSanitaryMeasureModel'
 import {
   incomingSmdStatusButton,
   outgoingSmdStatusButton,
-  smdCloseCardButton,
   isSmdIncomingSource,
   isSmdOutgoingSource,
 } from './smdStatusButtonConfig'
@@ -119,6 +118,7 @@ const SmdCard: React.FC<SmdCardProps> = ({
   const [validating, setValidating] = useState(false)
   const [sending, setSending] = useState(false)
   const [completingProcessing, setCompletingProcessing] = useState(false)
+  const [closingCard, setClosingCard] = useState(false)
 
   useParentActivityPing()
 
@@ -206,6 +206,8 @@ const SmdCard: React.FC<SmdCardProps> = ({
   const canPrepareReviewResult = relatedActions?.canPrepareReviewResult ?? false
   const canCompleteIncomingProcessing = relatedActions?.canCompleteIncomingProcessing ?? false
   const canCompleteIncomingProcessingReason = relatedActions?.canCompleteIncomingProcessingReason
+  const canCloseCard = relatedActions?.canCloseCard ?? false
+  const canCloseCardReason = relatedActions?.canCloseCardReason
 
   const showEditButton = (isOutgoing && !isEec && hasEditRight && !isNewVersionCopy) || (isCreateMode && !isNewVersionCopy)
   const showValidationButton = isOutgoing && !isEec && canValidateCard
@@ -218,7 +220,7 @@ const SmdCard: React.FC<SmdCardProps> = ({
     (meta.messageCode ?? data.electronicDocument?.messageCode ?? '').trim().toUpperCase() !== SMD_MESSAGE_CANCEL
 
   const smdStatusResult = useMemo(() => {
-    if (isEec) return { config: null, comment: '' }
+    if (isEec) return { config: null, comment: '', closeConfig: null }
     const code = meta.smdStatusCode ?? undefined
     const name = meta.smdStatusName ?? data.status
     if (isIncoming) {
@@ -226,22 +228,27 @@ const SmdCard: React.FC<SmdCardProps> = ({
         code,
         name,
         canCompleteIncomingProcessing,
-        canCompleteIncomingProcessingReason
+        canCompleteIncomingProcessingReason,
+        canCloseCard,
+        canCloseCardReason
       )
     }
-    const outgoingConfig = outgoingSmdStatusButton(code)
-    return { config: outgoingConfig, comment: '' }
+    if (isOutgoing) {
+      return outgoingSmdStatusButton(code, name, canCloseCard, canCloseCardReason)
+    }
+    return { config: null, comment: '', closeConfig: null }
   }, [
     isEec,
     isIncoming,
+    isOutgoing,
     meta.smdStatusCode,
     meta.smdStatusName,
     data.status,
     canCompleteIncomingProcessing,
     canCompleteIncomingProcessingReason,
+    canCloseCard,
+    canCloseCardReason,
   ])
-
-  const closeButton = smdCloseCardButton()
 
   const handleStatusClick = () => {
     if (!hasPersisted) {
@@ -316,13 +323,47 @@ const SmdCard: React.FC<SmdCardProps> = ({
       .catch((e) => message.error(e instanceof Error ? e.message : 'Не удалось проверить статус результата рассмотрения'))
   }
 
-  const handleStatusAction = (action: string) => {
-    if (action === 'close_card') {
-      postMessageFromCardToParent({ type: 'close_card' })
-      return
+  const runCloseSmdCard = async () => {
+    if (!effectiveSmdid || !guid || !hasPersisted) return
+    setClosingCard(true)
+    try {
+      const res = await postSmdStatus(effectiveSmdid, 'close', guid)
+      const freshMeta = await fetchSmdMetadata(effectiveSmdid, guid)
+      onMetaUpdate?.(freshMeta)
+      onUpdate?.({
+        ...data,
+        status: res.newStatus ?? freshMeta.smdStatusName ?? 'Завершено',
+      })
+      message.success('Карта переведена в статус «Завершено».')
+      void fetchSmdRelatedActions(effectiveSmdid, guid).then(setRelatedActions).catch(() => {})
+    } catch (e) {
+      message.error(e instanceof Error ? e.message : 'Ошибка закрытия карты')
+    } finally {
+      setClosingCard(false)
     }
+  }
+
+  const confirmCloseSmdCard = () => {
+    if (!effectiveSmdid || !guid || !hasPersisted || isEditMode) return
+    const docNumber = meta.docId?.trim() || data.registrationNumber || effectiveSmdid
+    const docDate = formatSmdDocDate(meta.docCreationDate ?? data.notification?.formationDate)
+    Modal.confirm({
+      title: 'Закрытие карты',
+      content: `Внимание! После подтверждения карта ${docNumber} от ${docDate} будет переведена в статус „Завершено“. Выполнение каких-либо действий, кроме просмотра, станет невозможным. Отменить данное действие будет нельзя. Продолжить?`,
+      okText: 'Продолжить',
+      cancelText: 'Отмена',
+      okButtonProps: { danger: true },
+      onOk: () => runCloseSmdCard(),
+    })
+  }
+
+  const handleStatusAction = (action: string) => {
     if (action === 'complete_processing') {
       confirmCompleteIncomingProcessing()
+      return
+    }
+    if (action === 'close') {
+      confirmCloseSmdCard()
       return
     }
     message.info(`Действие «${action}» для SMD будет реализовано в следующей итерации`)
@@ -695,9 +736,9 @@ const SmdCard: React.FC<SmdCardProps> = ({
           }
           statusButton={smdStatusResult.config}
           statusButtonComment={smdStatusResult.comment || undefined}
-          closeButton={closeButton}
+          closeButton={smdStatusResult.closeConfig}
           onStatusAction={handleStatusAction}
-          statusButtonsLoading={completingProcessing}
+          statusButtonsLoading={completingProcessing || closingCard}
           onElectronicDocumentClick={() => message.info('Электронные документы SMD — в разработке')}
           showDeleteButton={isOutgoing && hasPersisted && canDeleteCard}
           onDelete={handleDelete}

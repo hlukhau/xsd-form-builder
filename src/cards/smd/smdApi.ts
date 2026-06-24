@@ -381,7 +381,7 @@ export interface SmdStatusChangeResponse {
 /** Направление сведений / завершение обработки: POST /api/smd/status */
 export async function postSmdStatus(
   smdid: string,
-  action: 'send' | 'complete_processing',
+  action: 'send' | 'complete_processing' | 'close',
   guid?: string
 ): Promise<SmdStatusChangeResponse> {
   const url = getApiUrl('/api/smd/status')

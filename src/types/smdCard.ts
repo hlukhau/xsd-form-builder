@@ -67,4 +67,6 @@ export interface SmdRelatedActions {
   canValidateReason?: string | null
   canCompleteIncomingProcessing?: boolean
   canCompleteIncomingProcessingReason?: string | null
+  canCloseCard?: boolean
+  canCloseCardReason?: string | null
 }
