@@ -14,12 +14,18 @@ interface SmdSanitaryMeasureTabProps {
   data: CardData
   editMode?: boolean
   onChange?: (next: CardData) => void
+  regulatoryDocReadOnly?: boolean
 }
 
 /**
  * Санитарная мера (smcdo:SanitaryMeasureDetails) — SS.09.
  */
-const SmdSanitaryMeasureTab: React.FC<SmdSanitaryMeasureTabProps> = ({ data, editMode, onChange }) => {
+const SmdSanitaryMeasureTab: React.FC<SmdSanitaryMeasureTabProps> = ({
+  data,
+  editMode,
+  onChange,
+  regulatoryDocReadOnly,
+}) => {
   const { getDisplayLabel } = useCountryOptions()
   const { getLanguageName } = useLanguageOptions()
   const measure = getSmdPrimaryMeasure(data)
@@ -31,7 +37,13 @@ const SmdSanitaryMeasureTab: React.FC<SmdSanitaryMeasureTabProps> = ({ data, edi
   const messageLabel = getSmdMessageName(messageCode, data.version) ?? messageCode
 
   if (editMode && onChange) {
-    return <SmdSanitaryMeasureTabEdit data={data} onChange={onChange} />
+    return (
+      <SmdSanitaryMeasureTabEdit
+        data={data}
+        onChange={onChange}
+        regulatoryDocReadOnly={regulatoryDocReadOnly}
+      />
+    )
   }
 
   const formatDate = (d: string | null | undefined) => {

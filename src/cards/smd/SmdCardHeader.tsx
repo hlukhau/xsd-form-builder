@@ -12,6 +12,8 @@ interface SmdCardHeaderProps {
   isCreateMode?: boolean
   messageCode?: string | null
   onMessageCodeChange?: (code: string) => void
+  /** Новая версия: вид сообщения обязателен, без значения по умолчанию. */
+  requireMessageSelection?: boolean
 }
 
 const SmdCardHeader: React.FC<SmdCardHeaderProps> = ({
@@ -20,6 +22,7 @@ const SmdCardHeader: React.FC<SmdCardHeaderProps> = ({
   isCreateMode,
   messageCode,
   onMessageCodeChange,
+  requireMessageSelection,
 }) => {
   const { getDisplayLabel: getCountryDisplayLabel } = useCountryOptions()
 
@@ -50,7 +53,9 @@ const SmdCardHeader: React.FC<SmdCardHeaderProps> = ({
     value: o.code,
     label: o.name,
   }))
-  const effectiveMessageCode = messageCode ?? meta.messageCode ?? 'P.SS.09.MSG.001'
+  const effectiveMessageCode = requireMessageSelection
+    ? messageCode?.trim() || undefined
+    : messageCode ?? meta.messageCode ?? 'P.SS.09.MSG.001'
 
   return (
     <Descriptions
@@ -82,8 +87,10 @@ const SmdCardHeader: React.FC<SmdCardHeaderProps> = ({
             size="small"
             style={{ minWidth: 280, width: '100%' }}
             value={effectiveMessageCode}
+            placeholder={requireMessageSelection ? 'Выберите вид сообщения' : undefined}
             options={messageOptions}
             onChange={onMessageCodeChange}
+            status={requireMessageSelection && !effectiveMessageCode ? 'error' : undefined}
           />
         ) : (
           meta.messageName ?? getSmdMessageName(meta.messageCode, version) ?? meta.messageCode ?? '—'

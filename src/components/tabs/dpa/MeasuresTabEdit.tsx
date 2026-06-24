@@ -58,6 +58,8 @@ const MeasureDocDetailsEditStandalone: React.FC<{
   showAuthorityId?: boolean
   /** Скрыть нижнюю кнопку «Удалить документ» (удаление строки — снаружи). */
   hideInternalRemove?: boolean
+  /** Номер и дата документа только для чтения (новая версия карты). */
+  readOnlyDocIdentity?: boolean
 }> = ({
   doc,
   onChange,
@@ -71,6 +73,7 @@ const MeasureDocDetailsEditStandalone: React.FC<{
   getMediaTypeCodeByName,
   showAuthorityId,
   hideInternalRemove,
+  readOnlyDocIdentity,
 }) => {
   const [uploadedFileName, setUploadedFileName] = useState<string>('')
   const { getSelectOptions: getShipDocKindSelectOptions, loading: loadingShipDocKinds } = useShipDocKindOptions()
@@ -220,6 +223,7 @@ const MeasureDocDetailsEditStandalone: React.FC<{
           onChange={(e) => onChange({ ...doc, docId: e.target.value })}
           maxLength={getMaxLength('docId')}
           showCount
+          disabled={readOnlyDocIdentity}
         />
       </Form.Item>
       <Form.Item label="Дата документа">
@@ -228,6 +232,7 @@ const MeasureDocDetailsEditStandalone: React.FC<{
           value={doc.docCreationDate ? dayjs(doc.docCreationDate) : null}
           onChange={(date) => onChange({ ...doc, docCreationDate: date ? date.format('YYYY-MM-DD') : undefined })}
           style={{ width: '100%' }}
+          disabled={readOnlyDocIdentity}
         />
       </Form.Item>
       <Form.Item label="Срок действия. Начало">

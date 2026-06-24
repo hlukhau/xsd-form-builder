@@ -417,10 +417,14 @@ function AppContent() {
 /** Контент приложения для карты PHA (путь /pha_card/{PHAID}/{GUID}) */
 const PHA_COPY_FROM_SESSION_KEY = 'pha_card_copy_from_phaid'
 
+/** Контент приложения для карты SMD (путь /smd_card/{SMDID}/{GUID}) */
+const SMD_COPY_FROM_SESSION_KEY = 'smd_card_copy_from_smdid'
+
 function SmdAppContent() {
   const [cardData, setCardData] = useState<CardData | null>(null)
   const [meta, setMeta] = useState<SmdMetadata | null>(null)
   const [createMeta, setCreateMeta] = useState<SmdMetadata | null>(null)
+  const [copyFromSmdid, setCopyFromSmdid] = useState<number | null>(null)
   const [smdXmlBody, setSmdXmlBody] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -459,6 +463,30 @@ function SmdAppContent() {
       return
     }
     if (smdid === '-') {
+      const state = location.state as { newVersionFrom?: number; initialCardData?: CardData } | null
+      if (state?.newVersionFrom != null && state?.initialCardData) {
+        setCardData(state.initialCardData)
+        setCopyFromSmdid(state.newVersionFrom)
+        setCreateMeta(buildCreateSmdMetadata(state.initialCardData))
+        try {
+          sessionStorage.setItem(SMD_COPY_FROM_SESSION_KEY, String(state.newVersionFrom))
+        } catch {
+          /* ignore */
+        }
+        setMeta(null)
+        setSmdXmlBody(null)
+        setViewDenied(false)
+        setError(null)
+        setCreateDenied(false)
+        setLoading(false)
+        return
+      }
+      setCopyFromSmdid(null)
+      try {
+        sessionStorage.removeItem(SMD_COPY_FROM_SESSION_KEY)
+      } catch {
+        /* ignore */
+      }
       setMeta(null)
       setSmdXmlBody(null)
       setViewDenied(false)
@@ -485,6 +513,12 @@ function SmdAppContent() {
     }
     setCreateMeta(null)
     setCreateDenied(false)
+    setCopyFromSmdid(null)
+    try {
+      sessionStorage.removeItem(SMD_COPY_FROM_SESSION_KEY)
+    } catch {
+      /* ignore */
+    }
     setLoading(true)
     setError(null)
     setViewDenied(false)
@@ -569,7 +603,9 @@ function SmdAppContent() {
         setLoading(false)
       }
     })()
-  }, [smdid, guid, location.key])
+  }, [smdid, guid, location.key, location.state])
+
+  const isNewVersionFromCopy = smdid === '-' && copyFromSmdid != null && copyFromSmdid > 0
 
   const showDeleted = useCardDeletedBanner(location, Boolean(cardData && meta))
 
@@ -630,17 +666,27 @@ function SmdAppContent() {
     const displayMeta = meta ?? createMeta!
     return (
       <SmdCard
+        key={isNewVersionFromCopy ? `copy-${copyFromSmdid}-${location.key}` : smdid === '-' ? 'new' : smdid}
         data={cardData}
         meta={displayMeta}
         smdid={smdid}
         guid={guid}
         xmlBody={smdXmlBody}
+        copyFromSmdid={copyFromSmdid ?? undefined}
         onUpdate={(next) => {
           setCardData(next)
           if (smdid === '-') setCreateMeta(buildCreateSmdMetadata(next, displayMeta.docCountryName))
         }}
         onSaveNewCard={(newSmdid) => {
           navigate(`/${newSmdid}/${guid ?? ''}`, { replace: true })
+        }}
+        onMakeCopy={(initialCardData, sourceSmdid) => {
+          try {
+            sessionStorage.setItem(SMD_COPY_FROM_SESSION_KEY, String(sourceSmdid))
+          } catch {
+            /* ignore */
+          }
+          navigate(`/-/${guid ?? ''}`, { state: { newVersionFrom: sourceSmdid, initialCardData } })
         }}
       />
     )

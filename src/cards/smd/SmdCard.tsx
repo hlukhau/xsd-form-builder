@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useCallback, type CSSProperties } from 'react'
+import { useState, useEffect, useMemo, useCallback, useRef, type CSSProperties } from 'react'
 import { Tabs, Button, Space, message, Modal } from 'antd'
 import type { CardData, StatusHistoryItem, AccessItem } from '@/types/card'
 import type { SmdMetadata } from '@/types/smdCard'
@@ -10,7 +10,7 @@ import SmdProductsTab from './tabs/SmdProductsTab'
 import SmdDiseaseTab from './tabs/SmdDiseaseTab'
 import SmdInfoRequestsTab from './tabs/SmdInfoRequestsTab'
 import SmdReviewResultsTab from './tabs/SmdReviewResultsTab'
-import { fetchSmdStatusHistory, fetchSmdXml, fetchSmdRelatedActions, saveSmdCard, buildSmdSaveMetadataFromCardData } from './smdApi'
+import { fetchSmdStatusHistory, fetchSmdXml, fetchSmdRelatedActions, saveSmdCard, buildSmdSaveMetadataFromCardData, canCreateSmdNewVersion } from './smdApi'
 import { exportSmdCardDataToXML } from './smdXmlExporter'
 import type { SmdRelatedActions } from '@/types/smdCard'
 import { validateSmdCardBeforeSave } from './smdSaveValidation'
@@ -31,7 +31,7 @@ import { smdApiSourceToAccessRight } from './smdApi'
 import type { ValidationResult } from '@/utils/cardValidation'
 import { useParentActivityPing } from '@/hooks/shared/useParentActivityPing'
 import { postMessageFromCardToParent } from '@/utils/parentPostMessage'
-import { getSmdMessageName } from '@/constants/smdCard'
+import { getSmdMessageName, SMD_MESSAGE_CANCEL } from '@/constants/smdCard'
 
 interface SmdCardProps {
   data: CardData
@@ -40,6 +40,8 @@ interface SmdCardProps {
   guid?: string
   /** XML из SMDXML (для «Валидация карты» без повторного запроса). */
   xmlBody?: string | null
+  copyFromSmdid?: number
+  onMakeCopy?: (initialCardData: CardData, sourceSmdid: number) => void
   onCardDeleted?: () => void
   onUpdate?: (data: CardData) => void
   onSaveNewCard?: (smdid: number) => void
@@ -60,18 +62,44 @@ const CARD_STICKY_HEADER_STYLE: CSSProperties = {
   overflow: 'hidden',
 }
 
+const SMD_COPY_FROM_SESSION_KEY = 'smd_card_copy_from_smdid'
+
 const SmdCard: React.FC<SmdCardProps> = ({
   data,
   meta,
   smdid,
   guid,
   xmlBody,
+  copyFromSmdid,
+  onMakeCopy,
   onCardDeleted,
   onUpdate,
   onSaveNewCard,
 }) => {
+  const copyFromSmdidRef = useRef<number | undefined>(undefined)
+  useEffect(() => {
+    if (copyFromSmdid != null && copyFromSmdid > 0) {
+      copyFromSmdidRef.current = copyFromSmdid
+      return
+    }
+    if ((smdid ?? '').trim() !== '-') return
+    try {
+      const stored = sessionStorage.getItem(SMD_COPY_FROM_SESSION_KEY)
+      if (stored) {
+        const n = Number(stored)
+        if (n > 0) copyFromSmdidRef.current = n
+      }
+    } catch {
+      /* ignore */
+    }
+  }, [copyFromSmdid, smdid])
+
   const [editedData, setEditedData] = useState<CardData>(data)
   const isCreateMode = (smdid ?? '').trim() === '-'
+  const isNewVersionCopy =
+    isCreateMode &&
+    ((copyFromSmdid != null && copyFromSmdid > 0) ||
+      (copyFromSmdidRef.current != null && copyFromSmdidRef.current > 0))
   const [isEditMode, setIsEditMode] = useState(isCreateMode)
   const [saving, setSaving] = useState(false)
   const [statusHistoryVisible, setStatusHistoryVisible] = useState(false)
@@ -168,8 +196,16 @@ const SmdCard: React.FC<SmdCardProps> = ({
     (relatedActions?.isOutgoing && relatedActions?.hasOutgoingEditRight) ?? false
   const canPrepareReviewResult = relatedActions?.canPrepareReviewResult ?? false
 
-  const showEditButton = (isOutgoing && !isEec && hasEditRight) || isCreateMode
-  const showValidationButton = isOutgoing && !isEec && !isCreateMode
+  const showEditButton = (isOutgoing && !isEec && hasEditRight && !isNewVersionCopy) || (isCreateMode && !isNewVersionCopy)
+  const showValidationButton =
+    (isOutgoing && !isEec && !isCreateMode) || isNewVersionCopy
+
+  const canShowCopyButton =
+    isOutgoing &&
+    hasPersisted &&
+    hasEditRight &&
+    (meta.smdStatusCode ?? '').toUpperCase() === 'DELIVERED' &&
+    (meta.messageCode ?? data.electronicDocument?.messageCode ?? '').trim().toUpperCase() !== SMD_MESSAGE_CANCEL
 
   const statusButton = useMemo(() => {
     if (isEec) return null
@@ -206,6 +242,11 @@ const SmdCard: React.FC<SmdCardProps> = ({
   }
 
   const resolveXmlForValidation = useCallback(async (): Promise<string | null> => {
+    if (isCreateMode) {
+      const synced = syncSmdCardFromPrimaryMeasure(currentData)
+      const xml = exportSmdCardDataToXML(synced).trim()
+      return xml || null
+    }
     const cached = (xmlBody ?? '').trim()
     if (cached && !cached.includes('<empty/>')) {
       return cached
@@ -220,7 +261,7 @@ const SmdCard: React.FC<SmdCardProps> = ({
       message.error(e instanceof Error ? e.message : 'Не удалось загрузить XML из БД')
       return null
     }
-  }, [xmlBody, hasPersisted, effectiveSmdid, guid])
+  }, [isCreateMode, currentData, xmlBody, hasPersisted, effectiveSmdid, guid])
 
   const runValidation = async () => {
     setValidating(true)
@@ -238,10 +279,48 @@ const SmdCard: React.FC<SmdCardProps> = ({
   }
 
   const handleCloseForm = () => {
+    if (isNewVersionCopy) {
+      try {
+        sessionStorage.removeItem(SMD_COPY_FROM_SESSION_KEY)
+      } catch {
+        /* ignore */
+      }
+      copyFromSmdidRef.current = undefined
+    }
     postMessageFromCardToParent(
       { code: 'exit' },
-      hasPersisted ? 'SMD: закрыть форму' : 'SMD: отменить создание'
+      hasPersisted ? 'SMD: закрыть форму' : isNewVersionCopy ? 'SMD: отменить создание новой версии' : 'SMD: отменить создание'
     )
+  }
+
+  const handleCopy = async () => {
+    if (!effectiveSmdid || !guid || !onMakeCopy) return
+    try {
+      const res = await canCreateSmdNewVersion(effectiveSmdid, guid)
+      if (!res.allowed) {
+        message.error(res.reason ?? 'Создание новой версии недоступно')
+        return
+      }
+      const nowIso = new Date().toISOString()
+      const newVersion = (meta.smdVersion ?? data.version ?? 1) + 1
+      const initialCardData = syncSmdCardFromPrimaryMeasure({
+        ...data,
+        version: newVersion,
+        status: 'Новое',
+        createdAt: nowIso,
+        modifiedAt: nowIso,
+        electronicDocument: {
+          ...(data.electronicDocument ?? { documentCode: 'R.SM.SS.09.001' }),
+          messageCode: '',
+        },
+        notification: data.notification
+          ? { ...data.notification, type: '' }
+          : data.notification,
+      })
+      onMakeCopy(initialCardData, Number(effectiveSmdid))
+    } catch (e) {
+      message.error(e instanceof Error ? e.message : 'Ошибка проверки возможности создания новой версии')
+    }
   }
 
   const handleCancelEdit = () => {
@@ -255,17 +334,43 @@ const SmdCard: React.FC<SmdCardProps> = ({
       return
     }
     const synced = syncSmdCardFromPrimaryMeasure(currentData)
-    const validationErrors = validateSmdCardBeforeSave(synced)
+    const validationErrors = validateSmdCardBeforeSave(synced, {
+      requireMessageForNewVersion: isNewVersionCopy,
+    })
     if (validationErrors.length > 0) {
       message.error(validationErrors[0])
       return
     }
+    const copySourceSmdid =
+      copyFromSmdid != null && copyFromSmdid > 0
+        ? copyFromSmdid
+        : copyFromSmdidRef.current != null && copyFromSmdidRef.current > 0
+          ? copyFromSmdidRef.current
+          : undefined
     setSaving(true)
     try {
       const xml = exportSmdCardDataToXML(synced)
       const metadata = buildSmdSaveMetadataFromCardData(synced)
-      const res = await saveSmdCard({ isNew: true, xmlBody: xml, metadata, guid })
-      message.success('Карта сведений о временной санитарной мере сохранена')
+      const res = await saveSmdCard({
+        isNew: true,
+        xmlBody: xml,
+        metadata,
+        guid,
+        ...(copySourceSmdid != null ? { copyFromSmdid: copySourceSmdid } : {}),
+      })
+      message.success(
+        isNewVersionCopy
+          ? 'Новая версия карты сведений о временной санитарной мере сохранена'
+          : 'Карта сведений о временной санитарной мере сохранена'
+      )
+      if (isNewVersionCopy) {
+        copyFromSmdidRef.current = undefined
+        try {
+          sessionStorage.removeItem(SMD_COPY_FROM_SESSION_KEY)
+        } catch {
+          /* ignore */
+        }
+      }
       onSaveNewCard?.(res.smdid)
     } catch (e) {
       message.error(e instanceof Error ? e.message : 'Ошибка сохранения карты')
@@ -302,7 +407,11 @@ const SmdCard: React.FC<SmdCardProps> = ({
       label: 'Санитарная мера',
       children: (
         <div style={{ padding: 16 }}>
-          <SmdSanitaryMeasureTab data={currentData} {...tabProps} />
+          <SmdSanitaryMeasureTab
+            data={currentData}
+            {...tabProps}
+            regulatoryDocReadOnly={isNewVersionCopy}
+          />
         </div>
       ),
     },
@@ -377,7 +486,7 @@ const SmdCard: React.FC<SmdCardProps> = ({
         <div className="card-sticky-header-title-row" style={{ marginBottom: 8, marginTop: 8 }}>
           <span className="card-sticky-header-title" style={{ fontSize: 16, fontWeight: 600 }}>
             Карта сведений о временной санитарной мере
-            {hasPersisted ? ` (SMDID ${effectiveSmdid})` : ''}
+            {hasPersisted ? ` (SMDID ${effectiveSmdid})` : isNewVersionCopy ? ' (новая версия)' : ''}
           </span>
           <Space size="small" wrap>
             {!isEditMode && (
@@ -413,7 +522,9 @@ const SmdCard: React.FC<SmdCardProps> = ({
                   <Button onClick={handleCancelEdit}>Отменить</Button>
                 )}
                 {(!hasPersisted || isCreateMode) && (
-                  <Button onClick={handleCloseForm}>Отменить создание</Button>
+                  <Button onClick={handleCloseForm}>
+                    {isNewVersionCopy ? 'Отменить создание новой версии' : 'Отменить создание'}
+                  </Button>
                 )}
               </>
             )}
@@ -426,6 +537,7 @@ const SmdCard: React.FC<SmdCardProps> = ({
           isCreateMode={isCreateMode}
           messageCode={currentData.electronicDocument?.messageCode}
           onMessageCodeChange={isCreateMode && isEditMode ? handleMessageCodeChange : undefined}
+          requireMessageSelection={isNewVersionCopy}
         />
         {!isCreateMode && (
         <CardActions
@@ -451,8 +563,8 @@ const SmdCard: React.FC<SmdCardProps> = ({
             message.info('Удаление карты SMD — в разработке')
             onCardDeleted?.()
           }}
-          showCopyButton={isOutgoing && hasPersisted}
-          onCopy={() => message.info('Создание новой версии SMD — в разработке')}
+          showCopyButton={canShowCopyButton}
+          onCopy={() => void handleCopy()}
           nextToStatusButtons={
             <>
               {isOutgoing && hasSendRight && hasPersisted && (

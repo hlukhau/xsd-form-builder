@@ -24,9 +24,14 @@ import SmdIncidentAlertsEdit from './SmdIncidentAlertsEdit'
 interface SmdSanitaryMeasureTabEditProps {
   data: CardData
   onChange: (next: CardData) => void
+  regulatoryDocReadOnly?: boolean
 }
 
-const SmdSanitaryMeasureTabEdit: React.FC<SmdSanitaryMeasureTabEditProps> = ({ data, onChange }) => {
+const SmdSanitaryMeasureTabEdit: React.FC<SmdSanitaryMeasureTabEditProps> = ({
+  data,
+  onChange,
+  regulatoryDocReadOnly,
+}) => {
   const measure = getSmdPrimaryMeasure(data)
   const regulatoryDoc = getSmdRegulatoryMeasureDoc(data)
   const { getDisplayLabel: getCountryLabel } = useCountryOptions()
@@ -232,6 +237,7 @@ const SmdSanitaryMeasureTabEdit: React.FC<SmdSanitaryMeasureTabEditProps> = ({ d
                 getMediaTypeSelectOptions={getMediaTypeSelectOptions}
                 getMediaTypeNameByCode={getMediaTypeNameByCode}
                 getMediaTypeCodeByName={getMediaTypeCodeByName}
+                readOnlyDocIdentity={regulatoryDocReadOnly}
               />
             ),
           },

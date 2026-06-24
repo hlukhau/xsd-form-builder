@@ -802,6 +802,15 @@
         <url-pattern>/api/smd/save</url-pattern>
     </servlet-mapping>
 
+    <servlet>
+        <servlet-name>SmdCanCreateNewVersionServlet</servlet-name>
+        <servlet-class>com.eec.servlet.smd.SmdCanCreateNewVersionServlet</servlet-class>
+    </servlet>
+    <servlet-mapping>
+        <servlet-name>SmdCanCreateNewVersionServlet</servlet-name>
+        <url-pattern>/api/smd/can-create-new-version</url-pattern>
+    </servlet-mapping>
+
     <!-- XSD Form Builder Servlet для работы с GUID и DPAID -->
     <!-- Обрабатывает только запросы формата /{DPAID}/{GUID} внутри контекста приложения -->
     <!-- Должен быть ПЕРЕД SpaServlet, чтобы обрабатывать API запросы первым -->

@@ -196,6 +196,8 @@ export function buildSmdSaveMetadataFromCardData(data: CardData): SmdSaveMetadat
   const doc = getSmdRegulatoryMeasureDoc(data)
   const docId = getSmdRegulatoryDocId(data)
   const docCreationDate = getSmdRegulatoryDocCreationDate(data)
+  const version = data.version ?? 1
+  const messageRaw = data.electronicDocument?.messageCode?.trim() ?? ''
   return {
     docId,
     docCreationDate,
@@ -205,7 +207,7 @@ export function buildSmdSaveMetadataFromCardData(data: CardData): SmdSaveMetadat
       .trim()
       .toUpperCase()
       .slice(0, 2),
-    messageCode: data.electronicDocument?.messageCode?.trim() || 'P.SS.09.MSG.001',
+    messageCode: messageRaw || (version > 1 ? null : 'P.SS.09.MSG.001'),
     edocCode: data.electronicDocument?.documentCode?.trim() || 'R.SM.SS.09.001',
     edocVersion: '1.0.0',
   }
@@ -215,12 +217,14 @@ export function buildSmdSaveMetadataFromCardData(data: CardData): SmdSaveMetadat
 export function buildCreateSmdMetadata(data: CardData, countryName?: string | null): SmdMetadata {
   const now = data.createdAt || new Date().toISOString()
   const saveMeta = buildSmdSaveMetadataFromCardData(data)
+  const version = data.version ?? 1
+  const messageCode = saveMeta.messageCode
   return {
     docCountryCode: saveMeta.countryCode,
     docCountryName: countryName ?? 'Беларусь',
     docId: saveMeta.docId,
     docCreationDate: saveMeta.docCreationDate,
-    smdVersion: 1,
+    smdVersion: version,
     dataSourceKindCode: '2',
     dataSourceKindName: 'Исходящие сведения',
     creationDateTime: now,
@@ -230,10 +234,35 @@ export function buildCreateSmdMetadata(data: CardData, countryName?: string | nu
     smdStatusDesc: null,
     smrStatusDesc: null,
     messageName:
-      getSmdMessageName(saveMeta.messageCode, data.version) ??
+      getSmdMessageName(messageCode, version) ??
       data.notification?.type ??
-      'Сведения о введении временной санитарной мере',
-    messageCode: saveMeta.messageCode,
+      (version > 1 ? null : 'Сведения о введении временной санитарной мере'),
+    messageCode,
+  }
+}
+
+export interface CanCreateSmdNewVersionResponse {
+  allowed: boolean
+  reason?: string
+}
+
+export async function canCreateSmdNewVersion(smdid: string, guid?: string): Promise<CanCreateSmdNewVersionResponse> {
+  const params = new URLSearchParams({ smdid })
+  if (guid?.trim()) params.set('guid', guid.trim())
+  const url = getApiUrl(`/api/smd/can-create-new-version?${params.toString()}`)
+  const res = await fetch(url, {
+    method: 'GET',
+    headers: withGuidHeaders(guid),
+    credentials: 'same-origin',
+  })
+  const text = await res.text()
+  if (!res.ok) {
+    return { allowed: false, reason: text || res.statusText }
+  }
+  try {
+    return JSON.parse(text) as CanCreateSmdNewVersionResponse
+  } catch {
+    return { allowed: false, reason: text || 'Не удалось проверить условия создания новой версии' }
   }
 }
 
@@ -242,6 +271,7 @@ export async function saveSmdCard(payload: {
   xmlBody: string
   metadata: SmdSaveMetadata
   guid?: string
+  copyFromSmdid?: number
 }): Promise<{ success: boolean; smdid: number }> {
   const url = getApiUrl('/api/smd/save')
   const body: Record<string, unknown> = {
@@ -250,6 +280,9 @@ export async function saveSmdCard(payload: {
     metadata: payload.metadata,
   }
   if (payload.guid) body.guid = payload.guid
+  if (payload.isNew && payload.copyFromSmdid != null && payload.copyFromSmdid > 0) {
+    body.copyFromSmdid = payload.copyFromSmdid
+  }
 
   const response = await fetch(url, {
     method: 'POST',
