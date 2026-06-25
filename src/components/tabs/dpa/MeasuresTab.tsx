@@ -220,7 +220,11 @@ const MeasuresTab: React.FC<MeasuresTabProps> = ({ data }) => {
 }
 
 // Компонент для отображения MeasureDocDetails
-const MeasureDocDetailsView: React.FC<{ doc: MeasureDocDetails }> = ({ doc }) => {
+export const MeasureDocDetailsView: React.FC<{
+  doc: MeasureDocDetails
+  /** Скрыть страну, номер и дату документа (идентичны шапке карты SMD). */
+  hideDocIdentity?: boolean
+}> = ({ doc, hideDocIdentity }) => {
   const { getDisplayLabel: getCountryDisplayLabel } = useCountryOptions()
   const { getLangCatalogSelectOptions } = useLanguageOptions()
   const { getDisplayLabel: getShipDocKindLabel } = useShipDocKindOptions()
@@ -234,7 +238,9 @@ const MeasureDocDetailsView: React.FC<{ doc: MeasureDocDetails }> = ({ doc }) =>
 
   return (
     <Descriptions column={1} bordered>
-      <Descriptions.Item label="Страна">{getCountryDisplayLabel(doc.country)}</Descriptions.Item>
+      {!hideDocIdentity && (
+        <Descriptions.Item label="Страна">{getCountryDisplayLabel(doc.country)}</Descriptions.Item>
+      )}
       <Descriptions.Item label="Язык">
         {doc.languageCode
           ? getLangCatalogSelectOptions().find((o) => o.value === doc.languageCode)?.label ??
@@ -248,8 +254,12 @@ const MeasureDocDetailsView: React.FC<{ doc: MeasureDocDetails }> = ({ doc }) =>
       </Descriptions.Item>
       <Descriptions.Item label="Наименование">{doc.docName || '-'}</Descriptions.Item>
       <Descriptions.Item label="Серия">{doc.docSeriesId || '-'}</Descriptions.Item>
-      <Descriptions.Item label="Номер">{doc.docId || '-'}</Descriptions.Item>
-      <Descriptions.Item label="Дата документа">{formatDate(doc.docCreationDate)}</Descriptions.Item>
+      {!hideDocIdentity && (
+        <>
+          <Descriptions.Item label="Номер">{doc.docId || '-'}</Descriptions.Item>
+          <Descriptions.Item label="Дата документа">{formatDate(doc.docCreationDate)}</Descriptions.Item>
+        </>
+      )}
       <Descriptions.Item label="Срок действия. Начало">{formatDate(doc.docStartDate)}</Descriptions.Item>
       <Descriptions.Item label="Срок действия. Окончание">{formatDate(doc.docValidityDate)}</Descriptions.Item>
       <Descriptions.Item label="Срок действия документа">{doc.docValidityDuration ?? '-'}</Descriptions.Item>
@@ -329,7 +339,7 @@ const MeasureDocDetailsView: React.FC<{ doc: MeasureDocDetails }> = ({ doc }) =>
 }
 
 // Компонент для отображения MeasureInitiationBasisDetails
-const MeasureInitiationBasisView: React.FC<{ items: MeasureInitiationBasisItem[] }> = ({ items }) => {
+export const MeasureInitiationBasisView: React.FC<{ items: MeasureInitiationBasisItem[] }> = ({ items }) => {
   const formatDate = (date: string | null | undefined) => {
     if (!date) return '-'
     const dateObj = new Date(date)

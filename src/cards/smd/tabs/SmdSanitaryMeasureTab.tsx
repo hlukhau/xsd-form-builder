@@ -1,14 +1,19 @@
-import { Descriptions } from 'antd'
+import { Collapse, Descriptions } from 'antd'
+import type { ReactNode } from 'react'
 import { format } from 'date-fns'
 import { ru } from 'date-fns/locale'
 import type { CardData } from '@/types/card'
-import MeasuresTab from '@/components/tabs/dpa/MeasuresTab'
-import { useCountryOptions } from '@/hooks/shared/useCountryOptions'
+import {
+  MeasureDocDetailsView,
+  MeasureInitiationBasisView,
+} from '@/components/tabs/dpa/MeasuresTab'
 import { useLanguageOptions } from '@/hooks/shared/useLanguageOptions'
-import { getSmdMessageName } from '@/constants/smdCard'
-import { resolveSmdMeasureEndDate, resolveSmdMeasureStartDate } from '../smdMeasureDates'
+import { useSanitaryMeasureOptions } from '@/hooks/shared/useSanitaryMeasureOptions'
+import { useSanitaryMeasureObjKindOptions } from '@/hooks/shared/useSanitaryMeasureObjKindOptions'
 import { getSmdPrimaryMeasure } from '../smdSanitaryMeasureModel'
+import { getSmdRegulatoryMeasureDoc } from '../smdMeasureDoc'
 import SmdSanitaryMeasureTabEdit from './SmdSanitaryMeasureTabEdit'
+import SmdIncidentAlertsView from './SmdIncidentAlertsView'
 
 interface SmdSanitaryMeasureTabProps {
   data: CardData
@@ -17,8 +22,16 @@ interface SmdSanitaryMeasureTabProps {
   regulatoryDocReadOnly?: boolean
 }
 
+const formatDate = (d: string | null | undefined) => {
+  if (!d?.trim()) return '—'
+  const date = new Date(d.slice(0, 10))
+  if (isNaN(date.getTime())) return d
+  return format(date, 'dd.MM.yyyy', { locale: ru })
+}
+
 /**
  * Санитарная мера (smcdo:SanitaryMeasureDetails) — SS.09.
+ * Режим просмотра повторяет структуру формы редактирования без дублирования шапки карты.
  */
 const SmdSanitaryMeasureTab: React.FC<SmdSanitaryMeasureTabProps> = ({
   data,
@@ -26,15 +39,9 @@ const SmdSanitaryMeasureTab: React.FC<SmdSanitaryMeasureTabProps> = ({
   onChange,
   regulatoryDocReadOnly,
 }) => {
-  const { getDisplayLabel } = useCountryOptions()
-  const { getLanguageName } = useLanguageOptions()
-  const measure = getSmdPrimaryMeasure(data)
-  const doc = measure.measureDocDetails
-  const countryCode = (doc?.country || data.country || 'BY').trim().toUpperCase().slice(0, 2)
-  const countryLabel = `${getDisplayLabel(countryCode)} — ${countryCode}`
-  const langCode = (measure.languageCode || 'ru').trim().toLowerCase()
-  const messageCode = data.electronicDocument?.messageCode ?? 'P.SS.09.MSG.001'
-  const messageLabel = getSmdMessageName(messageCode, data.version) ?? messageCode
+  const { getLangCatalogSelectOptions, getLanguageName } = useLanguageOptions()
+  const { getNameByCode: getSanitaryMeasureNameByCode } = useSanitaryMeasureOptions()
+  const { getNameByCode: getObjKindNameByCode } = useSanitaryMeasureObjKindOptions()
 
   if (editMode && onChange) {
     return (
@@ -46,31 +53,82 @@ const SmdSanitaryMeasureTab: React.FC<SmdSanitaryMeasureTabProps> = ({
     )
   }
 
-  const formatDate = (d: string | null | undefined) => {
-    if (!d?.trim()) return '—'
-    const date = new Date(d.slice(0, 10))
-    if (isNaN(date.getTime())) return d
-    return format(date, 'dd.MM.yyyy', { locale: ru })
-  }
+  const measure = getSmdPrimaryMeasure(data)
+  const regulatoryDoc = getSmdRegulatoryMeasureDoc(data)
+  const langCode = (measure.languageCode || 'ru').trim().toLowerCase()
+  const langLabel =
+    getLangCatalogSelectOptions().find((o) => o.value === langCode)?.label ??
+    `${langCode} — ${getLanguageName(langCode)}`
+
+  const measureName = (() => {
+    const code = measure.measureCode?.trim()
+    if (code) {
+      const name = getSanitaryMeasureNameByCode(code)
+      return name ? `${code} — ${name}` : code
+    }
+    return measure.measureName?.trim() || '—'
+  })()
+
+  const objectKindLabel = (() => {
+    const codes = (measure.measureAffectedObjectKindCode ?? '')
+      .split(';')
+      .map((c) => c.trim())
+      .filter(Boolean)
+    if (codes.length === 0) return '—'
+    return codes
+      .map((code) => {
+        const name = getObjKindNameByCode(code)
+        return name ? `${code} — ${name}` : code
+      })
+      .join('; ')
+  })()
+
+  const basisList = measure.measureInitiationBasisDetails ?? []
 
   return (
     <div>
-      <Descriptions bordered size="small" column={2} style={{ marginBottom: 16 }}>
-        <Descriptions.Item label="Страна">{countryLabel}</Descriptions.Item>
-        <Descriptions.Item label="Язык">
-          {langCode} — {getLanguageName(langCode)}
+      <Descriptions bordered size="small" column={1} style={{ marginBottom: 16 }}>
+        <Descriptions.Item label="Язык">{langLabel}</Descriptions.Item>
+        <Descriptions.Item label="Наименование меры">{measureName}</Descriptions.Item>
+        <Descriptions.Item label="Начальная дата">{formatDate(measure.startDate)}</Descriptions.Item>
+        <Descriptions.Item label="Конечная дата">{formatDate(measure.endDate)}</Descriptions.Item>
+        <Descriptions.Item label="Обоснование">{measure.measureJustificationText?.trim() || '—'}</Descriptions.Item>
+        <Descriptions.Item label="Описание">{measure.description?.trim() || '—'}</Descriptions.Item>
+        <Descriptions.Item label="Вид объекта действия меры">{objectKindLabel}</Descriptions.Item>
+        <Descriptions.Item label="Код причины (основания) введения временной меры">
+          {measure.measureReasonCode?.trim() || '—'}
         </Descriptions.Item>
-        <Descriptions.Item label="Вид сообщения" span={2}>
-          {messageLabel}
-        </Descriptions.Item>
-        <Descriptions.Item label="Начальная дата">
-          {formatDate(resolveSmdMeasureStartDate(data))}
-        </Descriptions.Item>
-        <Descriptions.Item label="Конечная дата">
-          {formatDate(resolveSmdMeasureEndDate(data))}
+        <Descriptions.Item label="Условие снятия меры">
+          {measure.measureRepealConditionText?.trim() || '—'}
         </Descriptions.Item>
       </Descriptions>
-      <MeasuresTab data={{ measures: [measure] }} />
+
+      <Collapse
+        defaultActiveKey={['measureDoc']}
+        expandIconPosition="end"
+        items={[
+          regulatoryDoc && {
+            key: 'measureDoc',
+            label: 'Документ, регламентирующий введение (отмену) меры',
+            children: <MeasureDocDetailsView doc={regulatoryDoc} hideDocIdentity />,
+          },
+          measure.initialMeasureDocDetails && {
+            key: 'initialMeasureDoc',
+            label: 'Документ, регламентирующий введение исходной меры',
+            children: <MeasureDocDetailsView doc={measure.initialMeasureDocDetails} />,
+          },
+          basisList.length > 0 && {
+            key: 'basis',
+            label: 'Основание для введения меры',
+            children: <MeasureInitiationBasisView items={basisList} />,
+          },
+          {
+            key: 'incident',
+            label: 'Уведомление о нежелательной ситуации',
+            children: <SmdIncidentAlertsView data={data} />,
+          },
+        ].filter(Boolean) as { key: string; label: string; children: ReactNode }[]}
+      />
     </div>
   )
 }

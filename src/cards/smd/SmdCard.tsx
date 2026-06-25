@@ -81,6 +81,7 @@ const SmdCard: React.FC<SmdCardProps> = ({
   onMetaUpdate,
 }) => {
   const copyFromSmdidRef = useRef<number | undefined>(undefined)
+  const loadedCardKeyRef = useRef<string>('')
   useEffect(() => {
     if (copyFromSmdid != null && copyFromSmdid > 0) {
       copyFromSmdidRef.current = copyFromSmdid
@@ -127,18 +128,30 @@ const SmdCard: React.FC<SmdCardProps> = ({
 
   useParentActivityPing()
 
-  useEffect(() => {
-    setEditedData(data)
-    if (!isCreateMode) setIsEditMode(false)
-  }, [data, isCreateMode])
-
   const effectiveSmdid = (smdid ?? '').trim()
+  const cardIdentityKey = `${effectiveSmdid}|${data.registrationNumber ?? ''}|${data.version ?? ''}`
+
+  useEffect(() => {
+    if (loadedCardKeyRef.current !== cardIdentityKey) {
+      loadedCardKeyRef.current = cardIdentityKey
+      setEditedData(data)
+      setIsEditMode(isCreateMode)
+      return
+    }
+    if (
+      data.registrationNumber !== editedData.registrationNumber ||
+      (data.version !== undefined && data.version !== editedData.version)
+    ) {
+      setEditedData(data)
+    }
+  }, [data, cardIdentityKey, isCreateMode, editedData.registrationNumber, editedData.version])
+
   const hasPersisted = effectiveSmdid.length > 0 && effectiveSmdid !== '-'
   const isIncoming = isSmdIncomingSource(meta.dataSourceKindName ?? data.source, meta.dataSourceKindCode)
   const isOutgoing = isSmdOutgoingSource(meta.dataSourceKindName ?? data.source, meta.dataSourceKindCode)
   const isEec = String(meta.dataSourceKindCode ?? '').trim() === '3'
 
-  const currentData = isEditMode ? editedData : data
+  const currentData = editedData
 
   const manageAccessRight = useMemo(() => {
     const api = resolveCardAccessApiSource(
@@ -285,10 +298,10 @@ const SmdCard: React.FC<SmdCardProps> = ({
       const res = await postSmdStatus(effectiveSmdid, 'complete_processing', guid)
       const freshMeta = await fetchSmdMetadata(effectiveSmdid, guid)
       onMetaUpdate?.(freshMeta)
-      onUpdate?.({
-        ...data,
-        status: res.newStatus ?? freshMeta.smdStatusName ?? 'Обработано',
-      })
+      const newStatus = res.newStatus ?? freshMeta.smdStatusName ?? 'Обработано'
+      const next = { ...editedData, status: newStatus }
+      onUpdate?.(next)
+      setEditedData(next)
       message.success('Карта переведена в статус «Обработано».')
       void fetchSmdRelatedActions(effectiveSmdid, guid).then(setRelatedActions).catch(() => {})
     } catch (e) {
@@ -335,10 +348,10 @@ const SmdCard: React.FC<SmdCardProps> = ({
       const res = await postSmdStatus(effectiveSmdid, 'close', guid)
       const freshMeta = await fetchSmdMetadata(effectiveSmdid, guid)
       onMetaUpdate?.(freshMeta)
-      onUpdate?.({
-        ...data,
-        status: res.newStatus ?? freshMeta.smdStatusName ?? 'Завершено',
-      })
+      const newStatus = res.newStatus ?? freshMeta.smdStatusName ?? 'Завершено'
+      const next = { ...editedData, status: newStatus }
+      onUpdate?.(next)
+      setEditedData(next)
       message.success('Карта переведена в статус «Завершено».')
       void fetchSmdRelatedActions(effectiveSmdid, guid).then(setRelatedActions).catch(() => {})
     } catch (e) {
@@ -531,10 +544,10 @@ const SmdCard: React.FC<SmdCardProps> = ({
           const res = await postSmdStatus(effectiveSmdid, 'send', guid)
           const freshMeta = await fetchSmdMetadata(effectiveSmdid, guid)
           onMetaUpdate?.(freshMeta)
-          onUpdate?.({
-            ...data,
-            status: res.newStatus ?? freshMeta.smdStatusName ?? 'Ожидает отправки',
-          })
+          const newStatus = res.newStatus ?? freshMeta.smdStatusName ?? 'Ожидает отправки'
+          const next = { ...editedData, status: newStatus }
+          onUpdate?.(next)
+          setEditedData(next)
           message.success('Карта переведена в статус «Ожидает отправки».')
           void fetchSmdRelatedActions(effectiveSmdid, guid).then(setRelatedActions).catch(() => {})
         } catch (e) {
@@ -600,7 +613,9 @@ const SmdCard: React.FC<SmdCardProps> = ({
   const onCardChange = (next: CardData) => {
     const synced = syncSmdCardFromPrimaryMeasure(next)
     setEditedData(synced)
-    onUpdate?.(synced)
+    if (isCreateMode) {
+      onUpdate?.(synced)
+    }
   }
 
   const handleMessageCodeChange = (code: string) => {
@@ -809,7 +824,7 @@ const SmdCard: React.FC<SmdCardProps> = ({
         />
         )}
         <div className="card-tabs-wrapper">
-          <Tabs defaultActiveKey="sanitary" items={tabItems} />
+          <Tabs defaultActiveKey="sanitary" destroyInactiveTabPane={false} items={tabItems} />
         </div>
       </div>
 
