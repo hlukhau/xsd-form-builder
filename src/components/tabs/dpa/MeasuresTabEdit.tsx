@@ -967,7 +967,7 @@ const MeasuresTabEdit: React.FC<MeasuresTabEditProps> = ({ data, onChange }) => 
 }
 
 // Компонент для детализации мероприятия
-const MeasureImplementationDetailsEdit: React.FC<{
+export const MeasureImplementationDetailsEdit: React.FC<{
   measureIndex: number
   implIndex: number
   item: MeasureImplementationItem

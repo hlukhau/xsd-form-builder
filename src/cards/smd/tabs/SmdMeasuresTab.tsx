@@ -1,7 +1,7 @@
-import MeasuresTab from '@/components/tabs/dpa/MeasuresTab'
-import MeasuresTabEdit from '@/components/tabs/dpa/MeasuresTabEdit'
-import type { CardData, MeasuresData, SanitaryMeasure } from '@/types/card'
-import { getSmdRegulatoryMeasureDoc } from '../smdMeasureDoc'
+import type { CardData } from '@/types/card'
+import { getSmdPrimaryMeasure } from '../smdSanitaryMeasureModel'
+import SmdMeasureImplementationView from './SmdMeasureImplementationView'
+import SmdMeasureImplementationEdit from './SmdMeasureImplementationEdit'
 
 interface SmdMeasuresTabProps {
   data: CardData
@@ -9,40 +9,14 @@ interface SmdMeasuresTabProps {
   onChange?: (next: CardData) => void
 }
 
-function preserveSmdRegulatoryDocOnMeasures(data: CardData, next: MeasuresData): MeasuresData {
-  const regulatory = getSmdRegulatoryMeasureDoc(data)
-  const rows = [...(next.measures ?? [])]
-  if (rows.length === 0) {
-    rows.push({ languageCode: 'ru', measureDocDetails: { ...regulatory } })
-    return { measures: rows }
-  }
-  const first: SanitaryMeasure = { ...rows[0] }
-  first.measureDocDetails = {
-    ...regulatory,
-    ...first.measureDocDetails,
-    docId: first.measureDocDetails?.docId?.trim() || regulatory.docId,
-    docCreationDate:
-      first.measureDocDetails?.docCreationDate?.trim() || regulatory.docCreationDate,
-    country: first.measureDocDetails?.country?.trim() || regulatory.country,
-  }
-  rows[0] = first
-  return { measures: rows }
-}
-
-/** Мероприятия (smcdo:MeasureImplementationDetails) — как в DPA: MeasuresTab ожидает MeasuresData. */
+/** Мероприятия SMD (smcdo:MeasureImplementationDetails) — по макету SS.09, не таблица санитарных мер DPA. */
 const SmdMeasuresTab: React.FC<SmdMeasuresTabProps> = ({ data, editMode, onChange }) => {
-  const measures = data.measures ?? { measures: [] }
+  const items = getSmdPrimaryMeasure(data).measureImplementationDetails ?? []
+
   if (editMode && onChange) {
-    return (
-      <MeasuresTabEdit
-        data={measures}
-        onChange={(next: MeasuresData) =>
-          onChange({ ...data, measures: preserveSmdRegulatoryDocOnMeasures(data, next) })
-        }
-      />
-    )
+    return <SmdMeasureImplementationEdit data={data} onChange={onChange} />
   }
-  return <MeasuresTab data={measures} />
+  return <SmdMeasureImplementationView items={items} />
 }
 
 export default SmdMeasuresTab
