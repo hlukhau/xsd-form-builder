@@ -289,7 +289,6 @@ function AppContent() {
           setCardData(card)
           setOriginalXML(xmlText)
           setLoadByDpaidState({ loading: false, error: null })
-          message.success(isPpvApp() ? 'XML загружен из БД по PPVID' : 'XML загружен из БД по DPAID')
         }
       } catch (err) {
         if (!cancelled) {
@@ -870,7 +869,6 @@ function PhaAppContent() {
         if (seq !== phaLoadSeqRef.current) return
         setCardData(enriched)
         setError(null)
-        message.success('Данные карты PHA загружены')
       } catch (err) {
         if (seq !== phaLoadSeqRef.current) return
         setError(err instanceof Error ? err.message : 'Ошибка загрузки')

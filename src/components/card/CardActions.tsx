@@ -21,8 +21,6 @@ interface CardActionsProps {
   /** Показать кнопку «Сделать копию» (исходящая карта в статусе Доставлено при наличии права редактирования) */
   showCopyButton?: boolean
   onCopy?: () => void
-  /** Отладочная кнопка: просмотр карты прав доступа по GUID */
-  onShowRightsDebug?: () => void
 }
 
 const CardActions: React.FC<CardActionsProps> = ({
@@ -38,7 +36,6 @@ const CardActions: React.FC<CardActionsProps> = ({
   onDelete,
   showCopyButton,
   onCopy,
-  onShowRightsDebug,
 }) => {
   const activeStatusButton = visibleStatusButton(statusButton)
   const activeCloseButton = visibleStatusButton(closeButton)
@@ -71,13 +68,6 @@ const CardActions: React.FC<CardActionsProps> = ({
       <Space size="small" wrap>
         <Button size="small" onClick={onDefineAccess}>Определить доступ</Button>
         <Button size="small" onClick={onOpenAllVersions}>Открыть все версии</Button>
-        {onShowRightsDebug && (
-          <Tooltip title="Отладка: JSON карты прав доступа по текущему GUID">
-            <Button size="small" onClick={onShowRightsDebug}>
-              Просмотр прав
-            </Button>
-          </Tooltip>
-        )}
         {statusButtonNode}
         {closeButtonNode}
         {showDeleteButton && onDelete && (

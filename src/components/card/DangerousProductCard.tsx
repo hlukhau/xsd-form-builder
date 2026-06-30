@@ -21,15 +21,8 @@ import DetectionPlaceTab from '../tabs/dpa/DetectionPlaceTab'
 import MeasuresTab from '../tabs/dpa/MeasuresTab'
 import PpvAddresseesTab from '../tabs/ppv/PpvAddresseesTab'
 import PpvAddresseesTabEdit from '../tabs/ppv/PpvAddresseesTabEdit'
-import { exportCardDataToXML, getEmptyTagsWarnings } from '@/utils/xmlExporter'
-import { parseXMLToCardData } from '@/utils/xmlParser'
+import { exportCardDataToXML } from '@/utils/xmlExporter'
 import { loadDpaCardFromDb } from '@/utils/loadDpaCardFromDb'
-import {
-  compareCardData,
-  getCardDataReview,
-  normalizePpvActorCountryCodesList,
-  normalizePpvActorRemovalIds,
-} from '@/utils/cardDataComparator'
 import {
   isNotificationAuthorityNameFilled,
   MARK_READY_AUTHORITY_REQUIRED_MESSAGE,
@@ -43,7 +36,6 @@ import {
   fetchCurrentUser,
   fetchDpaResolutions,
   fetchRightsByGuid,
-  fetchRightsByGuidRaw,
   getOutgoingAuthorityFilterDepIdsFromRights,
   fetchDepInfo,
   saveDpaCard,
@@ -61,16 +53,16 @@ import { useCountryOptions } from '@/hooks/shared/useCountryOptions'
 import { useParentActivityPing } from '@/hooks/shared/useParentActivityPing'
 import { resolveAlertCountryNameForPostMessage } from '@/utils/alertCountryDisplay'
 import { postMessageFromCardToParent } from '@/utils/parentPostMessage'
-import XMLComparisonModal, { type ComparisonResultShape } from '../modals/dpa/XMLComparisonModal'
+import SaveBlockingErrorsModal from '../modals/SaveBlockingErrorsModal'
 import ValidationResultModal from '../modals/dpa/ValidationResultModal'
 import {
   validateOutgoingCardWithSchema,
-  collectFormatValidationErrors,
   type ValidationResult,
 } from '@/utils/cardValidation'
+import { collectDpaSaveBlockingErrors } from '@/utils/saveBlockingErrors'
 import type { CardData, StatusHistoryItem, ElectronicDocument } from '@/types/card'
 import type { DprPpvIncomingActionsResponse } from '@/types/dprCard'
-import { isPpvApp, getDpaLikeCardSessionKeys, getDpaLikeCardIdLabel } from '@/cards/config'
+import { isPpvApp, getDpaLikeCardSessionKeys } from '@/cards/config'
 import { format } from 'date-fns'
 
 /** Статусы исходящей DPA, при которых разрешено редактирование (DPASTATUSID). */
@@ -123,17 +115,12 @@ const DangerousProductCard: React.FC<DangerousProductCardProps> = ({
   const [cancelReloading, setCancelReloading] = useState(false)
   const [editedData, setEditedData] = useState<CardData>(data)
   const [originalXML, setOriginalXML] = useState<string | null>(propOriginalXML || null)
-  const [comparisonResult, setComparisonResult] = useState<ComparisonResultShape | null>(null)
-  const [comparisonModalVisible, setComparisonModalVisible] = useState(false)
+  const [saveBlockingErrorsVisible, setSaveBlockingErrorsVisible] = useState(false)
+  const [saveBlockingErrors, setSaveBlockingErrors] = useState<string[]>([])
   const [validationModalVisible, setValidationModalVisible] = useState(false)
   const [validationResult, setValidationResult] = useState<ValidationResult | null>(null)
   const [saving, setSaving] = useState(false)
   const [pendingSavePayload, setPendingSavePayload] = useState<{ xmlBody: string; metadata: DpaSaveMetadata } | null>(null)
-  /** Ошибки формата полей (XSD) перед сохранением; блокируют кнопку «Сохранить в БД». */
-  const [formatValidationErrors, setFormatValidationErrors] = useState<string[]>([])
-  /** Логические проверки карты (в т.ч. «Вид» уведомления) перед сохранением в БД. */
-  /** Только сценарий «новая версия по копии»: блок «Сохранить в БД» по пустому/неверному «Вид». */
-  const [comparisonLogicalValidationErrors, setComparisonLogicalValidationErrors] = useState<string[]>([])
   const [hasStatusRight, setHasStatusRight] = useState(false)
   const [hasSendRight, setHasSendRight] = useState(false)
   const [hasSaveRight, setHasSaveRight] = useState(false)
@@ -661,9 +648,8 @@ const DangerousProductCard: React.FC<DangerousProductCardProps> = ({
       setOriginalXML(xmlText)
       setIsEditMode(false)
       setPendingSavePayload(null)
-      setComparisonModalVisible(false)
-      setFormatValidationErrors([])
-      setComparisonLogicalValidationErrors([])
+      setSaveBlockingErrorsVisible(false)
+      setSaveBlockingErrors([])
     } catch (e) {
       message.error(e instanceof Error ? e.message : 'Не удалось загрузить данные карты из БД')
     } finally {
@@ -671,133 +657,51 @@ const DangerousProductCard: React.FC<DangerousProductCardProps> = ({
     }
   }
 
-  const handleSave = () => {
-    if (copyFromDpaid != null) {
-      const v = editedData.version ?? 1
-      const kind = editedData.notification?.type?.trim() ?? ''
-      const kindErrors: string[] = []
-      if (!kind) {
-        kindErrors.push('Уведомление: Вид уведомления должен быть указан')
-      } else if (isPpvApp()) {
-        if (v === 1 && kind !== '19') {
-          kindErrors.push('Уведомление: Неверно указан вид уведомления')
-        } else if (v !== 1 && kind !== '8' && kind !== '9') {
-          kindErrors.push('Уведомление: Неверно указан вид уведомления')
-        }
-      } else if (v === 1 && kind !== '7') {
-        kindErrors.push('Уведомление: Неверно указан вид уведомления')
-      } else if (v !== 1 && kind !== '8' && kind !== '9') {
-        kindErrors.push('Уведомление: Неверно указан вид уведомления')
-      }
-      setComparisonLogicalValidationErrors(kindErrors)
-    } else {
-      setComparisonLogicalValidationErrors([])
-    }
-
+  const handleSave = async () => {
     const xmlBody = exportCardDataToXML(editedData)
     const metadata = buildSaveMetadataFromCardData(editedData)
     const isNewCard = effectiveDpaid === '-'
     const isOutgoingWithSave = isOutgoingSource && effectiveHasSaveRight
+    const willPersistToDb = isNewCard || isOutgoingWithSave
 
-    const formatErrors = collectFormatValidationErrors(editedData).errors
-    setFormatValidationErrors(formatErrors)
-
-    if (isNewCard) {
-      const { filled, unfilled } = getCardDataReview(editedData)
-      setComparisonResult({
-        isIdentical: true,
-        differences: [],
-        warnings: [],
-        added: [],
-        isNewDocument: true,
-        filled,
-        unfilled,
-      })
+    if (willPersistToDb) {
+      const blockingErrors = collectDpaSaveBlockingErrors(editedData, copyFromDpaid, isPpvApp())
+      if (blockingErrors.length > 0) {
+        setSaveBlockingErrors(blockingErrors)
+        setSaveBlockingErrorsVisible(true)
+        return
+      }
+      setSaveBlockingErrors([])
       setPendingSavePayload({ xmlBody, metadata })
-      setComparisonModalVisible(true)
+      await handleSaveToDbFromModal()
       return
     }
 
-    // Существующая карта: сравнение только с оригиналом этой вкладки (без localStorage — разные вкладки = разные документы)
-    if (isOutgoingWithSave) {
-      setPendingSavePayload({ xmlBody, metadata })
-      // Режим редактирования не выключаем — только после успешного «Сохранить в БД» в handleSaveToDbFromModal
-    } else {
-      setPendingSavePayload(null)
-      onUpdate(editedData)
-      setIsEditMode(false)
-    }
-    const xmlToCompare = originalXML
-    if (xmlToCompare) {
-      try {
-        const originalData = parseXMLToCardData(xmlToCompare)
-        // Адресаты PPV не входят в XML: в «исходную» сторону сравнения подставляем коды, загруженные с БД (props data).
-        const originalForCompare: CardData = {
-          ...originalData,
-          ppvActorCountryCodes: normalizePpvActorCountryCodesList(data.ppvActorCountryCodes),
-          ppvActorRemovalIds: normalizePpvActorRemovalIds(data.ppvActorRemovalIds),
-        }
-        // Сравниваем с текущим состоянием формы (editedData), а не с повторно распарсенным XML,
-        // чтобы корректно учитывать несколько нарушений в партии и не получать ложные различия
-        const result = compareCardData(originalForCompare, editedData)
-        const emptyTagsWarnings = getEmptyTagsWarnings(editedData)
-        const resultWithWarnings = emptyTagsWarnings.length > 0
-          ? { ...result, warnings: [...(result.warnings ?? []), ...emptyTagsWarnings] }
-          : result
-        setComparisonResult(resultWithWarnings)
-        setComparisonModalVisible(true)
-      } catch {
-        const emptyTagsWarnings = getEmptyTagsWarnings(editedData)
-        setComparisonResult({
-          isIdentical: true,
-          differences: [],
-          warnings: emptyTagsWarnings,
-          added: [],
-        })
-        setComparisonModalVisible(true)
-      }
-    }
+    onUpdate(editedData)
+    setIsEditMode(false)
   }
 
   const handleSaveToDbFromModal = async () => {
-    if (!pendingSavePayload) return
-    if (copyFromDpaid != null) {
-      const v = editedData.version ?? 1
-      const kind = editedData.notification?.type?.trim() ?? ''
-      const kindErrors: string[] = []
-      if (!kind) {
-        kindErrors.push('Уведомление: Вид уведомления должен быть указан')
-      } else if (isPpvApp()) {
-        if (v === 1 && kind !== '19') {
-          kindErrors.push('Уведомление: Неверно указан вид уведомления')
-        } else if (v !== 1 && kind !== '8' && kind !== '9') {
-          kindErrors.push('Уведомление: Неверно указан вид уведомления')
-        }
-      } else if (v === 1 && kind !== '7') {
-        kindErrors.push('Уведомление: Неверно указан вид уведомления')
-      } else if (v !== 1 && kind !== '8' && kind !== '9') {
-        kindErrors.push('Уведомление: Неверно указан вид уведомления')
-      }
-      if (kindErrors.length > 0) {
-        setComparisonLogicalValidationErrors(kindErrors)
-        message.error('Сохранение в БД невозможно: укажите корректный вид уведомления для новой версии карты.')
-        return
-      }
+    const payload = pendingSavePayload ?? {
+      xmlBody: exportCardDataToXML(editedData),
+      metadata: buildSaveMetadataFromCardData(editedData),
     }
-    const xmlJustSaved = pendingSavePayload.xmlBody
+    if (!payload.xmlBody) return
+    const xmlJustSaved = payload.xmlBody
     setSaving(true)
     const isNewCard = effectiveDpaid === '-'
     try {
       const res = await saveDpaCard({
         isNew: isNewCard,
-        xmlBody: pendingSavePayload.xmlBody,
-        metadata: pendingSavePayload.metadata,
+        xmlBody: payload.xmlBody,
+        metadata: payload.metadata,
         ...(isNewCard ? {} : { dpaid: Number(effectiveDpaid) }),
         ...(isNewCard && copyFromDpaid != null && guid ? { copyFromDpaid, guid } : {}),
         ...(guid ? { guid } : {}),
       })
       setPendingSavePayload(null)
-      setComparisonModalVisible(false)
+      setSaveBlockingErrorsVisible(false)
+      setSaveBlockingErrors([])
       onUpdate({ ...editedData, ppvActorCountryCodes: [], ppvActorRemovalIds: [] })
       setEditedData((prev) => ({ ...prev, ppvActorCountryCodes: [], ppvActorRemovalIds: [] }))
       setIsEditMode(false)
@@ -809,15 +713,11 @@ const DangerousProductCard: React.FC<DangerousProductCardProps> = ({
           sessionStorage.setItem(lastSavedIdKey, String(res.dpaid))
           sessionStorage.setItem(saveHappenedKey, '1')
         } catch (_) {}
-        message.success(`Карта сохранена в БД с ${getDpaLikeCardIdLabel()} ${res.dpaid}`)
         onSaveNewCard?.(res.dpaid)
-      } else {
-        if (!isPpvApp() && res.newStatusId != null) {
-          const nextStatus = res.newStatus ?? 'Новое'
-          onUpdate({ ...editedData, status: nextStatus, statusId: res.newStatusId })
-          setEditedData((prev) => ({ ...prev, status: nextStatus, statusId: res.newStatusId }))
-        }
-        message.success('Карта обновлена в БД')
+      } else if (!isPpvApp() && res.newStatusId != null) {
+        const nextStatus = res.newStatus ?? 'Новое'
+        onUpdate({ ...editedData, status: nextStatus, statusId: res.newStatusId })
+        setEditedData((prev) => ({ ...prev, status: nextStatus, statusId: res.newStatusId }))
       }
     } catch (err) {
       const msg = err instanceof Error ? err.message : 'Ошибка сохранения в БД'
@@ -1111,7 +1011,7 @@ const DangerousProductCard: React.FC<DangerousProductCardProps> = ({
             {isEditMode && (
               <>
                 {(effectiveDpaid === '-' || (isOutgoingSource && effectiveHasSaveRight && canEditByStatus)) && (
-                  <Button type="primary" onClick={handleSave} loading={saving}>
+                  <Button type="primary" onClick={() => void handleSave()} loading={saving}>
                     Сохранить
                   </Button>
                 )}
@@ -1173,36 +1073,6 @@ const DangerousProductCard: React.FC<DangerousProductCardProps> = ({
         <CardActions
           data={currentData}
           onDefineAccess={() => setAccessModalVisible(true)}
-          onShowRightsDebug={() => {
-            setRightsDebugVisible(true)
-            setRightsDebugError(null)
-            setRightsDebugRawText(null)
-            setRightsDebugData(null)
-            if (guid) {
-              setRightsDebugLoading(true)
-              fetchRightsByGuid(guid)
-                .then((data) => {
-                  setRightsDebugData(data)
-                  setRightsDebugDraft(JSON.stringify(data, null, 2))
-                  setRightsDebugError(null)
-                  setRightsDebugRawText(null)
-                })
-                .catch(async (e) => {
-                  setRightsDebugError(e instanceof Error ? e.message : 'Ошибка загрузки')
-                  setRightsDebugData(null)
-                  try {
-                    const raw = await fetchRightsByGuidRaw(guid)
-                    setRightsDebugRawText(raw.text)
-                  } catch {
-                    setRightsDebugRawText(null)
-                  }
-                })
-                .finally(() => setRightsDebugLoading(false))
-            } else {
-              setRightsDebugError('GUID не задан (выполните «Определить доступ»)')
-              setRightsDebugLoading(false)
-            }
-          }}
           showDeleteButton={showDeleteButton}
           onDelete={handleDelete}
           showCopyButton={copyButtonEligible}
@@ -1378,7 +1248,6 @@ const DangerousProductCard: React.FC<DangerousProductCardProps> = ({
                       const newStatusId = newStatus === 'Новое' ? 6 : newStatus === 'Ожидает отправки' ? 7 : newStatus === 'Завершено' ? 13 : (editedData.statusId ?? data.statusId)
                       onUpdate({ ...currentData, status: newStatus, statusId: newStatusId })
                       setEditedData((prev) => ({ ...prev, status: newStatus, statusId: newStatusId }))
-                      message.success('Статус обновлён')
                       fetchDpaResolutions(effectiveDpaid, guid).then((list) => {
                         setDpaResolutionDepKindCodes(list.map((r) => r.depKindCode))
                         setHasResolution(list.length > 0)
@@ -1507,7 +1376,6 @@ const DangerousProductCard: React.FC<DangerousProductCardProps> = ({
                 const newStatusId = newStatus === 'Новое' ? 6 : newStatus === 'Ожидает отправки' ? 7 : newStatus === 'Завершено' ? 13 : (editedData.statusId ?? data.statusId)
                 onUpdate({ ...currentData, status: newStatus, statusId: newStatusId })
                 setEditedData((prev) => ({ ...prev, status: newStatus, statusId: newStatusId }))
-                message.success('Статус обновлён')
                 if (action === 'mark_ready') {
                   fetchDpaResolutions(effectiveDpaid, guid).then((list) => {
                     setDpaResolutionDepKindCodes(list.map((r) => r.depKindCode))
@@ -1710,22 +1578,11 @@ const DangerousProductCard: React.FC<DangerousProductCardProps> = ({
           )}
         </Modal>
 
-        {comparisonResult && (
-          <XMLComparisonModal
-            visible={comparisonModalVisible}
-            comparisonResult={comparisonResult}
-            onClose={() => {
-              setComparisonModalVisible(false)
-              setPendingSavePayload(null)
-              setFormatValidationErrors([])
-              setComparisonLogicalValidationErrors([])
-            }}
-            formatValidationErrors={formatValidationErrors}
-            logicalValidationErrors={comparisonLogicalValidationErrors}
-            onSaveToDb={pendingSavePayload ? handleSaveToDbFromModal : undefined}
-            saving={saving}
-          />
-        )}
+        <SaveBlockingErrorsModal
+          visible={saveBlockingErrorsVisible}
+          errors={saveBlockingErrors}
+          onClose={() => setSaveBlockingErrorsVisible(false)}
+        />
 
         <ValidationResultModal
           visible={validationModalVisible}

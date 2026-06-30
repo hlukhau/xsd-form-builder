@@ -29,7 +29,6 @@ interface CardActionsProps {
   copyButtonHint?: string
   /** Кнопки сразу после кнопки смены статуса (например PPV: «Открыть ответ», «Подготовить ответ»). */
   nextToStatusButtons?: ReactNode
-  onShowRightsDebug?: () => void
   /** Индикатор загрузки на кнопках смены статуса (основная и дополнительная). */
   statusButtonsLoading?: boolean
 }
@@ -51,7 +50,6 @@ const CardActions: React.FC<CardActionsProps> = ({
   copyButtonDisabled,
   copyButtonHint,
   nextToStatusButtons,
-  onShowRightsDebug,
   statusButtonsLoading,
 }) => {
   const activeStatusButton = visibleStatusButton(statusButton)
@@ -90,13 +88,6 @@ const CardActions: React.FC<CardActionsProps> = ({
         )}
         {onOpenAllVersions != null && (
           <Button size="small" onClick={onOpenAllVersions}>Открыть все версии</Button>
-        )}
-        {onShowRightsDebug && (
-          <Tooltip title="Отладка: JSON карты прав доступа по текущему GUID">
-            <Button size="small" onClick={onShowRightsDebug}>
-              Просмотр прав
-            </Button>
-          </Tooltip>
         )}
         {statusButtonNode}
         {nextToStatusButtons}

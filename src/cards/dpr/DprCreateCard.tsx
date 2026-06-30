@@ -11,6 +11,7 @@ import {
   type RightsJson,
 } from '@/utils/referenceDataApi'
 import { useCountryOptions } from '@/hooks/shared/useCountryOptions'
+import SaveBlockingErrorsModal from '@/components/modals/SaveBlockingErrorsModal'
 import { CardActions } from '@/cards/shared'
 import { DprNotifyingAuthorityEdit } from '@/cards/dpr/DprNotifyingAuthorityEdit'
 import { DprResultDocumentsEdit } from '@/cards/dpr/DprResultDocumentsEdit'
@@ -79,6 +80,8 @@ export function DprCreateCard({ eligibility, ppvid, guid }: DprCreateCardProps) 
   const [measuresEdit, setMeasuresEdit] = useState<MeasuresData>({ measures: [] })
   const [documentsEdit, setDocumentsEdit] = useState<DprResultDocRow[]>([])
   const [incidentKindLabel, setIncidentKindLabel] = useState<string>('')
+  const [saveBlockingErrorsVisible, setSaveBlockingErrorsVisible] = useState(false)
+  const [saveBlockingErrors, setSaveBlockingErrors] = useState<string[]>([])
   const [rightsDebugVisible, setRightsDebugVisible] = useState(false)
   const [rightsDebugData, setRightsDebugData] = useState<RightsJson | null>(null)
   const [rightsDebugLoading, setRightsDebugLoading] = useState(false)
@@ -192,35 +195,10 @@ export function DprCreateCard({ eligibility, ppvid, guid }: DprCreateCardProps) 
       )
       const formatErrors = collectDprFormatValidationErrors(bundle)
       const logicalErrors = collectDprSaveLogicalErrors(bundle)
-      if (formatErrors.length > 0 || logicalErrors.length > 0) {
-        Modal.error({
-          title: 'Сохранение невозможно',
-          width: 640,
-          content: (
-            <div>
-              {formatErrors.length > 0 && (
-                <div style={{ marginBottom: 12 }}>
-                  <Typography.Text strong>Несоответствие данных формату</Typography.Text>
-                  <ul style={{ marginTop: 4, paddingLeft: 20 }}>
-                    {formatErrors.map((e) => (
-                      <li key={e}>{e}</li>
-                    ))}
-                  </ul>
-                </div>
-              )}
-              {logicalErrors.length > 0 && (
-                <div>
-                  <Typography.Text strong>Логические замечания</Typography.Text>
-                  <ul style={{ marginTop: 4, paddingLeft: 20 }}>
-                    {logicalErrors.map((e) => (
-                      <li key={e}>{e}</li>
-                    ))}
-                  </ul>
-                </div>
-              )}
-            </div>
-          ),
-        })
+      const blockingErrors = [...formatErrors, ...logicalErrors]
+      if (blockingErrors.length > 0) {
+        setSaveBlockingErrors(blockingErrors)
+        setSaveBlockingErrorsVisible(true)
         return
       }
       const xml = exportDprParsedBundleToXml(bundle)
@@ -234,7 +212,6 @@ export function DprCreateCard({ eligibility, ppvid, guid }: DprCreateCardProps) 
         descriptionText: descriptionText.trim() || undefined,
       })
       if (!dprid) throw new Error('Пустой DPRID в ответе сервера')
-      message.success('Карта сохранена')
       window.location.replace(`${BASE_URL}${dprid}/${encodeURIComponent(guid.trim())}`)
     } catch (e) {
       message.error(e instanceof Error ? e.message : 'Ошибка сохранения')
@@ -320,7 +297,6 @@ export function DprCreateCard({ eligibility, ppvid, guid }: DprCreateCardProps) 
           <Descriptions.Item label="Дата изменения">будет присвоена при сохранении</Descriptions.Item>
         </Descriptions>
         <CardActions
-          onShowRightsDebug={openRightsDebug}
           statusButton={null}
           closeButton={null}
           onStatusAction={() => {}}
@@ -503,6 +479,11 @@ export function DprCreateCard({ eligibility, ppvid, guid }: DprCreateCardProps) 
           <span>Нет данных</span>
         )}
       </Modal>
+      <SaveBlockingErrorsModal
+        visible={saveBlockingErrorsVisible}
+        errors={saveBlockingErrors}
+        onClose={() => setSaveBlockingErrorsVisible(false)}
+      />
     </div>
   )
 }

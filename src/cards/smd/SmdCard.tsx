@@ -25,9 +25,10 @@ import {
 } from './smdStatusButtonConfig'
 import StatusHistoryModal from '@/components/modals/dpa/StatusHistoryModal'
 import ElectronicDocumentModal from '@/components/modals/dpa/ElectronicDocumentModal'
+import SaveBlockingErrorsModal from '@/components/modals/SaveBlockingErrorsModal'
 import ValidationResultModal from '@/components/modals/dpa/ValidationResultModal'
 import AccessModal from '@/components/modals/dpa/AccessModal'
-import { checkAccessRight, fetchRightsByGuidRaw, resolveCardAccessApiSource } from '@/utils/referenceDataApi'
+import { checkAccessRight, resolveCardAccessApiSource } from '@/utils/referenceDataApi'
 import { smdApiSourceToAccessRight } from './smdApi'
 import type { ValidationResult } from '@/utils/cardValidation'
 import { useParentActivityPing } from '@/hooks/shared/useParentActivityPing'
@@ -116,6 +117,8 @@ const SmdCard: React.FC<SmdCardProps> = ({
   const [accessModalVisible, setAccessModalVisible] = useState(false)
   const [accessList, setAccessList] = useState<AccessItem[]>([])
   const [relatedActions, setRelatedActions] = useState<SmdRelatedActions | null>(null)
+  const [saveBlockingErrorsVisible, setSaveBlockingErrorsVisible] = useState(false)
+  const [saveBlockingErrors, setSaveBlockingErrors] = useState<string[]>([])
   const [validationModalVisible, setValidationModalVisible] = useState(false)
   const [validationResult, setValidationResult] = useState<ValidationResult | null>(null)
   const [validating, setValidating] = useState(false)
@@ -569,7 +572,8 @@ const SmdCard: React.FC<SmdCardProps> = ({
       requireMessageForNewVersion: isNewVersionCopy,
     })
     if (validationErrors.length > 0) {
-      message.error(validationErrors[0])
+      setSaveBlockingErrors(validationErrors)
+      setSaveBlockingErrorsVisible(true)
       return
     }
     const copySourceSmdid =
@@ -589,11 +593,6 @@ const SmdCard: React.FC<SmdCardProps> = ({
         guid,
         ...(copySourceSmdid != null ? { copyFromSmdid: copySourceSmdid } : {}),
       })
-      message.success(
-        isNewVersionCopy
-          ? 'Новая версия карты сведений о временной санитарной мере сохранена'
-          : 'Карта сведений о временной санитарной мере сохранена'
-      )
       if (isNewVersionCopy) {
         copyFromSmdidRef.current = undefined
         try {
@@ -812,15 +811,6 @@ const SmdCard: React.FC<SmdCardProps> = ({
               )}
             </>
           }
-          onShowRightsDebug={
-            import.meta.env.DEV && guid
-              ? () => {
-                  void fetchRightsByGuidRaw(guid).then((t) => {
-                    Modal.info({ title: 'Права (JSON)', content: t.slice(0, 8000), width: 720 })
-                  })
-                }
-              : undefined
-          }
         />
         )}
         <div className="card-tabs-wrapper">
@@ -840,6 +830,11 @@ const SmdCard: React.FC<SmdCardProps> = ({
         data={electronicDocList}
         onClose={() => setElectronicDocumentVisible(false)}
         loading={electronicDocLoading}
+      />
+      <SaveBlockingErrorsModal
+        visible={saveBlockingErrorsVisible}
+        errors={saveBlockingErrors}
+        onClose={() => setSaveBlockingErrorsVisible(false)}
       />
       <ValidationResultModal
         visible={validationModalVisible}

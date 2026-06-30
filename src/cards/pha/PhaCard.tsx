@@ -24,16 +24,12 @@ import {
   canCreatePhaNewVersion,
 } from '@/cards/pha/phaApi'
 import { exportPhaCardDataToXML } from '@/cards/pha/phaXmlExporter'
-import { alignPhaParsedCardForCompare, parsePhaXmlToCardData } from '@/cards/pha/phaXmlParser'
 import {
   validatePhaOutgoingCardFullWithSchema,
   collectPhaFormatValidationErrors,
   collectPhaIncidentAlertKindSaveErrors,
   type ValidationResult,
 } from '@/cards/pha/phaValidation'
-import { compareCardData, getPhaCardDataReview } from '@/utils/cardDataComparator'
-import { getEmptyTagsWarnings } from '@/utils/xmlExporter'
-import { getPhaEmptyTagsWarnings } from '@/cards/pha/phaPatientGroupXml'
 import { fetchRightsByGuid, fetchRightsByGuidRaw, checkAccessRight, type RightsJson } from '@/utils/referenceDataApi'
 import {
   incomingPhaStatusButton,
@@ -42,7 +38,7 @@ import {
   isPhaOutgoingSource,
   phaSituationEndDateFilled,
 } from '@/utils/phaStatusButtonConfig'
-import XMLComparisonModal, { type ComparisonResultShape } from '@/components/modals/dpa/XMLComparisonModal'
+import SaveBlockingErrorsModal from '@/components/modals/SaveBlockingErrorsModal'
 import ValidationResultModal from '@/components/modals/dpa/ValidationResultModal'
 import StatusHistoryModal from '@/components/modals/dpa/StatusHistoryModal'
 import ElectronicDocumentModal from '@/components/modals/dpa/ElectronicDocumentModal'
@@ -198,12 +194,9 @@ const PhaCard: React.FC<PhaCardProps> = ({
   const [cancelReloading, setCancelReloading] = useState(false)
   const [editedData, setEditedData] = useState<CardData>(data)
   const [saving, setSaving] = useState(false)
-  const [comparisonResult, setComparisonResult] = useState<ComparisonResultShape | null>(null)
-  const [comparisonModalVisible, setComparisonModalVisible] = useState(false)
+  const [saveBlockingErrorsVisible, setSaveBlockingErrorsVisible] = useState(false)
+  const [saveBlockingErrors, setSaveBlockingErrors] = useState<string[]>([])
   const [pendingSavePayload, setPendingSavePayload] = useState<{ xmlBody: string; metadata: ReturnType<typeof buildPhaSaveMetadataFromCardData> } | null>(null)
-  const [formatValidationErrors, setFormatValidationErrors] = useState<string[]>([])
-  /** Логические проверки / обязательные поля — в модалке «Проверка перед сохранением», как в DPA для XSD. */
-  const [logicalValidationErrors, setLogicalValidationErrors] = useState<string[]>([])
   const [validationResult, setValidationResult] = useState<ValidationResult | null>(null)
   const [validationModalVisible, setValidationModalVisible] = useState(false)
   const [baselineXml, setBaselineXml] = useState<string | null>(originalXML ?? null)
@@ -699,9 +692,8 @@ const PhaCard: React.FC<PhaCardProps> = ({
       setBaselineXml(xmlText)
       setIsEditMode(false)
       setPendingSavePayload(null)
-      setComparisonModalVisible(false)
-      setFormatValidationErrors([])
-      setLogicalValidationErrors([])
+      setSaveBlockingErrorsVisible(false)
+      setSaveBlockingErrors([])
     } catch (e) {
       message.error(e instanceof Error ? e.message : 'Не удалось загрузить данные карты из БД')
     } finally {
@@ -710,12 +702,12 @@ const PhaCard: React.FC<PhaCardProps> = ({
   }
 
   const handleSaveToDbFromModal = async () => {
-    if (!pendingSavePayload) return
-    if (logicalValidationErrors.length > 0 || formatValidationErrors.length > 0) {
-      message.error('Сохранение невозможно: исправьте замечания в окне проверки.')
-      return
+    const payload = pendingSavePayload ?? {
+      xmlBody: exportPhaCardDataToXML(editedData),
+      metadata: buildPhaSaveMetadataFromCardData(editedData),
     }
-    const xmlJustSaved = pendingSavePayload.xmlBody
+    if (!payload.xmlBody) return
+    const xmlJustSaved = payload.xmlBody
     setSaving(true)
     const isNewCard = effectivePhaid === '-'
     const copySourcePhaid =
@@ -727,15 +719,15 @@ const PhaCard: React.FC<PhaCardProps> = ({
     try {
       const res = await savePhaCard({
         isNew: isNewCard,
-        xmlBody: pendingSavePayload.xmlBody,
-        metadata: pendingSavePayload.metadata,
+        xmlBody: payload.xmlBody,
+        metadata: payload.metadata,
         ...(isNewCard ? {} : { phaid: Number(effectivePhaid) }),
         ...(guid ? { guid } : {}),
         ...(isNewCard && copySourcePhaid != null ? { copyFromPhaid: copySourcePhaid } : {}),
       })
       setPendingSavePayload(null)
-      setComparisonModalVisible(false)
-      setLogicalValidationErrors([])
+      setSaveBlockingErrorsVisible(false)
+      setSaveBlockingErrors([])
       onUpdate?.(editedData)
       setIsEditMode(false)
       setBaselineXml(xmlJustSaved)
@@ -747,10 +739,7 @@ const PhaCard: React.FC<PhaCardProps> = ({
           sessionStorage.setItem('pha_card_save_happened', '1')
           sessionStorage.removeItem('pha_card_copy_from_phaid')
         } catch (_) {}
-        message.success(`Карта сохранена в БД с PHAID ${res.phaid}`)
         onSaveNewCard?.(res.phaid)
-      } else {
-        message.success('Карта обновлена в БД')
       }
     } catch (err) {
       message.error(err instanceof Error ? err.message : 'Ошибка сохранения в БД')
@@ -759,7 +748,7 @@ const PhaCard: React.FC<PhaCardProps> = ({
     }
   }
 
-  const handleSave = () => {
+  const handleSave = async () => {
     const xmlBody = exportPhaCardDataToXML(editedData)
     const metadata = buildPhaSaveMetadataFromCardData(editedData)
     const isNewCard = effectivePhaid === '-'
@@ -767,78 +756,26 @@ const PhaCard: React.FC<PhaCardProps> = ({
       effectivePhaid !== '-' &&
       !phaDatasourceNoEdit &&
       ((isOutgoingPha && effectivePhaEditRight) || isIncomingPha)
+    const willPersistToDb = isNewCard || canSaveToDb
 
-    const formatErrors = collectPhaFormatValidationErrors(editedData)
-    setFormatValidationErrors(formatErrors)
-    const willSaveToDb = isNewCard || canSaveToDb
-    setLogicalValidationErrors(
-      willSaveToDb ? collectPhaIncidentAlertKindSaveErrors(editedData) : []
-    )
-
-    if (isNewCard) {
-      const { filled, unfilled } = getPhaCardDataReview(editedData)
-      setComparisonResult({
-        isIdentical: true,
-        differences: [],
-        warnings: [],
-        added: [],
-        isNewDocument: true,
-        filled,
-        unfilled,
-      })
+    if (willPersistToDb) {
+      const blockingErrors = [
+        ...collectPhaFormatValidationErrors(editedData),
+        ...collectPhaIncidentAlertKindSaveErrors(editedData),
+      ]
+      if (blockingErrors.length > 0) {
+        setSaveBlockingErrors(blockingErrors)
+        setSaveBlockingErrorsVisible(true)
+        return
+      }
+      setSaveBlockingErrors([])
       setPendingSavePayload({ xmlBody, metadata })
-      setComparisonModalVisible(true)
+      await handleSaveToDbFromModal()
       return
     }
 
-    if (canSaveToDb) {
-      setPendingSavePayload({ xmlBody, metadata })
-    } else {
-      setPendingSavePayload(null)
-      onUpdate?.(editedData)
-      setIsEditMode(false)
-    }
-
-    const xmlToCompare = baselineXml
-    if (xmlToCompare) {
-      try {
-        const originalData = alignPhaParsedCardForCompare(
-          parsePhaXmlToCardData(xmlToCompare),
-          editedData
-        )
-        const result = compareCardData(originalData, editedData)
-        const emptyTagsWarnings = [
-          ...getEmptyTagsWarnings(editedData),
-          ...getPhaEmptyTagsWarnings(editedData),
-        ]
-        const resultWithWarnings =
-          emptyTagsWarnings.length > 0
-            ? { ...result, warnings: [...(result.warnings ?? []), ...emptyTagsWarnings] }
-            : result
-        setComparisonResult(resultWithWarnings)
-        setComparisonModalVisible(true)
-      } catch {
-        const emptyTagsWarnings = [
-          ...getEmptyTagsWarnings(editedData),
-          ...getPhaEmptyTagsWarnings(editedData),
-        ]
-        setComparisonResult({
-          isIdentical: true,
-          differences: [],
-          warnings: emptyTagsWarnings,
-          added: [],
-        })
-        setComparisonModalVisible(true)
-      }
-    } else {
-      setComparisonResult({
-        isIdentical: true,
-        differences: [],
-        warnings: [...getEmptyTagsWarnings(editedData), ...getPhaEmptyTagsWarnings(editedData)],
-        added: [],
-      })
-      setComparisonModalVisible(true)
-    }
+    onUpdate?.(editedData)
+    setIsEditMode(false)
   }
 
   const tabItems = PHA_TABS.map((item) => {
@@ -1009,7 +946,7 @@ const PhaCard: React.FC<PhaCardProps> = ({
             {isEditMode && (
               <>
                 {showSaveButton && (
-                  <Button type="primary" onClick={handleSave} loading={saving}>
+                  <Button type="primary" onClick={() => void handleSave()} loading={saving}>
                     Сохранить
                   </Button>
                 )}
@@ -1075,36 +1012,6 @@ const PhaCard: React.FC<PhaCardProps> = ({
         {!isEditMode && (
         <CardActions
           data={currentData}
-          onShowRightsDebug={() => {
-            setRightsDebugVisible(true)
-            setRightsDebugError(null)
-            setRightsDebugRawText(null)
-            setRightsDebugData(null)
-            if (guid) {
-              setRightsDebugLoading(true)
-              fetchRightsByGuid(guid)
-                .then((data) => {
-                  setRightsDebugData(data)
-                  setRightsDebugDraft(JSON.stringify(data, null, 2))
-                  setRightsDebugError(null)
-                  setRightsDebugRawText(null)
-                })
-                .catch(async (e) => {
-                  setRightsDebugError(e instanceof Error ? e.message : 'Ошибка загрузки')
-                  setRightsDebugData(null)
-                  try {
-                    const raw = await fetchRightsByGuidRaw(guid)
-                    setRightsDebugRawText(raw.text)
-                  } catch {
-                    setRightsDebugRawText(null)
-                  }
-                })
-                .finally(() => setRightsDebugLoading(false))
-            } else {
-              setRightsDebugError('GUID не задан')
-              setRightsDebugLoading(false)
-            }
-          }}
           onOpenAllVersions={() => {
             const countryForMessage = resolveAlertCountryNameForPostMessage(
               currentData.country,
@@ -1251,21 +1158,11 @@ const PhaCard: React.FC<PhaCardProps> = ({
             <span>Нет данных</span>
           )}
         </Modal>
-        {comparisonResult && (
-          <XMLComparisonModal
-            visible={comparisonModalVisible}
-            comparisonResult={comparisonResult}
-            onClose={() => {
-              setComparisonModalVisible(false)
-              setPendingSavePayload(null)
-              setLogicalValidationErrors([])
-            }}
-            formatValidationErrors={formatValidationErrors}
-            logicalValidationErrors={logicalValidationErrors}
-            onSaveToDb={pendingSavePayload ? handleSaveToDbFromModal : undefined}
-            saving={saving}
-          />
-        )}
+        <SaveBlockingErrorsModal
+          visible={saveBlockingErrorsVisible}
+          errors={saveBlockingErrors}
+          onClose={() => setSaveBlockingErrorsVisible(false)}
+        />
         <ValidationResultModal
           visible={validationModalVisible}
           result={validationResult}

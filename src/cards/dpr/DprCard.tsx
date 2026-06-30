@@ -8,7 +8,7 @@ import MeasuresTabEdit from '@/components/tabs/dpa/MeasuresTabEdit'
 import StatusHistoryModal from '@/components/modals/dpa/StatusHistoryModal'
 import ElectronicDocumentModal from '@/components/modals/dpa/ElectronicDocumentModal'
 import AccessModal from '@/components/modals/dpa/AccessModal'
-import XMLComparisonModal, { type ComparisonResultShape } from '@/components/modals/dpa/XMLComparisonModal'
+import SaveBlockingErrorsModal from '@/components/modals/SaveBlockingErrorsModal'
 import { CardActions } from '@/cards/shared'
 import type { DprMetadataView, DprParsedBundle, DprResultDocRow } from '@/types/dprCard'
 import type { StatusHistoryItem } from '@/types/card'
@@ -17,7 +17,6 @@ import {
   getIncidentAlertKindNameByCode,
   fetchCurrentUser,
   fetchDprResolutions,
-  fetchDprXml,
   postDprSave,
   changeDprStatus,
   postDprDeleteDraft,
@@ -40,7 +39,7 @@ import {
   collectDprSaveLogicalErrors,
   validateDprOutgoingCardFull,
 } from '@/utils/dprCardValidation'
-import { compareDprResponseXml, exportDprParsedBundleToXml } from '@/utils/xmlExporter'
+import { exportDprParsedBundleToXml } from '@/utils/xmlExporter'
 import { DprResultDocumentsEdit } from '@/cards/dpr/DprResultDocumentsEdit'
 import { DprResultDescriptionField } from '@/cards/dpr/DprResultDescriptionField'
 import { DprNotifyingAuthorityEdit } from '@/cards/dpr/DprNotifyingAuthorityEdit'
@@ -160,11 +159,8 @@ export function DprCard({ dprid, guid, meta, parsed, onDataRefresh }: DprCardPro
   const [rightsOverride, setRightsOverride] = useState<RightsJson | null>(null)
   const [measuresEdit, setMeasuresEdit] = useState<MeasuresData>({ measures: [] })
   const [documentsEdit, setDocumentsEdit] = useState<DprResultDocRow[]>([])
-  const [comparisonModalVisible, setComparisonModalVisible] = useState(false)
-  const [comparisonResult, setComparisonResult] = useState<ComparisonResultShape | null>(null)
-  const [pendingDprXmlB64, setPendingDprXmlB64] = useState<string | null>(null)
-  const [comparisonFormatErrors, setComparisonFormatErrors] = useState<string[]>([])
-  const [comparisonLogicalErrors, setComparisonLogicalErrors] = useState<string[]>([])
+  const [saveBlockingErrorsVisible, setSaveBlockingErrorsVisible] = useState(false)
+  const [saveBlockingErrors, setSaveBlockingErrors] = useState<string[]>([])
 
   const ppvBase = (import.meta.env.VITE_PPV_CARD_BASE as string | undefined)?.replace(/\/$/, '') || '/ppv_card'
   const ppvHref =
@@ -300,11 +296,8 @@ export function DprCard({ dprid, guid, meta, parsed, onDataRefresh }: DprCardPro
   }, [parsed])
 
   const cancelEdit = useCallback(() => {
-    setComparisonModalVisible(false)
-    setPendingDprXmlB64(null)
-    setComparisonResult(null)
-    setComparisonFormatErrors([])
-    setComparisonLogicalErrors([])
+    setSaveBlockingErrorsVisible(false)
+    setSaveBlockingErrors([])
     setIsEditMode(false)
   }, [])
 
@@ -328,21 +321,27 @@ export function DprCard({ dprid, guid, meta, parsed, onDataRefresh }: DprCardPro
         measures: measuresEdit,
         resultDocuments: documentsEdit,
       }
+      const blockingErrors = [
+        ...collectDprFormatValidationErrors(bundle),
+        ...collectDprSaveLogicalErrors(bundle),
+      ]
+      if (blockingErrors.length > 0) {
+        setSaveBlockingErrors(blockingErrors)
+        setSaveBlockingErrorsVisible(true)
+        return
+      }
       const fullXml = exportDprParsedBundleToXml(bundle)
-      const originalXml = await fetchDprXml(dprid, g)
-      const cmp = compareDprResponseXml(originalXml, fullXml)
-      setComparisonResult({
-        isIdentical: cmp.isIdentical,
-        differences: cmp.differences,
-        warnings: cmp.warnings,
-        added: [],
+      await postDprSave({
+        guid: g,
+        dprid,
+        dprXmlB64: utf8ToBase64(fullXml),
       })
-      setComparisonFormatErrors(collectDprFormatValidationErrors(bundle))
-      setComparisonLogicalErrors(collectDprSaveLogicalErrors(bundle))
-      setPendingDprXmlB64(utf8ToBase64(fullXml))
-      setComparisonModalVisible(true)
+      setSaveBlockingErrorsVisible(false)
+      setSaveBlockingErrors([])
+      setIsEditMode(false)
+      await onDataRefresh?.()
     } catch (e) {
-      message.error(e instanceof Error ? e.message : 'Ошибка подготовки сохранения')
+      message.error(e instanceof Error ? e.message : 'Ошибка сохранения')
     } finally {
       setSaving(false)
     }
@@ -354,36 +353,8 @@ export function DprCard({ dprid, guid, meta, parsed, onDataRefresh }: DprCardPro
     descText,
     measuresEdit,
     documentsEdit,
+    onDataRefresh,
   ])
-
-  const handleSaveToDbFromModal = useCallback(async () => {
-    const g = guid?.trim()
-    if (!g || !pendingDprXmlB64) return
-    if (comparisonFormatErrors.length > 0 || comparisonLogicalErrors.length > 0) {
-      message.error('Сохранение невозможно: исправьте замечания в окне проверки.')
-      return
-    }
-    setSaving(true)
-    try {
-      await postDprSave({
-        guid: g,
-        dprid,
-        dprXmlB64: pendingDprXmlB64,
-      })
-      message.success('Карта сохранена')
-      setComparisonModalVisible(false)
-      setPendingDprXmlB64(null)
-      setComparisonResult(null)
-      setComparisonFormatErrors([])
-      setComparisonLogicalErrors([])
-      setIsEditMode(false)
-      await onDataRefresh?.()
-    } catch (e) {
-      message.error(e instanceof Error ? e.message : 'Ошибка сохранения')
-    } finally {
-      setSaving(false)
-    }
-  }, [guid, dprid, pendingDprXmlB64, onDataRefresh, comparisonFormatErrors, comparisonLogicalErrors])
 
   const runForcedCardValidation = useCallback(async () => {
     const g = guid?.trim()
@@ -820,7 +791,7 @@ export function DprCard({ dprid, guid, meta, parsed, onDataRefresh }: DprCardPro
                   type="primary"
                   onClick={() => void saveEdit()}
                   loading={saving}
-                  disabled={comparisonModalVisible}
+                  disabled={saveBlockingErrorsVisible}
                 >
                   Сохранить
                 </Button>
@@ -828,13 +799,13 @@ export function DprCard({ dprid, guid, meta, parsed, onDataRefresh }: DprCardPro
                   <Button
                     type="default"
                     loading={validateLoading}
-                    disabled={saving || comparisonModalVisible}
+                    disabled={saving || saveBlockingErrorsVisible}
                     onClick={() => void runForcedCardValidation()}
                   >
                     Валидация карты
                   </Button>
                 ) : null}
-                <Button onClick={cancelEdit} disabled={saving || comparisonModalVisible || validateLoading}>
+                <Button onClick={cancelEdit} disabled={saving || saveBlockingErrorsVisible || validateLoading}>
                   Отменить
                 </Button>
               </>
@@ -899,7 +870,6 @@ export function DprCard({ dprid, guid, meta, parsed, onDataRefresh }: DprCardPro
 
         {isEditMode ? (
           <CardActions
-            onShowRightsDebug={openRightsDebug}
             statusButton={null}
             closeButton={null}
             onStatusAction={() => {}}
@@ -914,7 +884,6 @@ export function DprCard({ dprid, guid, meta, parsed, onDataRefresh }: DprCardPro
                   }
                 : undefined
             }
-            onShowRightsDebug={openRightsDebug}
             showDeleteButton={canDeleteDraft}
             deleteButtonDisabled={!ppvHref}
             deleteButtonHint={!ppvHref ? 'Нет связанной карты PPV — удаление недоступно' : undefined}
@@ -1165,22 +1134,11 @@ export function DprCard({ dprid, guid, meta, parsed, onDataRefresh }: DprCardPro
         )}
       </Modal>
 
-      {comparisonResult != null && (
-        <XMLComparisonModal
-          visible={comparisonModalVisible}
-          comparisonResult={comparisonResult}
-          onClose={() => {
-            setComparisonModalVisible(false)
-            setPendingDprXmlB64(null)
-            setComparisonFormatErrors([])
-            setComparisonLogicalErrors([])
-          }}
-          formatValidationErrors={comparisonFormatErrors}
-          logicalValidationErrors={comparisonLogicalErrors}
-          onSaveToDb={pendingDprXmlB64 ? handleSaveToDbFromModal : undefined}
-          saving={saving}
-        />
-      )}
+      <SaveBlockingErrorsModal
+        visible={saveBlockingErrorsVisible}
+        errors={saveBlockingErrors}
+        onClose={() => setSaveBlockingErrorsVisible(false)}
+      />
     </div>
   )
 }
