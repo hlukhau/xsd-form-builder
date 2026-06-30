@@ -1343,19 +1343,32 @@ const SubjectDetailsUnifiedEdit: React.FC<{
   const addressList =
     be?.addresses && be.addresses.length > 0 ? be.addresses : getAddressListFromSubject(subject)
   const syncAddresses = (list: AddressDetails[]) => {
-    const addresses = list.length > 0 ? list : undefined
     if (subject.businessEntity != null) {
-      upd({}, { addresses })
-    } else {
-      // Только канонический список адресов + сброс legacy-полей; identityDoc и прочие поля субъекта сохраняются через spread.
+      const nextBe = { ...ensureBe() }
+      if (list.length > 0) {
+        nextBe.addresses = list
+      } else {
+        delete nextBe.addresses
+      }
+      // Адреса могли быть в subject (legacy / импорт XML); иначе getAddressListFromSubject снова их подставит.
       onChange({
         ...subject,
-        addresses,
+        addresses: undefined,
         registrationAddress: undefined,
         actualAddress: undefined,
         mailingAddress: undefined,
+        businessEntity: nextBe,
       })
+      return
     }
+    const addresses = list.length > 0 ? list : undefined
+    onChange({
+      ...subject,
+      addresses,
+      registrationAddress: undefined,
+      actualAddress: undefined,
+      mailingAddress: undefined,
+    })
   }
   const handleImplAddressChange = (index: number, field: keyof AddressDetails, value: string | undefined) => {
     const list = [...addressList]
@@ -1371,12 +1384,22 @@ const SubjectDetailsUnifiedEdit: React.FC<{
 
   const contactList = be?.contacts && be.contacts.length > 0 ? be.contacts : (subject.contacts ?? [])
   const syncContacts = (list: ContactDetails[]) => {
-    const contacts = list.length > 0 ? list : undefined
     if (subject.businessEntity != null) {
-      upd({}, { contacts })
-    } else {
-      onChange({ ...subject, contacts })
+      const nextBe = { ...ensureBe() }
+      if (list.length > 0) {
+        nextBe.contacts = list
+      } else {
+        delete nextBe.contacts
+      }
+      onChange({
+        ...subject,
+        contacts: undefined,
+        businessEntity: nextBe,
+      })
+      return
     }
+    const contacts = list.length > 0 ? list : undefined
+    onChange({ ...subject, contacts })
   }
   const handleImplContactChange = (index: number, field: keyof ContactDetails, value: string) => {
     const list = [...contactList]
