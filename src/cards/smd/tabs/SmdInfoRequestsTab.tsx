@@ -1,6 +1,6 @@
 import { useEffect, useState, useMemo, useCallback } from 'react'
 import { Table, Spin, Alert, Tooltip, Button, Space } from 'antd'
-import { FileSearchOutlined, FileTextOutlined, MinusCircleOutlined } from '@ant-design/icons'
+import { FileTextOutlined, MinusCircleOutlined, PlusOutlined } from '@ant-design/icons'
 import type { ColumnsType } from 'antd/es/table'
 import type { SmdInfoRequestApiRow, SmdInfoRequestTableRow } from '@/types/smdCard'
 import { fetchSmdInfoRequests } from '@/cards/smd/smdApi'
@@ -15,6 +15,10 @@ interface SmdInfoRequestsTabProps {
   smdid: string
   guid?: string
   hasPersisted: boolean
+  /** Загружать данные только когда вкладка активна. */
+  enabled?: boolean
+  isIncoming?: boolean
+  isOutgoing?: boolean
   canAddInfoRequest: boolean
   canAddResponse: boolean
 }
@@ -65,6 +69,9 @@ const SmdInfoRequestsTab: React.FC<SmdInfoRequestsTabProps> = ({
   smdid,
   guid,
   hasPersisted,
+  enabled = true,
+  isIncoming,
+  isOutgoing,
   canAddInfoRequest,
   canAddResponse,
 }) => {
@@ -73,10 +80,7 @@ const SmdInfoRequestsTab: React.FC<SmdInfoRequestsTabProps> = ({
   const [apiRows, setApiRows] = useState<SmdInfoRequestApiRow[]>([])
 
   useEffect(() => {
-    if (!hasPersisted || !smdid || smdid === '-') {
-      setApiRows([])
-      setError(null)
-      setLoading(false)
+    if (!enabled || !hasPersisted || !smdid || smdid === '-') {
       return
     }
     let cancelled = false
@@ -98,13 +102,13 @@ const SmdInfoRequestsTab: React.FC<SmdInfoRequestsTabProps> = ({
     return () => {
       cancelled = true
     }
-  }, [smdid, guid, hasPersisted])
+  }, [smdid, guid, hasPersisted, enabled])
 
   const tableRows = useMemo(() => buildTableRows(apiRows), [apiRows])
   const g = guid?.trim()
 
   const openUrl = useCallback((url: string) => {
-    window.location.assign(url)
+    window.open(url, '_blank', 'noopener,noreferrer')
   }, [])
 
   const requestCellProps = useCallback(
@@ -129,32 +133,32 @@ const SmdInfoRequestsTab: React.FC<SmdInfoRequestsTabProps> = ({
         render: (v: string | null) => (v && String(v).trim() ? v : '—'),
       },
       {
-        title: 'Номер запроса',
+        title: '№ запроса',
         dataIndex: 'requestVersion',
         key: 'requestVersion',
-        width: 120,
+        width: 100,
         onCell: requestCellProps,
         render: (v: number | null) => (v != null ? String(v) : '—'),
       },
       {
         title: 'Запрос',
         key: 'requestLink',
-        width: 80,
+        width: 72,
         align: 'center',
         onCell: requestCellProps,
         render: (_: unknown, record: SmdInfoRequestTableRow) => {
           if (!g) {
             return (
-              <Tooltip title="Для перехода нужен GUID в адресе страницы">
-                <Button type="link" disabled icon={<FileSearchOutlined style={{ fontSize: 18 }} />} />
+              <Tooltip title="Для перехода укажите GUID в адресе карты">
+                <Button type="link" disabled icon={<FileTextOutlined style={{ fontSize: 18 }} />} />
               </Tooltip>
             )
           }
           return (
-            <Tooltip title="Открыть карту запроса дополнительных сведений">
+            <Tooltip title="Карта запроса дополнительных сведений">
               <Button
                 type="link"
-                icon={<FileSearchOutlined style={{ fontSize: 18 }} />}
+                icon={<FileTextOutlined style={{ fontSize: 18, color: '#1677ff' }} />}
                 onClick={() => openUrl(buildSmaqCardViewUrl(record.smaqId, g))}
                 aria-label="Открыть карту запроса дополнительных сведений"
               />
@@ -176,10 +180,10 @@ const SmdInfoRequestsTab: React.FC<SmdInfoRequestsTabProps> = ({
         render: (v: string | null) => (v && String(v).trim() ? v : '—'),
       },
       {
-        title: 'Номер ответа',
+        title: '№ ответа',
         dataIndex: 'responseVersion',
         key: 'responseVersion',
-        width: 110,
+        width: 90,
         render: (v: number | null) => (v != null ? String(v) : '—'),
       },
       {
@@ -192,7 +196,7 @@ const SmdInfoRequestsTab: React.FC<SmdInfoRequestsTabProps> = ({
           if (smarId != null && smarId > 0) {
             if (!g) {
               return (
-                <Tooltip title="Для перехода нужен GUID в адресе страницы">
+                <Tooltip title="Для перехода укажите GUID в адресе карты">
                   <Button type="link" disabled icon={<ResponseIcon edocCode={record.edocCode} />} />
                 </Tooltip>
               )
@@ -208,7 +212,7 @@ const SmdInfoRequestsTab: React.FC<SmdInfoRequestsTabProps> = ({
               </Tooltip>
             )
           }
-          if (canAddResponse && !record.hasAnyResponseForRequest && g) {
+          if (canAddResponse && g) {
             return (
               <Tooltip title="Добавить ответ на запрос дополнительных сведений">
                 <Button
@@ -240,6 +244,20 @@ const SmdInfoRequestsTab: React.FC<SmdInfoRequestsTabProps> = ({
     )
   }
 
+  if (!g) {
+    return (
+      <Alert
+        type="warning"
+        showIcon
+        message="Укажите GUID в адресе карты (…/smd_card/{SMDID}/{GUID}), чтобы загрузить запросы сведений."
+      />
+    )
+  }
+
+  if (!enabled) {
+    return null
+  }
+
   if (loading) {
     return (
       <div style={{ textAlign: 'center', padding: 24 }}>
@@ -252,19 +270,23 @@ const SmdInfoRequestsTab: React.FC<SmdInfoRequestsTabProps> = ({
     return <Alert type="error" message={error} showIcon />
   }
 
+  const emptyHint = isIncoming
+    ? 'Запросы дополнительных сведений не найдены. Нажмите «Добавить», чтобы создать запрос.'
+    : isOutgoing
+      ? 'Запросы дополнительных сведений от стран ЕАЭС не найдены. После получения запроса здесь можно подготовить ответ.'
+      : 'Данные о запросах дополнительных сведений не найдены'
+
   return (
     <div>
       {canAddInfoRequest && g && (
         <Space style={{ marginBottom: 12 }}>
-          <Button type="primary" onClick={() => openUrl(buildSmaqCardCreateUrl(smdid, g))}>
+          <Button type="default" icon={<PlusOutlined />} onClick={() => openUrl(buildSmaqCardCreateUrl(smdid, g))}>
             Добавить
           </Button>
         </Space>
       )}
       {tableRows.length === 0 ? (
-        <div style={{ padding: 8, color: '#595959' }}>
-          Данные о запросам дополнительных сведений не найдены
-        </div>
+        <div style={{ padding: 8, color: '#595959' }}>{emptyHint}</div>
       ) : (
         <Table<SmdInfoRequestTableRow>
           rowKey="key"
@@ -273,6 +295,7 @@ const SmdInfoRequestsTab: React.FC<SmdInfoRequestsTabProps> = ({
           pagination={false}
           size="small"
           bordered
+          scroll={{ x: 'max-content' }}
         />
       )}
     </div>

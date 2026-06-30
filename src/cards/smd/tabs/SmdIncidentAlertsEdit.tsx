@@ -18,7 +18,7 @@ interface SmdIncidentAlertsEditProps {
 }
 
 const SmdIncidentAlertsEdit: React.FC<SmdIncidentAlertsEditProps> = ({ data, onChange }) => {
-  const { getCountrySelectOptions } = useCountryOptions()
+  const { getSelectOptions: getCountrySelectOptions } = useCountryOptions()
   const { getSelectOptions: getKindOptions, loading: loadingKinds } = useIncidentAlertKindOptions()
   const kindOptions = getKindOptions().filter((o) => SMD_INCIDENT_KIND_CODES.has(String(o.value)))
 

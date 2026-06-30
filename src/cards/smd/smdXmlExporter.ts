@@ -14,6 +14,7 @@ import {
   hasMeasureImplementationEntryContent,
   exportNonCompliantSanitaryProductDetailsBlock,
 } from '@/utils/xmlExporter'
+import { exportPublicHealthIncidentDetails } from '@/cards/shared/publicHealthIncidentXml'
 import { resolveSmdMeasureEndDate, resolveSmdMeasureStartDate } from './smdMeasureDates'
 import { getSmdRegulatoryMeasureDoc } from './smdMeasureDoc'
 import { getSmdPrimaryMeasure } from './smdSanitaryMeasureModel'
@@ -269,16 +270,7 @@ function exportTemporaryMeasureDetails(
     )
   }
 
-  const disease = data.phaDisease
-  if (disease?.diseaseName?.trim()) {
-    xmlParts.push(`${inner}<smcdo:PublicHealthIncidentDetails>`)
-    xmlParts.push(`${inner}  <smcdo:DiseaseHealthProblemDetails>`)
-    xmlParts.push(
-      `${inner}    <smsdo:DiseaseHealthProblemName>${escapeXML(disease.diseaseName.trim())}</smsdo:DiseaseHealthProblemName>`
-    )
-    xmlParts.push(`${inner}  </smcdo:DiseaseHealthProblemDetails>`)
-    xmlParts.push(`${inner}</smcdo:PublicHealthIncidentDetails>`)
-  }
+  exportPublicHealthIncidentDetails(xmlParts, data, inner)
 
   for (const item of data.smdProductBatches ?? []) {
     exportNonCompliantSanitaryProductDetailsBlock(

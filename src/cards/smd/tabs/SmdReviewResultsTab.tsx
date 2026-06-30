@@ -10,6 +10,7 @@ interface SmdReviewResultsTabProps {
   smdid: string
   guid?: string
   hasPersisted: boolean
+  enabled?: boolean
   canPrepareReviewResult: boolean
 }
 
@@ -17,6 +18,7 @@ const SmdReviewResultsTab: React.FC<SmdReviewResultsTabProps> = ({
   smdid,
   guid,
   hasPersisted,
+  enabled = true,
   canPrepareReviewResult,
 }) => {
   const [loading, setLoading] = useState(false)
@@ -24,10 +26,7 @@ const SmdReviewResultsTab: React.FC<SmdReviewResultsTabProps> = ({
   const [rows, setRows] = useState<SmdReviewResultRow[]>([])
 
   useEffect(() => {
-    if (!hasPersisted || !smdid || smdid === '-') {
-      setRows([])
-      setError(null)
-      setLoading(false)
+    if (!enabled || !hasPersisted || !smdid || smdid === '-') {
       return
     }
     let cancelled = false
@@ -49,12 +48,12 @@ const SmdReviewResultsTab: React.FC<SmdReviewResultsTabProps> = ({
     return () => {
       cancelled = true
     }
-  }, [smdid, guid, hasPersisted])
+  }, [smdid, guid, hasPersisted, enabled])
 
   const g = guid?.trim()
 
   const openUrl = useCallback((url: string) => {
-    window.location.assign(url)
+    window.open(url, '_blank', 'noopener,noreferrer')
   }, [])
 
   const columns: ColumnsType<SmdReviewResultRow> = useMemo(
@@ -119,6 +118,20 @@ const SmdReviewResultsTab: React.FC<SmdReviewResultsTabProps> = ({
         message="Результаты рассмотрения появятся после сохранения карты в БД."
       />
     )
+  }
+
+  if (!g) {
+    return (
+      <Alert
+        type="warning"
+        showIcon
+        message="Укажите GUID в адресе карты (…/smd_card/{SMDID}/{GUID}), чтобы загрузить результаты рассмотрения."
+      />
+    )
+  }
+
+  if (!enabled) {
+    return null
   }
 
   if (loading) {

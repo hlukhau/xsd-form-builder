@@ -79,8 +79,19 @@ public class SmdReviewResultsServlet extends HttpServlet {
     }
 
     private static List<String> loadRows(Connection conn, long smdid) throws SQLException {
+        try {
+            return loadRows(conn, smdid, SmdDbSupport.SQL_REVIEW_RESULTS);
+        } catch (SQLException e) {
+            if (SmdDbSupport.isMissingObject(e)) {
+                return loadRows(conn, smdid, SmdDbSupport.SQL_REVIEW_RESULTS_SESINT);
+            }
+            throw e;
+        }
+    }
+
+    private static List<String> loadRows(Connection conn, long smdid, String sql) throws SQLException {
         List<String> items = new ArrayList<>();
-        try (PreparedStatement ps = conn.prepareStatement(SmdDbSupport.SQL_REVIEW_RESULTS)) {
+        try (PreparedStatement ps = conn.prepareStatement(sql)) {
             ps.setLong(1, smdid);
             try (ResultSet rs = ps.executeQuery()) {
                 while (rs.next()) {

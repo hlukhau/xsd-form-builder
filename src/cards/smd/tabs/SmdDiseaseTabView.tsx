@@ -1,8 +1,9 @@
-import { Collapse, Descriptions, Empty, Table } from 'antd'
+import { Descriptions, Table } from 'antd'
 import { format, parseISO } from 'date-fns'
 import { ru } from 'date-fns/locale'
-import type { CardData, DetectionPlaceData } from '@/types/card'
+import type { CardData } from '@/types/card'
 import DetectionPlaceTab from '@/components/tabs/dpa/DetectionPlaceTab'
+import SpreadingZonesTable from '@/components/tabs/shared/SpreadingZonesTable'
 import { useAgeGroupOptions } from '@/hooks/shared/useAgeGroupOptions'
 import { useDiseaseOutcomeOptions } from '@/hooks/shared/useDiseaseOutcomeOptions'
 
@@ -24,59 +25,31 @@ function formatDate(date: string | null | undefined) {
   }
 }
 
+/** ТЗ: «код - наименование» для справочников agegr и diseaseoutcome. */
 function formatCodeName(code: string | undefined, getName: (c: string | undefined) => string | null): string {
   const c = (code ?? '').trim()
   if (!c) return '—'
   const name = getName(c)
-  return name ? `${c} — ${name}` : c
+  return name ? `${c} - ${name}` : c
 }
 
-function hasDetectionPlaceContent(place?: DetectionPlaceData): boolean {
-  if (!place) return false
-  return !!(place.organization || place.borderCheckpoint || place.address || place.geoCoordinates || place.description)
-}
-
-function hasIncidentContent(data: CardData): boolean {
-  const d = data.phaDisease
-  const groups = data.phaPatientGroups ?? []
-  const zones = data.spreadingZones?.length
-    ? data.spreadingZones
-    : data.spreadingZone
-      ? [data.spreadingZone]
-      : []
-  return !!(
-    d?.diseaseCode?.trim() ||
-    d?.diseaseName?.trim() ||
-    d?.firstCaseDate?.trim() ||
-    d?.lastCaseDate?.trim() ||
-    d?.crossborderSpreadRiskIndicator != null ||
-    (d?.pathogens?.length ?? 0) > 0 ||
-    groups.length > 0 ||
-    hasDetectionPlaceContent(data.detectionPlace) ||
-    zones.some((z) => hasDetectionPlaceContent(z))
-  )
+function spreadingZonesList(data: CardData) {
+  if (data.spreadingZones && data.spreadingZones.length > 0) return data.spreadingZones
+  if (data.spreadingZone) return [data.spreadingZone]
+  return []
 }
 
 /**
- * Болезнь SMD (smcdo:PublicHealthIncidentDetails) — SS.09, все блоки на одной вкладке.
+ * Болезнь SMD (smcdo:PublicHealthIncidentDetails) — R.SM.SS.09.001, все блоки на одной вкладке.
  */
 const SmdDiseaseTabView: React.FC<{ data: CardData }> = ({ data }) => {
   const d = data.phaDisease
   const pathogens = d?.pathogens ?? []
   const groups = data.phaPatientGroups ?? []
-  const spreadingZones =
-    data.spreadingZones && data.spreadingZones.length > 0
-      ? data.spreadingZones
-      : data.spreadingZone
-        ? [data.spreadingZone]
-        : []
+  const spreadingZones = spreadingZonesList(data)
 
   const { getNameByCode: getAgeGroupNameByCode } = useAgeGroupOptions()
   const { getNameByCode: getDiseaseOutcomeNameByCode } = useDiseaseOutcomeOptions()
-
-  if (!hasIncidentContent(data)) {
-    return <Empty description="Нет данных по болезни" />
-  }
 
   const crossborderLabel =
     d?.crossborderSpreadRiskIndicator != null
@@ -86,10 +59,14 @@ const SmdDiseaseTabView: React.FC<{ data: CardData }> = ({ data }) => {
   return (
     <div>
       <Descriptions column={1} bordered title="Болезнь" style={{ marginBottom: 16 }}>
-        <Descriptions.Item label="Код болезни">{d?.diseaseCode?.trim() || '—'}</Descriptions.Item>
+        <Descriptions.Item label="Код болезни">—</Descriptions.Item>
         <Descriptions.Item label="Наименование болезни">{d?.diseaseName?.trim() || '—'}</Descriptions.Item>
         <Descriptions.Item label="Дата первого случая">{formatDate(d?.firstCaseDate)}</Descriptions.Item>
-        <Descriptions.Item label="Дата последнего случая" title="Дата закрытия (архивации) нежелательной ситуации">
+        <Descriptions.Item
+          label={
+            <span title="Дата закрытия (архивации) нежелательной ситуации">Дата последнего случая</span>
+          }
+        >
           {formatDate(d?.lastCaseDate)}
         </Descriptions.Item>
         <Descriptions.Item label="Риск трансграничного распространения">{crossborderLabel}</Descriptions.Item>
@@ -109,9 +86,7 @@ const SmdDiseaseTabView: React.FC<{ data: CardData }> = ({ data }) => {
             ]}
           />
         ) : (
-          <Descriptions column={1} bordered size="small">
-            <Descriptions.Item label="Сведения">Нет записей о возбудителях.</Descriptions.Item>
-          </Descriptions>
+          <div style={{ color: '#8c8c8c' }}>Нет записей о возбудителях.</div>
         )}
       </div>
 
@@ -151,40 +126,18 @@ const SmdDiseaseTabView: React.FC<{ data: CardData }> = ({ data }) => {
             ]}
           />
         ) : (
-          <Descriptions column={1} bordered size="small">
-            <Descriptions.Item label="Сведения">Нет данных о группах пациентов.</Descriptions.Item>
-          </Descriptions>
+          <div style={{ color: '#8c8c8c' }}>Нет данных о группах пациентов.</div>
         )}
       </div>
 
       <div style={{ marginBottom: 16 }}>
         <div style={{ marginBottom: 8, fontWeight: 600 }}>Место обнаружения</div>
-        {hasDetectionPlaceContent(data.detectionPlace) && data.detectionPlace ? (
-          <DetectionPlaceTab data={data.detectionPlace} label="месте обнаружения" />
-        ) : (
-          <Descriptions column={1} bordered size="small">
-            <Descriptions.Item label="Сведения">Нет данных о месте обнаружения.</Descriptions.Item>
-          </Descriptions>
-        )}
+        <DetectionPlaceTab data={data.detectionPlace ?? {}} label="месте обнаружения" />
       </div>
 
       <div>
         <div style={{ marginBottom: 8, fontWeight: 600 }}>Зона распространения</div>
-        {spreadingZones.length > 0 ? (
-          <Collapse
-            accordion
-            expandIconPosition="end"
-            items={spreadingZones.map((zone, i) => ({
-              key: String(i),
-              label: `Зона распространения ${i + 1}`,
-              children: <DetectionPlaceTab data={zone} label="зоне распространения" />,
-            }))}
-          />
-        ) : (
-          <Descriptions column={1} bordered size="small">
-            <Descriptions.Item label="Сведения">Нет данных о зонах распространения.</Descriptions.Item>
-          </Descriptions>
-        )}
+        <SpreadingZonesTable zones={spreadingZones} />
       </div>
     </div>
   )

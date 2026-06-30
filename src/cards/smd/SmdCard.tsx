@@ -106,6 +106,7 @@ const SmdCard: React.FC<SmdCardProps> = ({
     isCreateMode &&
     ((copyFromSmdid != null && copyFromSmdid > 0) ||
       (copyFromSmdidRef.current != null && copyFromSmdidRef.current > 0))
+  const [activeTabKey, setActiveTabKey] = useState('sanitary')
   const [isEditMode, setIsEditMode] = useState(isCreateMode)
   const [saving, setSaving] = useState(false)
   const [statusHistoryVisible, setStatusHistoryVisible] = useState(false)
@@ -686,6 +687,9 @@ const SmdCard: React.FC<SmdCardProps> = ({
                   smdid={effectiveSmdid}
                   guid={guid}
                   hasPersisted={hasPersisted}
+                  enabled={activeTabKey === 'info'}
+                  isIncoming={isIncoming}
+                  isOutgoing={isOutgoing}
                   canAddInfoRequest={canAddInfoRequest}
                   canAddResponse={canAddResponse}
                 />
@@ -701,6 +705,7 @@ const SmdCard: React.FC<SmdCardProps> = ({
                   smdid={effectiveSmdid}
                   guid={guid}
                   hasPersisted={hasPersisted}
+                  enabled={activeTabKey === 'review'}
                   canPrepareReviewResult={canPrepareReviewResult}
                 />
               </div>
@@ -814,7 +819,12 @@ const SmdCard: React.FC<SmdCardProps> = ({
         />
         )}
         <div className="card-tabs-wrapper">
-          <Tabs defaultActiveKey="sanitary" destroyInactiveTabPane={false} items={tabItems} />
+          <Tabs
+            activeKey={activeTabKey}
+            onChange={setActiveTabKey}
+            destroyInactiveTabPane={false}
+            items={tabItems}
+          />
         </div>
       </div>
 

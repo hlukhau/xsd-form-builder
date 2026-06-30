@@ -119,7 +119,10 @@ const DiseaseTabEdit: React.FC<DiseaseTabEditProps> = ({ data, onChange }) => {
             onChange={(date) => setDiseaseField('firstCaseDate', date ? date.format('YYYY-MM-DD') : '')}
           />
         </Form.Item>
-        <Form.Item label="Дата последнего случая">
+        <Form.Item
+          label="Дата последнего случая"
+          tooltip="Дата закрытия (архивации) нежелательной ситуации"
+        >
           <DatePicker
             format={DATE_DISPLAY_FORMAT}
             style={{ width: '100%' }}
