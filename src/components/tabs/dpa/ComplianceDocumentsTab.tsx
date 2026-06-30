@@ -17,7 +17,7 @@ import { useCountryOptions } from '@/hooks/shared/useCountryOptions'
 import { useShipDocKindOptions } from '@/hooks/shared/useShipDocKindOptions'
 import { useLegalFormOptions } from '@/hooks/shared/useLegalFormOptions'
 import { useMediaTypeOptions } from '@/hooks/shared/useMediaTypeOptions'
-import { requestLabProtocols } from '@/utils/referenceDataApi'
+import { requestLabProtocols, LAB_PROTOCOLS_RESPONSE_ERROR_MESSAGE } from '@/utils/referenceDataApi'
 import { parseLabProtocolsXml } from '@/utils/labProtocolsXmlParser'
 import type { LaboratoryProtocolsData } from '@/types/card'
 
@@ -153,7 +153,7 @@ const ComplianceDocumentsTab: React.FC<ComplianceDocumentsTabProps> = ({
   const [protocolsModalVisible, setProtocolsModalVisible] = useState(false)
   const [protocolsLoading, setProtocolsLoading] = useState(false)
   const [protocolsData, setProtocolsData] = useState<LaboratoryProtocolsData | null>(null)
-  const [protocolsError, setProtocolsError] = useState<'local' | 'source' | null>(null)
+  const [protocolsError, setProtocolsError] = useState<'local' | 'source' | 'response_error' | null>(null)
   const [expandedLabCountry, setExpandedLabCountry] = useState<string>('')
   const labCountry = expandedLabCountry
   const { getDisplayLabel: getIdentificationMethodDisplayLabel } = useIdentificationMethodOptions(labCountry)
@@ -228,6 +228,9 @@ const ComplianceDocumentsTab: React.FC<ComplianceDocumentsTabProps> = ({
       } else if (res.status === 'no_info') {
         setProtocolsError('source')
         message.warning(res.message ?? 'Запрошенные сведения отсутствуют у первоисточника.')
+      } else if (res.status === 'response_error') {
+        setProtocolsError('response_error')
+        message.error(res.message ?? LAB_PROTOCOLS_RESPONSE_ERROR_MESSAGE)
       } else if (res.status === 'with_info' && res.xml) {
         setProtocolsError(null)
         try {
@@ -432,6 +435,10 @@ const ComplianceDocumentsTab: React.FC<ComplianceDocumentsTabProps> = ({
         ) : protocolsError === 'source' ? (
           <div style={{ padding: '20px', textAlign: 'center' }}>
             <p>Запрошенные сведения отсутствуют у первоисточника.</p>
+          </div>
+        ) : protocolsError === 'response_error' ? (
+          <div style={{ padding: '20px', textAlign: 'center' }}>
+            <p>{LAB_PROTOCOLS_RESPONSE_ERROR_MESSAGE}</p>
           </div>
         ) : protocolsData ? (
           <div>

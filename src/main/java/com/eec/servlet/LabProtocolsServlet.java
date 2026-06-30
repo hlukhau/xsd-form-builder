@@ -20,7 +20,7 @@ import java.util.regex.Pattern;
 /**
  * Запрос протоколов лабораторных исследований по документу соответствия (DocKindCode=25).
  * POST JSON: { "registrationCertificateId", "authorityCountryCode", "guid" }.
- * Ответ: { "status": "requested"|"no_info"|"with_info", "message"?: string, "xml"?: string }.
+ * Ответ: { "status": "requested"|"no_info"|"with_info"|"response_error", "message"?: string, "xml"?: string }.
  */
 public class LabProtocolsServlet extends HttpServlet {
 
@@ -47,7 +47,10 @@ public class LabProtocolsServlet extends HttpServlet {
 
     private static final String SQL_GET_XML = "SELECT LPXMLBODY FROM LPXML WHERE LPREQUESTID = ?";
 
-    private static final String[] SCENARIO1_STATUSES = { "REQUEST_PENDING", "REQUEST_FAILED", "RESPONSE_ERROR" };
+    private static final String RESPONSE_ERROR_MESSAGE =
+            "Невозможно получить запрошенные сведения из-за ошибки обработки запроса.";
+
+    private static final String[] SCENARIO1_STATUSES = { "REQUEST_PENDING", "REQUEST_FAILED" };
 
     @Override
     protected void doPost(HttpServletRequest request, HttpServletResponse response)
@@ -114,6 +117,12 @@ public class LabProtocolsServlet extends HttpServlet {
                 return;
             }
 
+            // Ошибка обработки запроса — повторная постановка в очередь не выполняется
+            if ("RESPONSE_ERROR".equals(statusCode)) {
+                sendJson(response, "response_error", RESPONSE_ERROR_MESSAGE, null);
+                return;
+            }
+
             // Сценарий 3: данные есть в локальной БД
             if ("RESPONSE_WITH_INFO".equals(statusCode) && lpRequestId != null) {
                 String xml = getXmlBody(conn, lpRequestId);
@@ -123,7 +132,7 @@ public class LabProtocolsServlet extends HttpServlet {
                 }
             }
 
-            // Сценарий 1: нет данных или статус REQUEST_PENDING / REQUEST_FAILED / RESPONSE_ERROR
+            // Сценарий 1: нет данных или статус REQUEST_PENDING / REQUEST_FAILED
             boolean needCreate = (lpRequestId == null);
             boolean needRequeue = (lpRequestId != null && isScenario1Status(statusCode));
 
@@ -176,6 +185,10 @@ public class LabProtocolsServlet extends HttpServlet {
                                 sendJson(response, "with_info", null, xml);
                                 return;
                             }
+                        }
+                        if (refetchedId > 0 && "RESPONSE_ERROR".equals(refetchedCode)) {
+                            sendJson(response, "response_error", RESPONSE_ERROR_MESSAGE, null);
+                            return;
                         }
                         if (refetchedId > 0 && isScenario1Status(refetchedCode)) {
                             try (PreparedStatement ps = conn.prepareStatement(SQL_UPDATE_REQUEST_PENDING)) {

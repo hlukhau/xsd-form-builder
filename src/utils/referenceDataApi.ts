@@ -1210,11 +1210,15 @@ export async function fetchRightsByGuidRaw(guid: string): Promise<{ ok: boolean;
 
 /** Результат запроса протоколов лабораторных исследований (документ соответствия DocKindCode=25). */
 export interface LabProtocolsResponse {
-  status: 'requested' | 'no_info' | 'with_info'
+  status: 'requested' | 'no_info' | 'with_info' | 'response_error'
   message?: string
   xml?: string
   error?: string
 }
+
+/** Сообщение при LPREQUESTSTATUSCODE = RESPONSE_ERROR (без повторной постановки в очередь). */
+export const LAB_PROTOCOLS_RESPONSE_ERROR_MESSAGE =
+  'Невозможно получить запрошенные сведения из-за ошибки обработки запроса.'
 
 /**
  * Запрос протоколов лабораторных исследований по документу соответствия.

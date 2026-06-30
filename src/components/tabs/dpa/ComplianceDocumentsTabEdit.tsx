@@ -17,7 +17,7 @@ import { useLegalFormOptions } from '@/hooks/shared/useLegalFormOptions'
 import { useIdentificationMethodOptions } from '@/hooks/shared/useIdentificationMethodOptions'
 import { useMediaTypeOptions } from '@/hooks/shared/useMediaTypeOptions'
 import { DpaEmbeddedUnifiedAuthorityForm } from '@/components/common/DpaEmbeddedUnifiedAuthorityForm'
-import { requestLabProtocols } from '@/utils/referenceDataApi'
+import { requestLabProtocols, LAB_PROTOCOLS_RESPONSE_ERROR_MESSAGE } from '@/utils/referenceDataApi'
 import { parseLabProtocolsXml } from '@/utils/labProtocolsXmlParser'
 import {
   getAddressListFromParty,
@@ -42,7 +42,7 @@ const ComplianceDocumentsTabEdit: React.FC<ComplianceDocumentsTabEditProps> = ({
   const [authorityContext, setAuthorityContext] = useState<{ batchIndex: number; docIndex: number } | null>(null)
   const [protocolsModalVisible, setProtocolsModalVisible] = useState(false)
   const [protocolsLoading, setProtocolsLoading] = useState(false)
-  const [protocolsError, setProtocolsError] = useState<'local' | 'source' | null>(null)
+  const [protocolsError, setProtocolsError] = useState<'local' | 'source' | 'response_error' | null>(null)
   const [protocolsData, setProtocolsData] = useState<LaboratoryProtocolsData | null>(null)
   const [expandedLabCountry, setExpandedLabCountry] = useState<string>('')
   const { countryOptions, loading: loadingCountries, normalizeCountryCode, getDisplayLabel: getCountryDisplayLabel } = useCountryOptions()
@@ -154,6 +154,9 @@ const ComplianceDocumentsTabEdit: React.FC<ComplianceDocumentsTabEditProps> = ({
       } else if (res.status === 'no_info') {
         setProtocolsError('source')
         message.warning(res.message ?? 'Запрошенные сведения отсутствуют у первоисточника.')
+      } else if (res.status === 'response_error') {
+        setProtocolsError('response_error')
+        message.error(res.message ?? LAB_PROTOCOLS_RESPONSE_ERROR_MESSAGE)
       } else if (res.status === 'with_info' && res.xml) {
         setProtocolsError(null)
         try {
@@ -318,6 +321,10 @@ const ComplianceDocumentsTabEdit: React.FC<ComplianceDocumentsTabEditProps> = ({
         ) : protocolsError === 'source' ? (
           <div style={{ padding: 20, textAlign: 'center' }}>
             <p>Запрошенные сведения отсутствуют у первоисточника.</p>
+          </div>
+        ) : protocolsError === 'response_error' ? (
+          <div style={{ padding: 20, textAlign: 'center' }}>
+            <p>{LAB_PROTOCOLS_RESPONSE_ERROR_MESSAGE}</p>
           </div>
         ) : protocolsData ? (
           <div>
