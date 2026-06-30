@@ -5,7 +5,7 @@ import { isPhaApp, isPpvApp, isDprApp, isSmdApp, getDpaLikeCardSessionKeys } fro
 import { DangerousProductCard } from './cards/dpa'
 import { PhaCard } from './cards/pha'
 import { DprCard, DprCreateCard } from './cards/dpr'
-import { SmdCard, fetchSmdMetadata, fetchSmdXml, smdSourceToViewRight, createMockSmdCardData, createNewSmdCardData, buildCreateSmdMetadata, ensureSmdCardStructure } from './cards/smd'
+import { SmdCard, fetchSmdMetadata, fetchSmdXml, smdSourceToViewRight, createNewSmdCardData, buildCreateSmdMetadata, ensureSmdCardStructure, parseSmdXmlToCardData } from './cards/smd'
 import type { SmdMetadata } from './types/smdCard'
 import type { CardData } from './types/card'
 import type { DprMetadataView, DprPrepareContext } from './types/dprCard'
@@ -542,13 +542,21 @@ function SmdAppContent() {
             return
           }
         }
-        let body = createMockSmdCardData()
+        let body = createNewSmdCardData()
         if (xmlText && xmlText.trim() && !xmlText.includes('<empty/>')) {
           try {
-            const parsed = parseXMLToCardData(xmlText)
-            body = { ...body, ...parsed, smdProductBatches: parsed.smdProductBatches ?? body.smdProductBatches }
-          } catch {
-            /* XML SS.09 parser — позже */
+            const parsed = parseSmdXmlToCardData(xmlText)
+            body = {
+              ...body,
+              ...parsed,
+              statusHistory: body.statusHistory,
+              accessList: body.accessList,
+              smdProductBatches: parsed.smdProductBatches?.length
+                ? parsed.smdProductBatches
+                : body.smdProductBatches,
+            }
+          } catch (parseErr) {
+            console.warn('SMD XML parse failed:', parseErr)
           }
         }
         const enriched: CardData = ensureSmdCardStructure({

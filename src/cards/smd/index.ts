@@ -12,6 +12,7 @@ export {
 export { createMockSmdCardData, createNewSmdCardData } from './mockSmdCardData'
 export { ensureSmdCardStructure } from './smdSanitaryMeasureModel'
 export { exportSmdCardDataToXML } from './smdXmlExporter'
+export { parseSmdXmlToCardData } from './smdXmlParser'
 export {
   confirmDeleteSmdCard,
   buildSmdDeleteConfirmText,

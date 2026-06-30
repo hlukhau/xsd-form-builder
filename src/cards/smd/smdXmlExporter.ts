@@ -12,6 +12,7 @@ import type {
 } from '@/types/card'
 import {
   hasMeasureImplementationEntryContent,
+  exportNonCompliantSanitaryProductDetailsBlock,
 } from '@/utils/xmlExporter'
 import { resolveSmdMeasureEndDate, resolveSmdMeasureStartDate } from './smdMeasureDates'
 import { getSmdRegulatoryMeasureDoc } from './smdMeasureDoc'
@@ -277,6 +278,15 @@ function exportTemporaryMeasureDetails(
     )
     xmlParts.push(`${inner}  </smcdo:DiseaseHealthProblemDetails>`)
     xmlParts.push(`${inner}</smcdo:PublicHealthIncidentDetails>`)
+  }
+
+  for (const item of data.smdProductBatches ?? []) {
+    exportNonCompliantSanitaryProductDetailsBlock(
+      xmlParts,
+      item.product,
+      item.tsd?.batches ?? [],
+      inner
+    )
   }
 
   xmlParts.push(`${indent}</smcdo:SanitaryMeasureDetails>`)

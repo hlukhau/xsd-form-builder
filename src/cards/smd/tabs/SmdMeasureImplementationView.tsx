@@ -113,7 +113,11 @@ const SmdMeasureImplementationView: React.FC<SmdMeasureImplementationViewProps> 
             })}
             rowClassName={(_, index) => (selectedIndex === index ? 'ant-table-row-selected' : '')}
           />
-          {selected && <MeasureImplementationDetailSections item={selected} />}
+          {selected && (
+            <div className="smd-implementation-detail-panel">
+              <MeasureImplementationDetailSections item={selected} />
+            </div>
+          )}
         </>
       )}
     </div>

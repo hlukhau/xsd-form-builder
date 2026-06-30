@@ -1,5 +1,6 @@
-import { DiseaseTab, DiseaseTabEdit } from '@/components/tabs/pha'
+import { DiseaseTabEdit } from '@/components/tabs/pha'
 import type { CardData } from '@/types/card'
+import SmdDiseaseTabView from './SmdDiseaseTabView'
 
 interface SmdDiseaseTabProps {
   data: CardData
@@ -7,12 +8,12 @@ interface SmdDiseaseTabProps {
   onChange?: (next: CardData) => void
 }
 
-/** Болезнь (smcdo:PublicHealthIncidentDetails). */
+/** Болезнь (smcdo:PublicHealthIncidentDetails) — SS.09. */
 const SmdDiseaseTab: React.FC<SmdDiseaseTabProps> = ({ data, editMode, onChange }) => {
   if (editMode && onChange) {
     return <DiseaseTabEdit data={data} onChange={onChange} />
   }
-  return <DiseaseTab data={data} />
+  return <SmdDiseaseTabView data={data} />
 }
 
 export default SmdDiseaseTab

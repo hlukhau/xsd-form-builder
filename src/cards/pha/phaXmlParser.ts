@@ -8,9 +8,9 @@
  * - smcdo:IncidentAlertIdDetails (IncidentAlertIdDetailsType): UnifiedCountryCode, IncidentId, IncidentKindCode, DocCreationDate.
  */
 
-import type { CardData, ElectronicDocument, PhaDiseaseDetails, PhaPathogenDetails, PhaPatientGroupItem, SanitaryMeasure } from '@/types/card'
+import type { CardData, ElectronicDocument, SanitaryMeasure } from '@/types/card'
 import { createNewCardData } from '@/utils/newCardData'
-import { parseDetectionPlaceDetails } from '@/utils/xmlParser'
+import { parsePublicHealthIncidentDetailsElement } from '@/utils/publicHealthIncidentParser'
 import { normalizeXmlNamespaces, PHA_CANONICAL_XML_NAMESPACES } from '@/utils/xmlNamespaceNormalizer'
 
 /** Извлекает текст первого найденного потомка по локальному имени (без учёта namespace). */
@@ -163,75 +163,14 @@ export function parsePhaXmlToCardData(xmlText: string): CardData {
     formationDate: getTextByLocalName(el, 'DocCreationDate')?.trim() || '',
   }))
 
-  // smcdo:PublicHealthIncidentDetails — сведения о болезни (DiseaseHealthProblemDetails, EventDate, EndDate, CrossborderSpreadRiskIndicator, PathogenDetails).
-  let phaDisease: PhaDiseaseDetails | undefined
+  // smcdo:PublicHealthIncidentDetails — сведения о болезни.
   const incidentDetails = findElementByLocalName(firstCaseBlock, 'PublicHealthIncidentDetails')
-  if (incidentDetails) {
-    const diseaseBlock = findElementByLocalName(incidentDetails, 'DiseaseHealthProblemDetails')
-    const diseaseName = diseaseBlock ? getTextByLocalName(diseaseBlock, 'DiseaseHealthProblemName')?.trim() : undefined
-    const eventDate = getTextByLocalName(incidentDetails, 'EventDate')?.trim()
-    const incidentEndDate = getTextByLocalName(incidentDetails, 'EndDate')?.trim()
-    const crossborderRaw = getTextByLocalName(incidentDetails, 'CrossborderSpreadRiskIndicator')?.trim().toLowerCase()
-    const crossborderSpreadRiskIndicator: 0 | 1 | undefined =
-      crossborderRaw === '1' || crossborderRaw === 'true'
-        ? 1
-        : crossborderRaw === '0' || crossborderRaw === 'false'
-          ? 0
-          : undefined
-
-    const pathogenNodes = diseaseBlock ? findAllElementsByLocalName(diseaseBlock, 'PathogenDetails') : []
-    const pathogens: PhaPathogenDetails[] = pathogenNodes.map((el) => ({
-      pathogenKindName: getTextByLocalName(el, 'PathogenKindName')?.trim(),
-      pathogenName: getTextByLocalName(el, 'PathogenName')?.trim(),
-    }))
-
-    phaDisease = {
-      diseaseName: diseaseName || undefined,
-      firstCaseDate: eventDate || undefined,
-      lastCaseDate: incidentEndDate || undefined,
-      crossborderSpreadRiskIndicator,
-      pathogens: pathogens.length > 0 ? pathogens : undefined,
-    }
-  }
-
-  // smcdo:DetectionPlaceDetails — внутри PublicHealthIncidentDetails.
-  let detectionPlace = incidentDetails
-    ? (() => {
-        const placeEl = findElementByLocalName(incidentDetails, 'DetectionPlaceDetails')
-        return placeEl ? parseDetectionPlaceDetails(placeEl) : undefined
-      })()
-    : undefined
-
-  // smcdo:SpreadingZoneDetails — внутри PublicHealthIncidentDetails (0..n, LocationDetailsType).
-  let spreadingZones: import('@/types/card').DetectionPlaceData[] | undefined
-  if (incidentDetails) {
-    const zoneNodes = findAllElementsByLocalName(incidentDetails, 'SpreadingZoneDetails')
-    const zones = zoneNodes.map((z) => parseDetectionPlaceDetails(z))
-    if (zones.length > 0) spreadingZones = zones
-  }
-  const spreadingZone = spreadingZones && spreadingZones.length > 0 ? spreadingZones[0] : undefined
-
-  // smcdo:PatientGroupDetails — внутри PublicHealthIncidentDetails (0..n).
-  let phaPatientGroups: PhaPatientGroupItem[] | undefined
-  if (incidentDetails) {
-    const groupNodes = findAllElementsByLocalName(incidentDetails, 'PatientGroupDetails')
-    phaPatientGroups = groupNodes.map((el) => {
-      const labRaw = getTextByLocalName(el, 'LaboratoryConfirmedIndicator')?.trim()
-      const laboratoryConfirmedIndicator: 0 | 1 | undefined =
-        labRaw === '1' || labRaw?.toLowerCase() === 'true'
-          ? 1
-          : labRaw === '0' || labRaw?.toLowerCase() === 'false'
-            ? 0
-            : undefined
-      return {
-        personQuantity: getTextByLocalName(el, 'PersonQuantity')?.trim(),
-        ageGroupCode: getTextByLocalName(el, 'AgeGroupCode')?.trim(),
-        diseaseOutcomeCode: getTextByLocalName(el, 'DiseaseOutcomeCode')?.trim(),
-        laboratoryConfirmedIndicator: laboratoryConfirmedIndicator ?? undefined,
-      }
-    })
-    if (phaPatientGroups.length === 0) phaPatientGroups = undefined
-  }
+  const incidentParsed = incidentDetails ? parsePublicHealthIncidentDetailsElement(incidentDetails) : {}
+  const phaDisease = incidentParsed.phaDisease
+  const detectionPlace = incidentParsed.detectionPlace
+  const spreadingZones = incidentParsed.spreadingZones
+  const spreadingZone = incidentParsed.spreadingZone
+  const phaPatientGroups = incidentParsed.phaPatientGroups
 
   const base = createNewCardData(country, { registrationNumber: registrationNumber || undefined }, { forPha: true })
 

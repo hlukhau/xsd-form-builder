@@ -531,7 +531,7 @@ export function getAllTextContents(parent: Element | null, tagName: string): str
 /**
  * Парсит данные о продукции из XML
  */
-function parseProductData(alertDetails: Element, rootElement?: Element): ProductData | undefined {
+export function parseProductData(alertDetails: Element, rootElement?: Element): ProductData | undefined {
   // Ищем NonCompliantSanitaryProductDetails
   let productDetailsElement: Element | null = null
   
@@ -1169,7 +1169,7 @@ function parseContacts(parent: Element): ContactDetails[] {
 /**
  * Парсит данные о партиях продукции (ТСД)
  */
-function parseTSDData(alertDetails: Element, rootElement?: Element): TSDData | undefined {
+export function parseTSDData(alertDetails: Element, rootElement?: Element): TSDData | undefined {
   console.log('Начинаем парсинг ТСД данных')
   
   // Ищем NonCompliantSanitaryProductDetails
@@ -2682,7 +2682,9 @@ function parseSanitaryMeasure(measureElement: Element): SanitaryMeasure | null {
   const endDate = getDirectChildTextByLocalName(measureElement, 'EndDate') || undefined
   const measureAffectedObjectKindCodes = getAllTextContents(measureElement, 'MeasureAffectedObjectKindCode')
   const measureAffectedObjectKindCode = measureAffectedObjectKindCodes.length > 0 ? measureAffectedObjectKindCodes.join(';') : undefined
-  
+  const measureReasonCode = getTextContent(measureElement, 'MeasureReasonCode') || undefined
+  const measureRepealConditionText = getTextContent(measureElement, 'MeasureRepealConditionText') || undefined
+
   // MeasureCode с атрибутом codeListId
   let measureCode: string | undefined = undefined
   let measureCodeListId: string | undefined = undefined
@@ -2746,11 +2748,18 @@ function parseSanitaryMeasure(measureElement: Element): SanitaryMeasure | null {
     endDate,
     measureJustificationText,
     description,
+    measureReasonCode,
+    measureRepealConditionText,
     measureDocDetails,
     initialMeasureDocDetails,
     measureInitiationBasisDetails: measureInitiationBasisDetails.length > 0 ? measureInitiationBasisDetails : undefined,
     measureImplementationDetails: measureImplementationDetails.length > 0 ? measureImplementationDetails : undefined,
   }
+}
+
+/** Парсит smcdo:SanitaryMeasureDetails / smcdo:SanitaryMeasureBaseDetails в объект меры. */
+export function parseSanitaryMeasureElement(measureElement: Element): SanitaryMeasure | null {
+  return parseSanitaryMeasure(measureElement)
 }
 
 /**

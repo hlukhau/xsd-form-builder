@@ -651,7 +651,7 @@ const SmdCard: React.FC<SmdCardProps> = ({
       key: 'implementation',
       label: 'Мероприятия',
       children: (
-        <div style={{ padding: 16 }}>
+        <div className="smd-tab-pane-body">
           <SmdMeasuresTab data={currentData} {...tabProps} />
         </div>
       ),
@@ -660,8 +660,8 @@ const SmdCard: React.FC<SmdCardProps> = ({
       key: 'products',
       label: 'Продукция',
       children: (
-        <div style={{ padding: 16 }}>
-          <SmdProductsTab data={currentData} />
+        <div className="smd-tab-pane-body">
+          <SmdProductsTab data={currentData} {...tabProps} guid={guid} />
         </div>
       ),
     },

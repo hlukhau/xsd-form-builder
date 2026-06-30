@@ -13,21 +13,25 @@ interface ProductTabProps {
 const ProductTab: React.FC<ProductTabProps> = ({ data }) => {
   const { getNameByCode: getShipDocKindNameByCode } = useShipDocKindOptions()
   const { getNameByCode: getSanitaryProdTypeNameByCode } = useSanitaryProdTypeOptions()
-  const productTypeNameDisplay = data.typeCode?.trim()
-    ? (getSanitaryProdTypeNameByCode(data.typeCode) || data.typeName || '-')
-    : (data.typeName || '-')
-  const tradeNamesDisplay = (data.productDetails.tradeNames?.length
-    ? data.productDetails.tradeNames
-    : data.productDetails.tradeName
-      ? [data.productDetails.tradeName]
-      : []
-  )
-    .filter(Boolean)
-    .join(' ')
 
   if (!data) {
     return <div>Данные о продукции не найдены</div>
   }
+
+  const productDetails = data.productDetails ?? { productName: '' }
+  const manufacturer = data.manufacturer ?? { country: '' }
+
+  const productTypeNameDisplay = data.typeCode?.trim()
+    ? (getSanitaryProdTypeNameByCode(data.typeCode) || data.typeName || '-')
+    : (data.typeName || '-')
+  const tradeNamesDisplay = (productDetails.tradeNames?.length
+    ? productDetails.tradeNames
+    : productDetails.tradeName
+      ? [productDetails.tradeName]
+      : []
+  )
+    .filter(Boolean)
+    .join(' ')
 
   const formatDate = (date: string | null | undefined) => {
     if (!date) return ''
@@ -57,39 +61,39 @@ const ProductTab: React.FC<ProductTabProps> = ({ data }) => {
           {productTypeNameDisplay}
         </Descriptions.Item>
         <Descriptions.Item label="Идентификатор">
-          {data.productDetails.productId || '-'}
+          {productDetails.productId || '-'}
         </Descriptions.Item>
         <Descriptions.Item label="Наименование">
-          {data.productDetails.productName || '-'}
+          {productDetails.productName || '-'}
         </Descriptions.Item>
         <Descriptions.Item label="Название продукции">
           {tradeNamesDisplay || '-'}
         </Descriptions.Item>
         <Descriptions.Item label="Описание">
-          {data.productDetails.description || '-'}
+          {productDetails.description || '-'}
         </Descriptions.Item>
         <Descriptions.Item label="Код ТН ВЭД ЕАЭС">
-          {data.productDetails.commodityCode || '-'}
+          {productDetails.commodityCode || '-'}
         </Descriptions.Item>
         <Descriptions.Item label="Назначение продукции">
-          {data.productDetails.productPurpose || '-'}
+          {productDetails.productPurpose || '-'}
         </Descriptions.Item>
         <Descriptions.Item label="Способ применения">
-          {data.productDetails.applicationMethod || '-'}
+          {productDetails.applicationMethod || '-'}
         </Descriptions.Item>
         <Descriptions.Item label="Форма выпуска">
-          {data.productDetails.releaseForm || '-'}
+          {productDetails.releaseForm || '-'}
         </Descriptions.Item>
         <Descriptions.Item label="Условия хранения">
-          {data.productDetails.storageCondition || '-'}
+          {productDetails.storageCondition || '-'}
         </Descriptions.Item>
         <Descriptions.Item label="Информация на этикетке">
-          {data.productDetails.labelText || '-'}
+          {productDetails.labelText || '-'}
         </Descriptions.Item>
         <Descriptions.Item label="Техническая документация">
-          {data.productDetails.technicalDocs && data.productDetails.technicalDocs.length > 0 ? (
+          {productDetails.technicalDocs && productDetails.technicalDocs.length > 0 ? (
             <div>
-              {data.productDetails.technicalDocs.map((doc, index) => (
+              {productDetails.technicalDocs.map((doc, index) => (
                 <div key={index} style={{ marginBottom: '8px' }}>
                   {formatTechnicalDoc(doc)}
                 </div>
@@ -101,7 +105,7 @@ const ProductTab: React.FC<ProductTabProps> = ({ data }) => {
         </Descriptions.Item>
       </Descriptions>
 
-      <ManufacturerDetails data={data.manufacturer} title="Изготовитель продукции" />
+      <ManufacturerDetails data={manufacturer} title="Изготовитель продукции" />
     </div>
   )
 }

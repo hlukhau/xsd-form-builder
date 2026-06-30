@@ -168,79 +168,12 @@ export function exportCardDataToXML(data: CardData): string {
   }
   
   // Product и/или партии с нарушениями (по XSD блок один: продукция + партии)
-  const hasProduct = !!data.product
-  const hasBatches = !!(data.tsd && data.tsd.batches.length > 0)
-  if (hasProduct || hasBatches) {
-    xmlParts.push('        <smcdo:NonCompliantSanitaryProductDetails>')
-    if (hasProduct) {
-      if (data.product!.typeCode?.trim()) {
-        xmlParts.push(`            <smsdo:SanitaryProductTypeCode codeListId="1025">${escapeXML(data.product!.typeCode.trim())}</smsdo:SanitaryProductTypeCode>`)
-      } else if (data.product!.typeName?.trim()) {
-        xmlParts.push(`            <smsdo:SanitaryProductTypeName>${escapeXML(data.product!.typeName.trim())}</smsdo:SanitaryProductTypeName>`)
-      }
-      xmlParts.push('            <smcdo:ProductDetails>')
-      exportProductDetails(xmlParts, data.product!.productDetails ?? {}, '                ')
-      xmlParts.push('            </smcdo:ProductDetails>')
-      if (data.product!.manufacturer) {
-        exportSupplyChainParty(xmlParts, data.product!.manufacturer, '41', '            ')
-      }
-    } else {
-      // Партии без данных о продукции: по XSD нужен минимум ProductDetails (пустой допустим)
-      xmlParts.push('            <smcdo:ProductDetails>')
-      exportProductDetails(xmlParts, {}, '                ')
-      xmlParts.push('            </smcdo:ProductDetails>')
-    }
-
-    if (hasBatches) {
-      data.tsd!.batches.forEach((batch) => {
-        if (!hasBatchContent(batch)) return
-        xmlParts.push('            <smcdo:NonCompliantSanitaryProductBatchDetails>')
-        if (hasBatchDetailsContent(batch)) {
-          xmlParts.push('                <smcdo:BatchDetails>')
-          if (batch.batchId) {
-            xmlParts.push(`                    <smsdo:BatchId>${escapeXML(batch.batchId)}</smsdo:BatchId>`)
-          }
-          if (batch.manufactureDate) {
-            xmlParts.push(`                    <csdo:ManufactureDate>${escapeXML(batch.manufactureDate)}</csdo:ManufactureDate>`)
-          }
-          if (batch.productShelfLifeEndDate) {
-            xmlParts.push(`                    <csdo:ProductShelfLifeEndDate>${escapeXML(batch.productShelfLifeEndDate)}</csdo:ProductShelfLifeEndDate>`)
-          }
-          if ((batch.commodityMeasure?.value ?? '').trim()) {
-            const unitAttrs = batch.commodityMeasure?.unitCode ? ` measurementUnitCode="${escapeXML(batch.commodityMeasure.unitCode)}" measurementUnitCodeListId="2064"` : ''
-            xmlParts.push(`                    <csdo:UnifiedCommodityMeasure${unitAttrs}>${escapeXML(batch.commodityMeasure!.value)}</csdo:UnifiedCommodityMeasure>`)
-          }
-          if (batch.note) {
-            xmlParts.push(`                    <csdo:NoteText>${escapeXML(batch.note)}</csdo:NoteText>`)
-          }
-          xmlParts.push('                </smcdo:BatchDetails>')
-        }
-        if (batch.consignmentId) {
-          xmlParts.push(`                <smsdo:ConsignmentId>${escapeXML(batch.consignmentId)}</smsdo:ConsignmentId>`)
-        }
-        if ((batch.batchCommodityMeasure?.value ?? '').trim()) {
-          const unitAttrs = batch.batchCommodityMeasure?.unitCode ? ` measurementUnitCode="${escapeXML(batch.batchCommodityMeasure.unitCode)}"` : ''
-          xmlParts.push(`                <csdo:CommodityMeasure${unitAttrs}>${escapeXML(batch.batchCommodityMeasure!.value)}</csdo:CommodityMeasure>`)
-        }
-        const docsWithContent = batch.shippingDocuments?.filter(hasShippingDocumentContent) ?? []
-        if (docsWithContent.length > 0) {
-          docsWithContent.forEach(doc => {
-            exportShippingDocument(xmlParts, doc, '                ')
-          })
-        }
-        const complianceWithContent = batch.complianceDocuments?.filter(hasComplianceDocumentContent) ?? []
-        if (complianceWithContent.length > 0) {
-          exportComplianceDocuments(xmlParts, { documents: complianceWithContent }, '                ')
-        }
-        const violationsList = Array.isArray(batch.violations) ? batch.violations : (batch.violations ? [batch.violations] : [])
-        violationsList.filter(hasViolationsContent).forEach((v) => {
-          exportViolations(xmlParts, v, '                ')
-        })
-        xmlParts.push('            </smcdo:NonCompliantSanitaryProductBatchDetails>')
-      })
-    }
-    xmlParts.push('        </smcdo:NonCompliantSanitaryProductDetails>')
-  }
+  exportNonCompliantSanitaryProductDetailsBlock(
+    xmlParts,
+    data.product,
+    data.tsd?.batches ?? [],
+    '        '
+  )
   
   // DetectionPlace (на уровне DangerousProductAlertDetails)
   if (data.detectionPlace) {
@@ -527,6 +460,118 @@ function hasBatchContent(batch: ProductBatchDetails): boolean {
   const violationsList = Array.isArray(batch.violations) ? batch.violations : (batch.violations ? [batch.violations] : [])
   if (violationsList.some(hasViolationsContent)) return true
   return false
+}
+
+function hasProductDataContent(product: ProductData | undefined): boolean {
+  if (!product) return false
+  return !!(
+    product.typeCode?.trim() ||
+    product.typeName?.trim() ||
+    hasProductDetailsContent(product.productDetails) ||
+    hasSupplyChainPartyContent(product.manufacturer)
+  )
+}
+
+/** smcdo:NonCompliantSanitaryProductDetails — продукция и партии (DPA, SMD). */
+export function exportNonCompliantSanitaryProductDetailsBlock(
+  xmlParts: string[],
+  product: ProductData | undefined,
+  batches: ProductBatchDetails[],
+  indent: string
+): void {
+  const hasProduct = hasProductDataContent(product)
+  const batchesWithContent = (batches ?? []).filter(hasBatchContent)
+  const hasBatches = batchesWithContent.length > 0
+  if (!hasProduct && !hasBatches) return
+
+  xmlParts.push(`${indent}<smcdo:NonCompliantSanitaryProductDetails>`)
+  const inner = `${indent}    `
+  if (hasProduct) {
+    if (product!.typeCode?.trim()) {
+      xmlParts.push(
+        `${inner}<smsdo:SanitaryProductTypeCode codeListId="1025">${escapeXML(product!.typeCode.trim())}</smsdo:SanitaryProductTypeCode>`
+      )
+    } else if (product!.typeName?.trim()) {
+      xmlParts.push(
+        `${inner}<smsdo:SanitaryProductTypeName>${escapeXML(product!.typeName.trim())}</smsdo:SanitaryProductTypeName>`
+      )
+    }
+    xmlParts.push(`${inner}<smcdo:ProductDetails>`)
+    exportProductDetails(xmlParts, product!.productDetails ?? {}, `${inner}    `)
+    xmlParts.push(`${inner}</smcdo:ProductDetails>`)
+    if (product!.manufacturer) {
+      exportSupplyChainParty(xmlParts, product!.manufacturer, '41', inner)
+    }
+  } else {
+    xmlParts.push(`${inner}<smcdo:ProductDetails>`)
+    exportProductDetails(xmlParts, {}, `${inner}    `)
+    xmlParts.push(`${inner}</smcdo:ProductDetails>`)
+  }
+
+  if (hasBatches) {
+    for (const batch of batchesWithContent) {
+      xmlParts.push(`${inner}<smcdo:NonCompliantSanitaryProductBatchDetails>`)
+      const batchInner = `${inner}    `
+      if (hasBatchDetailsContent(batch)) {
+        xmlParts.push(`${batchInner}<smcdo:BatchDetails>`)
+        const detailsInner = `${batchInner}    `
+        if (batch.batchId) {
+          xmlParts.push(`${detailsInner}<smsdo:BatchId>${escapeXML(batch.batchId)}</smsdo:BatchId>`)
+        }
+        if (batch.manufactureDate) {
+          xmlParts.push(
+            `${detailsInner}<csdo:ManufactureDate>${escapeXML(batch.manufactureDate)}</csdo:ManufactureDate>`
+          )
+        }
+        if (batch.productShelfLifeEndDate) {
+          xmlParts.push(
+            `${detailsInner}<csdo:ProductShelfLifeEndDate>${escapeXML(batch.productShelfLifeEndDate)}</csdo:ProductShelfLifeEndDate>`
+          )
+        }
+        if ((batch.commodityMeasure?.value ?? '').trim()) {
+          const unitAttrs = batch.commodityMeasure?.unitCode
+            ? ` measurementUnitCode="${escapeXML(batch.commodityMeasure.unitCode)}" measurementUnitCodeListId="2064"`
+            : ''
+          xmlParts.push(
+            `${detailsInner}<csdo:UnifiedCommodityMeasure${unitAttrs}>${escapeXML(batch.commodityMeasure!.value)}</csdo:UnifiedCommodityMeasure>`
+          )
+        }
+        if (batch.note) {
+          xmlParts.push(`${detailsInner}<csdo:NoteText>${escapeXML(batch.note)}</csdo:NoteText>`)
+        }
+        xmlParts.push(`${batchInner}</smcdo:BatchDetails>`)
+      }
+      if (batch.consignmentId) {
+        xmlParts.push(`${batchInner}<smsdo:ConsignmentId>${escapeXML(batch.consignmentId)}</smsdo:ConsignmentId>`)
+      }
+      if ((batch.batchCommodityMeasure?.value ?? '').trim()) {
+        const unitAttrs = batch.batchCommodityMeasure?.unitCode
+          ? ` measurementUnitCode="${escapeXML(batch.batchCommodityMeasure.unitCode)}"`
+          : ''
+        xmlParts.push(
+          `${batchInner}<csdo:CommodityMeasure${unitAttrs}>${escapeXML(batch.batchCommodityMeasure!.value)}</csdo:CommodityMeasure>`
+        )
+      }
+      const docsWithContent = batch.shippingDocuments?.filter(hasShippingDocumentContent) ?? []
+      for (const doc of docsWithContent) {
+        exportShippingDocument(xmlParts, doc, batchInner)
+      }
+      const complianceWithContent = batch.complianceDocuments?.filter(hasComplianceDocumentContent) ?? []
+      if (complianceWithContent.length > 0) {
+        exportComplianceDocuments(xmlParts, { documents: complianceWithContent }, batchInner)
+      }
+      const violationsList = Array.isArray(batch.violations)
+        ? batch.violations
+        : batch.violations
+          ? [batch.violations]
+          : []
+      for (const v of violationsList.filter(hasViolationsContent)) {
+        exportViolations(xmlParts, v, batchInner)
+      }
+      xmlParts.push(`${inner}</smcdo:NonCompliantSanitaryProductBatchDetails>`)
+    }
+  }
+  xmlParts.push(`${indent}</smcdo:NonCompliantSanitaryProductDetails>`)
 }
 
 /**
