@@ -10,6 +10,7 @@ import {
 import { useLanguageOptions } from '@/hooks/shared/useLanguageOptions'
 import { useSanitaryMeasureOptions } from '@/hooks/shared/useSanitaryMeasureOptions'
 import { useSanitaryMeasureObjKindOptions } from '@/hooks/shared/useSanitaryMeasureObjKindOptions'
+import { useSanitaryMeasureReasonOptions } from '@/hooks/shared/useSanitaryMeasureReasonOptions'
 import { getSmdPrimaryMeasure } from '../smdSanitaryMeasureModel'
 import { getSmdRegulatoryMeasureDoc } from '../smdMeasureDoc'
 import SmdSanitaryMeasureTabEdit from './SmdSanitaryMeasureTabEdit'
@@ -42,6 +43,7 @@ const SmdSanitaryMeasureTab: React.FC<SmdSanitaryMeasureTabProps> = ({
   const { getLangCatalogSelectOptions, getLanguageName } = useLanguageOptions()
   const { getNameByCode: getSanitaryMeasureNameByCode } = useSanitaryMeasureOptions()
   const { getNameByCode: getObjKindNameByCode } = useSanitaryMeasureObjKindOptions()
+  const { getNameByCode: getReasonNameByCode } = useSanitaryMeasureReasonOptions()
 
   if (editMode && onChange) {
     return (
@@ -96,7 +98,12 @@ const SmdSanitaryMeasureTab: React.FC<SmdSanitaryMeasureTabProps> = ({
         <Descriptions.Item label="Описание">{measure.description?.trim() || '—'}</Descriptions.Item>
         <Descriptions.Item label="Вид объекта действия меры">{objectKindLabel}</Descriptions.Item>
         <Descriptions.Item label="Код причины (основания) введения временной меры">
-          {measure.measureReasonCode?.trim() || '—'}
+          {(() => {
+            const code = measure.measureReasonCode?.trim()
+            if (!code) return '—'
+            const name = getReasonNameByCode(code)
+            return name ? `${code} — ${name}` : code
+          })()}
         </Descriptions.Item>
         <Descriptions.Item label="Условие снятия меры">
           {measure.measureRepealConditionText?.trim() || '—'}

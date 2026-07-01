@@ -7,7 +7,6 @@ import MeasuresTab from '@/components/tabs/dpa/MeasuresTab'
 import MeasuresTabEdit from '@/components/tabs/dpa/MeasuresTabEdit'
 import StatusHistoryModal from '@/components/modals/dpa/StatusHistoryModal'
 import ElectronicDocumentModal from '@/components/modals/dpa/ElectronicDocumentModal'
-import AccessModal from '@/components/modals/dpa/AccessModal'
 import SaveBlockingErrorsModal from '@/components/modals/SaveBlockingErrorsModal'
 import { CardActions } from '@/cards/shared'
 import type { DprMetadataView, DprParsedBundle, DprResultDocRow } from '@/types/dprCard'
@@ -149,7 +148,6 @@ export function DprCard({ dprid, guid, meta, parsed, onDataRefresh }: DprCardPro
   const [userDepKindCode, setUserDepKindCode] = useState<string | null>(null)
   const [userDepKindName, setUserDepKindName] = useState<string | null>(null)
   const [userRightsDepKindId, setUserRightsDepKindId] = useState<number | null>(null)
-  const [accessModalVisible, setAccessModalVisible] = useState(false)
   const [rightsDebugVisible, setRightsDebugVisible] = useState(false)
   const [rightsDebugData, setRightsDebugData] = useState<RightsJson | null>(null)
   const [rightsDebugLoading, setRightsDebugLoading] = useState(false)
@@ -167,8 +165,6 @@ export function DprCard({ dprid, guid, meta, parsed, onDataRefresh }: DprCardPro
     meta.linkedPpvid > 0 && guid?.trim()
       ? `${ppvBase}/${meta.linkedPpvid}/${encodeURIComponent(guid.trim())}`
       : null
-
-  const accessPpvid = meta.linkedPpvid > 0 ? String(meta.linkedPpvid) : ''
 
   const outgoing = String(meta.datasourceKindCode ?? '').trim() === '2'
   const canEditCard = meta.canEdit === true
@@ -877,13 +873,6 @@ export function DprCard({ dprid, guid, meta, parsed, onDataRefresh }: DprCardPro
           />
         ) : (
           <CardActions
-            onDefineAccess={
-              accessPpvid && guid?.trim()
-                ? () => {
-                    setAccessModalVisible(true)
-                  }
-                : undefined
-            }
             showDeleteButton={canDeleteDraft}
             deleteButtonDisabled={!ppvHref}
             deleteButtonHint={!ppvHref ? 'Нет связанной карты PPV — удаление недоступно' : undefined}
@@ -1001,20 +990,6 @@ export function DprCard({ dprid, guid, meta, parsed, onDataRefresh }: DprCardPro
         visible={edocOpen}
         data={parsed.electronicDocument}
         onClose={() => setEdocOpen(false)}
-      />
-      <AccessModal
-        visible={accessModalVisible}
-        data={[]}
-        onClose={() => setAccessModalVisible(false)}
-        onUpdate={() => {
-          void onDataRefresh?.()
-        }}
-        ppvid={accessPpvid || undefined}
-        source={meta.datasourceKindName ?? undefined}
-        datasourceKindCode={
-          meta.datasourceKindCode != null ? String(meta.datasourceKindCode) : undefined
-        }
-        guid={guid}
       />
       <Modal
         title="Карта прав доступа (отладка)"

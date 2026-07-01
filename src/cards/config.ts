@@ -5,6 +5,7 @@
  * - /pha_card/ → PHA (карта сведений об обнаружении болезней)
  * - /dpr_card/ → DPR (карта сведений о результатах рассмотрения)
  * - /smd_card/ → SMD (карта сведений о временной санитарной мере)
+ * - /smr_card/ → SMR (карта сведений о результатах рассмотрения меры)
  */
 const BASE = (typeof import.meta !== 'undefined' && import.meta.env?.BASE_URL)
   ? import.meta.env.BASE_URL
@@ -28,18 +29,23 @@ export function isSmdApp(): boolean {
   return CARD_APP_BASE.includes('smd_card')
 }
 
-/** Только приложение DPA (не PHA, не PPV, не DPR и не SMD). */
-export function isDpaApp(): boolean {
-  return !isPhaApp() && !isPpvApp() && !isDprApp() && !isSmdApp()
+export function isSmrApp(): boolean {
+  return CARD_APP_BASE.includes('smr_card')
 }
 
-export type CardAppType = 'dpa' | 'pha' | 'ppv' | 'dpr' | 'smd'
+/** Только приложение DPA (не PHA, не PPV, не DPR, не SMD и не SMR). */
+export function isDpaApp(): boolean {
+  return !isPhaApp() && !isPpvApp() && !isDprApp() && !isSmdApp() && !isSmrApp()
+}
+
+export type CardAppType = 'dpa' | 'pha' | 'ppv' | 'dpr' | 'smd' | 'smr'
 
 export function getCardAppType(): CardAppType {
   if (isPhaApp()) return 'pha'
   if (isPpvApp()) return 'ppv'
   if (isDprApp()) return 'dpr'
   if (isSmdApp()) return 'smd'
+  if (isSmrApp()) return 'smr'
   return 'dpa'
 }
 

@@ -156,7 +156,7 @@ public class DprMetadataServlet extends HttpServlet {
 
                 boolean canValidateOutgoingCard = false;
                 try {
-                    DprCreateSupport.GateResult vg = DprCreateSupport.evaluateOutgoingDprValidateCardGate(conn, dprId, guid);
+                    DprCreateSupport.GateResult vg = DprCreateSupport.evaluateOutgoingSmrValidateCardGate(conn, dprId, guid);
                     canValidateOutgoingCard = vg.allowed;
                 } catch (SQLException ignored) {
                     canValidateOutgoingCard = false;
@@ -164,7 +164,7 @@ public class DprMetadataServlet extends HttpServlet {
 
                 boolean canChangeOutgoingStatus = false;
                 try {
-                    DprCreateSupport.GateResult sg = DprCreateSupport.evaluateOutgoingDprStatusGate(conn, dprId, guid);
+                    DprCreateSupport.GateResult sg = DprCreateSupport.evaluateOutgoingSmrStatusGate(conn, dprId, guid);
                     canChangeOutgoingStatus = sg.allowed;
                 } catch (SQLException ignored) {
                     canChangeOutgoingStatus = false;
@@ -172,7 +172,7 @@ public class DprMetadataServlet extends HttpServlet {
 
                 boolean canSendOutgoing = false;
                 try {
-                    DprCreateSupport.GateResult sendG = DprCreateSupport.evaluateOutgoingDprSendGate(conn, dprId, guid);
+                    DprCreateSupport.GateResult sendG = DprCreateSupport.evaluateOutgoingSmrSendGate(conn, dprId, guid);
                     canSendOutgoing = sendG.allowed;
                 } catch (SQLException ignored) {
                     canSendOutgoing = false;
@@ -180,7 +180,7 @@ public class DprMetadataServlet extends HttpServlet {
 
                 boolean canCompleteIncomingProcessing = false;
                 try {
-                    DprCreateSupport.GateResult cg = DprCreateSupport.evaluateIncomingDprCompleteProcessingGate(conn, dprId, guid);
+                    DprCreateSupport.GateResult cg = DprCreateSupport.evaluateIncomingSmrCompleteProcessingGate(conn, dprId, guid);
                     canCompleteIncomingProcessing = cg.allowed;
                 } catch (SQLException ignored) {
                     canCompleteIncomingProcessing = false;

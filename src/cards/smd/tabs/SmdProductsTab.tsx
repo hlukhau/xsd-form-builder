@@ -38,7 +38,7 @@ function BatchDetailTabs({ batch }: { batch: SmdProductBatchItem }) {
         {
           key: 'compliance',
           label: 'Документы соответствия',
-          children: <ComplianceDocumentsTab tsd={tsd} />,
+          children: <ComplianceDocumentsTab tsd={tsd} showLabProtocolsLink={false} />,
         },
         { key: 'violations', label: 'Нарушения', children: <ViolationsTab tsd={tsd} /> },
       ]}

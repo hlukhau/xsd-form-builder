@@ -27,7 +27,7 @@ import java.util.regex.Pattern;
  * POST /api/dpr/status — тело: {@code dprid}, {@code action}, {@code guid}.
  * Входящая (DSC=1): {@code complete_processing} — PROCESSING→PROCESSED, violationDetectedOut:status ∩ PPVDEPPERMIS.
  * Исходящая (DSC=2): mark_ready, to_new (violationDetectedIn:status ∩ PPVDEPPERMIS);
- * send — отдельный gate {@link DprCreateSupport#evaluateOutgoingDprSendGate} (NEW+областная резолюция / FAILED / ERROR).
+ * send — отдельный gate {@link DprCreateSupport#evaluateOutgoingSmrSendGate} (NEW+областная резолюция / FAILED / ERROR).
  * mark_ready: черновик→новое+резолюция (dep0601/dep0602/dep0603 по depkindid 72/73/74); новое+районная→резолюция dep0602 без смены статуса.
  */
 public class DprStatusChangeServlet extends HttpServlet {
@@ -92,21 +92,21 @@ public class DprStatusChangeServlet extends HttpServlet {
         try {
             conn = DatabaseUtil.getConnectionForRequest(request, guid);
             if ("complete_processing".equals(action)) {
-                DprCreateSupport.GateResult inGate = DprCreateSupport.evaluateIncomingDprCompleteProcessingGate(conn, dprId, guid);
+                DprCreateSupport.GateResult inGate = DprCreateSupport.evaluateIncomingSmrCompleteProcessingGate(conn, dprId, guid);
                 if (!inGate.allowed) {
                     sendJsonError(response, HttpServletResponse.SC_FORBIDDEN,
                             inGate.reason != null ? inGate.reason : "Завершение обработки недоступно");
                     return;
                 }
             } else if ("send".equals(action)) {
-                DprCreateSupport.GateResult sendGate = DprCreateSupport.evaluateOutgoingDprSendGate(conn, dprId, guid);
+                DprCreateSupport.GateResult sendGate = DprCreateSupport.evaluateOutgoingSmrSendGate(conn, dprId, guid);
                 if (!sendGate.allowed) {
                     sendJsonError(response, HttpServletResponse.SC_FORBIDDEN,
                             sendGate.reason != null ? sendGate.reason : "Направление сведений недоступно");
                     return;
                 }
             } else {
-                DprCreateSupport.GateResult gate = DprCreateSupport.evaluateOutgoingDprStatusGate(conn, dprId, guid);
+                DprCreateSupport.GateResult gate = DprCreateSupport.evaluateOutgoingSmrStatusGate(conn, dprId, guid);
                 if (!gate.allowed) {
                     sendJsonError(response, HttpServletResponse.SC_FORBIDDEN,
                             gate.reason != null ? gate.reason : "Смена статуса недоступна");
@@ -334,8 +334,8 @@ public class DprStatusChangeServlet extends HttpServlet {
         if ("NEW".equals(currentStatusCode)) {
             if (!DprCreateSupport.hasRegionalResolutionForOutgoingSend(conn, dprId)) {
                 fail(conn, response, HttpServletResponse.SC_BAD_REQUEST,
-                        "Направление при статусе «Новое» возможно только при наличии резолюции областного уровня "
-                                + "(в DPRRESOLUTION запись по DEPKINDCODE dep0602 или DEPKINDID 73).");
+                        "Направление при статусе «Новое» возможно только при наличии резолюции областного "
+                                + "(dep0602 / DEPKINDID 73) или республиканского (dep0603 / DEPKINDID 74) уровня.");
                 return;
             }
         } else if ("FAILED".equals(currentStatusCode) || "ERROR".equals(currentStatusCode)) {

@@ -30,7 +30,7 @@ function hintNoStatusRight(): string {
 }
 
 function hintNoSendRight(): string {
-  return 'Направление сведений недоступно: нет права violationDetectedIn:status с пересечением PPVDEPPERMIS, неверный статус карты или отсутствует резолюция областного уровня (dep0602 / DEPKINDID 73).'
+  return 'Направление сведений недоступно: нет права violationDetectedIn:status с пересечением PPVDEPPERMIS, неверный статус карты или отсутствует резолюция областного (dep0602 / DEPKINDID 73) или республиканского (dep0603 / DEPKINDID 74) уровня.'
 }
 
 function hintRightsDepKindId(): string {
@@ -55,11 +55,15 @@ function hasDistrictResolution(resolutions: DprResolutionRow[]): boolean {
   return resolutions.some((r) => norm(r.depKindCode) === 'dep0601')
 }
 
-/** Резолюция областного уровня (TB_DEPKIND dep0602 или DEPKINDID 73) — для направления из «Новое». */
+/** Резолюция областного или республиканского уровня — для направления из «Новое». */
 function hasRegionalResolutionForSend(resolutions: DprResolutionRow[]): boolean {
   if (!Array.isArray(resolutions) || resolutions.length === 0) return false
   return resolutions.some(
-    (r) => norm(r.depKindCode) === 'dep0602' || r.depKindId === RIGHTS_DEPKIND_REGIONAL
+    (r) =>
+      norm(r.depKindCode) === 'dep0602' ||
+      norm(r.depKindCode) === 'dep0603' ||
+      r.depKindId === RIGHTS_DEPKIND_REGIONAL ||
+      r.depKindId === RIGHTS_DEPKIND_REPUBLIC
   )
 }
 
@@ -101,10 +105,10 @@ const hintSendOp57 =
   'Направление сведений участникам ОП 57: после подтверждения выполняется валидация карты, затем статус «Ожидает отправки».'
 
 const hintNewToPending =
-  'Новое при резолюции областного уровня → Ожидает отправки (направление в ОП 57 после валидации).'
+  'Новое при резолюции областного или республиканского уровня → Ожидает отправки (направление в ОП 57 после валидации).'
 
-const NEED_REGIONAL_DEP0602_HINT =
-  'Ожидается резолюция областного уровня (в DPRRESOLUTION — запись по уровню dep0602).'
+const NEED_REGIONAL_OR_REPUBLICAN_HINT =
+  'Ожидается резолюция областного (dep0602) или республиканского (dep0603) уровня в DPRRESOLUTION.'
 
 const sendOp57Button: StatusButtonConfig = {
   label: 'Направление сведений',
@@ -169,12 +173,12 @@ export function outgoingDprStatusButton(
         return { config: null, comment: noSend }
       }
       if (hasResolutionOfUserLevel && !hasRegionalDep0602) {
-        return { config: null, comment: NEED_REGIONAL_DEP0602_HINT }
+        return { config: null, comment: NEED_REGIONAL_OR_REPUBLICAN_HINT }
       }
       const hintNew =
         userDepKindCode && norm(userDepKindCode) === 'dep0601'
-          ? NEED_REGIONAL_DEP0602_HINT
-          : 'Наложите резолюцию своего уровня либо дождитесь резолюции областного уровня (dep0602).'
+          ? NEED_REGIONAL_OR_REPUBLICAN_HINT
+          : 'Наложите резолюцию своего уровня либо дождитесь резолюции областного (dep0602) или республиканского (dep0603) уровня.'
       if (rightsDepKindId === RIGHTS_DEPKIND_DISTRICT || rightsDepKindId === RIGHTS_DEPKIND_REPUBLIC) {
         return { config: null, comment: hintNew }
       }

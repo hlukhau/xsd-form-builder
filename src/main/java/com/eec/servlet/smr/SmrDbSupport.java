@@ -1,0 +1,89 @@
+package com.eec.servlet.smr;
+
+/**
+ * SQL для карты SMR (результат рассмотрения временной санитарной меры).
+ */
+final class SmrDbSupport {
+
+    private SmrDbSupport() {
+    }
+
+    static final String SQL_METADATA_VW = ""
+            + "SELECT vw.SMDID, vw.DOCID, s.DOCCOUNTRYCODE, s.DOCCREATIONDATE, vw.RESPONSECOUNTRYNAME, "
+            + "       TRIM(TO_CHAR(vw.DATASOURCEKINDCODE)) AS DATASOURCEKINDCODE, t1.DATASOURCEKINDNAME, "
+            + "       vw.SMRSTATUSNAME, vw.CREATIONDATETIME, vw.MODIFICATIONDATETIME, "
+            + "       smr.SMRSTATUSID, smr.SMRVERSION, smr.SMDID AS SMR_SMDID, "
+            + "       TRIM(UPPER(NVL(st.SMRSTATUSCODE, ''))) AS SMRSTATUSCODE "
+            + "FROM VW_SMR vw "
+            + "LEFT JOIN DATASOURCEKIND t1 ON TRIM(TO_CHAR(vw.DATASOURCEKINDCODE)) = TRIM(TO_CHAR(t1.DATASOURCEKINDCODE)) "
+            + "LEFT JOIN SMR smr ON smr.SMRID = vw.SMRID "
+            + "LEFT JOIN SMD s ON s.SMDID = COALESCE(smr.SMDID, vw.SMDID) "
+            + "LEFT JOIN SMRSTATUS st ON st.SMRSTATUSID = smr.SMRSTATUSID "
+            + "WHERE vw.SMRID = ?";
+
+    static final String SQL_METADATA_VW_SESINT = ""
+            + "SELECT vw.SMDID, vw.DOCID, s.DOCCOUNTRYCODE, s.DOCCREATIONDATE, vw.RESPONSECOUNTRYNAME, "
+            + "       TRIM(TO_CHAR(vw.DATASOURCEKINDCODE)) AS DATASOURCEKINDCODE, t1.DATASOURCEKINDNAME, "
+            + "       vw.SMRSTATUSNAME, vw.CREATIONDATETIME, vw.MODIFICATIONDATETIME, "
+            + "       smr.SMRSTATUSID, smr.SMRVERSION, smr.SMDID AS SMR_SMDID, "
+            + "       TRIM(UPPER(NVL(st.SMRSTATUSCODE, ''))) AS SMRSTATUSCODE "
+            + "FROM SESINT.VW_SMR vw "
+            + "LEFT JOIN SESINT.DATASOURCEKIND t1 ON TRIM(TO_CHAR(vw.DATASOURCEKINDCODE)) = TRIM(TO_CHAR(t1.DATASOURCEKINDCODE)) "
+            + "LEFT JOIN SESINT.SMR smr ON smr.SMRID = vw.SMRID "
+            + "LEFT JOIN SESINT.SMD s ON s.SMDID = COALESCE(smr.SMDID, vw.SMDID) "
+            + "LEFT JOIN SESINT.SMRSTATUS st ON st.SMRSTATUSID = smr.SMRSTATUSID "
+            + "WHERE vw.SMRID = ?";
+
+    static final String SQL_METADATA_FALLBACK = ""
+            + "SELECT smr.SMDID, s.DOCID, s.DOCCOUNTRYCODE, s.DOCCREATIONDATE, c.COUNTRYNAME AS RESPONSECOUNTRYNAME, "
+            + "       TRIM(TO_CHAR(smr.DATASOURCEKINDCODE)) AS DATASOURCEKINDCODE, t1.DATASOURCEKINDNAME, "
+            + "       st.SMRSTATUSNAME, smr.CREATIONDATETIME, smr.MODIFICATIONDATETIME, "
+            + "       smr.SMRSTATUSID, smr.SMRVERSION, smr.SMDID AS SMR_SMDID, "
+            + "       TRIM(UPPER(NVL(st.SMRSTATUSCODE, ''))) AS SMRSTATUSCODE "
+            + "FROM SMR smr "
+            + "JOIN SMD s ON s.SMDID = smr.SMDID "
+            + "JOIN COUNTRY c ON c.COUNTRYID = smr.RESPONSECOUNTRYID "
+            + "LEFT JOIN DATASOURCEKIND t1 ON TRIM(TO_CHAR(smr.DATASOURCEKINDCODE)) = TRIM(TO_CHAR(t1.DATASOURCEKINDCODE)) "
+            + "LEFT JOIN SMRSTATUS st ON st.SMRSTATUSID = smr.SMRSTATUSID "
+            + "WHERE smr.SMRID = ?";
+
+    static final String SQL_METADATA_FALLBACK_SESINT = ""
+            + "SELECT smr.SMDID, s.DOCID, s.DOCCOUNTRYCODE, s.DOCCREATIONDATE, c.COUNTRYNAME AS RESPONSECOUNTRYNAME, "
+            + "       TRIM(TO_CHAR(smr.DATASOURCEKINDCODE)) AS DATASOURCEKINDCODE, t1.DATASOURCEKINDNAME, "
+            + "       st.SMRSTATUSNAME, smr.CREATIONDATETIME, smr.MODIFICATIONDATETIME, "
+            + "       smr.SMRSTATUSID, smr.SMRVERSION, smr.SMDID AS SMR_SMDID, "
+            + "       TRIM(UPPER(NVL(st.SMRSTATUSCODE, ''))) AS SMRSTATUSCODE "
+            + "FROM SESINT.SMR smr "
+            + "JOIN SESINT.SMD s ON s.SMDID = smr.SMDID "
+            + "JOIN SESINT.COUNTRY c ON c.COUNTRYID = smr.RESPONSECOUNTRYID "
+            + "LEFT JOIN SESINT.DATASOURCEKIND t1 ON TRIM(TO_CHAR(smr.DATASOURCEKINDCODE)) = TRIM(TO_CHAR(t1.DATASOURCEKINDCODE)) "
+            + "LEFT JOIN SESINT.SMRSTATUS st ON st.SMRSTATUSID = smr.SMRSTATUSID "
+            + "WHERE smr.SMRID = ?";
+
+    static final String SQL_SMDID_BY_SMR = "SELECT SMDID FROM SMR WHERE SMRID = ?";
+
+    static final String SQL_SMD_DATASOURCE = ""
+            + "SELECT TRIM(TO_CHAR(DATASOURCEKINDCODE)) AS DSC FROM SMD WHERE SMDID = ?";
+
+    static final String SQL_SMD_DEPS = "SELECT DEPID FROM SMDDEPPERMIS WHERE SMDID = ?";
+
+    static final String SQL_SMR_XML = "SELECT SMRXMLBODY FROM SMRXML WHERE SMRID = ?";
+
+    static final String SQL_STATUS_HISTORY = ""
+            + "SELECT t.SMRSTATUSNAME, t.SMRSTATUSDATETIME, t.EMPCODE FROM ( "
+            + "  SELECT st.SMRSTATUSNAME AS SMRSTATUSNAME, hs.SMRSTATUSDATETIME AS SMRSTATUSDATETIME, ep.EMPCODE AS EMPCODE "
+            + "  FROM SMRSTATUSHIST hs "
+            + "  JOIN SMRSTATUS st ON st.SMRSTATUSID = hs.SMRSTATUSID "
+            + "  LEFT JOIN TB_USER us ON hs.USERID = us.USERID "
+            + "  LEFT JOIN TB_EMP ep ON ep.EMPID = us.EMPID "
+            + "  WHERE hs.SMRID = ? "
+            + "  UNION ALL "
+            + "  SELECT '  Резолюция: ' || kn.DEPKINDNAME AS SMRSTATUSNAME, "
+            + "         rs.RESOLUTIONDATETIME AS SMRSTATUSDATETIME, ep.EMPCODE AS EMPCODE "
+            + "  FROM SMRRESOLUTION rs "
+            + "  JOIN TB_DEPKIND kn ON kn.DEPKINDID = rs.DEPKINDID "
+            + "  LEFT JOIN TB_USER us ON rs.USERID = us.USERID "
+            + "  LEFT JOIN TB_EMP ep ON ep.EMPID = us.EMPID "
+            + "  WHERE rs.SMRID = ? "
+            + ") t ORDER BY t.SMRSTATUSDATETIME";
+}

@@ -10,6 +10,7 @@ import { useCountryOptions } from '@/hooks/shared/useCountryOptions'
 import { useMediaTypeOptions } from '@/hooks/shared/useMediaTypeOptions'
 import { useSanitaryMeasureOptions } from '@/hooks/shared/useSanitaryMeasureOptions'
 import { useSanitaryMeasureObjKindOptions } from '@/hooks/shared/useSanitaryMeasureObjKindOptions'
+import { useSanitaryMeasureReasonOptions } from '@/hooks/shared/useSanitaryMeasureReasonOptions'
 import { useLanguageOptions } from '@/hooks/shared/useLanguageOptions'
 import { PlusOutlined, DeleteOutlined } from '@ant-design/icons'
 import { Button, Table } from 'antd'
@@ -46,6 +47,8 @@ const SmdSanitaryMeasureTabEdit: React.FC<SmdSanitaryMeasureTabEditProps> = ({
     useSanitaryMeasureOptions()
   const { getSelectOptions: getObjKindSelectOptions, loading: loadingObjKinds } =
     useSanitaryMeasureObjKindOptions()
+  const { getSelectOptions: getReasonSelectOptions, loading: loadingReasons } =
+    useSanitaryMeasureReasonOptions()
   const { getLangCatalogSelectOptions, getLanguageName } = useLanguageOptions()
 
   const langCode = (measure.languageCode || 'ru').trim().toLowerCase()
@@ -192,13 +195,20 @@ const SmdSanitaryMeasureTabEdit: React.FC<SmdSanitaryMeasureTabEditProps> = ({
         </Form.Item>
 
         <Form.Item label="Код причины (основания) введения временной меры">
-          <Input
-            maxLength={1}
-            value={measure.measureReasonCode ?? ''}
-            onChange={(e) =>
-              patchMeasure({ measureReasonCode: e.target.value.trim() || undefined })
+          <Select
+            showSearch
+            allowClear
+            placeholder="Выберите причину (код — наименование)"
+            loading={loadingReasons}
+            value={measure.measureReasonCode || undefined}
+            onChange={(value) =>
+              patchMeasure({ measureReasonCode: value ? String(value) : undefined })
             }
-            placeholder="1 символ"
+            options={getReasonSelectOptions()}
+            style={{ width: '100%' }}
+            filterOption={(input, option) =>
+              String(option?.label ?? '').toLowerCase().includes(input.toLowerCase())
+            }
           />
         </Form.Item>
 

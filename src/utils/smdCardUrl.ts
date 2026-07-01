@@ -27,19 +27,4 @@ export function buildSmarCardCreateUrl(smaqId: number, guid: string): string {
 }
 
 /** URL просмотра карты результата рассмотрения меры: /smr_card/{SMRID}/{GUID} */
-export function buildSmrCardViewUrl(smrId: number, guid: string): string {
-  const base =
-    (import.meta.env.VITE_SMR_CARD_BASE as string | undefined)?.replace(/\/$/, '') ||
-    (import.meta.env.VITE_REVIEW_RESULT_CARD_BASE as string | undefined)?.replace(/\/$/, '') ||
-    '/smr_card'
-  return `${base}/${smrId}/${encodeURIComponent(guid.trim())}`
-}
-
-/** URL создания карты результата рассмотрения: /smr_card/create/{SMDID}/{GUID} */
-export function buildSmrCardCreateUrl(smdid: string, guid: string): string {
-  const base =
-    (import.meta.env.VITE_SMR_CARD_BASE as string | undefined)?.replace(/\/$/, '') ||
-    (import.meta.env.VITE_REVIEW_RESULT_CARD_BASE as string | undefined)?.replace(/\/$/, '') ||
-    '/smr_card'
-  return `${base}/create/${encodeURIComponent(smdid)}/${encodeURIComponent(guid.trim())}`
-}
+export { buildSmrCardViewUrl, buildSmrCardCreateUrl, buildSmdCardViewUrl } from '@/utils/smrCardUrl'

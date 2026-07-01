@@ -13,6 +13,7 @@ import type {
 import {
   hasMeasureImplementationEntryContent,
   exportNonCompliantSanitaryProductDetailsBlock,
+  exportMeasureImplementationsXmlFragment,
 } from '@/utils/xmlExporter'
 import { exportPublicHealthIncidentDetails } from '@/cards/shared/publicHealthIncidentXml'
 import { resolveSmdMeasureEndDate, resolveSmdMeasureStartDate } from './smdMeasureDates'
@@ -143,32 +144,17 @@ function exportIncidentAlert(xmlParts: string[], c: PhaCauseNotificationItem, in
   xmlParts.push(`${indent}</smcdo:IncidentAlertIdDetails>`)
 }
 
-/** Упрощённый экспорт мероприятия (основные поля SS.09). */
-function exportMeasureImplementation(xmlParts: string[], impl: MeasureImplementationItem, indent: string): void {
-  xmlParts.push(`${indent}<smcdo:MeasureImplementationDetails>`)
-  const inner = `${indent}  `
-  if (impl.country) {
-    xmlParts.push(
-      `${inner}<csdo:UnifiedCountryCode codeListId="2021">${escapeXML(impl.country)}</csdo:UnifiedCountryCode>`
-    )
+/** Экспорт мероприятий (полная структура SS.09, включая ImplementingEntityDetails и др.). */
+function exportMeasureImplementationsBlock(
+  xmlParts: string[],
+  items: MeasureImplementationItem[] | undefined,
+  indent: string
+): void {
+  const impls = (items ?? []).filter(hasMeasureImplementationEntryContent)
+  const fragment = exportMeasureImplementationsXmlFragment(impls, indent).trim()
+  if (fragment) {
+    xmlParts.push(fragment)
   }
-  if (impl.startDate) xmlParts.push(`${inner}<csdo:StartDate>${escapeXML(impl.startDate)}</csdo:StartDate>`)
-  if (impl.endDate) xmlParts.push(`${inner}<csdo:EndDate>${escapeXML(impl.endDate)}</csdo:EndDate>`)
-  if (impl.description?.trim()) {
-    xmlParts.push(`${inner}<csdo:DescriptionText>${escapeXML(impl.description.trim())}</csdo:DescriptionText>`)
-  }
-  if (impl.measureAffectedObjectKindCode) {
-    impl.measureAffectedObjectKindCode
-      .split(';')
-      .map((c) => c.trim())
-      .filter(Boolean)
-      .forEach((code) => {
-        xmlParts.push(
-          `${inner}<smsdo:MeasureAffectedObjectKindCode>${escapeXML(code)}</smsdo:MeasureAffectedObjectKindCode>`
-        )
-      })
-  }
-  xmlParts.push(`${indent}</smcdo:MeasureImplementationDetails>`)
 }
 
 function exportTemporaryMeasureDetails(
@@ -258,11 +244,7 @@ function exportTemporaryMeasureDetails(
     )
   }
 
-  for (const impl of measure.measureImplementationDetails ?? []) {
-    if (hasMeasureImplementationEntryContent(impl)) {
-      exportMeasureImplementation(xmlParts, impl, inner)
-    }
-  }
+  exportMeasureImplementationsBlock(xmlParts, measure.measureImplementationDetails, inner)
 
   if (measure.measureRepealConditionText?.trim()) {
     xmlParts.push(

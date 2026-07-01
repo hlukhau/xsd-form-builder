@@ -26,7 +26,7 @@ function dpaLikeCardApiSegment(): 'dpa' | 'ppv' {
  * При сборке PHA или PPV используем эндпоинты DPA (/dpa_card/), чтобы не дублировать код и данные.
  */
 function getReferenceDataBaseUrl(): string {
-  if (BASE_URL.includes('pha_card') || BASE_URL.includes('ppv_card') || BASE_URL.includes('dpr_card')) return '/dpa_card/'
+  if (BASE_URL.includes('pha_card') || BASE_URL.includes('ppv_card') || BASE_URL.includes('dpr_card') || BASE_URL.includes('smr_card')) return '/dpa_card/'
   return BASE_URL
 }
 
@@ -233,6 +233,11 @@ export interface SanitaryMeasureObjKindOption {
 }
 
 export interface SanitaryMeasureOption {
+  code: string
+  name: string
+}
+
+export interface SanitaryMeasureReasonOption {
   code: string
   name: string
 }
@@ -1123,6 +1128,24 @@ export interface RightsJson {
     }
     /** PHA: просмотр данных ЕЭК */
     publicHealthDB?: { view?: Record<string, unknown> }
+    /** SMD/SMR: sanitaryMeasureIn / Out / DB */
+    sanitaryMeasureIn?: {
+      view?: Record<string, unknown>
+      status?: Record<string, unknown>
+      access?: Record<string, unknown>
+    }
+    sanitaryMeasureOut?: {
+      view?: Record<string, unknown>
+      create?: Record<string, unknown>
+      edit?: Record<string, unknown>
+      status?: Record<string, unknown>
+      send?: Record<string, unknown>
+      access?: Record<string, unknown>
+    }
+    sanitaryMeasureDB?: {
+      view?: Record<string, unknown>
+      access?: Record<string, unknown>
+    }
     /** Опционально на верхнем уровне up: нарушения / ВСМ (если security JSON так отдаёт объект) */
     violations?: Record<string, unknown>
     temporarySanitaryMeasures?: Record<string, unknown>
@@ -1172,6 +1195,20 @@ export function getDprAuthorityFilterDepIdsFromRights(rights: RightsJson | null 
     depIdsFromRightsBlock(up?.violationDetectedOut?.edit),
     depIdsFromRightsBlock(up?.violationDetectedOut?.violations),
     depIdsFromRightsBlock(up?.violationDetectedOut?.temporarySanitaryMeasures),
+  ]
+  return [...new Set(parts.flat())]
+}
+
+/**
+ * DEPID для фильтра УО при создании/редактировании исходящей SMR.
+ * Бэкенд: sanitaryMeasureIn:status ∩ SMDDEPPERMIS.
+ */
+export function getSmrAuthorityFilterDepIdsFromRights(rights: RightsJson | null | undefined): string[] {
+  const up = rights?.up
+  const parts = [
+    depIdsFromRightsBlock(up?.sanitaryMeasureIn?.status),
+    depIdsFromRightsBlock(up?.sanitaryMeasureOut?.create),
+    depIdsFromRightsBlock(up?.sanitaryMeasureOut?.edit),
   ]
   return [...new Set(parts.flat())]
 }
@@ -2184,6 +2221,41 @@ export async function getSanitaryMeasureNameByCode(code: string): Promise<string
     return option ? option.name : null
   } catch (error) {
     console.error('Ошибка получения названия санитарной меры:', error)
+    return null
+  }
+}
+
+/**
+ * Получить все опции причин введения временной санитарной меры (SANITARYMEASUREREASON).
+ */
+export async function getSanitaryMeasureReasonOptions(): Promise<SanitaryMeasureReasonOption[]> {
+  dictionaryLoadingStart()
+  try {
+    const response = await fetch(
+      withGuidUrl(`${getReferenceDataBaseUrl()}api/sanitary-measure-reasons/options`)
+    )
+    if (!response.ok) {
+      throw new Error(`Ошибка загрузки опций причин введения меры: ${response.statusText}`)
+    }
+    return await response.json()
+  } catch (error) {
+    console.error('Ошибка загрузки опций причин введения меры:', error)
+    throw error
+  } finally {
+    dictionaryLoadingEnd()
+  }
+}
+
+export async function getSanitaryMeasureReasonNameByCode(code: string): Promise<string | null> {
+  if (!code || code.trim().length === 0) {
+    return null
+  }
+  try {
+    const options = await getSanitaryMeasureReasonOptions()
+    const option = options.find((opt) => opt.code === code)
+    return option ? option.name : null
+  } catch (error) {
+    console.error('Ошибка получения названия причины введения меры:', error)
     return null
   }
 }

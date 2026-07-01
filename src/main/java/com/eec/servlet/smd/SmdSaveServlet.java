@@ -55,8 +55,13 @@ public class SmdSaveServlet extends HttpServlet {
     private static final String SQL_INSERT_SMD = ""
             + "INSERT INTO SMD (SMDID, DATASOURCEKINDCODE, DOCCOUNTRYID, DOCID, DOCCREATIONDATE, "
             + "SMDVERSION, SMDSTATUSID, MESSAGECODE, SANITARYMEASURESTARTDATE, SANITARYMEASUREENDDATE, "
+            + "SANITARYMEASUREID, SANITARYMEASURENAME, SANITARYMEASUREREASONCODE, "
             + "CREATIONDATETIME, MODIFICATIONDATETIME) "
-            + "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, SYSDATE, SYSDATE)";
+            + "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, SYSDATE, SYSDATE)";
+
+    private static final String SQL_SANITARY_MEASURE_BY_CODE = ""
+            + "SELECT SANITARYMEASUREID, SANITARYMEASURENAME FROM SANITARYMEASURE "
+            + "WHERE TRIM(SANITARYMEASURECODE) = TRIM(?) AND ROWNUM = 1";
 
     private static final String SQL_SOURCE_SMD_FOR_COPY = ""
             + "SELECT s.SMDID, s.SMDVERSION, s.SMDSTATUSID, s.DATASOURCEKINDCODE, s.DOCID, s.DOCCOUNTRYID, "
@@ -180,6 +185,19 @@ public class SmdSaveServlet extends HttpServlet {
             if (sanitaryMeasureEndDate.isEmpty()) sanitaryMeasureEndDate = null;
         }
 
+        String sanitaryMeasureCode = trimToEmpty(extractJsonString(metaBlock, "sanitaryMeasureCode"));
+        String sanitaryMeasureName = trimToEmpty(extractJsonString(metaBlock, "sanitaryMeasureName"));
+        String sanitaryMeasureReasonCode = trimToEmpty(extractJsonString(metaBlock, "sanitaryMeasureReasonCode"));
+        if (sanitaryMeasureCode.isEmpty()) {
+            sanitaryMeasureCode = extractMeasureCodeFromXml(xmlBody);
+        }
+        if (sanitaryMeasureName.isEmpty()) {
+            sanitaryMeasureName = extractMeasureNameFromXml(xmlBody);
+        }
+        if (sanitaryMeasureReasonCode.isEmpty()) {
+            sanitaryMeasureReasonCode = extractMeasureReasonCodeFromXml(xmlBody);
+        }
+
         Integer userId = getUserIdFromRights(rightsJson);
         if (userId == null) {
             sendJsonError(response, HttpServletResponse.SC_BAD_REQUEST,
@@ -196,6 +214,7 @@ public class SmdSaveServlet extends HttpServlet {
             if (isNewVersionCopy) {
                 Long newSmdid = handleNewVersionCopy(conn, response, request, copyFromSmdid, guid, xmlBody,
                         docId, docCreationDate.trim(), messageCode, sanitaryMeasureStartDate, sanitaryMeasureEndDate,
+                        sanitaryMeasureCode, sanitaryMeasureName, sanitaryMeasureReasonCode,
                         edocCode, edocVersion, userId, rightsJson);
                 if (newSmdid == null) {
                     return;
@@ -229,19 +248,9 @@ public class SmdSaveServlet extends HttpServlet {
 
             long smdid = getNextSmdid(conn);
 
-            try (PreparedStatement ps = conn.prepareStatement(SQL_INSERT_SMD)) {
-                ps.setLong(1, smdid);
-                ps.setString(2, DATASOURCE_OUTGOING);
-                ps.setInt(3, countryId);
-                ps.setString(4, docId);
-                setDateOrNull(ps, 5, docCreationDate.trim());
-                ps.setInt(6, 1);
-                ps.setInt(7, statusId);
-                ps.setString(8, messageCode);
-                setDateOrNull(ps, 9, sanitaryMeasureStartDate);
-                setDateOrNull(ps, 10, sanitaryMeasureEndDate);
-                ps.executeUpdate();
-            }
+            insertSmdRow(conn, smdid, countryId, docId, docCreationDate.trim(), 1, statusId, messageCode,
+                    sanitaryMeasureStartDate, sanitaryMeasureEndDate,
+                    sanitaryMeasureCode, sanitaryMeasureName, sanitaryMeasureReasonCode);
 
             try (PreparedStatement ps = conn.prepareStatement(SQL_INSERT_SMDXML)) {
                 ps.setLong(1, smdid);
@@ -310,6 +319,7 @@ public class SmdSaveServlet extends HttpServlet {
     private Long handleNewVersionCopy(Connection conn, HttpServletResponse response, HttpServletRequest request,
                                       long sourceSmdid, String guid, String xmlBody, String docId, String docCreationDate,
                                       String messageCode, String sanitaryMeasureStartDate, String sanitaryMeasureEndDate,
+                                      String sanitaryMeasureCode, String sanitaryMeasureName, String sanitaryMeasureReasonCode,
                                       String edocCode, String edocVersion, Integer userId, String rightsJson)
             throws IOException, SQLException {
         int deliveredStatusId = resolveStatusIdByCode(conn, STATUS_DELIVERED);
@@ -418,19 +428,11 @@ public class SmdSaveServlet extends HttpServlet {
                 }
 
                 long newSmdid = getNextSmdid(conn);
-                try (PreparedStatement psIns = conn.prepareStatement(SQL_INSERT_SMD)) {
-                    psIns.setLong(1, newSmdid);
-                    psIns.setString(2, DATASOURCE_OUTGOING);
-                    psIns.setInt(3, docCountryId != null ? docCountryId : resolveCountryId(conn, "BY"));
-                    psIns.setString(4, docId);
-                    setDateOrNull(psIns, 5, docCreationDate);
-                    psIns.setInt(6, newVersion);
-                    psIns.setInt(7, statusId);
-                    psIns.setString(8, messageCode);
-                    setDateOrNull(psIns, 9, sanitaryMeasureStartDate);
-                    setDateOrNull(psIns, 10, sanitaryMeasureEndDate);
-                    psIns.executeUpdate();
-                }
+                insertSmdRow(conn, newSmdid,
+                        docCountryId != null ? docCountryId : resolveCountryId(conn, "BY"),
+                        docId, docCreationDate, newVersion, statusId, messageCode,
+                        sanitaryMeasureStartDate, sanitaryMeasureEndDate,
+                        sanitaryMeasureCode, sanitaryMeasureName, sanitaryMeasureReasonCode);
 
                 try (PreparedStatement psXml = conn.prepareStatement(SQL_INSERT_SMDXML)) {
                     psXml.setLong(1, newSmdid);
@@ -542,6 +544,80 @@ public class SmdSaveServlet extends HttpServlet {
     private static boolean isMissingSequence(SQLException e) {
         String msg = e.getMessage();
         return msg != null && (msg.contains("ORA-02289") || msg.contains("ORA-00942"));
+    }
+
+    private static void insertSmdRow(Connection conn, long smdid, Integer countryId, String docId,
+                                     String docCreationDate, int version, int statusId, String messageCode,
+                                     String sanitaryMeasureStartDate, String sanitaryMeasureEndDate,
+                                     String sanitaryMeasureCode, String sanitaryMeasureName,
+                                     String sanitaryMeasureReasonCode) throws SQLException {
+        Integer measureId = resolveSanitaryMeasureId(conn, sanitaryMeasureCode);
+        String measureName = resolveSanitaryMeasureName(conn, sanitaryMeasureCode, sanitaryMeasureName);
+        try (PreparedStatement ps = conn.prepareStatement(SQL_INSERT_SMD)) {
+            ps.setLong(1, smdid);
+            ps.setString(2, DATASOURCE_OUTGOING);
+            ps.setInt(3, countryId != null ? countryId : 0);
+            ps.setString(4, docId);
+            setDateOrNull(ps, 5, docCreationDate);
+            ps.setInt(6, version);
+            ps.setInt(7, statusId);
+            ps.setString(8, messageCode);
+            setDateOrNull(ps, 9, sanitaryMeasureStartDate);
+            setDateOrNull(ps, 10, sanitaryMeasureEndDate);
+            if (measureId != null && measureId > 0) {
+                ps.setInt(11, measureId);
+            } else {
+                ps.setNull(11, Types.INTEGER);
+            }
+            setStringOrNull(ps, 12, measureName);
+            setStringOrNull(ps, 13, sanitaryMeasureReasonCode);
+            ps.executeUpdate();
+        }
+    }
+
+    private static Integer resolveSanitaryMeasureId(Connection conn, String measureCode) throws SQLException {
+        if (measureCode == null || measureCode.trim().isEmpty()) {
+            return null;
+        }
+        try (PreparedStatement ps = conn.prepareStatement(SQL_SANITARY_MEASURE_BY_CODE)) {
+            ps.setString(1, measureCode.trim());
+            try (ResultSet rs = ps.executeQuery()) {
+                if (rs.next()) {
+                    int id = rs.getInt("SANITARYMEASUREID");
+                    return rs.wasNull() ? null : id;
+                }
+            }
+        }
+        return null;
+    }
+
+    private static String resolveSanitaryMeasureName(Connection conn, String measureCode, String measureName)
+            throws SQLException {
+        String name = trimToEmpty(measureName);
+        if (!name.isEmpty()) {
+            return name;
+        }
+        if (measureCode == null || measureCode.trim().isEmpty()) {
+            return "";
+        }
+        try (PreparedStatement ps = conn.prepareStatement(SQL_SANITARY_MEASURE_BY_CODE)) {
+            ps.setString(1, measureCode.trim());
+            try (ResultSet rs = ps.executeQuery()) {
+                if (rs.next()) {
+                    String dbName = rs.getString("SANITARYMEASURENAME");
+                    return dbName != null ? dbName.trim() : "";
+                }
+            }
+        }
+        return "";
+    }
+
+    private static void setStringOrNull(PreparedStatement ps, int index, String value) throws SQLException {
+        if (value == null || value.trim().isEmpty()) {
+            ps.setNull(index, Types.VARCHAR);
+        } else {
+            ps.setString(index, value.trim());
+        }
     }
 
     private static int resolveNewStatusId(Connection conn) throws SQLException {
@@ -706,6 +782,36 @@ public class SmdSaveServlet extends HttpServlet {
 
     private static String trimToEmpty(String s) {
         return s == null ? "" : s.trim();
+    }
+
+    private static String extractMeasureCodeFromXml(String xml) {
+        return extractFirstXmlTagInSanitaryMeasureDetails(xml, "MeasureCode");
+    }
+
+    private static String extractMeasureNameFromXml(String xml) {
+        return extractFirstXmlTagInSanitaryMeasureDetails(xml, "MeasureName");
+    }
+
+    private static String extractMeasureReasonCodeFromXml(String xml) {
+        return extractFirstXmlTagInSanitaryMeasureDetails(xml, "MeasureReasonCode");
+    }
+
+    private static String extractFirstXmlTagInSanitaryMeasureDetails(String xml, String localTag) {
+        if (xml == null || xml.isEmpty()) return "";
+        int blockStart = xml.indexOf("SanitaryMeasureDetails");
+        if (blockStart < 0) return "";
+        String block = xml.substring(blockStart);
+        int blockEnd = block.indexOf("</");
+        if (blockEnd > 0) {
+            int closeTag = block.indexOf("SanitaryMeasureDetails>", blockEnd);
+            if (closeTag > 0) {
+                block = block.substring(0, closeTag + "SanitaryMeasureDetails>".length());
+            }
+        }
+        Matcher m = Pattern.compile(
+                "<(?:smsdo:)?" + Pattern.quote(localTag) + "(?:\\s[^>]*)?>([^<]*)</(?:smsdo:)?" + Pattern.quote(localTag) + ">",
+                Pattern.CASE_INSENSITIVE).matcher(block);
+        return m.find() ? trimToEmpty(m.group(1)) : "";
     }
 
     /** csdo:DocId из первого smcdo:MeasureDocDetails (не InitialMeasureDocDetails). */

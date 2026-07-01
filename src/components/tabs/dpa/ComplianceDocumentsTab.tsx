@@ -27,6 +27,8 @@ interface ComplianceDocumentsTabProps {
   hasEditPermission?: boolean // dangerousProductIn:edit
   /** GUID для запроса протоколов лабораторных исследований (подключение к БД, userId) */
   guid?: string | null
+  /** Ссылка «Протоколы лабораторных исследований» (DocKindCode=25); для SMD/ОП 58 отключена */
+  showLabProtocolsLink?: boolean
 }
 
 export interface LaboratoryBlockContentProps {
@@ -147,6 +149,7 @@ const ComplianceDocumentsTab: React.FC<ComplianceDocumentsTabProps> = ({
   tsd,
   hasEditPermission = false,
   guid,
+  showLabProtocolsLink = true,
 }) => {
   const [selectedDocument, setSelectedDocument] = useState<ComplianceDocument | null>(null)
   const [authorityModalVisible, setAuthorityModalVisible] = useState(false)
@@ -308,7 +311,7 @@ const ComplianceDocumentsTab: React.FC<ComplianceDocumentsTabProps> = ({
           >
             Уполномоченный орган
           </Button>
-          {record.docKindCode === '25' && (
+          {showLabProtocolsLink && record.docKindCode === '25' && (
             <Button
               type="link"
               onClick={() => handleRequestProtocols(record)}

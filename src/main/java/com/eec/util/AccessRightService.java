@@ -117,6 +117,48 @@ public final class AccessRightService {
         return keys;
     }
 
+    /** Ключи sanitaryMeasureIn.status (DEPID в JSON прав) — для SMR с входящей SMD. */
+    public static Set<String> sanitaryMeasureInStatusDepKeys(String rightsJson) {
+        return depKeysFromRightsBlock(rightsJson, "sanitaryMeasureIn", "status");
+    }
+
+    /** Ключи sanitaryMeasureIn.view. */
+    public static Set<String> sanitaryMeasureInViewDepKeys(String rightsJson) {
+        return depKeysFromRightsBlock(rightsJson, "sanitaryMeasureIn", "view");
+    }
+
+    /** Ключи sanitaryMeasureOut.view. */
+    public static Set<String> sanitaryMeasureOutViewDepKeys(String rightsJson) {
+        return depKeysFromRightsBlock(rightsJson, "sanitaryMeasureOut", "view");
+    }
+
+    /** Ключи sanitaryMeasureDB.view. */
+    public static Set<String> sanitaryMeasureDBViewDepKeys(String rightsJson) {
+        return depKeysFromRightsBlock(rightsJson, "sanitaryMeasureDB", "view");
+    }
+
+    private static Set<String> depKeysFromRightsBlock(String rightsJson, String section, String rightKey) {
+        Set<String> keys = new HashSet<>();
+        String block = extractUpRightObjectBlock(rightsJson, section, rightKey);
+        if (block == null || block.isEmpty()) return keys;
+        Pattern keyP = Pattern.compile("\"([^\"]+)\"\\s*:");
+        Matcher keyM = keyP.matcher(block);
+        while (keyM.find()) {
+            keys.add(keyM.group(1).trim());
+        }
+        return keys;
+    }
+
+    /** Ключи sanitaryMeasureOut.status. */
+    public static Set<String> sanitaryMeasureOutStatusDepKeys(String rightsJson) {
+        return depKeysFromRightsBlock(rightsJson, "sanitaryMeasureOut", "status");
+    }
+
+    /** Ключи sanitaryMeasureOut.edit. */
+    public static Set<String> sanitaryMeasureOutEditDepKeys(String rightsJson) {
+        return depKeysFromRightsBlock(rightsJson, "sanitaryMeasureOut", "edit");
+    }
+
     /** Ключи объекта up.violationDetectedOut.status (DEPID в JSON прав). */
     public static Set<String> violationDetectedOutStatusDepKeys(String rightsJson) {
         Set<String> keys = new HashSet<>();

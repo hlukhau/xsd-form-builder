@@ -1,10 +1,14 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { Routes, Route, useParams, useSearchParams, useNavigate, useLocation } from 'react-router-dom'
 import { message, Spin } from 'antd'
-import { isPhaApp, isPpvApp, isDprApp, isSmdApp, getDpaLikeCardSessionKeys } from './cards/config'
+import { isPhaApp, isPpvApp, isDprApp, isSmdApp, isSmrApp, getDpaLikeCardSessionKeys } from './cards/config'
 import { DangerousProductCard } from './cards/dpa'
 import { PhaCard } from './cards/pha'
 import { DprCard, DprCreateCard } from './cards/dpr'
+import { SmrCard, SmrCreateCard } from './cards/smr'
+import { fetchSmrMetadata, fetchSmrXml, fetchSmrSmdIncomingActions } from './cards/smr/smrApi'
+import { parseSmrXmlToBundle } from './utils/smrXmlParser'
+import type { SmrMetadataView, SmrPrepareContext } from './types/smrCard'
 import { SmdCard, fetchSmdMetadata, fetchSmdXml, smdSourceToViewRight, createNewSmdCardData, buildCreateSmdMetadata, ensureSmdCardStructure, parseSmdXmlToCardData } from './cards/smd'
 import type { SmdMetadata } from './types/smdCard'
 import type { CardData } from './types/card'
@@ -1145,7 +1149,202 @@ function DprAppContent() {
   return null
 }
 
+/** Создание SMR по входящей SMD: /smr_card/create/{SMDID}/{GUID} */
+function SmrCreateFromSmdContent() {
+  const { smdid, guid: guidParam } = useParams<{ smdid: string; guid: string }>()
+  const guid = guidParam ? decodeURIComponent(guidParam.trim()) : ''
+  const id = (smdid ?? '').trim()
+  const [loading, setLoading] = useState(false)
+  const [err, setErr] = useState<string | null>(null)
+  const [elig, setElig] = useState<SmrPrepareContext | null>(null)
+
+  useEffect(() => {
+    document.title = 'Создание карты сведений о результатах рассмотрения меры'
+  }, [])
+
+  useEffect(() => {
+    setReferenceGuidContext(guid || undefined)
+  }, [guid])
+
+  useEffect(() => {
+    if (!id || !guid) {
+      setErr('Укажите SMDID и GUID в URL: /smr_card/create/{SMDID}/{GUID}')
+      setElig(null)
+      return
+    }
+    let cancelled = false
+    setLoading(true)
+    setErr(null)
+    setElig(null)
+    ;(async () => {
+      try {
+        const r = await fetchSmrSmdIncomingActions(id, guid)
+        if (cancelled) return
+        if (!r.canPrepareReviewResult) {
+          setErr(r.prepareReviewResultReason || 'Создание карты недоступно')
+          setElig(null)
+        } else if (r.prepareContext) {
+          setElig(r.prepareContext)
+        } else {
+          setErr(r.prepareReviewResultReason || 'Нет контекста создания')
+          setElig(null)
+        }
+      } catch (e) {
+        if (!cancelled) {
+          setErr(e instanceof Error ? e.message : 'Ошибка проверки условий создания')
+          setElig(null)
+        }
+      } finally {
+        if (!cancelled) setLoading(false)
+      }
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [id, guid])
+
+  if (loading) {
+    return (
+      <div style={{ textAlign: 'center', padding: 24 }}>
+        <Spin size="large" tip="Проверка условий создания карты SMR..." />
+      </div>
+    )
+  }
+
+  if (err || !elig) {
+    return (
+      <div className="empty-state" style={{ padding: 24 }}>
+        <div style={{ color: '#ff4d4f', maxWidth: 640, margin: '0 auto', textAlign: 'center' }}>
+          {err || 'Нет данных'}
+        </div>
+      </div>
+    )
+  }
+
+  return <SmrCreateCard eligibility={elig} smdid={id} guid={guid} />
+}
+
+/** Карта SMR: /smr_card/{SMRID}/{GUID} — EEC_R_SM_SS_09_SanitaryMeasureConsideration. */
+function SmrAppContent() {
+  const { dpaid: smrIdParam, guid: guidFromRoute } = useParams<{ dpaid: string; guid?: string }>()
+  const [searchParams] = useSearchParams()
+  const smrId = (smrIdParam ?? '').trim()
+  const guid =
+    guidFromRoute?.trim() ||
+    searchParams.get('guid')?.trim() ||
+    getPersistedReferenceGuid() ||
+    undefined
+
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const [meta, setMeta] = useState<SmrMetadataView | null>(null)
+  const [parsed, setParsed] = useState<ReturnType<typeof parseSmrXmlToBundle> | null>(null)
+
+  const reloadSmrCard = useCallback(async () => {
+    const g = guid?.trim()
+    if (!g || !/^\d+$/.test(smrId)) return
+    const [xmlText, m] = await Promise.all([fetchSmrXml(smrId, g), fetchSmrMetadata(smrId, g)])
+    setMeta(m)
+    setParsed(parseSmrXmlToBundle(xmlText))
+  }, [smrId, guid])
+
+  useEffect(() => {
+    setReferenceGuidContext(guid)
+  }, [guid])
+
+  useEffect(() => {
+    document.title = 'Карта сведений о результатах рассмотрения меры'
+  }, [])
+
+  useEffect(() => {
+    if (!smrId) {
+      setLoading(false)
+      setError(null)
+      setMeta(null)
+      setParsed(null)
+      return
+    }
+    if (!/^\d+$/.test(smrId)) {
+      setLoading(false)
+      setError('Некорректный идентификатор карты SMR')
+      setMeta(null)
+      setParsed(null)
+      return
+    }
+    if (!guid?.trim()) {
+      setLoading(false)
+      setError('Для просмотра карты SMR укажите GUID в URL: /smr_card/{SMRID}/{GUID}')
+      setMeta(null)
+      setParsed(null)
+      return
+    }
+    let cancelled = false
+    setLoading(true)
+    setError(null)
+    setMeta(null)
+    setParsed(null)
+    ;(async () => {
+      try {
+        const [xmlText, m] = await Promise.all([fetchSmrXml(smrId, guid), fetchSmrMetadata(smrId, guid)])
+        if (cancelled) return
+        setMeta(m)
+        setParsed(parseSmrXmlToBundle(xmlText))
+      } catch (err) {
+        if (!cancelled) {
+          setError(err instanceof Error ? err.message : 'Ошибка загрузки карты SMR')
+        }
+      } finally {
+        if (!cancelled) setLoading(false)
+      }
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [smrId, guid])
+
+  if (!smrId) {
+    return (
+      <div className="empty-state">
+        <div style={{ fontSize: '48px', marginBottom: '16px', opacity: 0.3 }}>📄</div>
+        <div style={{ fontSize: '18px', fontWeight: 500, color: '#595959' }}>Откройте карту по SMRID</div>
+      </div>
+    )
+  }
+
+  if (loading) {
+    return (
+      <div style={{ textAlign: 'center', padding: 24 }}>
+        <Spin size="large" tip="Загрузка карты SMR..." />
+      </div>
+    )
+  }
+
+  if (error) {
+    return (
+      <div className="empty-state" style={{ padding: 24 }}>
+        <div style={{ color: '#ff4d4f', maxWidth: 560, margin: '0 auto', textAlign: 'center' }}>{error}</div>
+      </div>
+    )
+  }
+
+  if (meta && parsed) {
+    return <SmrCard smrId={smrId} guid={guid} meta={meta} parsed={parsed} onDataRefresh={reloadSmrCard} />
+  }
+
+  return null
+}
+
 function App() {
+  if (isSmrApp()) {
+    return (
+      <Routes>
+        <Route path="/create/:smdid/:guid" element={<SmrCreateFromSmdContent />} />
+        <Route path="/" element={<SmrAppContent />} />
+        <Route path="/:dpaid" element={<SmrAppContent />} />
+        <Route path="/:dpaid/:guid" element={<SmrAppContent />} />
+      </Routes>
+    )
+  }
   if (isSmdApp()) {
     return (
       <Routes>

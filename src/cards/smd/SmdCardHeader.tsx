@@ -43,12 +43,9 @@ const SmdCardHeader: React.FC<SmdCardHeaderProps> = ({
     return format(date, 'dd.MM.yyyy', { locale: ru })
   }
 
-  const countryLabel =
-    meta.docCountryCode && meta.docCountryName
-      ? `${getCountryDisplayLabel(meta.docCountryCode)} — ${meta.docCountryName}`
-      : meta.docCountryCode
-        ? getCountryDisplayLabel(meta.docCountryCode)
-        : meta.docCountryName ?? '—'
+  const countryLabel = meta.docCountryCode
+    ? getCountryDisplayLabel(meta.docCountryCode)
+    : meta.docCountryName ?? '—'
 
   const isEecSource = String(meta.dataSourceKindCode ?? '').trim() === '3'
   const version = meta.smdVersion ?? 1

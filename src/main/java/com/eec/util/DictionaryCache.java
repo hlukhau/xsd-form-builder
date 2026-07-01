@@ -57,6 +57,8 @@ public class DictionaryCache {
     // Кеш санитарных мер: код -> название
     private static final Map<String, String> sanitaryMeasuresCache = new ConcurrentHashMap<>();
     private static final List<SanitaryMeasureOption> sanitaryMeasuresListCache = new ArrayList<>();
+    private static final Map<String, String> sanitaryMeasureReasonsCache = new ConcurrentHashMap<>();
+    private static final List<SanitaryMeasureReasonOption> sanitaryMeasureReasonsListCache = new ArrayList<>();
     
     // Кеш форматов данных: код -> название
     private static final Map<String, String> mediaTypesCache = new ConcurrentHashMap<>();
@@ -96,6 +98,7 @@ public class DictionaryCache {
     private static volatile boolean techRegulsLoaded = false;
     private static volatile boolean sanitaryMeasureObjKindsLoaded = false;
     private static volatile boolean sanitaryMeasuresLoaded = false;
+    private static volatile boolean sanitaryMeasureReasonsLoaded = false;
     private static volatile boolean mediaTypesLoaded = false;
     private static volatile boolean depOptionsLoaded = false;
     private static volatile boolean legalFormsLoaded = false;
@@ -272,6 +275,19 @@ public class DictionaryCache {
         public String name;
         
         public SanitaryMeasureOption(String code, String name) {
+            this.code = code;
+            this.name = name;
+        }
+    }
+
+    /**
+     * Класс для опции причины введения временной санитарной меры
+     */
+    public static class SanitaryMeasureReasonOption {
+        public String code;
+        public String name;
+
+        public SanitaryMeasureReasonOption(String code, String name) {
             this.code = code;
             this.name = name;
         }
@@ -935,6 +951,44 @@ public class DictionaryCache {
     
     public static boolean isSanitaryMeasuresLoaded() {
         return sanitaryMeasuresLoaded;
+    }
+
+    // ========== Методы для причин введения временной санитарной меры ==========
+
+    public static void clearSanitaryMeasureReasonsCache() {
+        synchronized (sanitaryMeasureReasonsCache) {
+            sanitaryMeasureReasonsCache.clear();
+            sanitaryMeasureReasonsListCache.clear();
+            sanitaryMeasureReasonsLoaded = false;
+        }
+    }
+
+    public static void setSanitaryMeasureReasonsCache(List<SanitaryMeasureReasonOption> reasons) {
+        synchronized (sanitaryMeasureReasonsCache) {
+            sanitaryMeasureReasonsCache.clear();
+            sanitaryMeasureReasonsListCache.clear();
+            for (SanitaryMeasureReasonOption reason : reasons) {
+                sanitaryMeasureReasonsCache.put(reason.code, reason.name);
+                sanitaryMeasureReasonsListCache.add(reason);
+            }
+            sanitaryMeasureReasonsLoaded = true;
+        }
+    }
+
+    public static List<SanitaryMeasureReasonOption> getSanitaryMeasureReasonsList() {
+        synchronized (sanitaryMeasureReasonsCache) {
+            return new ArrayList<>(sanitaryMeasureReasonsListCache);
+        }
+    }
+
+    public static String getSanitaryMeasureReasonName(String code) {
+        synchronized (sanitaryMeasureReasonsCache) {
+            return sanitaryMeasureReasonsCache.get(code);
+        }
+    }
+
+    public static boolean isSanitaryMeasureReasonsLoaded() {
+        return sanitaryMeasureReasonsLoaded;
     }
     
     // ========== Методы для форматов данных (MEDIATYPE) ==========

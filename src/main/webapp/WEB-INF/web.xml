@@ -245,6 +245,15 @@
     </servlet-mapping>
 
     <servlet>
+        <servlet-name>SanitaryMeasureReasonOptionsServlet</servlet-name>
+        <servlet-class>com.eec.servlet.SanitaryMeasureReasonOptionsServlet</servlet-class>
+    </servlet>
+    <servlet-mapping>
+        <servlet-name>SanitaryMeasureReasonOptionsServlet</servlet-name>
+        <url-pattern>/api/sanitary-measure-reasons/options</url-pattern>
+    </servlet-mapping>
+
+    <servlet>
         <servlet-name>MediaTypeOptionsServlet</servlet-name>
         <servlet-class>com.eec.servlet.MediaTypeOptionsServlet</servlet-class>
     </servlet>
@@ -407,6 +416,89 @@
     <servlet-mapping>
         <servlet-name>DprResolutionsServlet</servlet-name>
         <url-pattern>/api/dpr/resolutions</url-pattern>
+    </servlet-mapping>
+
+    <!-- Карта SMR: XML по SMRID из SMRXML -->
+    <servlet>
+        <servlet-name>SmrXmlServlet</servlet-name>
+        <servlet-class>com.eec.servlet.smr.SmrXmlServlet</servlet-class>
+    </servlet>
+    <servlet-mapping>
+        <servlet-name>SmrXmlServlet</servlet-name>
+        <url-pattern>/api/smr/xml/*</url-pattern>
+    </servlet-mapping>
+    <servlet>
+        <servlet-name>SmrMetadataServlet</servlet-name>
+        <servlet-class>com.eec.servlet.smr.SmrMetadataServlet</servlet-class>
+    </servlet>
+    <servlet-mapping>
+        <servlet-name>SmrMetadataServlet</servlet-name>
+        <url-pattern>/api/smr/metadata/*</url-pattern>
+    </servlet-mapping>
+    <servlet>
+        <servlet-name>SmrStatusHistoryServlet</servlet-name>
+        <servlet-class>com.eec.servlet.smr.SmrStatusHistoryServlet</servlet-class>
+    </servlet>
+    <servlet-mapping>
+        <servlet-name>SmrStatusHistoryServlet</servlet-name>
+        <url-pattern>/api/smr/status-history/*</url-pattern>
+    </servlet-mapping>
+
+    <servlet>
+        <servlet-name>SmrCreateEligibilityServlet</servlet-name>
+        <servlet-class>com.eec.servlet.smr.SmrCreateEligibilityServlet</servlet-class>
+    </servlet>
+    <servlet-mapping>
+        <servlet-name>SmrCreateEligibilityServlet</servlet-name>
+        <url-pattern>/api/smr/create-eligibility/*</url-pattern>
+    </servlet-mapping>
+    <servlet>
+        <servlet-name>SmrCreateSaveServlet</servlet-name>
+        <servlet-class>com.eec.servlet.smr.SmrCreateSaveServlet</servlet-class>
+    </servlet>
+    <servlet-mapping>
+        <servlet-name>SmrCreateSaveServlet</servlet-name>
+        <url-pattern>/api/smr/create-save</url-pattern>
+    </servlet-mapping>
+    <servlet>
+        <servlet-name>SmrSmdIncomingActionsServlet</servlet-name>
+        <servlet-class>com.eec.servlet.smr.SmrSmdIncomingActionsServlet</servlet-class>
+    </servlet>
+    <servlet-mapping>
+        <servlet-name>SmrSmdIncomingActionsServlet</servlet-name>
+        <url-pattern>/api/smr/smd-incoming-actions/*</url-pattern>
+    </servlet-mapping>
+    <servlet>
+        <servlet-name>SmrSaveServlet</servlet-name>
+        <servlet-class>com.eec.servlet.smr.SmrSaveServlet</servlet-class>
+    </servlet>
+    <servlet-mapping>
+        <servlet-name>SmrSaveServlet</servlet-name>
+        <url-pattern>/api/smr/save</url-pattern>
+    </servlet-mapping>
+    <servlet>
+        <servlet-name>SmrDeleteDraftServlet</servlet-name>
+        <servlet-class>com.eec.servlet.smr.SmrDeleteDraftServlet</servlet-class>
+    </servlet>
+    <servlet-mapping>
+        <servlet-name>SmrDeleteDraftServlet</servlet-name>
+        <url-pattern>/api/smr/delete-draft</url-pattern>
+    </servlet-mapping>
+    <servlet>
+        <servlet-name>SmrStatusChangeServlet</servlet-name>
+        <servlet-class>com.eec.servlet.smr.SmrStatusChangeServlet</servlet-class>
+    </servlet>
+    <servlet-mapping>
+        <servlet-name>SmrStatusChangeServlet</servlet-name>
+        <url-pattern>/api/smr/status</url-pattern>
+    </servlet-mapping>
+    <servlet>
+        <servlet-name>SmrResolutionsServlet</servlet-name>
+        <servlet-class>com.eec.servlet.smr.SmrResolutionsServlet</servlet-class>
+    </servlet>
+    <servlet-mapping>
+        <servlet-name>SmrResolutionsServlet</servlet-name>
+        <url-pattern>/api/smr/resolutions</url-pattern>
     </servlet-mapping>
 
     <!-- Карта PHA: XML по PHAID из PHAXML -->

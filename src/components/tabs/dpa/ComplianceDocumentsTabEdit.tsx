@@ -32,11 +32,18 @@ interface ComplianceDocumentsTabEditProps {
   onTsdChange: (tsd: TSDData) => void
   /** GUID для запроса протоколов лабораторных исследований (DocKindCode=25) */
   guid?: string | null
+  /** Ссылка «Протоколы лабораторных исследований»; для SMD/ОП 58 отключена */
+  showLabProtocolsLink?: boolean
 }
 
 const EAUE_COUNTRY_CODES = new Set(['AM', 'BY', 'KZ', 'KG', 'RU'])
 
-const ComplianceDocumentsTabEdit: React.FC<ComplianceDocumentsTabEditProps> = ({ tsd, onTsdChange, guid }) => {
+const ComplianceDocumentsTabEdit: React.FC<ComplianceDocumentsTabEditProps> = ({
+  tsd,
+  onTsdChange,
+  guid,
+  showLabProtocolsLink = true,
+}) => {
   const batches = tsd.batches?.length ? tsd.batches : []
   const [authorityModalVisible, setAuthorityModalVisible] = useState(false)
   const [authorityContext, setAuthorityContext] = useState<{ batchIndex: number; docIndex: number } | null>(null)
@@ -232,7 +239,7 @@ const ComplianceDocumentsTabEdit: React.FC<ComplianceDocumentsTabEditProps> = ({
           <Button type="link" icon={<EyeOutlined />} onClick={() => { setAuthorityContext({ batchIndex, docIndex }); setAuthorityModalVisible(true) }} style={{ padding: 0, height: 'auto' }}>
             Уполномоченный орган
           </Button>
-          {record.docKindCode === '25' && (
+          {showLabProtocolsLink && record.docKindCode === '25' && (
             <Button type="link" onClick={() => handleRequestProtocols(record)} style={{ padding: 0, height: 'auto' }}>
               Протоколы лабораторных исследований
             </Button>

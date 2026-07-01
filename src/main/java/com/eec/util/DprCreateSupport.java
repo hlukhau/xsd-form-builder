@@ -341,7 +341,7 @@ public final class DprCreateSupport {
      * Смена статуса исходящей DPR: то же пересечение violationDetectedIn:status с PPVDEPPERMIS, источник исходящий;
      * допустимые текущие статусы — по коду {@code DPRSTATUSCODE} (DRAFT … DELIVERED для исходящих).
      */
-    public static GateResult evaluateOutgoingDprStatusGate(Connection conn, long dprId, String guid) throws SQLException {
+    public static GateResult evaluateOutgoingSmrStatusGate(Connection conn, long dprId, String guid) throws SQLException {
         if (guid == null || guid.trim().isEmpty() || dprId <= 0) {
             return GateResult.denied("Не заданы DPRID или guid");
         }
@@ -392,8 +392,10 @@ public final class DprCreateSupport {
         return GateResult.ok(ppvid, null, null, null, null, 0L, null, null, 0, null);
     }
 
-    /** Областной уровень в DPRRESOLUTION по ТЗ (DEPKINDID = 73 в карте прав / TB_DEPKIND). */
+    /** Областной уровень в DPRRESOLUTION (DEPKINDID = 73 / dep0602). */
     private static final int RIGHTS_DEPKIND_REGIONAL = 73;
+    /** Республиканский уровень в DPRRESOLUTION (DEPKINDID = 74 / dep0603). */
+    private static final int RIGHTS_DEPKIND_REPUBLIC = 74;
 
     private static final String SQL_DEPKIND_ID_BY_CODE = ""
             + "SELECT DEPKINDID FROM TB_DEPKIND WHERE TRIM(UPPER(DEPKINDCODE)) = TRIM(UPPER(?)) "
@@ -404,11 +406,11 @@ public final class DprCreateSupport {
 
     /**
      * Направление исходящей DPR участникам ОП 57: {@code violationDetectedIn:status} ∩ PPVDEPPERMIS,
-     * {@code DATASOURCEKINDCODE = 2}, статус NEW (с резолюцией областного уровня dep0602 / DEPKINDID 73),
-     * FAILED или ERROR.
+     * {@code DATASOURCEKINDCODE = 2}, статус NEW (с резолюцией областного dep0602 / DEPKINDID 73
+     * или республиканского dep0603 / DEPKINDID 74), FAILED или ERROR.
      */
-    public static GateResult evaluateOutgoingDprSendGate(Connection conn, long dprId, String guid) throws SQLException {
-        GateResult statusGate = evaluateOutgoingDprStatusGate(conn, dprId, guid);
+    public static GateResult evaluateOutgoingSmrSendGate(Connection conn, long dprId, String guid) throws SQLException {
+        GateResult statusGate = evaluateOutgoingSmrStatusGate(conn, dprId, guid);
         if (!statusGate.allowed) {
             return statusGate;
         }
@@ -432,27 +434,49 @@ public final class DprCreateSupport {
                 return statusGate;
             }
             return GateResult.denied(
-                    "Направление при статусе «Новое» возможно только при наличии резолюции областного уровня "
-                            + "(в DPRRESOLUTION запись по DEPKINDCODE dep0602 или DEPKINDID 73).");
+                    "Направление при статусе «Новое» возможно только при наличии резолюции областного "
+                            + "(dep0602 / DEPKINDID 73) или республиканского (dep0603 / DEPKINDID 74) уровня.");
         }
         return GateResult.denied(
-                "Направление сведений возможно только при статусе «Новое» (с резолюцией областного уровня), "
-                        + "«Отправка не удалась» или «Ошибка обработки».");
+                "Направление сведений возможно только при статусе «Новое» (с резолюцией областного "
+                        + "или республиканского уровня), «Отправка не удалась» или «Ошибка обработки».");
     }
 
-    /** Резолюция областного уровня для направления из «Новое» (dep0602 или DEPKINDID 73). */
+    /**
+     * Резолюция областного или республиканского уровня для направления из «Новое»
+     * (dep0602 / 73 или dep0603 / 74).
+     */
     public static boolean hasRegionalResolutionForOutgoingSend(Connection conn, long dprId) throws SQLException {
         int regionalDepKindId = resolveRegionalDepKindId(conn);
-        if (regionalDepKindId <= 0) {
+        if (regionalDepKindId > 0 && hasResolutionForDepKind(conn, dprId, regionalDepKindId)) {
+            return true;
+        }
+        int republicanDepKindId = resolveRepublicanDepKindId(conn);
+        if (republicanDepKindId > 0) {
+            return hasResolutionForDepKind(conn, dprId, republicanDepKindId);
+        }
+        return false;
+    }
+
+    private static boolean hasResolutionForDepKind(Connection conn, long dprId, int depKindId) throws SQLException {
+        if (depKindId <= 0) {
             return false;
         }
         try (PreparedStatement ps = conn.prepareStatement(SQL_HAS_RESOLUTION_DEPKIND)) {
             ps.setLong(1, dprId);
-            ps.setInt(2, regionalDepKindId);
+            ps.setInt(2, depKindId);
             try (ResultSet rs = ps.executeQuery()) {
                 return rs.next();
             }
         }
+    }
+
+    private static int resolveRepublicanDepKindId(Connection conn) throws SQLException {
+        int dep0603 = resolveDepKindIdByCode(conn, "dep0603");
+        if (dep0603 > 0) {
+            return dep0603;
+        }
+        return RIGHTS_DEPKIND_REPUBLIC;
     }
 
     private static int resolveRegionalDepKindId(Connection conn) throws SQLException {
@@ -479,7 +503,7 @@ public final class DprCreateSupport {
      * Завершение обработки входящей DPR: {@code violationDetectedOut:status} ∩ PPVDEPPERMIS,
      * {@code DPR.DATASOURCEKINDCODE = 1}, текущий статус {@code PROCESSING} (справочник DPRSTATUS для входящих).
      */
-    public static GateResult evaluateIncomingDprCompleteProcessingGate(Connection conn, long dprId, String guid)
+    public static GateResult evaluateIncomingSmrCompleteProcessingGate(Connection conn, long dprId, String guid)
             throws SQLException {
         if (guid == null || guid.trim().isEmpty() || dprId <= 0) {
             return GateResult.denied("Не заданы DPRID или guid");
@@ -532,7 +556,7 @@ public final class DprCreateSupport {
     /**
      * Принудительная проверка карты исходящей DPR: {@code violationDetectedOut:view} ∩ PPVDEPPERMIS, DATASOURCEKINDCODE=2.
      */
-    public static GateResult evaluateOutgoingDprValidateCardGate(Connection conn, long dprId, String guid) throws SQLException {
+    public static GateResult evaluateOutgoingSmrValidateCardGate(Connection conn, long dprId, String guid) throws SQLException {
         if (guid == null || guid.trim().isEmpty() || dprId <= 0) {
             return GateResult.denied("Не заданы DPRID или guid");
         }

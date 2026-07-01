@@ -64,7 +64,12 @@ function BatchDetailTabsEdit({
           key: 'compliance',
           label: 'Документы соответствия',
           children: (
-            <ComplianceDocumentsTabEdit tsd={tsd} onTsdChange={onTsdChange} guid={guid} />
+            <ComplianceDocumentsTabEdit
+              tsd={tsd}
+              onTsdChange={onTsdChange}
+              guid={guid}
+              showLabProtocolsLink={false}
+            />
           ),
         },
         {

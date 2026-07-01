@@ -3753,3 +3753,7 @@ export async function validateAndEnrichCardData(cardData: CardData, incidentKind
   }
 }
 
+/** Потомки parent: smcdo:MeasureImplementationDetails (корень SMR, блок меры SMD). */
+export function parseMeasureImplementationDetailsFromParent(parent: Element): MeasureImplementationItem[] {
+  return parseMeasureImplementationDetails(parent)
+}

@@ -13,6 +13,7 @@ import com.eec.util.DictionaryCache.CommunicationChannelOption;
 import com.eec.util.DictionaryCache.TechRegulOption;
 import com.eec.util.DictionaryCache.SanitaryMeasureObjKindOption;
 import com.eec.util.DictionaryCache.SanitaryMeasureOption;
+import com.eec.util.DictionaryCache.SanitaryMeasureReasonOption;
 import com.eec.util.DictionaryCache.MediaTypeOption;
 import com.eec.util.DictionaryCache.DepOption;
 import com.eec.util.DictionaryCache.LegalFormOption;
@@ -53,6 +54,7 @@ public class DictionaryInitializerListener implements ServletContextListener {
     private static final Object LOCK_TECH_REGULS = new Object();
     private static final Object LOCK_SANITARY_MEASURE_OBJ_KINDS = new Object();
     private static final Object LOCK_SANITARY_MEASURES = new Object();
+    private static final Object LOCK_SANITARY_MEASURE_REASONS = new Object();
     private static final Object LOCK_MEDIA_TYPES = new Object();
     private static final Object LOCK_DEP_OPTIONS = new Object();
     private static final Object LOCK_LEGAL_FORMS = new Object();
@@ -128,6 +130,11 @@ public class DictionaryInitializerListener implements ServletContextListener {
     public void ensureSanitaryMeasuresLoaded(String guid) {
         synchronized (LOCK_SANITARY_MEASURES) {
             if (!DictionaryCache.isSanitaryMeasuresLoaded()) loadSanitaryMeasuresDictionary(guid);
+        }
+    }
+    public void ensureSanitaryMeasureReasonsLoaded(String guid) {
+        synchronized (LOCK_SANITARY_MEASURE_REASONS) {
+            if (!DictionaryCache.isSanitaryMeasureReasonsLoaded()) loadSanitaryMeasureReasonsDictionary(guid);
         }
     }
     public void ensureMediaTypesLoaded(String guid) {
@@ -1063,6 +1070,43 @@ public class DictionaryInitializerListener implements ServletContextListener {
             
         } catch (SQLException e) {
             System.err.println("[DictionaryInitializer] ERROR loading sanitary measures dictionary: " + e.getMessage());
+            e.printStackTrace();
+        } finally {
+            DatabaseUtil.closeConnection(conn);
+        }
+    }
+
+    /**
+     * Загружает справочник причин введения временной санитарной меры (SANITARYMEASUREREASON).
+     */
+    private void loadSanitaryMeasureReasonsDictionary(String guid) {
+        Connection conn = null;
+        try {
+            System.out.println("[DictionaryInitializer] Loading sanitary measure reasons dictionary...");
+            conn = DatabaseUtil.getConnectionForGuid(guid);
+            String sql = "SELECT SANITARYMEASUREREASONCODE, SANITARYMEASUREREASONNAME "
+                    + "FROM SANITARYMEASUREREASON "
+                    + "WHERE SANITARYMEASUREREASONACTFL = 1 "
+                    + "ORDER BY SANITARYMEASUREREASONCODE";
+            PreparedStatement stmt = conn.prepareStatement(sql);
+            ResultSet rs = stmt.executeQuery();
+            List<SanitaryMeasureReasonOption> reasons = new ArrayList<>();
+            int count = 0;
+            while (rs.next()) {
+                String code = rs.getString("SANITARYMEASUREREASONCODE");
+                String name = rs.getString("SANITARYMEASUREREASONNAME");
+                reasons.add(new SanitaryMeasureReasonOption(
+                        code != null ? code : "",
+                        name != null ? name : ""
+                ));
+                count++;
+            }
+            DictionaryCache.setSanitaryMeasureReasonsCache(reasons);
+            System.out.println("[DictionaryInitializer] Loaded " + count + " sanitary measure reasons into cache");
+            rs.close();
+            stmt.close();
+        } catch (SQLException e) {
+            System.err.println("[DictionaryInitializer] ERROR loading sanitary measure reasons: " + e.getMessage());
             e.printStackTrace();
         } finally {
             DatabaseUtil.closeConnection(conn);

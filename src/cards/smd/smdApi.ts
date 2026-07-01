@@ -2,6 +2,7 @@ import type { CardData, StatusHistoryItem } from '@/types/card'
 import { getSmdMessageName } from '@/constants/smdCard'
 import { resolveSmdMeasureStartDate, resolveSmdMeasureEndDate } from './smdMeasureDates'
 import { getSmdRegulatoryDocCreationDate, getSmdRegulatoryDocId, getSmdRegulatoryMeasureDoc } from './smdMeasureDoc'
+import { getSmdPrimaryMeasure } from './smdSanitaryMeasureModel'
 import type {
   SmdInfoRequestApiRow,
   SmdMetadata,
@@ -190,14 +191,20 @@ export interface SmdSaveMetadata {
   messageCode: string | null
   edocCode: string | null
   edocVersion: string | null
+  sanitaryMeasureCode: string | null
+  sanitaryMeasureName: string | null
+  sanitaryMeasureReasonCode: string | null
 }
 
 export function buildSmdSaveMetadataFromCardData(data: CardData): SmdSaveMetadata {
   const doc = getSmdRegulatoryMeasureDoc(data)
   const docId = getSmdRegulatoryDocId(data)
   const docCreationDate = getSmdRegulatoryDocCreationDate(data)
+  const measure = getSmdPrimaryMeasure(data)
   const version = data.version ?? 1
   const messageRaw = data.electronicDocument?.messageCode?.trim() ?? ''
+  const measureCode = measure.measureCode?.trim() || null
+  const measureName = measure.measureName?.trim() || null
   return {
     docId,
     docCreationDate,
@@ -210,6 +217,9 @@ export function buildSmdSaveMetadataFromCardData(data: CardData): SmdSaveMetadat
     messageCode: messageRaw || (version > 1 ? null : 'P.SS.09.MSG.001'),
     edocCode: data.electronicDocument?.documentCode?.trim() || 'R.SM.SS.09.001',
     edocVersion: '1.0.0',
+    sanitaryMeasureCode: measureCode,
+    sanitaryMeasureName: measureName,
+    sanitaryMeasureReasonCode: measure.measureReasonCode?.trim() || null,
   }
 }
 
