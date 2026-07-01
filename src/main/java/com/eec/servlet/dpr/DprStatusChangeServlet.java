@@ -2,10 +2,12 @@ package com.eec.servlet.dpr;
 
 import com.eec.rights.RightsRegistryProvider;
 import com.eec.util.DatabaseUtil;
+import com.eec.util.DprAccessHelper;
 import com.eec.util.DprCreateSupport;
 import com.eec.util.DprIncomingStatusHelper;
 import com.eec.util.DprOutgoingStatusHelper;
 import com.eec.util.OutgoingMarkReadyAuthorityCheck;
+import com.eec.util.PpvIncomingStatusHelper;
 import com.eec.util.RightsDepartmentDepKindId;
 
 import javax.servlet.ServletException;
@@ -27,7 +29,8 @@ import java.util.regex.Pattern;
  * POST /api/dpr/status — тело: {@code dprid}, {@code action}, {@code guid}.
  * Входящая (DSC=1): {@code complete_processing} — PROCESSING→PROCESSED, violationDetectedOut:status ∩ PPVDEPPERMIS.
  * Исходящая (DSC=2): mark_ready, to_new (violationDetectedIn:status ∩ PPVDEPPERMIS);
- * send — отдельный gate {@link DprCreateSupport#evaluateOutgoingSmrSendGate} (NEW+областная резолюция / FAILED / ERROR).
+ * send — NEW (резолюция 73/74) / FAILED / ERROR → PENDING; при send входящая связанная PPV
+ * в PROCESSING переводится в PROCESSED (одна транзакция с DPR).
  * mark_ready: черновик→новое+резолюция (dep0601/dep0602/dep0603 по depkindid 72/73/74); новое+районная→резолюция dep0602 без смены статуса.
  */
 public class DprStatusChangeServlet extends HttpServlet {
@@ -369,6 +372,14 @@ public class DprStatusChangeServlet extends HttpServlet {
             ps.setInt(2, pendingId);
             ps.setInt(3, userId);
             ps.executeUpdate();
+        }
+        long ppvid = DprAccessHelper.resolveLinkedIncomingPpvid(conn, dprId);
+        if (ppvid > 0) {
+            boolean ppvProcessed = PpvIncomingStatusHelper.applyProcessingToProcessedIfApplicable(conn, ppvid, userId);
+            System.out.println("[DprStatusChange] send DPRID=" + dprId + " linked PPVID=" + ppvid
+                    + " PROCESSING→PROCESSED: " + (ppvProcessed ? "yes" : "skipped (not PROCESSING)"));
+        } else {
+            System.out.println("[DprStatusChange] send DPRID=" + dprId + ": linked incoming PPVID not found");
         }
         conn.commit();
         response.getWriter().print("{\"ok\":true,\"newStatus\":\"Ожидает отправки\",\"newStatusId\":" + pendingId + "}");

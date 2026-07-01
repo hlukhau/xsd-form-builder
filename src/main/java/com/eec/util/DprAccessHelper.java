@@ -26,9 +26,63 @@ public final class DprAccessHelper {
     private static final String SQL_PPV_BY_INCIDENT = ""
             + "SELECT p.PPVID FROM PPV p WHERE TRIM(p.INCIDENTID) = TRIM(?) AND ROWNUM = 1";
 
+    private static final String SQL_INCOMING_PPVID_BY_INCIDENT = ""
+            + "SELECT MIN(p.PPVID) AS PPVID FROM PPV p "
+            + "WHERE TRIM(p.INCIDENTID) = TRIM(?) AND TRIM(TO_CHAR(p.DATASOURCEKINDCODE)) = '1'";
+
     private static final String SQL_PPV_DSC = "SELECT TRIM(TO_CHAR(DATASOURCEKINDCODE)) AS DSC FROM PPV WHERE PPVID = ?";
 
     private DprAccessHelper() {
+    }
+
+    /**
+     * Связанная входящая PPV для исходящей DPR: {@code DPR.PPVID}, иначе MIN(PPVID) по {@code INCIDENTID} (DSC=1).
+     */
+    public static long resolveLinkedIncomingPpvid(Connection conn, long dprId) throws SQLException {
+        long ppvid = 0L;
+        try (PreparedStatement ps = conn.prepareStatement(SQL_PPVID_BY_DPR)) {
+            ps.setLong(1, dprId);
+            try (ResultSet rs = ps.executeQuery()) {
+                if (rs.next()) {
+                    long v = rs.getLong("PPVID");
+                    if (!rs.wasNull() && v > 0) {
+                        ppvid = v;
+                    }
+                }
+            }
+        } catch (SQLException e) {
+            String m = e.getMessage() != null ? e.getMessage() : "";
+            if (!m.contains("ORA-00904") && !m.contains("invalid identifier")) {
+                throw e;
+            }
+        }
+        if (ppvid > 0) {
+            return ppvid;
+        }
+        String incidentId = null;
+        try (PreparedStatement ps = conn.prepareStatement(SQL_INCIDENT)) {
+            ps.setLong(1, dprId);
+            try (ResultSet rs = ps.executeQuery()) {
+                if (rs.next()) {
+                    incidentId = rs.getString("INCIDENTID");
+                }
+            }
+        }
+        if (incidentId == null || incidentId.trim().isEmpty()) {
+            return 0L;
+        }
+        try (PreparedStatement ps = conn.prepareStatement(SQL_INCOMING_PPVID_BY_INCIDENT)) {
+            ps.setString(1, incidentId.trim());
+            try (ResultSet rs = ps.executeQuery()) {
+                if (rs.next()) {
+                    long v = rs.getLong("PPVID");
+                    if (!rs.wasNull() && v > 0) {
+                        return v;
+                    }
+                }
+            }
+        }
+        return 0L;
     }
 
     /**
