@@ -1,8 +1,9 @@
-import { useMemo, useState } from 'react'
+import { useState } from 'react'
 import { Form, Input, Button, Table, Space, DatePicker, Collapse, Select, Upload, message, Modal, InputNumber } from 'antd'
 import { PlusOutlined, DeleteOutlined, UploadOutlined, CaretRightOutlined, CaretDownOutlined, DownloadOutlined } from '@ant-design/icons'
 import dayjs from 'dayjs'
 import { useCountryOptions } from '@/hooks/shared/useCountryOptions'
+import { useEaueCountryOptions } from '@/hooks/shared/useEaueCountryOptions'
 import { useSanitaryMeasureObjKindOptions } from '@/hooks/shared/useSanitaryMeasureObjKindOptions'
 import { useSanitaryMeasureOptions } from '@/hooks/shared/useSanitaryMeasureOptions'
 import { useLanguageOptions } from '@/hooks/shared/useLanguageOptions'
@@ -422,15 +423,14 @@ interface MeasuresTabEditProps {
   onChange: (data: MeasuresData) => void
 }
 
-const EAUE_COUNTRY_CODES = new Set(['AM', 'BY', 'KZ', 'KG', 'RU'])
-
 const MeasuresTabEdit: React.FC<MeasuresTabEditProps> = ({ data, onChange }) => {
   const [selectedMeasureIndex, setSelectedMeasureIndex] = useState<number | null>(null)
   const { countryOptions, loading: loadingCountries, normalizeCountryCode } = useCountryOptions()
-  const eaueCountryOptions = useMemo(
-    () => countryOptions.filter((opt) => EAUE_COUNTRY_CODES.has(String(opt.code || '').toUpperCase())),
-    [countryOptions]
-  )
+  const {
+    countryOptions: eaueCountryOptions,
+    loading: loadingEaueCountries,
+    normalizeCountryCode: normalizeEaueCountryCode,
+  } = useEaueCountryOptions()
   const { getSelectOptions: getSanitaryMeasureObjKindSelectOptions, getNameByCode: getSanitaryMeasureObjKindNameByCode } = useSanitaryMeasureObjKindOptions()
   const { getSelectOptions: getSanitaryMeasureSelectOptions, loading: loadingSanitaryMeasures } = useSanitaryMeasureOptions()
   const { getLanguageName, getLangCatalogSelectOptions } = useLanguageOptions()
@@ -762,9 +762,9 @@ const MeasuresTabEdit: React.FC<MeasuresTabEditProps> = ({ data, onChange }) => 
                   onChange={(doc) => handleMeasureChange(measureIndex, 'measureDocDetails', doc)}
                   title="документ"
                   defaultLanguageCode="ru"
-                  loadingCountries={loadingCountries}
-                  countryOptions={countryOptions}
-                  normalizeCountryCode={normalizeCountryCode}
+                  loadingCountries={loadingEaueCountries}
+                  countryOptions={eaueCountryOptions}
+                  normalizeCountryCode={normalizeEaueCountryCode}
                   loadingMediaTypes={loadingMediaTypes}
                   getMediaTypeSelectOptions={getMediaTypeSelectOptions}
                   getMediaTypeNameByCode={getMediaTypeNameByCode}
@@ -781,9 +781,9 @@ const MeasuresTabEdit: React.FC<MeasuresTabEditProps> = ({ data, onChange }) => 
                   onChange={(doc) => handleMeasureChange(measureIndex, 'initialMeasureDocDetails', doc)}
                   title="исходный документ"
                   defaultLanguageCode={undefined}
-                  loadingCountries={loadingCountries}
-                  countryOptions={countryOptions}
-                  normalizeCountryCode={normalizeCountryCode}
+                  loadingCountries={loadingEaueCountries}
+                  countryOptions={eaueCountryOptions}
+                  normalizeCountryCode={normalizeEaueCountryCode}
                   loadingMediaTypes={loadingMediaTypes}
                   getMediaTypeSelectOptions={getMediaTypeSelectOptions}
                   getMediaTypeNameByCode={getMediaTypeNameByCode}
@@ -909,8 +909,11 @@ const MeasuresTabEdit: React.FC<MeasuresTabEditProps> = ({ data, onChange }) => 
                           onChange={(field, value) => handleImplementationChange(measureIndex, implIndex, field, value)}
                           countryOptions={countryOptions}
                           authorityCountryOptions={eaueCountryOptions}
+                          implementationCountryOptions={eaueCountryOptions}
                           loadingCountries={loadingCountries}
+                          loadingImplementationCountries={loadingEaueCountries}
                           normalizeCountryCode={normalizeCountryCode}
+                          normalizeImplementationCountryCode={normalizeEaueCountryCode}
                           getSanitaryMeasureObjKindSelectOptions={getSanitaryMeasureObjKindSelectOptions}
                           getSanitaryMeasureObjKindNameByCode={getSanitaryMeasureObjKindNameByCode}
                         />
@@ -974,11 +977,26 @@ export const MeasureImplementationDetailsEdit: React.FC<{
   onChange: (field: string, value: any) => void
   countryOptions: CountryOption[]
   authorityCountryOptions: CountryOption[]
+  implementationCountryOptions: CountryOption[]
   loadingCountries: boolean
+  loadingImplementationCountries: boolean
   normalizeCountryCode: (country: string | undefined) => string | undefined
+  normalizeImplementationCountryCode: (country: string | undefined) => string | undefined
   getSanitaryMeasureObjKindSelectOptions: () => Array<{ value: string; label: string }>
   getSanitaryMeasureObjKindNameByCode: (code: string | undefined) => string | null
-}> = ({ item, onChange, countryOptions, authorityCountryOptions, loadingCountries, normalizeCountryCode, getSanitaryMeasureObjKindSelectOptions, getSanitaryMeasureObjKindNameByCode }) => {
+}> = ({
+  item,
+  onChange,
+  countryOptions,
+  authorityCountryOptions,
+  implementationCountryOptions,
+  loadingCountries,
+  loadingImplementationCountries,
+  normalizeCountryCode,
+  normalizeImplementationCountryCode,
+  getSanitaryMeasureObjKindSelectOptions,
+  getSanitaryMeasureObjKindNameByCode,
+}) => {
   const { getSelectOptions: getShipDocKindSelectOptions, loading: loadingShipDocKinds } = useShipDocKindOptions()
   const { getSelectOptions: getCheckpointSelectOptions, loading: loadingCheckpoints } =
     useBorderCheckpointOptions()
@@ -999,9 +1017,9 @@ export const MeasureImplementationDetailsEdit: React.FC<{
           <CountrySelect
             value={item.country}
             onChange={(value) => onChange('country', value || '')}
-            loading={loadingCountries}
-            countryOptions={countryOptions}
-            normalizeCountryCode={normalizeCountryCode}
+            loading={loadingImplementationCountries}
+            countryOptions={implementationCountryOptions}
+            normalizeCountryCode={normalizeImplementationCountryCode}
           />
         </Form.Item>
         <Form.Item label={labelWithHelp('Начальная дата', FIELD_HELP.measureImplementationStartDate)}>

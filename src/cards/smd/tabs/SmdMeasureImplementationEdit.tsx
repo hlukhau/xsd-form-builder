@@ -1,10 +1,11 @@
-import { useState, useMemo } from 'react'
+import { useState } from 'react'
 import { Button, Table } from 'antd'
 import { CaretDownOutlined, CaretRightOutlined, PlusOutlined, DeleteOutlined } from '@ant-design/icons'
 import { format } from 'date-fns'
 import { ru } from 'date-fns/locale'
 import type { CardData, MeasureImplementationItem } from '@/types/card'
 import { useCountryOptions } from '@/hooks/shared/useCountryOptions'
+import { useEaueCountryOptions } from '@/hooks/shared/useEaueCountryOptions'
 import { useSanitaryMeasureObjKindOptions } from '@/hooks/shared/useSanitaryMeasureObjKindOptions'
 import { MeasureImplementationDetailsEdit } from '@/components/tabs/dpa/MeasuresTabEdit'
 import {
@@ -26,18 +27,17 @@ const formatDate = (d: string | null | undefined) => {
   return format(date, 'dd.MM.yyyy', { locale: ru })
 }
 
-const EAUE_COUNTRY_CODES = new Set(['AM', 'BY', 'KZ', 'KG', 'RU'])
-
 const SmdMeasureImplementationEdit: React.FC<SmdMeasureImplementationEditProps> = ({ data, onChange }) => {
   const measure = getSmdPrimaryMeasure(data)
   const items = measure.measureImplementationDetails ?? []
   const [selectedIndex, setSelectedIndex] = useState<number | null>(items.length > 0 ? 0 : null)
 
   const { countryOptions, loading: loadingCountries, normalizeCountryCode } = useCountryOptions()
-  const eaueCountryOptions = useMemo(
-    () => countryOptions.filter((opt) => EAUE_COUNTRY_CODES.has(String(opt.code || '').toUpperCase())),
-    [countryOptions]
-  )
+  const {
+    countryOptions: eaueCountryOptions,
+    loading: loadingEaueCountries,
+    normalizeCountryCode: normalizeEaueCountryCode,
+  } = useEaueCountryOptions()
   const { getSelectOptions: getObjKindOptions, getNameByCode: getObjKindName } =
     useSanitaryMeasureObjKindOptions()
 
@@ -179,8 +179,11 @@ const SmdMeasureImplementationEdit: React.FC<SmdMeasureImplementationEditProps> 
           onChange={(field, value) => handleImplementationChange(selectedIndex, field, value)}
           countryOptions={countryOptions}
           authorityCountryOptions={eaueCountryOptions}
+          implementationCountryOptions={eaueCountryOptions}
           loadingCountries={loadingCountries}
+          loadingImplementationCountries={loadingEaueCountries}
           normalizeCountryCode={normalizeCountryCode}
+          normalizeImplementationCountryCode={normalizeEaueCountryCode}
           getSanitaryMeasureObjKindSelectOptions={getObjKindOptions}
           getSanitaryMeasureObjKindNameByCode={getObjKindName}
         />

@@ -1,7 +1,7 @@
 import { Button, Space, Collapse } from 'antd'
 import { PlusOutlined, DeleteOutlined } from '@ant-design/icons'
 import { MeasureDocDetailsEditStandalone } from '@/components/tabs/dpa/MeasuresTabEdit'
-import { useCountryOptions } from '@/hooks/shared/useCountryOptions'
+import { useEaueCountryOptions } from '@/hooks/shared/useEaueCountryOptions'
 import { useMediaTypeOptions } from '@/hooks/shared/useMediaTypeOptions'
 import type { MeasureDocDetails } from '@/types/card'
 import type { DprResultDocRow } from '@/types/dprCard'
@@ -21,7 +21,7 @@ export interface DprResultDocumentsEditProps {
  * «Документ, регламентирующий введение (отмену) меры» в карте DPA.
  */
 export function DprResultDocumentsEdit({ documents, onChange }: DprResultDocumentsEditProps) {
-  const { countryOptions, loading: loadingCountries, normalizeCountryCode } = useCountryOptions()
+  const { countryOptions, loading: loadingCountries, normalizeCountryCode } = useEaueCountryOptions()
   const {
     getSelectOptions: getMediaTypeSelectOptions,
     getNameByCode: getMediaTypeNameByCode,

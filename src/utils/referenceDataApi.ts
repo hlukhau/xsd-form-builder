@@ -945,6 +945,25 @@ export async function getCountryOptions(): Promise<CountryOption[]> {
   }
 }
 
+/** Страны ЕАЭС (COUNTRYGRSET.COUNTRYGRCODE = 'EAUE') для csdo:UnifiedCountryCode на DPA/DPR. */
+export async function getEaueCountryOptions(): Promise<CountryOption[]> {
+  dictionaryLoadingStart()
+  try {
+    const response = await fetch(
+      withGuidUrl(`${getReferenceDataBaseUrl()}api/countries/options?group=EAUE`)
+    )
+    if (!response.ok) {
+      throw new Error(`Ошибка загрузки опций стран ЕАЭС: ${response.statusText}`)
+    }
+    return await response.json()
+  } catch (error) {
+    console.error('Ошибка загрузки опций стран ЕАЭС:', error)
+    throw error
+  } finally {
+    dictionaryLoadingEnd()
+  }
+}
+
 /**
  * Получить опции для выпадающего списка пунктов пропуска (BORDERCHECKPOINT).
  * Отображать в виде &lt;код&gt;-&lt;наименование&gt;.
