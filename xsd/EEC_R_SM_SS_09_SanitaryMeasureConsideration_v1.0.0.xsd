@@ -1,0 +1,45 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema" xmlns:ccdo="urn:EEC:M:ComplexDataObjects:v0.4.12" xmlns:csdo="urn:EEC:M:SimpleDataObjects:v0.4.12" xmlns:doc="urn:EEC:R:SM:SS:09:SanitaryMeasureConsideration:v1.0.0" xmlns:smcdo="urn:EEC:M:SM:ComplexDataObjects:v0.3.9" xmlns:smsdo="urn:EEC:M:SM:SimpleDataObjects:v0.3.9" elementFormDefault="qualified" targetNamespace="urn:EEC:R:SM:SS:09:SanitaryMeasureConsideration:v1.0.0" version="1.0.0">
+    <xs:import namespace="urn:EEC:M:SM:SimpleDataObjects:v0.3.9" schemaLocation="EEC_M_SM_SimpleDataObjects_v0.3.9.xsd"/>
+    <xs:import namespace="urn:EEC:M:SM:ComplexDataObjects:v0.3.9" schemaLocation="EEC_M_SM_ComplexDataObjects_v0.3.9.xsd"/>
+    <xs:import namespace="urn:EEC:M:SimpleDataObjects:v0.4.12" schemaLocation="EEC_M_SimpleDataObjects_v0.4.12.xsd"/>
+    <xs:import namespace="urn:EEC:M:ComplexDataObjects:v0.4.12" schemaLocation="EEC_M_ComplexDataObjects_v0.4.12.xsd"/>
+    <!--Содержит сведения о результатах рассмотрения временной санитарной меры-->
+    <!-- R.SM.SS.09.003.NSP: Сведения о результатах рассмотрения временной санитарной меры (Сведения о результатах рассмотрения временной санитарной меры) -->
+    <!-- R.SM.SS.09.003: Сведения о результатах рассмотрения временной санитарной меры (Сведения о результатах рассмотрения временной санитарной меры. Детали) -->
+    <xs:element name="SanitaryMeasureConsiderationDetails" type="doc:SanitaryMeasureConsiderationDetailsType">
+        <xs:annotation>
+            <xs:documentation>Содержит сведения о результатах рассмотрения временной санитарной меры</xs:documentation>
+        </xs:annotation>
+    </xs:element>
+    <!-- R.SM.SS.09.003.CDT: Сведения о результате рассмотрения временной санитарной меры (Сведения о результате рассмотрения временной санитарной меры_ Детали. Тип) -->
+    <xs:complexType name="SanitaryMeasureConsiderationDetailsType">
+        <xs:annotation>
+            <xs:documentation>Содержит сведения о результатах рассмотрения временной санитарной меры</xs:documentation>
+        </xs:annotation>
+        <xs:sequence>
+            <xs:element ref="ccdo:EDocHeader"/>
+            <xs:element minOccurs="0" ref="ccdo:UnifiedAuthorityDetails">
+                <xs:annotation>
+                    <xs:documentation>совокупность сведений об уполномоченном органе государства-члена, представившем результат рассмотрения</xs:documentation>
+                </xs:annotation>
+            </xs:element>
+            <xs:element ref="smcdo:MeasureDocDetails">
+                <xs:annotation>
+                    <xs:documentation>ссылка на документ, устанавливающий временные санитарные меры, в отношении которых уполномоченный орган государства-члена представляет результат рассмотрения</xs:documentation>
+                </xs:annotation>
+            </xs:element>
+            <xs:element maxOccurs="unbounded" minOccurs="0" ref="smcdo:MeasureImplementationDetails"/>
+            <xs:element minOccurs="0" ref="csdo:DescriptionText">
+                <xs:annotation>
+                    <xs:documentation>описание результатов рассмотрения временной санитарной меры</xs:documentation>
+                </xs:annotation>
+            </xs:element>
+            <xs:element maxOccurs="unbounded" minOccurs="0" ref="ccdo:DocContentDetails">
+                <xs:annotation>
+                    <xs:documentation>информация о приложенном документе</xs:documentation>
+                </xs:annotation>
+            </xs:element>
+        </xs:sequence>
+    </xs:complexType>
+</xs:schema>
