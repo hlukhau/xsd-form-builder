@@ -9,6 +9,11 @@ import type {
   SubjectDetails,
   UnifiedAuthorityDetails,
 } from '@/types/card'
+import {
+  hasDocumentReferenceContent,
+  hasSubjectDetailsContent,
+  hasUnifiedAuthorityMeasureContent,
+} from '@/utils/xmlExporter'
 import { useCountryOptions } from '@/hooks/shared/useCountryOptions'
 import { useBorderCheckpointOptions } from '@/hooks/shared/useBorderCheckpointOptions'
 import { useSanitaryMeasureObjKindOptions } from '@/hooks/shared/useSanitaryMeasureObjKindOptions'
@@ -239,21 +244,58 @@ const PlaceSection: React.FC<{ place?: MeasureImplementationItem['placeDetails']
   )
 }
 
-/** Четыре раздела детализации мероприятия (макет SMD SS.09). */
-const MeasureImplementationDetailSections: React.FC<{ item: MeasureImplementationItem }> = ({ item }) => {
-  const authorities = item.authorities?.length ? item.authorities : item.authority ? [item.authority] : []
-  const subjects = item.subjectDetailsList?.length
+function hasPlaceContent(place?: MeasureImplementationItem['placeDetails']): boolean {
+  if (!place) return false
+  return !!(
+    place.regionName?.trim() ||
+    place.borderCheckpointCode?.trim() ||
+    place.borderCheckpointName?.trim()
+  )
+}
+
+export function hasMeasureImplementationSubsections(item: MeasureImplementationItem): boolean {
+  const authorities = (item.authorities?.length ? item.authorities : item.authority ? [item.authority] : [])
+    .filter(hasUnifiedAuthorityMeasureContent)
+  const subjects = (item.subjectDetailsList?.length
     ? item.subjectDetailsList
     : item.subjectDetails
       ? [item.subjectDetails]
       : []
+  ).filter(hasSubjectDetailsContent)
+  return (
+    authorities.length > 0 ||
+    subjects.length > 0 ||
+    hasDocumentReferenceContent(item.documentDetails) ||
+    hasPlaceContent(item.placeDetails)
+  )
+}
+
+/** Четыре раздела детализации мероприятия (макет SMD SS.09). */
+const MeasureImplementationDetailSections: React.FC<{ item: MeasureImplementationItem }> = ({ item }) => {
+  const authorities = (item.authorities?.length ? item.authorities : item.authority ? [item.authority] : [])
+    .filter(hasUnifiedAuthorityMeasureContent)
+  const subjects = (item.subjectDetailsList?.length
+    ? item.subjectDetailsList
+    : item.subjectDetails
+      ? [item.subjectDetails]
+      : []
+  ).filter(hasSubjectDetailsContent)
+
+  const showAuthority = authorities.length > 0
+  const showSubject = subjects.length > 0
+  const showDocument = hasDocumentReferenceContent(item.documentDetails)
+  const showPlace = hasPlaceContent(item.placeDetails)
+
+  if (!showAuthority && !showSubject && !showDocument && !showPlace) {
+    return null
+  }
 
   return (
     <div style={{ marginTop: 16 }}>
-      <AuthoritySection authorities={authorities} />
-      <SubjectSection subjects={subjects} />
-      <DocumentSection doc={item.documentDetails} />
-      <PlaceSection place={item.placeDetails} />
+      {showAuthority ? <AuthoritySection authorities={authorities} /> : null}
+      {showSubject ? <SubjectSection subjects={subjects} /> : null}
+      {showDocument ? <DocumentSection doc={item.documentDetails} /> : null}
+      {showPlace ? <PlaceSection place={item.placeDetails} /> : null}
     </div>
   )
 }

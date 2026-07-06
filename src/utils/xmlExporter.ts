@@ -501,16 +501,14 @@ export function exportNonCompliantSanitaryProductDetailsBlock(
         `${inner}<smsdo:SanitaryProductTypeName>${escapeXML(product!.typeName.trim())}</smsdo:SanitaryProductTypeName>`
       )
     }
-    xmlParts.push(`${inner}<smcdo:ProductDetails>`)
-    exportProductDetails(xmlParts, product!.productDetails ?? {}, `${inner}    `)
-    xmlParts.push(`${inner}</smcdo:ProductDetails>`)
+    if (hasProductDetailsContent(product!.productDetails)) {
+      xmlParts.push(`${inner}<smcdo:ProductDetails>`)
+      exportProductDetails(xmlParts, product!.productDetails ?? {}, `${inner}    `)
+      xmlParts.push(`${inner}</smcdo:ProductDetails>`)
+    }
     if (product!.manufacturer) {
       exportSupplyChainParty(xmlParts, product!.manufacturer, '41', inner)
     }
-  } else {
-    xmlParts.push(`${inner}<smcdo:ProductDetails>`)
-    exportProductDetails(xmlParts, {}, `${inner}    `)
-    xmlParts.push(`${inner}</smcdo:ProductDetails>`)
   }
 
   if (hasBatches) {
@@ -706,13 +704,13 @@ function hasMeasureDocDetailsContent(doc: MeasureDocDetails | undefined): boolea
   return false
 }
 
-function hasUnifiedAuthorityMeasureContent(auth: UnifiedAuthorityDetails | undefined): boolean {
+export function hasUnifiedAuthorityMeasureContent(auth: UnifiedAuthorityDetails | undefined): boolean {
   if (!auth) return false
   const s = (v: string | undefined) => (v ?? '').trim()
   return !!(s(auth.country) || s(auth.authorityName) || s(auth.authorityBriefName))
 }
 
-function hasSubjectDetailsContent(sd: SubjectDetails | undefined): boolean {
+export function hasSubjectDetailsContent(sd: SubjectDetails | undefined): boolean {
   if (!sd) return false
   if (sd.businessEntity && hasOrganizationContent(sd.businessEntity)) return true
   const s = (v: string | undefined) => (v ?? '').trim()
@@ -758,7 +756,7 @@ export function hasMeasureImplementationEntryContent(impl: MeasureImplementation
   return false
 }
 
-function hasDocumentReferenceContent(doc: DocumentReferenceDetails | undefined): boolean {
+export function hasDocumentReferenceContent(doc: DocumentReferenceDetails | undefined): boolean {
   if (!doc) return false
   const s = (v: string | undefined) => (v ?? '').trim()
   return !!(s(doc.docKindCode) || s(doc.docKindName) || s(doc.docName) || s(doc.docId) || s(doc.docCreationDate) || s(doc.docStartDate))

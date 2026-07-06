@@ -17,6 +17,7 @@ import type { SmdRelatedActions } from '@/types/smdCard'
 import { validateSmdCardBeforeSave } from './smdSaveValidation'
 import { validateSmdOutgoingCardFullWithSchema, validateSmdCardForSend } from './smdValidation'
 import { syncSmdCardFromPrimaryMeasure } from './smdSanitaryMeasureModel'
+import { applySmdRegulatoryDocToCard } from './smdMeasureDoc'
 import {
   incomingSmdStatusButton,
   outgoingSmdStatusButton,
@@ -564,11 +565,7 @@ const SmdCard: React.FC<SmdCardProps> = ({
   }
 
   const handleSave = async () => {
-    if (!isCreateMode) {
-      message.info('Сохранение существующей карты SMD — в следующей итерации')
-      return
-    }
-    const synced = syncSmdCardFromPrimaryMeasure(currentData)
+    const synced = applySmdRegulatoryDocToCard(syncSmdCardFromPrimaryMeasure(currentData))
     const validationErrors = validateSmdCardBeforeSave(synced, {
       requireMessageForNewVersion: isNewVersionCopy,
     })
@@ -577,32 +574,57 @@ const SmdCard: React.FC<SmdCardProps> = ({
       setSaveBlockingErrorsVisible(true)
       return
     }
-    const copySourceSmdid =
-      copyFromSmdid != null && copyFromSmdid > 0
-        ? copyFromSmdid
-        : copyFromSmdidRef.current != null && copyFromSmdidRef.current > 0
-          ? copyFromSmdidRef.current
-          : undefined
     setSaving(true)
     try {
       const xml = exportSmdCardDataToXML(synced)
       const metadata = buildSmdSaveMetadataFromCardData(synced)
+      if (isCreateMode) {
+        const copySourceSmdid =
+          copyFromSmdid != null && copyFromSmdid > 0
+            ? copyFromSmdid
+            : copyFromSmdidRef.current != null && copyFromSmdidRef.current > 0
+              ? copyFromSmdidRef.current
+              : undefined
+        const res = await saveSmdCard({
+          isNew: true,
+          xmlBody: xml,
+          metadata,
+          guid,
+          ...(copySourceSmdid != null ? { copyFromSmdid: copySourceSmdid } : {}),
+        })
+        if (isNewVersionCopy) {
+          copyFromSmdidRef.current = undefined
+          try {
+            sessionStorage.removeItem(SMD_COPY_FROM_SESSION_KEY)
+          } catch {
+            /* ignore */
+          }
+        }
+        onSaveNewCard?.(res.smdid)
+        return
+      }
+      if (!hasPersisted || !effectiveSmdid) {
+        message.error('Не задан идентификатор карты SMD')
+        return
+      }
       const res = await saveSmdCard({
-        isNew: true,
+        isNew: false,
+        smdid: Number(effectiveSmdid),
         xmlBody: xml,
         metadata,
         guid,
-        ...(copySourceSmdid != null ? { copyFromSmdid: copySourceSmdid } : {}),
       })
-      if (isNewVersionCopy) {
-        copyFromSmdidRef.current = undefined
-        try {
-          sessionStorage.removeItem(SMD_COPY_FROM_SESSION_KEY)
-        } catch {
-          /* ignore */
-        }
-      }
-      onSaveNewCard?.(res.smdid)
+      const freshMeta = await fetchSmdMetadata(String(res.smdid), guid)
+      onMetaUpdate?.(freshMeta)
+      const nextStatus = res.newStatus ?? freshMeta.smdStatusName ?? synced.status
+      const next = { ...synced, status: nextStatus }
+      onUpdate?.(next)
+      setEditedData(next)
+      setIsEditMode(false)
+      message.success(
+        res.newStatus ? `Карта сохранена. Статус: «${res.newStatus}».` : 'Карта сохранена.'
+      )
+      void fetchSmdRelatedActions(effectiveSmdid, guid).then(setRelatedActions).catch(() => {})
     } catch (e) {
       message.error(e instanceof Error ? e.message : 'Ошибка сохранения карты')
     } finally {
@@ -723,7 +745,7 @@ const SmdCard: React.FC<SmdCardProps> = ({
         <div className="card-sticky-header-title-row" style={{ marginBottom: 8, marginTop: 8 }}>
           <span className="card-sticky-header-title" style={{ fontSize: 16, fontWeight: 600 }}>
             Карта сведений о временной санитарной мере
-            {hasPersisted ? ` (SMDID ${effectiveSmdid})` : isNewVersionCopy ? ' (новая версия)' : ''}
+            {isNewVersionCopy ? ' (новая версия)' : ''}
           </span>
           <Space size="small" wrap>
             {!isEditMode && (

@@ -224,7 +224,9 @@ export const MeasureDocDetailsView: React.FC<{
   doc: MeasureDocDetails
   /** Скрыть страну, номер и дату документа (идентичны шапке карты SMD). */
   hideDocIdentity?: boolean
-}> = ({ doc, hideDocIdentity }) => {
+  /** Скрыть только страну; номер и дату документа показать (SMD regulatory doc). */
+  hideCountryOnly?: boolean
+}> = ({ doc, hideDocIdentity, hideCountryOnly }) => {
   const { getDisplayLabel: getCountryDisplayLabel } = useCountryOptions()
   const { getLangCatalogSelectOptions } = useLanguageOptions()
   const { getDisplayLabel: getShipDocKindLabel } = useShipDocKindOptions()
@@ -238,7 +240,7 @@ export const MeasureDocDetailsView: React.FC<{
 
   return (
     <Descriptions column={1} bordered>
-      {!hideDocIdentity && (
+      {!(hideDocIdentity || hideCountryOnly) && (
         <Descriptions.Item label="Страна">{getCountryDisplayLabel(doc.country)}</Descriptions.Item>
       )}
       <Descriptions.Item label="Язык">
@@ -254,7 +256,7 @@ export const MeasureDocDetailsView: React.FC<{
       </Descriptions.Item>
       <Descriptions.Item label="Наименование">{doc.docName || '-'}</Descriptions.Item>
       <Descriptions.Item label="Серия">{doc.docSeriesId || '-'}</Descriptions.Item>
-      {!hideDocIdentity && (
+      {(!hideDocIdentity || hideCountryOnly) && (
         <>
           <Descriptions.Item label="Номер">{doc.docId || '-'}</Descriptions.Item>
           <Descriptions.Item label="Дата документа">{formatDate(doc.docCreationDate)}</Descriptions.Item>

@@ -61,6 +61,9 @@ const MeasureDocDetailsEditStandalone: React.FC<{
   hideInternalRemove?: boolean
   /** Номер и дата документа только для чтения (новая версия карты). */
   readOnlyDocIdentity?: boolean
+  /** Код страны фиксирован (SMD MeasureDocDetails — всегда BY). */
+  countryReadOnly?: boolean
+  fixedCountryCode?: string
 }> = ({
   doc,
   onChange,
@@ -75,6 +78,8 @@ const MeasureDocDetailsEditStandalone: React.FC<{
   showAuthorityId,
   hideInternalRemove,
   readOnlyDocIdentity,
+  countryReadOnly,
+  fixedCountryCode = 'BY',
 }) => {
   const [uploadedFileName, setUploadedFileName] = useState<string>('')
   const { getSelectOptions: getShipDocKindSelectOptions, loading: loadingShipDocKinds } = useShipDocKindOptions()
@@ -134,14 +139,31 @@ const MeasureDocDetailsEditStandalone: React.FC<{
   return (
     <Form layout="vertical" className="field-tag-form">
       <Form.Item label="Страна">
-        <CountrySelect
-          value={doc.country}
-          onChange={(value) => onChange({ ...doc, country: value || '' })}
-          loading={loadingCountries}
-          countryOptions={countryOptions}
-          normalizeCountryCode={normalizeCountryCode}
-          allowClear
-        />
+        {countryReadOnly ? (
+          <Input
+            readOnly
+            value={
+              countryOptions.find(
+                (o) => (o.code || '').toUpperCase() === fixedCountryCode.toUpperCase()
+              )
+                ? `${fixedCountryCode} - ${
+                    countryOptions.find(
+                      (o) => (o.code || '').toUpperCase() === fixedCountryCode.toUpperCase()
+                    )!.name
+                  }`
+                : fixedCountryCode
+            }
+          />
+        ) : (
+          <CountrySelect
+            value={doc.country}
+            onChange={(value) => onChange({ ...doc, country: value || '' })}
+            loading={loadingCountries}
+            countryOptions={countryOptions}
+            normalizeCountryCode={normalizeCountryCode}
+            allowClear
+          />
+        )}
       </Form.Item>
       <Form.Item label="Язык">
         <Select

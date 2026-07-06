@@ -8,6 +8,7 @@ import { useCountryOptions } from '@/hooks/shared/useCountryOptions'
 import { useSanitaryMeasureObjKindOptions } from '@/hooks/shared/useSanitaryMeasureObjKindOptions'
 import MeasureImplementationDetailSections, {
   formatMeasureAffectedObjectKind,
+  hasMeasureImplementationSubsections,
 } from '@/components/tabs/shared/MeasureImplementationDetailSections'
 
 interface SmdMeasureImplementationViewProps {
@@ -113,11 +114,11 @@ const SmdMeasureImplementationView: React.FC<SmdMeasureImplementationViewProps> 
             })}
             rowClassName={(_, index) => (selectedIndex === index ? 'ant-table-row-selected' : '')}
           />
-          {selected && (
+          {selected && hasMeasureImplementationSubsections(selected) ? (
             <div className="smd-implementation-detail-panel">
               <MeasureImplementationDetailSections item={selected} />
             </div>
-          )}
+          ) : null}
         </>
       )}
     </div>

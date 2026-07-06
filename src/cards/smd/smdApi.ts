@@ -278,11 +278,12 @@ export async function canCreateSmdNewVersion(smdid: string, guid?: string): Prom
 
 export async function saveSmdCard(payload: {
   isNew: boolean
+  smdid?: number
   xmlBody: string
   metadata: SmdSaveMetadata
   guid?: string
   copyFromSmdid?: number
-}): Promise<{ success: boolean; smdid: number }> {
+}): Promise<{ success: boolean; smdid: number; newStatus?: string; newStatusId?: number }> {
   const url = getApiUrl('/api/smd/save')
   const body: Record<string, unknown> = {
     isNew: payload.isNew,
@@ -290,6 +291,9 @@ export async function saveSmdCard(payload: {
     metadata: payload.metadata,
   }
   if (payload.guid) body.guid = payload.guid
+  if (!payload.isNew && payload.smdid != null && payload.smdid > 0) {
+    body.smdid = payload.smdid
+  }
   if (payload.isNew && payload.copyFromSmdid != null && payload.copyFromSmdid > 0) {
     body.copyFromSmdid = payload.copyFromSmdid
   }
@@ -314,7 +318,7 @@ export async function saveSmdCard(payload: {
     }
     throw new Error(errMsg || `Ошибка сохранения SMD (${response.status})`)
   }
-  return JSON.parse(text) as { success: boolean; smdid: number }
+  return JSON.parse(text) as { success: boolean; smdid: number; newStatus?: string; newStatusId?: number }
 }
 
 export interface SmdDeleteResponse {

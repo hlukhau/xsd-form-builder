@@ -70,6 +70,7 @@ const SmdSanitaryMeasureTabEdit: React.FC<SmdSanitaryMeasureTabEditProps> = ({
       measureDocDetails: {
         ...regulatoryDoc,
         ...doc,
+        country: 'BY',
       },
     })
   }
@@ -236,7 +237,7 @@ const SmdSanitaryMeasureTabEdit: React.FC<SmdSanitaryMeasureTabEditProps> = ({
             ),
             children: (
               <MeasureDocDetailsEditStandalone
-                doc={regulatoryDoc}
+                doc={{ ...regulatoryDoc, country: 'BY' }}
                 onChange={handleDocChange}
                 title="документ"
                 defaultLanguageCode="ru"
@@ -248,6 +249,8 @@ const SmdSanitaryMeasureTabEdit: React.FC<SmdSanitaryMeasureTabEditProps> = ({
                 getMediaTypeNameByCode={getMediaTypeNameByCode}
                 getMediaTypeCodeByName={getMediaTypeCodeByName}
                 readOnlyDocIdentity={regulatoryDocReadOnly}
+                countryReadOnly
+                fixedCountryCode="BY"
               />
             ),
           },

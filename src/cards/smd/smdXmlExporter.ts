@@ -181,8 +181,6 @@ function exportTemporaryMeasureDetails(
   const doc = getSmdRegulatoryMeasureDoc(data)
   if (hasMeasureDocDetailsContent(doc)) {
     exportMeasureDocDetails(xmlParts, doc, 'MeasureDocDetails', inner)
-  } else {
-    xmlParts.push(`${inner}<smcdo:MeasureDocDetails></smcdo:MeasureDocDetails>`)
   }
 
   if (hasMeasureDocDetailsContent(measure.initialMeasureDocDetails)) {

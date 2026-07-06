@@ -21,8 +21,8 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 /**
- * Создание карты SMD (исходящие сведения о временной санитарной мере).
- * POST /api/smd/save — тело JSON: { "isNew": true, "xmlBody": "...", "guid": "...", "metadata": { ... } }.
+ * Создание и обновление карты SMD (исходящие сведения о временной санитарной мере).
+ * POST /api/smd/save — isNew: true — создание; isNew: false + smdid — сохранение существующей.
  */
 public class SmdSaveServlet extends HttpServlet {
 
@@ -84,6 +84,19 @@ public class SmdSaveServlet extends HttpServlet {
     private static final String SQL_INSERT_DEP = "INSERT INTO SMDDEPPERMIS (SMDID, DEPID, GRANTDATETIME) VALUES (?, ?, SYSDATE)";
     private static final String SQL_EXISTS_DEP = "SELECT 1 FROM TB_DEP WHERE DEPID = ?";
 
+    private static final String SQL_CURRENT_STATUS = ""
+            + "SELECT s.SMDSTATUSID, TRIM(UPPER(NVL(st.SMDSTATUSCODE, ''))) AS STCODE "
+            + "FROM SMD s LEFT JOIN SMDSTATUS st ON st.SMDSTATUSID = s.SMDSTATUSID WHERE s.SMDID = ?";
+
+    private static final String SQL_UPDATE_SMDXML = ""
+            + "UPDATE SMDXML SET SMDXMLBODY = ?, EDOCCODE = ?, EDOCVERSION = ? WHERE SMDID = ?";
+
+    private static final String SQL_UPDATE_SMD = ""
+            + "UPDATE SMD SET MODIFICATIONDATETIME = SYSDATE, SMDSTATUSID = ?, "
+            + "SANITARYMEASURESTARTDATE = ?, SANITARYMEASUREENDDATE = ?, "
+            + "SANITARYMEASUREID = ?, SANITARYMEASURENAME = ?, SANITARYMEASUREREASONCODE = ? "
+            + "WHERE SMDID = ? AND TRIM(TO_CHAR(DATASOURCEKINDCODE)) = ?";
+
     @Override
     protected void doPost(HttpServletRequest request, HttpServletResponse response)
             throws ServletException, IOException {
@@ -99,12 +112,6 @@ public class SmdSaveServlet extends HttpServlet {
         }
 
         boolean isNew = extractJsonBoolean(body, "isNew");
-        if (!isNew) {
-            sendJsonError(response, HttpServletResponse.SC_BAD_REQUEST,
-                    "Обновление карты SMD пока не поддерживается; укажите isNew: true");
-            return;
-        }
-
         String guid = extractJsonString(body, "guid");
         if (guid == null) guid = extractJsonStringOrNumberAsString(body, "GUID");
         if (guid == null || guid.trim().isEmpty()) {
@@ -112,6 +119,11 @@ public class SmdSaveServlet extends HttpServlet {
             return;
         }
         guid = guid.trim();
+
+        if (!isNew) {
+            handleUpdate(request, response, body, guid);
+            return;
+        }
 
         String rightsJson = RightsRegistryProvider.get().getRightsJson(guid);
         if (rightsJson == null || rightsJson.isEmpty()) {
@@ -191,7 +203,7 @@ public class SmdSaveServlet extends HttpServlet {
         if (sanitaryMeasureCode.isEmpty()) {
             sanitaryMeasureCode = extractMeasureCodeFromXml(xmlBody);
         }
-        if (sanitaryMeasureName.isEmpty()) {
+        if (sanitaryMeasureName.isEmpty() && sanitaryMeasureCode.isEmpty()) {
             sanitaryMeasureName = extractMeasureNameFromXml(xmlBody);
         }
         if (sanitaryMeasureReasonCode.isEmpty()) {
@@ -593,23 +605,204 @@ public class SmdSaveServlet extends HttpServlet {
 
     private static String resolveSanitaryMeasureName(Connection conn, String measureCode, String measureName)
             throws SQLException {
-        String name = trimToEmpty(measureName);
-        if (!name.isEmpty()) {
-            return name;
+        // Наименование в БД — только при ручном вводе (smsdo:MeasureName), не из справочника по коду.
+        return trimToEmpty(measureName);
+    }
+
+    private void handleUpdate(HttpServletRequest request, HttpServletResponse response, String body, String guid)
+            throws IOException {
+        Long smdidObj = extractJsonLong(body, "smdid");
+        if (smdidObj == null || smdidObj <= 0) {
+            sendJsonError(response, HttpServletResponse.SC_BAD_REQUEST, "Для обновления укажите smdid");
+            return;
         }
-        if (measureCode == null || measureCode.trim().isEmpty()) {
-            return "";
+        long smdid = smdidObj;
+
+        String rightsJson = RightsRegistryProvider.get().getRightsJson(guid);
+        if (rightsJson == null || rightsJson.isEmpty()) {
+            sendJsonError(response, HttpServletResponse.SC_FORBIDDEN, "Права по GUID не найдены");
+            return;
         }
-        try (PreparedStatement ps = conn.prepareStatement(SQL_SANITARY_MEASURE_BY_CODE)) {
-            ps.setString(1, measureCode.trim());
+        if (!AccessRightService.hasSanitaryMeasureOutEdit(rightsJson)) {
+            sendJsonError(response, HttpServletResponse.SC_FORBIDDEN,
+                    "Нет права sanitaryMeasureOut:edit на редактирование карты");
+            return;
+        }
+
+        String xmlBody = extractJsonStringXmlBody(body);
+        if (xmlBody == null || xmlBody.trim().isEmpty() || !xmlBody.trim().startsWith("<")) {
+            sendJsonError(response, HttpServletResponse.SC_BAD_REQUEST, "Требуется корректный xmlBody");
+            return;
+        }
+
+        String metaBlock = extractJsonObject(body, "metadata");
+        if (metaBlock == null) metaBlock = "{}";
+        String edocCode = trimToEmpty(extractJsonString(metaBlock, "edocCode"));
+        if (edocCode.isEmpty()) edocCode = EDOCCODE_DEFAULT;
+        String edocVersion = trimToEmpty(extractJsonString(metaBlock, "edocVersion"));
+        if (edocVersion.isEmpty()) edocVersion = EDOCVERSION_DEFAULT;
+
+        String sanitaryMeasureStartDate = extractJsonString(metaBlock, "sanitaryMeasureStartDate");
+        if (sanitaryMeasureStartDate != null) {
+            sanitaryMeasureStartDate = sanitaryMeasureStartDate.trim();
+            if (sanitaryMeasureStartDate.isEmpty()) sanitaryMeasureStartDate = null;
+        }
+        String sanitaryMeasureEndDate = extractJsonString(metaBlock, "sanitaryMeasureEndDate");
+        if (sanitaryMeasureEndDate != null) {
+            sanitaryMeasureEndDate = sanitaryMeasureEndDate.trim();
+            if (sanitaryMeasureEndDate.isEmpty()) sanitaryMeasureEndDate = null;
+        }
+
+        String sanitaryMeasureCode = trimToEmpty(extractJsonString(metaBlock, "sanitaryMeasureCode"));
+        String sanitaryMeasureName = trimToEmpty(extractJsonString(metaBlock, "sanitaryMeasureName"));
+        String sanitaryMeasureReasonCode = trimToEmpty(extractJsonString(metaBlock, "sanitaryMeasureReasonCode"));
+        if (sanitaryMeasureCode.isEmpty()) {
+            sanitaryMeasureCode = extractMeasureCodeFromXml(xmlBody);
+        }
+        if (sanitaryMeasureName.isEmpty() && sanitaryMeasureCode.isEmpty()) {
+            sanitaryMeasureName = extractMeasureNameFromXml(xmlBody);
+        }
+        if (sanitaryMeasureReasonCode.isEmpty()) {
+            sanitaryMeasureReasonCode = extractMeasureReasonCodeFromXml(xmlBody);
+        }
+
+        Integer userId = getUserIdFromRights(rightsJson);
+        if (userId == null) {
+            sendJsonError(response, HttpServletResponse.SC_BAD_REQUEST,
+                    "В карте прав должен быть указан userId");
+            return;
+        }
+
+        Connection conn = null;
+        boolean transactionEnded = false;
+        try {
+            conn = DatabaseUtil.getConnectionForRequest(request, guid);
+            SmdDeleteSupport.Eligibility editGate = SmdEditSupport.checkEditEligibility(conn, smdid, rightsJson);
+            if (!editGate.allowed) {
+                sendJsonError(response, HttpServletResponse.SC_FORBIDDEN,
+                        editGate.reason != null ? editGate.reason : "Сохранение карты SMD недоступно");
+                return;
+            }
+
+            int currentStatusId;
+            String currentStatusCode;
+            try (PreparedStatement ps = conn.prepareStatement(SQL_CURRENT_STATUS)) {
+                ps.setLong(1, smdid);
+                try (ResultSet rs = ps.executeQuery()) {
+                    if (!rs.next()) {
+                        sendJsonError(response, HttpServletResponse.SC_NOT_FOUND, "Карта SMD не найдена");
+                        return;
+                    }
+                    currentStatusId = rs.getInt("SMDSTATUSID");
+                    currentStatusCode = trimToEmpty(rs.getString("STCODE"));
+                }
+            }
+
+            Integer newStatusIdResolved = resolveOutgoingStatusId(conn, "NEW");
+            if (newStatusIdResolved == null || newStatusIdResolved <= 0) {
+                sendJsonError(response, HttpServletResponse.SC_INTERNAL_SERVER_ERROR,
+                        "Не найден статус NEW для исходящих SMD (SMDSTATUS)");
+                return;
+            }
+
+            int newStatusId = currentStatusId;
+            boolean statusChangedToNew = false;
+            if ("FAILED".equals(currentStatusCode) || "ERROR".equals(currentStatusCode)) {
+                newStatusId = newStatusIdResolved;
+                statusChangedToNew = true;
+            }
+
+            Integer measureId = resolveSanitaryMeasureId(conn, sanitaryMeasureCode);
+            String measureName = resolveSanitaryMeasureName(conn, sanitaryMeasureCode, sanitaryMeasureName);
+
+            conn.setAutoCommit(false);
+            try (PreparedStatement ps = conn.prepareStatement(SQL_UPDATE_SMDXML)) {
+                Clob clob = conn.createClob();
+                clob.setString(1, xmlBody);
+                ps.setClob(1, clob);
+                ps.setString(2, edocCode);
+                ps.setString(3, edocVersion);
+                ps.setLong(4, smdid);
+                if (ps.executeUpdate() == 0) {
+                    conn.rollback();
+                    sendJsonError(response, HttpServletResponse.SC_NOT_FOUND,
+                            "Запись SMDXML с SMDID " + smdid + " не найдена");
+                    return;
+                }
+            }
+
+            try (PreparedStatement ps = conn.prepareStatement(SQL_UPDATE_SMD)) {
+                ps.setInt(1, newStatusId);
+                setDateOrNull(ps, 2, sanitaryMeasureStartDate);
+                setDateOrNull(ps, 3, sanitaryMeasureEndDate);
+                if (measureId != null && measureId > 0) {
+                    ps.setInt(4, measureId);
+                } else {
+                    ps.setNull(4, Types.INTEGER);
+                }
+                setStringOrNull(ps, 5, measureName);
+                setStringOrNull(ps, 6, sanitaryMeasureReasonCode);
+                ps.setLong(7, smdid);
+                ps.setString(8, DATASOURCE_OUTGOING);
+                if (ps.executeUpdate() == 0) {
+                    conn.rollback();
+                    sendJsonError(response, HttpServletResponse.SC_NOT_FOUND, "Карта SMD не найдена");
+                    return;
+                }
+            }
+
+            if (statusChangedToNew) {
+                try (PreparedStatement ps = conn.prepareStatement(SQL_INSERT_HIST)) {
+                    ps.setLong(1, smdid);
+                    ps.setInt(2, newStatusId);
+                    ps.setInt(3, userId);
+                    ps.executeUpdate();
+                }
+            }
+
+            conn.commit();
+            transactionEnded = true;
+            StringBuilder json = new StringBuilder("{\"success\":true,\"smdid\":").append(smdid);
+            if (statusChangedToNew) {
+                json.append(",\"newStatusId\":").append(newStatusId).append(",\"newStatus\":\"Новое\"");
+            }
+            json.append("}");
+            response.getWriter().print(json);
+        } catch (SQLException e) {
+            if (conn != null && !transactionEnded) {
+                try {
+                    conn.rollback();
+                } catch (SQLException ignored) {
+                }
+            }
+            System.err.println("[SmdSaveServlet] Update DB error: " + e.getMessage());
+            e.printStackTrace();
+            sendJsonError(response, HttpServletResponse.SC_INTERNAL_SERVER_ERROR, "Ошибка БД: " + e.getMessage());
+        } finally {
+            if (conn != null) {
+                try {
+                    if (!transactionEnded) conn.rollback();
+                } catch (SQLException ignored) {
+                }
+                DatabaseUtil.closeConnection(conn);
+            }
+        }
+    }
+
+    private static Integer resolveOutgoingStatusId(Connection conn, String statusCode) throws SQLException {
+        try (PreparedStatement ps = conn.prepareStatement(
+                "SELECT SMDSTATUSID FROM SMDSTATUS WHERE TRIM(TO_CHAR(DATASOURCEKINDCODE)) = ? "
+                        + "AND UPPER(TRIM(SMDSTATUSCODE)) = ? AND SMDSTATUSACTFL = 1 AND ROWNUM = 1")) {
+            ps.setString(1, DATASOURCE_OUTGOING);
+            ps.setString(2, statusCode.trim().toUpperCase());
             try (ResultSet rs = ps.executeQuery()) {
                 if (rs.next()) {
-                    String dbName = rs.getString("SANITARYMEASURENAME");
-                    return dbName != null ? dbName.trim() : "";
+                    int id = rs.getInt(1);
+                    return rs.wasNull() ? null : id;
                 }
             }
         }
-        return "";
+        return null;
     }
 
     private static void setStringOrNull(PreparedStatement ps, int index, String value) throws SQLException {

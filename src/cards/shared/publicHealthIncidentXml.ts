@@ -53,7 +53,7 @@ export function exportPublicHealthIncidentDetails(xmlParts: string[], data: Card
   const patientGroupsToExport = (data.phaPatientGroups ?? []).filter(hasPhaPatientGroupExportContent)
   const zones = spreadingZonesList(data)
 
-  xmlParts.push(`${indent}<smcdo:PublicHealthIncidentDetails>`)
+  const innerParts: string[] = []
   const inner = `${indent}  `
 
   const hasDiseaseProblemContent =
@@ -61,71 +61,79 @@ export function exportPublicHealthIncidentDetails(xmlParts: string[], data: Card
     (disease?.pathogens ?? []).some((p) => !!(p.pathogenKindName?.trim() || p.pathogenName?.trim()))
 
   if (hasDiseaseProblemContent) {
-    xmlParts.push(`${inner}<smcdo:DiseaseHealthProblemDetails>`)
+    innerParts.push(`${inner}<smcdo:DiseaseHealthProblemDetails>`)
     const problemInner = `${inner}  `
     if (disease?.diseaseName?.trim()) {
-      xmlParts.push(
+      innerParts.push(
         `${problemInner}<smsdo:DiseaseHealthProblemName>${escapeXML(disease.diseaseName.trim())}</smsdo:DiseaseHealthProblemName>`
       )
     }
     for (const p of disease?.pathogens ?? []) {
       if (!p.pathogenKindName?.trim() && !p.pathogenName?.trim()) continue
-      xmlParts.push(`${problemInner}<smcdo:PathogenDetails>`)
+      innerParts.push(`${problemInner}<smcdo:PathogenDetails>`)
       const pathInner = `${problemInner}  `
       if (p.pathogenKindName?.trim()) {
-        xmlParts.push(
+        innerParts.push(
           `${pathInner}<smsdo:PathogenKindName>${escapeXML(p.pathogenKindName.trim())}</smsdo:PathogenKindName>`
         )
       }
       if (p.pathogenName?.trim()) {
-        xmlParts.push(`${pathInner}<smsdo:PathogenName>${escapeXML(p.pathogenName.trim())}</smsdo:PathogenName>`)
+        innerParts.push(`${pathInner}<smsdo:PathogenName>${escapeXML(p.pathogenName.trim())}</smsdo:PathogenName>`)
       }
-      xmlParts.push(`${problemInner}</smcdo:PathogenDetails>`)
+      innerParts.push(`${problemInner}</smcdo:PathogenDetails>`)
     }
-    xmlParts.push(`${inner}</smcdo:DiseaseHealthProblemDetails>`)
+    innerParts.push(`${inner}</smcdo:DiseaseHealthProblemDetails>`)
   }
 
   const eventDateStr = disease?.firstCaseDate?.trim().slice(0, 10)
   if (eventDateStr) {
-    xmlParts.push(`${inner}<csdo:EventDate>${escapeXML(eventDateStr)}</csdo:EventDate>`)
+    innerParts.push(`${inner}<csdo:EventDate>${escapeXML(eventDateStr)}</csdo:EventDate>`)
   }
 
   if (disease?.lastCaseDate) {
     const d = disease.lastCaseDate.trim().slice(0, 10)
-    if (d) xmlParts.push(`${inner}<csdo:EndDate>${escapeXML(d)}</csdo:EndDate>`)
+    if (d) innerParts.push(`${inner}<csdo:EndDate>${escapeXML(d)}</csdo:EndDate>`)
   }
 
   for (const g of patientGroupsToExport) {
-    xmlParts.push(`${inner}<smcdo:PatientGroupDetails>`)
+    innerParts.push(`${inner}<smcdo:PatientGroupDetails>`)
     const gInner = `${inner}  `
     if (g.personQuantity != null && g.personQuantity !== '') {
-      xmlParts.push(`${gInner}<smsdo:PersonQuantity>${escapeXML(String(g.personQuantity))}</smsdo:PersonQuantity>`)
+      innerParts.push(`${gInner}<smsdo:PersonQuantity>${escapeXML(String(g.personQuantity))}</smsdo:PersonQuantity>`)
     }
     if (g.ageGroupCode) {
-      xmlParts.push(`${gInner}<smsdo:AgeGroupCode>${escapeXML(g.ageGroupCode)}</smsdo:AgeGroupCode>`)
+      innerParts.push(`${gInner}<smsdo:AgeGroupCode>${escapeXML(g.ageGroupCode)}</smsdo:AgeGroupCode>`)
     }
     if (g.diseaseOutcomeCode) {
-      xmlParts.push(`${gInner}<smsdo:DiseaseOutcomeCode>${escapeXML(g.diseaseOutcomeCode)}</smsdo:DiseaseOutcomeCode>`)
+      innerParts.push(`${gInner}<smsdo:DiseaseOutcomeCode>${escapeXML(g.diseaseOutcomeCode)}</smsdo:DiseaseOutcomeCode>`)
     }
     if (g.laboratoryConfirmedIndicator === 0 || g.laboratoryConfirmedIndicator === 1) {
       const boolVal = g.laboratoryConfirmedIndicator === 1 ? 'true' : 'false'
-      xmlParts.push(`${gInner}<smsdo:LaboratoryConfirmedIndicator>${boolVal}</smsdo:LaboratoryConfirmedIndicator>`)
+      innerParts.push(`${gInner}<smsdo:LaboratoryConfirmedIndicator>${boolVal}</smsdo:LaboratoryConfirmedIndicator>`)
     }
-    xmlParts.push(`${inner}</smcdo:PatientGroupDetails>`)
+    innerParts.push(`${inner}</smcdo:PatientGroupDetails>`)
   }
 
   if (data.detectionPlace) {
-    exportDetectionPlace(xmlParts, data.detectionPlace, inner)
+    const placeParts: string[] = []
+    exportDetectionPlace(placeParts, data.detectionPlace, inner)
+    innerParts.push(...placeParts)
   }
 
   if (disease?.crossborderSpreadRiskIndicator === 0 || disease?.crossborderSpreadRiskIndicator === 1) {
     const boolVal = disease.crossborderSpreadRiskIndicator === 1 ? 'true' : 'false'
-    xmlParts.push(`${inner}<smsdo:CrossborderSpreadRiskIndicator>${boolVal}</smsdo:CrossborderSpreadRiskIndicator>`)
+    innerParts.push(`${inner}<smsdo:CrossborderSpreadRiskIndicator>${boolVal}</smsdo:CrossborderSpreadRiskIndicator>`)
   }
 
   for (const zone of zones) {
-    exportSpreadingZone(xmlParts, zone, inner)
+    const zoneParts: string[] = []
+    exportSpreadingZone(zoneParts, zone, inner)
+    innerParts.push(...zoneParts)
   }
 
+  if (innerParts.length === 0) return
+
+  xmlParts.push(`${indent}<smcdo:PublicHealthIncidentDetails>`)
+  xmlParts.push(...innerParts)
   xmlParts.push(`${indent}</smcdo:PublicHealthIncidentDetails>`)
 }

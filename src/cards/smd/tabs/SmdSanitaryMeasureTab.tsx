@@ -117,7 +117,7 @@ const SmdSanitaryMeasureTab: React.FC<SmdSanitaryMeasureTabProps> = ({
           regulatoryDoc && {
             key: 'measureDoc',
             label: 'Документ, регламентирующий введение (отмену) меры',
-            children: <MeasureDocDetailsView doc={regulatoryDoc} hideDocIdentity />,
+            children: <MeasureDocDetailsView doc={regulatoryDoc} hideCountryOnly />,
           },
           measure.initialMeasureDocDetails && {
             key: 'initialMeasureDoc',
