@@ -7,6 +7,7 @@ import { FIELD_HELP } from '@/constants/fieldDescriptions'
 import { getMaxLength } from '@/constants/xsdFieldConstraints'
 import { DATE_DISPLAY_FORMAT } from '@/constants/dateFormat'
 import { useCountryOptions } from '@/hooks/shared/useCountryOptions'
+import { useEaueCountryOptions } from '@/hooks/shared/useEaueCountryOptions'
 import { useMediaTypeOptions } from '@/hooks/shared/useMediaTypeOptions'
 import { useSanitaryMeasureOptions } from '@/hooks/shared/useSanitaryMeasureOptions'
 import { useSanitaryMeasureObjKindOptions } from '@/hooks/shared/useSanitaryMeasureObjKindOptions'
@@ -37,6 +38,11 @@ const SmdSanitaryMeasureTabEdit: React.FC<SmdSanitaryMeasureTabEditProps> = ({
   const regulatoryDoc = getSmdRegulatoryMeasureDoc(data)
   const { getDisplayLabel: getCountryLabel } = useCountryOptions()
   const { countryOptions, loading: loadingCountries, normalizeCountryCode } = useCountryOptions()
+  const {
+    countryOptions: eaueCountryOptions,
+    loading: loadingEaueCountries,
+    normalizeCountryCode: normalizeEaueCountryCode,
+  } = useEaueCountryOptions()
   const {
     getSelectOptions: getMediaTypeSelectOptions,
     getNameByCode: getMediaTypeNameByCode,
@@ -266,9 +272,9 @@ const SmdSanitaryMeasureTabEdit: React.FC<SmdSanitaryMeasureTabEditProps> = ({
                 onChange={(doc) => patchMeasure({ initialMeasureDocDetails: doc })}
                 title="исходный документ"
                 defaultLanguageCode={undefined}
-                loadingCountries={loadingCountries}
-                countryOptions={countryOptions}
-                normalizeCountryCode={normalizeCountryCode}
+                loadingCountries={loadingEaueCountries}
+                countryOptions={eaueCountryOptions}
+                normalizeCountryCode={normalizeEaueCountryCode}
                 loadingMediaTypes={loadingMediaTypes}
                 getMediaTypeSelectOptions={getMediaTypeSelectOptions}
                 getMediaTypeNameByCode={getMediaTypeNameByCode}

@@ -2,7 +2,7 @@ import { Button, DatePicker, Input, Select, Table } from 'antd'
 import { PlusOutlined, DeleteOutlined } from '@ant-design/icons'
 import dayjs from 'dayjs'
 import type { CardData, PhaCauseNotificationItem } from '@/types/card'
-import { useCountryOptions } from '@/hooks/shared/useCountryOptions'
+import { useEaueCountryOptions } from '@/hooks/shared/useEaueCountryOptions'
 import { useIncidentAlertKindOptions } from '@/hooks/shared/useIncidentAlertKindOptions'
 import { DATE_DISPLAY_FORMAT } from '@/constants/dateFormat'
 import { getMaxLength } from '@/constants/xsdFieldConstraints'
@@ -18,7 +18,7 @@ interface SmdIncidentAlertsEditProps {
 }
 
 const SmdIncidentAlertsEdit: React.FC<SmdIncidentAlertsEditProps> = ({ data, onChange }) => {
-  const { getSelectOptions: getCountrySelectOptions } = useCountryOptions()
+  const { getSelectOptions: getCountrySelectOptions } = useEaueCountryOptions()
   const { getSelectOptions: getKindOptions, loading: loadingKinds } = useIncidentAlertKindOptions()
   const kindOptions = getKindOptions().filter((o) => SMD_INCIDENT_KIND_CODES.has(String(o.value)))
 

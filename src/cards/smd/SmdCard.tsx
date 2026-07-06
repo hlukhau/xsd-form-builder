@@ -157,6 +157,9 @@ const SmdCard: React.FC<SmdCardProps> = ({
   const isEec = String(meta.dataSourceKindCode ?? '').trim() === '3'
 
   const currentData = editedData
+  const smdVersion = meta.smdVersion ?? currentData.version ?? 1
+  const regulatoryDocIdentityReadOnly =
+    isNewVersionCopy || (hasPersisted && !isCreateMode && smdVersion > 1)
 
   const manageAccessRight = useMemo(() => {
     const api = resolveCardAccessApiSource(
@@ -665,7 +668,7 @@ const SmdCard: React.FC<SmdCardProps> = ({
           <SmdSanitaryMeasureTab
             data={currentData}
             {...tabProps}
-            regulatoryDocReadOnly={isNewVersionCopy}
+            regulatoryDocReadOnly={regulatoryDocIdentityReadOnly}
           />
         </div>
       ),

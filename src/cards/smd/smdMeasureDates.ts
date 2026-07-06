@@ -7,8 +7,6 @@ export function resolveSmdMeasureStartDate(data: CardData): string | null {
   if (fromMeasure) return fromMeasure
   const explicit = data.smdMeasureStartDate?.trim().slice(0, 10)
   if (explicit) return explicit
-  const doc = data.notification?.formationDate?.trim().slice(0, 10)
-  if (doc) return doc
   return null
 }
 

@@ -50,7 +50,10 @@ public class SmdSaveServlet extends HttpServlet {
             + "WHERE TRIM(DOCID) = TRIM(?) "
             + "AND TRUNC(DOCCREATIONDATE) = TRUNC(?) "
             + "AND SMDVERSION = ? "
-            + "AND TRIM(TO_CHAR(DATASOURCEKINDCODE)) = ?";
+            + "AND TRIM(TO_CHAR(DATASOURCEKINDCODE)) = ? "
+            + "AND DOCCOUNTRYID = ?";
+
+    private static final String SQL_DUPLICATE_DOC_EXCLUDING = SQL_DUPLICATE_DOC + " AND SMDID <> ?";
 
     private static final String SQL_INSERT_SMD = ""
             + "INSERT INTO SMD (SMDID, DATASOURCEKINDCODE, DOCCOUNTRYID, DOCID, DOCCREATIONDATE, "
@@ -85,7 +88,8 @@ public class SmdSaveServlet extends HttpServlet {
     private static final String SQL_EXISTS_DEP = "SELECT 1 FROM TB_DEP WHERE DEPID = ?";
 
     private static final String SQL_CURRENT_STATUS = ""
-            + "SELECT s.SMDSTATUSID, TRIM(UPPER(NVL(st.SMDSTATUSCODE, ''))) AS STCODE "
+            + "SELECT s.SMDSTATUSID, TRIM(UPPER(NVL(st.SMDSTATUSCODE, ''))) AS STCODE, "
+            + "       s.SMDVERSION, s.DOCCOUNTRYID "
             + "FROM SMD s LEFT JOIN SMDSTATUS st ON st.SMDSTATUSID = s.SMDSTATUSID WHERE s.SMDID = ?";
 
     private static final String SQL_UPDATE_SMDXML = ""
@@ -93,6 +97,12 @@ public class SmdSaveServlet extends HttpServlet {
 
     private static final String SQL_UPDATE_SMD = ""
             + "UPDATE SMD SET MODIFICATIONDATETIME = SYSDATE, SMDSTATUSID = ?, "
+            + "SANITARYMEASURESTARTDATE = ?, SANITARYMEASUREENDDATE = ?, "
+            + "SANITARYMEASUREID = ?, SANITARYMEASURENAME = ?, SANITARYMEASUREREASONCODE = ? "
+            + "WHERE SMDID = ? AND TRIM(TO_CHAR(DATASOURCEKINDCODE)) = ?";
+
+    private static final String SQL_UPDATE_SMD_V1 = ""
+            + "UPDATE SMD SET MODIFICATIONDATETIME = SYSDATE, SMDSTATUSID = ?, DOCID = ?, DOCCREATIONDATE = ?, "
             + "SANITARYMEASURESTARTDATE = ?, SANITARYMEASUREENDDATE = ?, "
             + "SANITARYMEASUREID = ?, SANITARYMEASURENAME = ?, SANITARYMEASUREREASONCODE = ? "
             + "WHERE SMDID = ? AND TRIM(TO_CHAR(DATASOURCEKINDCODE)) = ?";
@@ -186,10 +196,13 @@ public class SmdSaveServlet extends HttpServlet {
         }
 
         String sanitaryMeasureStartDate = extractJsonString(metaBlock, "sanitaryMeasureStartDate");
-        if (sanitaryMeasureStartDate == null || sanitaryMeasureStartDate.trim().isEmpty()) {
-            sanitaryMeasureStartDate = docCreationDate.trim();
-        } else {
+        if (sanitaryMeasureStartDate != null) {
             sanitaryMeasureStartDate = sanitaryMeasureStartDate.trim();
+        }
+        if (sanitaryMeasureStartDate == null || sanitaryMeasureStartDate.isEmpty()) {
+            sendJsonError(response, HttpServletResponse.SC_BAD_REQUEST,
+                    "Укажите начальную дату действия меры (metadata.sanitaryMeasureStartDate)");
+            return;
         }
         String sanitaryMeasureEndDate = extractJsonString(metaBlock, "sanitaryMeasureEndDate");
         if (sanitaryMeasureEndDate != null) {
@@ -237,17 +250,17 @@ public class SmdSaveServlet extends HttpServlet {
                 return;
             }
 
-            if (existsDuplicateDoc(conn, docId, docCreationDate.trim(), 1)) {
-                conn.rollback();
-                sendJsonError(response, HttpServletResponse.SC_CONFLICT,
-                        "Карта с указанными Страной, Номером и Датой уже существует. Сохранение невозможно");
-                return;
-            }
-
             Integer countryId = resolveCountryId(conn, countryCode);
             if (countryId == null) {
                 sendJsonError(response, HttpServletResponse.SC_BAD_REQUEST,
                         "Не удалось определить DOCCOUNTRYID по countryCode");
+                return;
+            }
+
+            if (existsDuplicateDoc(conn, docId, docCreationDate.trim(), 1, countryId)) {
+                conn.rollback();
+                sendJsonError(response, HttpServletResponse.SC_CONFLICT,
+                        "Карта с указанными Страной, Номером и Датой уже существует. Сохранение невозможно");
                 return;
             }
 
@@ -314,13 +327,23 @@ public class SmdSaveServlet extends HttpServlet {
         }
     }
 
-    private static boolean existsDuplicateDoc(Connection conn, String docId, String docCreationDate, int version)
-            throws SQLException {
-        try (PreparedStatement ps = conn.prepareStatement(SQL_DUPLICATE_DOC)) {
+    private static boolean existsDuplicateDoc(Connection conn, String docId, String docCreationDate,
+                                            int version, int countryId) throws SQLException {
+        return existsDuplicateDoc(conn, docId, docCreationDate, version, countryId, null);
+    }
+
+    private static boolean existsDuplicateDoc(Connection conn, String docId, String docCreationDate,
+                                            int version, int countryId, Long excludeSmdid) throws SQLException {
+        String sql = excludeSmdid != null ? SQL_DUPLICATE_DOC_EXCLUDING : SQL_DUPLICATE_DOC;
+        try (PreparedStatement ps = conn.prepareStatement(sql)) {
             ps.setString(1, docId);
             setDateOrNull(ps, 2, docCreationDate);
             ps.setInt(3, version);
             ps.setString(4, DATASOURCE_OUTGOING);
+            ps.setInt(5, countryId);
+            if (excludeSmdid != null) {
+                ps.setLong(6, excludeSmdid);
+            }
             try (ResultSet rs = ps.executeQuery()) {
                 if (rs.next()) return rs.getInt("CNT") > 0;
             }
@@ -426,7 +449,8 @@ public class SmdSaveServlet extends HttpServlet {
                 }
 
                 int newVersion = sourceVersion + 1;
-                if (existsDuplicateDoc(conn, docId, docCreationDate, newVersion)) {
+                int dupCountryId = docCountryId != null ? docCountryId : resolveCountryId(conn, "BY");
+                if (existsDuplicateDoc(conn, docId, docCreationDate, newVersion, dupCountryId)) {
                     sendJsonError(response, HttpServletResponse.SC_CONFLICT,
                             "Временная санитарная мера с таким номером, датой документа и версией уже существует");
                     return null;
@@ -637,6 +661,10 @@ public class SmdSaveServlet extends HttpServlet {
 
         String metaBlock = extractJsonObject(body, "metadata");
         if (metaBlock == null) metaBlock = "{}";
+        String docId = trimToEmpty(extractJsonString(metaBlock, "docId"));
+        String docCreationDate = extractJsonString(metaBlock, "docCreationDate");
+        String countryCode = trimToEmpty(extractJsonString(metaBlock, "countryCode"));
+        if (countryCode.isEmpty()) countryCode = "BY";
         String edocCode = trimToEmpty(extractJsonString(metaBlock, "edocCode"));
         if (edocCode.isEmpty()) edocCode = EDOCCODE_DEFAULT;
         String edocVersion = trimToEmpty(extractJsonString(metaBlock, "edocVersion"));
@@ -686,6 +714,8 @@ public class SmdSaveServlet extends HttpServlet {
 
             int currentStatusId;
             String currentStatusCode;
+            int smdVersion;
+            Integer docCountryId;
             try (PreparedStatement ps = conn.prepareStatement(SQL_CURRENT_STATUS)) {
                 ps.setLong(1, smdid);
                 try (ResultSet rs = ps.executeQuery()) {
@@ -695,7 +725,45 @@ public class SmdSaveServlet extends HttpServlet {
                     }
                     currentStatusId = rs.getInt("SMDSTATUSID");
                     currentStatusCode = trimToEmpty(rs.getString("STCODE"));
+                    smdVersion = rs.getInt("SMDVERSION");
+                    if (rs.wasNull()) smdVersion = 1;
+                    docCountryId = toNullableInt(rs.getObject("DOCCOUNTRYID"));
                 }
+            }
+
+            String updateDocId = null;
+            String updateDocCreationDate = null;
+            if (smdVersion == 1) {
+                if (docId.isEmpty()) {
+                    docId = extractRegulatoryDocIdFromXml(xmlBody);
+                }
+                if (docId.isEmpty()) {
+                    sendJsonError(response, HttpServletResponse.SC_BAD_REQUEST,
+                            "Укажите номер документа (metadata.docId)");
+                    return;
+                }
+                if (docCreationDate == null || docCreationDate.trim().isEmpty()) {
+                    docCreationDate = extractRegulatoryDocCreationDateFromXml(xmlBody);
+                }
+                if (docCreationDate == null || docCreationDate.trim().isEmpty()) {
+                    sendJsonError(response, HttpServletResponse.SC_BAD_REQUEST,
+                            "Укажите дату документа (metadata.docCreationDate)");
+                    return;
+                }
+                Integer countryId = resolveCountryId(conn, countryCode);
+                if (countryId == null) {
+                    sendJsonError(response, HttpServletResponse.SC_BAD_REQUEST,
+                            "Не удалось определить DOCCOUNTRYID по countryCode");
+                    return;
+                }
+                if (existsDuplicateDoc(conn, docId, docCreationDate.trim(), 1, countryId, smdid)) {
+                    sendJsonError(response, HttpServletResponse.SC_CONFLICT,
+                            "Карта с указанными Страной, Номером, Датой и Версией уже существует. Сохранение невозможно");
+                    return;
+                }
+                updateDocId = docId;
+                updateDocCreationDate = docCreationDate.trim();
+                docCountryId = countryId;
             }
 
             Integer newStatusIdResolved = resolveOutgoingStatusId(conn, "NEW");
@@ -731,19 +799,25 @@ public class SmdSaveServlet extends HttpServlet {
                 }
             }
 
-            try (PreparedStatement ps = conn.prepareStatement(SQL_UPDATE_SMD)) {
+            try (PreparedStatement ps = conn.prepareStatement(
+                    smdVersion == 1 ? SQL_UPDATE_SMD_V1 : SQL_UPDATE_SMD)) {
                 ps.setInt(1, newStatusId);
-                setDateOrNull(ps, 2, sanitaryMeasureStartDate);
-                setDateOrNull(ps, 3, sanitaryMeasureEndDate);
-                if (measureId != null && measureId > 0) {
-                    ps.setInt(4, measureId);
-                } else {
-                    ps.setNull(4, Types.INTEGER);
+                int param = 2;
+                if (smdVersion == 1) {
+                    ps.setString(param++, updateDocId);
+                    setDateOrNull(ps, param++, updateDocCreationDate);
                 }
-                setStringOrNull(ps, 5, measureName);
-                setStringOrNull(ps, 6, sanitaryMeasureReasonCode);
-                ps.setLong(7, smdid);
-                ps.setString(8, DATASOURCE_OUTGOING);
+                setDateOrNull(ps, param++, sanitaryMeasureStartDate);
+                setDateOrNull(ps, param++, sanitaryMeasureEndDate);
+                if (measureId != null && measureId > 0) {
+                    ps.setInt(param++, measureId);
+                } else {
+                    ps.setNull(param++, Types.INTEGER);
+                }
+                setStringOrNull(ps, param++, measureName);
+                setStringOrNull(ps, param++, sanitaryMeasureReasonCode);
+                ps.setLong(param++, smdid);
+                ps.setString(param, DATASOURCE_OUTGOING);
                 if (ps.executeUpdate() == 0) {
                     conn.rollback();
                     sendJsonError(response, HttpServletResponse.SC_NOT_FOUND, "Карта SMD не найдена");
