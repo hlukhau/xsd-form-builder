@@ -104,6 +104,13 @@ public class SmdRelatedActionsServlet extends HttpServlet {
                 canCloseCardReason = closeEligibility.reason;
             }
 
+            boolean canEdit = false;
+            String canEditReason = null;
+            SmdDeleteSupport.Eligibility editEligibility =
+                    SmdEditSupport.checkEditEligibility(conn, smdid, rightsJson);
+            canEdit = editEligibility.allowed;
+            canEditReason = editEligibility.reason;
+
             StringBuilder json = new StringBuilder();
             json.append("{");
             json.append("\"dataSourceKindCode\":").append(quote(dsc));
@@ -134,6 +141,10 @@ public class SmdRelatedActionsServlet extends HttpServlet {
             json.append(",\"canCloseCard\":").append(canCloseCard);
             if (canCloseCardReason != null) {
                 json.append(",\"canCloseCardReason\":").append(quote(canCloseCardReason));
+            }
+            json.append(",\"canEdit\":").append(canEdit);
+            if (canEditReason != null) {
+                json.append(",\"canEditReason\":").append(quote(canEditReason));
             }
             json.append("}");
 

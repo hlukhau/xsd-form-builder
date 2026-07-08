@@ -246,8 +246,10 @@ const SmdCard: React.FC<SmdCardProps> = ({
   const canCompleteIncomingProcessingReason = relatedActions?.canCompleteIncomingProcessingReason
   const canCloseCard = relatedActions?.canCloseCard ?? false
   const canCloseCardReason = relatedActions?.canCloseCardReason
+  const canEditCard = relatedActions?.canEdit ?? false
 
-  const showEditButton = (isOutgoing && !isEec && hasEditRight && !isNewVersionCopy) || (isCreateMode && !isNewVersionCopy)
+  const showEditButton =
+    !isNewVersionCopy && (isCreateMode || (hasPersisted && canEditCard))
   const showValidationButton = isOutgoing && !isEec && canValidateCard
 
   const canShowCopyButton =

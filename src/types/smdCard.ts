@@ -69,4 +69,7 @@ export interface SmdRelatedActions {
   canCompleteIncomingProcessingReason?: string | null
   canCloseCard?: boolean
   canCloseCardReason?: string | null
+  /** Исходящая карта: редактирование (sanitaryMeasureOut:edit ∩ SMDDEPPERMIS, статус NEW/FAILED/ERROR). */
+  canEdit?: boolean
+  canEditReason?: string | null
 }
