@@ -1,4 +1,8 @@
-import { normalizeXmlNamespaces, SMA_CANONICAL_XML_NAMESPACES } from '@/utils/xmlNamespaceNormalizer'
+import {
+  normalizeXmlNamespaces,
+  SMA_CANONICAL_XML_NAMESPACES,
+  SMA_PROCESSING_RESULT_XML_NAMESPACES,
+} from '@/utils/xmlNamespaceNormalizer'
 import { getTextContent } from '@/utils/xmlParser'
 import type { ElectronicDocument } from '@/types/card'
 import type {
@@ -7,15 +11,28 @@ import type {
   SmaMeasureDocReference,
   SmaIncidentAlert,
 } from '@/types/smaCard'
+import {
+  SMAR_ABSENT_PROCESSING_RESULT_CODE,
+  SMAR_EDOCCODE_ABSENT,
+} from '@/constants/smarResponse'
 
-const NS_DOC = 'urn:EEC:R:SM:SS:09:AdditionalInfoDetails:v1.0.0'
+const NS_DOC_INFO = 'urn:EEC:R:SM:SS:09:AdditionalInfoDetails:v1.0.0'
+const NS_DOC_RESULT = 'urn:EEC:R:ProcessingResultDetails:v1.0.7'
 const NS_CCDO = 'urn:EEC:M:ComplexDataObjects:v0.4.12'
 const NS_SMCDO = 'urn:EEC:M:SM:ComplexDataObjects:v0.3.9'
 
-function findRootDetails(xmlDoc: Document): Element | null {
+type SmaXmlRootKind = 'additionalInfo' | 'processingResult'
+
+function findRootElement(xmlDoc: Document): { root: Element; kind: SmaXmlRootKind } | null {
   try {
-    const list = xmlDoc.getElementsByTagNameNS(NS_DOC, 'AdditionalInfoDetails')
-    if (list.length > 0) return list[0]
+    const prList = xmlDoc.getElementsByTagNameNS(NS_DOC_RESULT, 'ProcessingResultDetails')
+    if (prList.length > 0) return { root: prList[0], kind: 'processingResult' }
+  } catch {
+    /* ignore */
+  }
+  try {
+    const aiList = xmlDoc.getElementsByTagNameNS(NS_DOC_INFO, 'AdditionalInfoDetails')
+    if (aiList.length > 0) return { root: aiList[0], kind: 'additionalInfo' }
   } catch {
     /* ignore */
   }
@@ -23,7 +40,8 @@ function findRootDetails(xmlDoc: Document): Element | null {
   for (let i = 0; i < all.length; i++) {
     const el = all[i]
     const local = (el.localName || el.tagName.split(':').pop() || '').toLowerCase()
-    if (local === 'additionalinfodetails') return el
+    if (local === 'processingresultdetails') return { root: el, kind: 'processingResult' }
+    if (local === 'additionalinfodetails') return { root: el, kind: 'additionalInfo' }
   }
   return null
 }
@@ -121,25 +139,48 @@ function parseDocContentRow(el: Element): SmaDocRow {
   }
 }
 
-/**
- * Разбор XML карты SMAQ/SMAR (EEC_R_SM_SS_09_AdditionalInfoDetails_v1.0.0).
- */
-export function parseSmaXmlToBundle(xmlText: string): SmaParsedBundle {
-  const normalized = normalizeXmlNamespaces(xmlText, SMA_CANONICAL_XML_NAMESPACES)
-  const parser = new DOMParser()
-  const xmlDoc = parser.parseFromString(normalized, 'text/xml')
-  const err = xmlDoc.querySelector('parsererror')
-  if (err) {
-    throw new Error(err.textContent || 'Ошибка разбора XML SMA')
+function emptyBundleBase(): Omit<SmaParsedBundle, 'electronicDocument'> {
+  return {
+    authority: { country: '', identifier: '', name: '', shortName: '' },
+    measureCountryCode: null,
+    measureDocReference: {},
+    incidentAlert: { country: '', registrationNumber: '', typeCode: '', formationDate: '' },
+    descriptionText: null,
+    sanitaryProductTypeCode: null,
+    productName: null,
+    laboratoryTestMethodName: null,
+    documents: [],
   }
-  const root = findRootDetails(xmlDoc)
-  if (!root) {
-    throw new Error('Не найден элемент AdditionalInfoDetails')
+}
+
+function parseProcessingResultRoot(root: Element): SmaParsedBundle {
+  const edoc =
+    findFirstChildByLocalName(root, 'EDocHeader') ?? root.ownerDocument?.getElementsByTagNameNS(NS_CCDO, 'EDocHeader')[0]
+  const electronicDocument = parseEdocHeader(edoc ?? null)
+  if (!(electronicDocument.documentCode ?? '').trim()) {
+    electronicDocument.documentCode = SMAR_EDOCCODE_ABSENT
   }
 
+  const eventDateTime = getDirectChildText(root, 'EventDateTime')
+  const processingResultV2Code =
+    getDirectChildText(root, 'ProcessingResultV2Code') ?? SMAR_ABSENT_PROCESSING_RESULT_CODE
+  const desc = getDirectChildText(root, 'DescriptionText')
+
+  return {
+    electronicDocument,
+    eventDateTime,
+    processingResultV2Code,
+    descriptionText: desc,
+    ...emptyBundleBase(),
+  }
+}
+
+function parseAdditionalInfoRoot(root: Element, xmlDoc: Document): SmaParsedBundle {
   const edoc =
     findFirstChildByLocalName(root, 'EDocHeader') ?? xmlDoc.getElementsByTagNameNS(NS_CCDO, 'EDocHeader')[0]
   const electronicDocument = parseEdocHeader(edoc)
+
+  const isLegacyAbsent = (electronicDocument.documentCode ?? '').trim() === SMAR_EDOCCODE_ABSENT
 
   const authority =
     findFirstChildByLocalName(root, 'UnifiedAuthorityDetails') ??
@@ -188,6 +229,8 @@ export function parseSmaXmlToBundle(xmlText: string): SmaParsedBundle {
 
   return {
     electronicDocument,
+    eventDateTime: isLegacyAbsent ? electronicDocument.documentDate || new Date().toISOString() : null,
+    processingResultV2Code: isLegacyAbsent ? SMAR_ABSENT_PROCESSING_RESULT_CODE : null,
     authority: authorityParsed,
     measureCountryCode,
     measureDocReference,
@@ -198,4 +241,49 @@ export function parseSmaXmlToBundle(xmlText: string): SmaParsedBundle {
     laboratoryTestMethodName,
     documents,
   }
+}
+
+/**
+ * Разбор XML карты SMAQ/SMAR:
+ * - AdditionalInfoDetails (R.SM.SS.09.002)
+ * - ProcessingResultDetails (R.006)
+ */
+export function parseSmaXmlToBundle(xmlText: string): SmaParsedBundle {
+  const trimmed = xmlText.trim()
+  if (!trimmed || trimmed.includes('<empty/>')) {
+    throw new Error('XML карты пуст или не заполнен')
+  }
+
+  const parser = new DOMParser()
+  const rawDoc = parser.parseFromString(xmlText, 'text/xml')
+  const rawErr = rawDoc.querySelector('parsererror')
+  if (rawErr) {
+    throw new Error(rawErr.textContent || 'Ошибка разбора XML SMA')
+  }
+
+  const found = findRootElement(rawDoc)
+  if (!found) {
+    throw new Error('Не найден корневой элемент AdditionalInfoDetails или ProcessingResultDetails')
+  }
+
+  const normalized =
+    found.kind === 'processingResult'
+      ? normalizeXmlNamespaces(xmlText, SMA_PROCESSING_RESULT_XML_NAMESPACES)
+      : normalizeXmlNamespaces(xmlText, SMA_CANONICAL_XML_NAMESPACES)
+
+  const xmlDoc = parser.parseFromString(normalized, 'text/xml')
+  const err = xmlDoc.querySelector('parsererror')
+  if (err) {
+    throw new Error(err.textContent || 'Ошибка разбора XML SMA')
+  }
+
+  const parsedRoot = findRootElement(xmlDoc)
+  if (!parsedRoot) {
+    throw new Error('Не найден корневой элемент AdditionalInfoDetails или ProcessingResultDetails')
+  }
+
+  if (parsedRoot.kind === 'processingResult') {
+    return parseProcessingResultRoot(parsedRoot.root)
+  }
+  return parseAdditionalInfoRoot(parsedRoot.root, xmlDoc)
 }

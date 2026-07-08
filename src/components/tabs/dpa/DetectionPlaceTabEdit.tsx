@@ -182,7 +182,7 @@ const DetectionPlaceTabEdit: React.FC<DetectionPlaceTabEditProps> = ({ data, onC
   }
 
   return (
-    <div>
+    <div className="spread-zone-edit-panel">
       <Form layout="vertical" className="field-tag-form">
         <Form.Item label="Описание">
           <Input.TextArea

@@ -44,19 +44,17 @@ public final class SmaDraftXmlBuilder {
 
     public static String buildSmarAbsentDraftXml(String descriptionText) {
         String desc = descriptionText != null && !descriptionText.trim().isEmpty()
-                ? "<csdo:DescriptionText>" + escapeXml(descriptionText.trim()) + "</csdo:DescriptionText>"
+                ? "    <csdo:DescriptionText>" + escapeXml(descriptionText.trim()) + "</csdo:DescriptionText>\n"
                 : "";
         String edocId = UUID.randomUUID().toString();
         String nowIso = java.time.OffsetDateTime.now().toString();
         return "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n"
-                + "<doc:AdditionalInfoDetails xmlns:ccdo=\"urn:EEC:M:ComplexDataObjects:v0.4.12\"\n"
+                + "<doc:ProcessingResultDetails xmlns:ccdo=\"urn:EEC:M:ComplexDataObjects:v0.4.12\"\n"
                 + " xmlns:csdo=\"urn:EEC:M:SimpleDataObjects:v0.4.12\"\n"
-                + " xmlns:smcdo=\"urn:EEC:M:SM:ComplexDataObjects:v0.3.9\"\n"
-                + " xmlns:smsdo=\"urn:EEC:M:SM:SimpleDataObjects:v0.3.9\"\n"
-                + " xmlns:doc=\"urn:EEC:R:SM:SS:09:AdditionalInfoDetails:v1.0.0\"\n"
+                + " xmlns:doc=\"urn:EEC:R:ProcessingResultDetails:v1.0.7\"\n"
                 + " xmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\"\n"
-                + " xsi:schemaLocation=\"urn:EEC:R:SM:SS:09:AdditionalInfoDetails:v1.0.0 "
-                + "EEC_R_SM_SS_09_AdditionalInfoDetails_v1.0.0.xsd\">\n"
+                + " xsi:schemaLocation=\"urn:EEC:R:ProcessingResultDetails:v1.0.7 "
+                + "EEC_R_ProcessingResultDetails_v1.0.7.xsd\">\n"
                 + "    <ccdo:EDocHeader>\n"
                 + "        <csdo:InfEnvelopeCode>" + INF_ENVELOPE + "</csdo:InfEnvelopeCode>\n"
                 + "        <csdo:EDocCode>" + EDOCCODE_SMAR_ABSENT + "</csdo:EDocCode>\n"
@@ -64,8 +62,10 @@ public final class SmaDraftXmlBuilder {
                 + "        <csdo:EDocDateTime>" + escapeXml(nowIso) + "</csdo:EDocDateTime>\n"
                 + "        <csdo:LanguageCode>ru</csdo:LanguageCode>\n"
                 + "    </ccdo:EDocHeader>\n"
-                + desc + "\n"
-                + "</doc:AdditionalInfoDetails>\n";
+                + "    <csdo:EventDateTime>" + escapeXml(nowIso) + "</csdo:EventDateTime>\n"
+                + "    <csdo:ProcessingResultV2Code>1</csdo:ProcessingResultV2Code>\n"
+                + desc
+                + "</doc:ProcessingResultDetails>\n";
     }
 
     private static String buildDraftXml(

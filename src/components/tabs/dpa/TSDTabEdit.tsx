@@ -800,7 +800,7 @@ const TSDTabEdit: React.FC<TSDTabEditProps> = ({ data, onChange }) => {
             children: (
               <div>
                 {doc.supplyChainParties?.map((party, pIndex) => (
-                  <div key={pIndex} style={{ marginBottom: '16px' }}>
+                  <div key={pIndex} className="manufacturer-details-edit-wrap" style={{ marginBottom: '16px' }}>
                     <ManufacturerDetailsEdit
                       data={party}
                       onChange={(updatedParty) => {
@@ -809,6 +809,7 @@ const TSDTabEdit: React.FC<TSDTabEditProps> = ({ data, onChange }) => {
                         handleDocumentChange(batchIndex, docIndex, 'supplyChainParties', updated)
                       }}
                       title={`Участник ${pIndex + 1}`}
+                      embeddedInCollapse
                     />
                     <Button
                       type="link"

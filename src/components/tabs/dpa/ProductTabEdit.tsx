@@ -410,12 +410,15 @@ const ProductTabEdit: React.FC<ProductTabEditProps> = ({ data, onChange }) => {
         </div>
       </Form.Item>
 
-      <ManufacturerDetailsEdit
-        data={data.manufacturer}
-        onChange={handleManufacturerChange}
-        title="Изготовитель продукции"
-        fixedSupplyChainPartyKindCode="41"
-      />
+      <div className="manufacturer-details-edit-wrap">
+        <ManufacturerDetailsEdit
+          data={data.manufacturer}
+          onChange={handleManufacturerChange}
+          title="Изготовитель продукции"
+          fixedSupplyChainPartyKindCode="41"
+          embeddedInCollapse
+        />
+      </div>
     </Form>
   )
 }

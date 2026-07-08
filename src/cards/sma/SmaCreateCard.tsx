@@ -7,6 +7,11 @@ import { useCountryOptions } from '@/hooks/shared/useCountryOptions'
 import { CardActions } from '@/cards/shared'
 import { SmaAuthorityEdit } from '@/cards/sma/SmaAuthorityEdit'
 import { SmaDocumentsEdit } from '@/cards/sma/SmaDocumentsEdit'
+import {
+  SmarAbsentResponseFields,
+  defaultSmarAbsentResponseValue,
+  type SmarAbsentResponseValue,
+} from '@/cards/sma/SmarAbsentResponseFields'
 import { exportSmaParsedBundleToXml } from '@/utils/xmlExporter'
 import { buildSmaCreateBundle } from '@/cards/sma/smaCreateBundle'
 import { buildSmdCardViewUrl, buildSmaqCardViewUrl } from '@/utils/smaCardUrl'
@@ -71,6 +76,7 @@ export function SmaCreateCard({ context, guid }: SmaCreateCardProps) {
   const [laboratoryTestMethodName, setLaboratoryTestMethodName] = useState('')
   const [documentsEdit, setDocumentsEdit] = useState<SmaDocRow[]>([])
   const [responseKind, setResponseKind] = useState<SmarResponseKind>('info')
+  const [absentResponse, setAbsentResponse] = useState<SmarAbsentResponseValue>(defaultSmarAbsentResponseValue)
 
   const isSmaq = context.kind === 'smaq'
   const isAbsent = !isSmaq && responseKind === 'absent'
@@ -122,12 +128,20 @@ export function SmaCreateCard({ context, guid }: SmaCreateCardProps) {
   const handleSave = useCallback(async () => {
     setSaving(true)
     try {
-      const bundle = buildSmaCreateBundle(context, authEdit, descriptionText, documentsEdit, {
-        sanitaryProductTypeCode,
-        productName,
-        laboratoryTestMethodName,
-        responseKind: isSmaq ? undefined : responseKind,
-      })
+      const bundle = buildSmaCreateBundle(
+        context,
+        authEdit,
+        isAbsent ? (absentResponse.descriptionText ?? '') : descriptionText,
+        documentsEdit,
+        {
+          sanitaryProductTypeCode,
+          productName,
+          laboratoryTestMethodName,
+          responseKind: isSmaq ? undefined : responseKind,
+          eventDateTime: isAbsent ? absentResponse.eventDateTime : undefined,
+          processingResultV2Code: isAbsent ? absentResponse.processingResultV2Code : undefined,
+        }
+      )
       const xml = exportSmaParsedBundleToXml(bundle, { responseKind: isSmaq ? undefined : responseKind })
       const result = await postSmaCreateSave({
         kind: context.kind,
@@ -138,7 +152,9 @@ export function SmaCreateCard({ context, guid }: SmaCreateCardProps) {
         authorityId: authEdit.authorityUid?.trim() || undefined,
         authorityName: authEdit.name.trim() || undefined,
         authorityBriefName: authEdit.shortName.trim() || undefined,
-        descriptionText: descriptionText.trim() || undefined,
+        descriptionText: isAbsent
+          ? absentResponse.descriptionText?.trim() || undefined
+          : descriptionText.trim() || undefined,
         responseKind: isSmaq ? undefined : responseKind,
       })
       const newId = result.smaqId ?? result.smarId
@@ -163,6 +179,8 @@ export function SmaCreateCard({ context, guid }: SmaCreateCardProps) {
     productName,
     laboratoryTestMethodName,
     responseKind,
+    absentResponse,
+    isAbsent,
     isSmaq,
   ])
 
@@ -171,9 +189,7 @@ export function SmaCreateCard({ context, guid }: SmaCreateCardProps) {
     ? 'Создание карты запроса дополнительных сведений'
     : 'Создание карты ответа на запрос дополнительных сведений'
 
-  const descLabel = isSmaq
-    ? 'Текст запроса дополнительной информации'
-    : 'Текст ответа на запрос дополнительной информации'
+  const descLabel = isSmaq ? 'Описание запроса' : isAbsent ? 'Описание результата обработки' : 'Описание ответа'
 
   return (
     <div
@@ -241,7 +257,16 @@ export function SmaCreateCard({ context, guid }: SmaCreateCardProps) {
                       </Typography.Text>
                       <Segmented
                         value={responseKind}
-                        onChange={(v) => setResponseKind(v as SmarResponseKind)}
+                        onChange={(v) => {
+                          const next = v as SmarResponseKind
+                          setResponseKind(next)
+                          if (next === 'absent') {
+                            setAbsentResponse((prev) => ({
+                              ...defaultSmarAbsentResponseValue(),
+                              descriptionText: (prev.descriptionText ?? descriptionText.trim()) || null,
+                            }))
+                          }
+                        }}
                         options={[
                           { label: 'Дополнительные сведения', value: 'info' },
                           { label: 'Сведения отсутствуют', value: 'absent' },
@@ -282,18 +307,18 @@ export function SmaCreateCard({ context, guid }: SmaCreateCardProps) {
                       />
 
                       <Typography.Title level={5} style={{ marginTop: 24 }}>
-                        Документ, вводящий временную санитарную меру
+                        Исходная карта сведений о временной санитарной мере
                       </Typography.Title>
                       <Descriptions column={1} bordered size="small" style={{ marginBottom: 16 }}>
                         <Descriptions.Item label="Страна">{docCountryDisplay}</Descriptions.Item>
                         <Descriptions.Item label="Номер документа">{dash(docId)}</Descriptions.Item>
-                        <Descriptions.Item label="Дата формирования">
+                        <Descriptions.Item label="Дата документа">
                           {formatDateRu(context.docCreationDate)}
                         </Descriptions.Item>
                       </Descriptions>
 
                       <Typography.Title level={5}>
-                        {isSmaq ? 'Запрашиваемые сведения' : 'Предоставляемые сведения'}
+                        {isSmaq ? 'Запрос' : 'Ответ на запрос'}
                       </Typography.Title>
                       <div style={{ marginBottom: 16 }}>
                         <Typography.Text type="secondary">{descLabel}</Typography.Text>
@@ -333,15 +358,10 @@ export function SmaCreateCard({ context, guid }: SmaCreateCardProps) {
                       <SmaDocumentsEdit documents={documentsEdit} onChange={setDocumentsEdit} />
                     </>
                   ) : (
-                    <div style={{ marginBottom: 16 }}>
-                      <Typography.Text type="secondary">{descLabel}</Typography.Text>
-                      <Input.TextArea
-                        value={descriptionText}
-                        onChange={(e) => setDescriptionText(e.target.value)}
-                        autoSize={{ minRows: 3, maxRows: 12 }}
-                        style={{ marginTop: 4 }}
-                      />
-                    </div>
+                    <>
+                      <Typography.Title level={5}>Сведения отсутствуют</Typography.Title>
+                      <SmarAbsentResponseFields value={absentResponse} onChange={setAbsentResponse} />
+                    </>
                   )}
                 </div>
               ),

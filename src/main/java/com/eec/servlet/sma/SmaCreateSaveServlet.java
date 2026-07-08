@@ -226,8 +226,9 @@ public class SmaCreateSaveServlet extends HttpServlet {
     private static String decodeXmlB64(String smaXmlB64) throws IOException {
         try {
             String xml = new String(Base64.getDecoder().decode(smaXmlB64.trim()), StandardCharsets.UTF_8);
-            if (xml.trim().isEmpty() || !xml.contains("AdditionalInfoDetails")) {
-                throw new IOException("В smaXmlB64 ожидается полный XML документа (корень AdditionalInfoDetails)");
+            if (xml.trim().isEmpty() || !SmaServletUtil.isValidSmaXmlBody(xml)) {
+                throw new IOException(
+                        "В smaXmlB64 ожидается полный XML документа (корень AdditionalInfoDetails или ProcessingResultDetails)");
             }
             return xml;
         } catch (IllegalArgumentException e) {

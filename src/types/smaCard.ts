@@ -95,9 +95,13 @@ export interface SmaIncidentAlert {
 /** Строка документа (ccdo:DocContentDetails) — тот же формат, что у SMR. */
 export type SmaDocRow = SmrResultDocRow
 
-/** Содержимое XML после разбора (EEC_R_SM_SS_09_AdditionalInfoDetails). */
+/** Содержимое XML после разбора (EEC_R_SM_SS_09_AdditionalInfoDetails или EEC_R_ProcessingResultDetails). */
 export interface SmaParsedBundle {
   electronicDocument: ElectronicDocument
+  /** Для R.006: дата и время окончания обработки (csdo:EventDateTime). */
+  eventDateTime?: string | null
+  /** Для R.006: код результата обработки (csdo:ProcessingResultV2Code). */
+  processingResultV2Code?: string | null
   authority: {
     country: string
     identifier: string

@@ -126,9 +126,9 @@ public class SmaSaveServlet extends HttpServlet {
                 sendErr(response, HttpServletResponse.SC_BAD_REQUEST, "Некорректный Base64 в smaXmlB64");
                 return;
             }
-            if (xmlNew.trim().isEmpty() || xmlNew.indexOf("AdditionalInfoDetails") < 0) {
+            if (xmlNew.trim().isEmpty() || !SmaServletUtil.isValidSmaXmlBody(xmlNew)) {
                 sendErr(response, HttpServletResponse.SC_BAD_REQUEST,
-                        "В smaXmlB64 ожидается полный XML документа (корень AdditionalInfoDetails)");
+                        "В smaXmlB64 ожидается полный XML документа (корень AdditionalInfoDetails или ProcessingResultDetails)");
                 return;
             }
 

@@ -13,6 +13,7 @@ import type {
   PhaPathogenDetails,
 } from '@/types/card'
 import { validateFieldValue } from '@/constants/xsdFieldConstraints'
+import { businessEntityIdMethodPairRemarks } from '@/utils/businessEntityIdentificationValidation'
 import { collectFormatValidationErrors, type ValidationResult } from '@/utils/cardValidation'
 import { exportPhaCardDataToXML } from '@/cards/pha/phaXmlExporter'
 import { fetchSchemaValidationErrors } from '@/utils/schemaValidationApi'
@@ -138,8 +139,8 @@ function collectPlaceRemarks(place: DetectionPlaceData | undefined): string[] {
     if (!organizationTrioComplete(o)) {
       add('Должны быть заполнены Страна, Наименование субъекта, Адрес')
     } else {
-      if (!empty(o.businessEntityId) && empty(o.identificationMethod)) {
-        add('Если указан идентификатор хозяйствующего субъекта, то метод идентификации должен быть указан обязательно')
+      for (const msg of businessEntityIdMethodPairRemarks(o, { legacyHozyaystvuyushchegoSubektaWording: true })) {
+        add(msg)
       }
       for (const addr of o.addresses ?? []) {
         if (!empty(addr.country) || addressHasCityOrSettlement(addr) || !empty(addr.fullAddress)) {

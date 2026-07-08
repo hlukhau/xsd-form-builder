@@ -1,7 +1,10 @@
 import type { SmaParsedBundle, SmaCreateContext, SmaDocRow, SmarResponseKind } from '@/types/smaCard'
-
-const EDOCCODE_INFO = 'R.SM.SS.09.002'
-const EDOCCODE_ABSENT = 'R.006'
+import {
+  SMAR_ABSENT_PROCESSING_RESULT_CODE,
+  SMAR_EDOCCODE_ABSENT,
+  SMAR_EDOCCODE_INFO,
+} from '@/constants/smarResponse'
+import { defaultSmarAbsentResponseValue } from '@/cards/sma/SmarAbsentResponseFields'
 
 /** Собрать тело SMA для экспорта в XML при создании черновика. */
 export function buildSmaCreateBundle(
@@ -19,12 +22,15 @@ export function buildSmaCreateBundle(
     productName?: string
     laboratoryTestMethodName?: string
     responseKind?: SmarResponseKind
+    eventDateTime?: string | null
+    processingResultV2Code?: string | null
   }
 ): SmaParsedBundle {
   const authCountry = (auth.country || context.requestCountryCode || 'BY').trim()
   const docCountry = (context.docCountryCode ?? '').trim()
   const isSmarAbsent = context.kind === 'smar' && options?.responseKind === 'absent'
-  const edocCode = isSmarAbsent ? EDOCCODE_ABSENT : EDOCCODE_INFO
+  const edocCode = isSmarAbsent ? SMAR_EDOCCODE_ABSENT : SMAR_EDOCCODE_INFO
+  const absentDefaults = defaultSmarAbsentResponseValue()
 
   return {
     electronicDocument: {
@@ -37,6 +43,12 @@ export function buildSmaCreateBundle(
       validityPeriod: { start: '', end: '' },
       updateDateTime: '',
     },
+    eventDateTime: isSmarAbsent
+      ? options?.eventDateTime?.trim() || absentDefaults.eventDateTime
+      : null,
+    processingResultV2Code: isSmarAbsent
+      ? options?.processingResultV2Code?.trim() || SMAR_ABSENT_PROCESSING_RESULT_CODE
+      : null,
     authority: {
       country: authCountry,
       identifier: auth.authorityUid?.trim() ?? '',

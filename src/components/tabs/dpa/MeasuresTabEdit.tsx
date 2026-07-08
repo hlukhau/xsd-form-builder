@@ -11,7 +11,7 @@ import { useMediaTypeOptions } from '@/hooks/shared/useMediaTypeOptions'
 import { useIdentityDocKindOptions } from '@/hooks/shared/useIdentityDocKindOptions'
 import { useLegalFormOptions } from '@/hooks/shared/useLegalFormOptions'
 import { useShipDocKindOptions } from '@/hooks/shared/useShipDocKindOptions'
-import { useIdentificationMethodOptions } from '@/hooks/shared/useIdentificationMethodOptions'
+import { IdentificationMethodSelect } from '@/components/common/IdentificationMethodSelect'
 import { useBorderCheckpointOptions } from '@/hooks/shared/useBorderCheckpointOptions'
 import { useCommunicationChannelOptions } from '@/hooks/shared/useCommunicationChannelOptions'
 import { FieldTagBlock } from '@/components/common/FieldTag'
@@ -270,7 +270,10 @@ const MeasureDocDetailsEditStandalone: React.FC<{
           style={{ width: '100%' }}
         />
       </Form.Item>
-      <Form.Item label={labelWithHelp('Срок действия документа в днях', FIELD_HELP.measureDocValidityDuration)}>
+      <Form.Item
+        label={labelWithHelp('Срок действия документа в днях', FIELD_HELP.measureDocValidityDuration)}
+        extra={`Не более ${DOC_VALIDITY_DURATION_MAX_DAYS} дней (до 5 цифр)`}
+      >
         <Input
           inputMode="numeric"
           maxLength={5}
@@ -1338,8 +1341,6 @@ const SubjectDetailsUnifiedEdit: React.FC<{
   const identityDocCountry = normalizeCountryCode(subject.identityDoc?.country)
   const { getSelectOptions: getIdentityDocKindSelectOptions, loading: loadingIdentityDocKinds } =
     useIdentityDocKindOptions(identityDocCountry)
-  const { getSelectOptions: getIdentificationMethodSelectOptions, loading: loadingIdMethods } =
-    useIdentificationMethodOptions(normalizeCountryCode(subject.country ?? subject.businessEntity?.country))
   const { getSelectOptions: getCommunicationChannelSelectOptions, loading: loadingCommunicationChannels } =
     useCommunicationChannelOptions()
   const be = subject.businessEntity
@@ -1537,25 +1538,11 @@ const SubjectDetailsUnifiedEdit: React.FC<{
         />
       </Form.Item>
       <Form.Item label="Метод идентификации">
-        <div className="subject-executor-id-method-wrap">
-          <Select
-            className="subject-executor-id-method-select"
-            showSearch
-            allowClear
-            placeholder={countryForLegalForm ? 'Выберите значение' : 'Сначала укажите страну'}
-            loading={loadingIdMethods}
-            disabled={!countryForLegalForm}
-            value={identificationMethod || undefined}
-            options={getIdentificationMethodSelectOptions().map((o) => ({
-              value: String(o.value),
-              label: `${o.value} — ${o.label}`,
-            }))}
-            onChange={(v) => upd({}, { identificationMethod: v ?? undefined })}
-            filterOption={(input, option) =>
-              String(option?.label ?? '').toLowerCase().includes(input.toLowerCase())
-            }
-          />
-        </div>
+        <IdentificationMethodSelect
+          countryCode={countryForLegalForm}
+          value={identificationMethod || undefined}
+          onChange={(v) => upd({}, { identificationMethod: v ?? undefined })}
+        />
       </Form.Item>
       <Form.Item label="Таможенный номер">
         <Input

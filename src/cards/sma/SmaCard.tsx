@@ -42,6 +42,12 @@ import { DATE_TIME_DISPLAY_FORMAT_DATEFNS } from '@/constants/dateFormat'
 import { exportSmaParsedBundleToXml } from '@/utils/xmlExporter'
 import { SmaDocumentsEdit } from '@/cards/sma/SmaDocumentsEdit'
 import { SmaAuthorityEdit } from '@/cards/sma/SmaAuthorityEdit'
+import {
+  SmarAbsentResponseFields,
+  defaultSmarAbsentResponseValue,
+  type SmarAbsentResponseValue,
+} from '@/cards/sma/SmarAbsentResponseFields'
+import { SMAR_EDOCCODE_ABSENT, SMAR_EDOCCODE_INFO } from '@/constants/smarResponse'
 import { buildSmdCardViewUrl, buildSmaqCardViewUrl } from '@/utils/smaCardUrl'
 import { outgoingSmaStatusButton, incomingSmaCompleteProcessingButton } from '@/utils/smaStatusButtonConfig'
 import { visibleStatusButton } from '@/utils/statusButtonConfig'
@@ -105,10 +111,19 @@ function resolveSmarResponseKind(
   parsed: SmaParsedBundle
 ): SmarResponseKind {
   const fromMeta = (meta.edocCode ?? '').trim()
-  if (fromMeta === 'R.006') return 'absent'
+  if (fromMeta === SMAR_EDOCCODE_ABSENT) return 'absent'
   const fromXml = (parsed.electronicDocument.documentCode ?? '').trim()
-  if (fromXml === 'R.006') return 'absent'
+  if (fromXml === SMAR_EDOCCODE_ABSENT) return 'absent'
   return 'info'
+}
+
+function absentValueFromParsed(p: SmaParsedBundle): SmarAbsentResponseValue {
+  const defaults = defaultSmarAbsentResponseValue()
+  return {
+    eventDateTime: p.eventDateTime?.trim() || defaults.eventDateTime,
+    processingResultV2Code: p.processingResultV2Code?.trim() || defaults.processingResultV2Code,
+    descriptionText: p.descriptionText?.trim() || null,
+  }
 }
 
 function smaCardTitle(kind: SmaCardKind): string {
@@ -153,6 +168,9 @@ export function SmaCard({ kind, cardId, guid, meta, parsed, onDataRefresh }: Sma
   const [documentsEdit, setDocumentsEdit] = useState<SmaDocRow[]>([])
   const [responseKind, setResponseKind] = useState<SmarResponseKind>(() =>
     resolveSmarResponseKind(meta, parsed)
+  )
+  const [absentResponse, setAbsentResponse] = useState<SmarAbsentResponseValue>(() =>
+    absentValueFromParsed(parsed)
   )
 
   const outgoing = String(meta.datasourceKindCode ?? '').trim() === '2'
@@ -219,15 +237,19 @@ export function SmaCard({ kind, cardId, guid, meta, parsed, onDataRefresh }: Sma
       ...parsed,
       electronicDocument: {
         ...parsed.electronicDocument,
-        documentCode: isAbsentResponse ? 'R.006' : 'R.SM.SS.09.002',
+        documentCode: isAbsentResponse ? SMAR_EDOCCODE_ABSENT : SMAR_EDOCCODE_INFO,
       },
+      eventDateTime: isAbsentResponse ? absentResponse.eventDateTime : null,
+      processingResultV2Code: isAbsentResponse ? absentResponse.processingResultV2Code : null,
       authority: {
         country: (authEdit.country || parsed.authority.country)?.trim() ?? '',
         identifier: authEdit.authorityUid?.trim() ?? parsed.authority.identifier ?? '',
         name: authEdit.name.trim(),
         shortName: authEdit.shortName.trim(),
       },
-      descriptionText: descText.trim() || null,
+      descriptionText: isAbsentResponse
+        ? absentResponse.descriptionText?.trim() || null
+        : descText.trim() || null,
       sanitaryProductTypeCode: isAbsentResponse ? null : sanitaryProductTypeCode.trim() || null,
       productName: isAbsentResponse ? null : productName.trim() || null,
       laboratoryTestMethodName: isAbsentResponse ? null : laboratoryTestMethodName.trim() || null,
@@ -243,6 +265,7 @@ export function SmaCard({ kind, cardId, guid, meta, parsed, onDataRefresh }: Sma
     laboratoryTestMethodName,
     documentsEdit,
     isAbsentResponse,
+    absentResponse,
   ])
 
   const beginEdit = useCallback(() => {
@@ -257,6 +280,7 @@ export function SmaCard({ kind, cardId, guid, meta, parsed, onDataRefresh }: Sma
     setProductName(parsed.productName?.trim() ?? '')
     setLaboratoryTestMethodName(parsed.laboratoryTestMethodName?.trim() ?? '')
     setDocumentsEdit(JSON.parse(JSON.stringify(parsed.documents ?? [])) as SmaDocRow[])
+    setAbsentResponse(absentValueFromParsed(parsed))
     setResponseKind(resolveSmarResponseKind(meta, parsed))
     setIsEditMode(true)
   }, [parsed, meta])
@@ -264,6 +288,7 @@ export function SmaCard({ kind, cardId, guid, meta, parsed, onDataRefresh }: Sma
   const cancelEdit = useCallback(() => {
     setIsEditMode(false)
     setResponseKind(resolveSmarResponseKind(meta, parsed))
+    setAbsentResponse(absentValueFromParsed(parsed))
   }, [meta, parsed])
 
   const saveEdit = useCallback(async () => {
@@ -493,7 +518,11 @@ export function SmaCard({ kind, cardId, guid, meta, parsed, onDataRefresh }: Sma
   )
 
   const descLabel =
-    kind === 'smaq' ? 'Текст запроса дополнительной информации' : 'Текст ответа на запрос дополнительной информации'
+    kind === 'smaq'
+      ? 'Описание запроса'
+      : isAbsentResponse
+        ? 'Описание результата обработки'
+        : 'Описание ответа'
 
   return (
     <div
@@ -622,7 +651,7 @@ export function SmaCard({ kind, cardId, guid, meta, parsed, onDataRefresh }: Sma
               label: 'Сведения',
               children: (
                 <div style={{ padding: 16 }}>
-                  {kind === 'smar' && (isEditMode || isAbsentResponse) ? (
+                  {kind === 'smar' ? (
                     <div style={{ marginBottom: 24 }}>
                       <Typography.Text type="secondary" style={{ display: 'block', marginBottom: 8 }}>
                         Вид ответа
@@ -630,7 +659,16 @@ export function SmaCard({ kind, cardId, guid, meta, parsed, onDataRefresh }: Sma
                       <Segmented
                         disabled={!isEditMode}
                         value={responseKind}
-                        onChange={(v) => setResponseKind(v as SmarResponseKind)}
+                        onChange={(v) => {
+                          const next = v as SmarResponseKind
+                          setResponseKind(next)
+                          if (next === 'absent') {
+                            setAbsentResponse((prev) => ({
+                              ...defaultSmarAbsentResponseValue(),
+                              descriptionText: (prev.descriptionText ?? descText.trim()) || null,
+                            }))
+                          }
+                        }}
                         options={[
                           { label: 'Дополнительные сведения', value: 'info' },
                           { label: 'Сведения отсутствуют', value: 'absent' },
@@ -678,7 +716,7 @@ export function SmaCard({ kind, cardId, guid, meta, parsed, onDataRefresh }: Sma
                       )}
 
                       <Typography.Title level={5}>
-                        Документ, вводящий временную санитарную меру
+                        Исходная карта сведений о временной санитарной мере
                       </Typography.Title>
                       <Descriptions column={1} bordered size="small" style={{ marginBottom: 16 }}>
                         <Descriptions.Item label="Страна">
@@ -689,12 +727,12 @@ export function SmaCard({ kind, cardId, guid, meta, parsed, onDataRefresh }: Sma
                         <Descriptions.Item label="Номер документа">
                           {dash(parsed.measureDocReference.docId ?? meta.docId)}
                         </Descriptions.Item>
-                        <Descriptions.Item label="Дата формирования">
+                        <Descriptions.Item label="Дата документа">
                           {formatDateOnly(parsed.measureDocReference.docCreationDate ?? meta.docCreationDate)}
                         </Descriptions.Item>
                       </Descriptions>
 
-                      <Typography.Title level={5}>Уведомление об инциденте</Typography.Title>
+                      <Typography.Title level={5}>Уведомление о нежелательной ситуации</Typography.Title>
                       {hasIncident ? (
                         <Table
                           size="small"
@@ -737,7 +775,7 @@ export function SmaCard({ kind, cardId, guid, meta, parsed, onDataRefresh }: Sma
                       )}
 
                       <Typography.Title level={5}>
-                        {kind === 'smaq' ? 'Запрашиваемые сведения' : 'Предоставляемые сведения'}
+                        {kind === 'smaq' ? 'Запрос' : 'Ответ на запрос'}
                       </Typography.Title>
                       <div style={{ marginBottom: 16 }}>
                         <Typography.Text type="secondary">{descLabel}</Typography.Text>
@@ -789,16 +827,14 @@ export function SmaCard({ kind, cardId, guid, meta, parsed, onDataRefresh }: Sma
                       )}
                     </>
                   ) : (
-                    <div style={{ marginBottom: 16 }}>
-                      <Typography.Text type="secondary">{descLabel}</Typography.Text>
-                      <Input.TextArea
+                    <>
+                      <Typography.Title level={5}>Сведения отсутствуют</Typography.Title>
+                      <SmarAbsentResponseFields
+                        value={isEditMode ? absentResponse : absentValueFromParsed(parsed)}
+                        onChange={isEditMode ? setAbsentResponse : undefined}
                         readOnly={!isEditMode}
-                        value={isEditMode ? descText : parsed.descriptionText ?? ''}
-                        onChange={(e) => setDescText(e.target.value)}
-                        autoSize={{ minRows: 3, maxRows: 12 }}
-                        style={{ marginTop: 4 }}
                       />
-                    </div>
+                    </>
                   )}
                 </div>
               ),

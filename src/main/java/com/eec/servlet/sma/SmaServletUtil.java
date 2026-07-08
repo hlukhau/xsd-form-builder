@@ -80,6 +80,14 @@ final class SmaServletUtil {
         return ts.toInstant().toString();
     }
 
+    static boolean isValidSmaXmlBody(String xml) {
+        if (xml == null || xml.trim().isEmpty()) {
+            return false;
+        }
+        String lower = xml.toLowerCase();
+        return lower.contains("additionalinfodetails") || lower.contains("processingresultdetails");
+    }
+
     static String quote(String s) {
         if (s == null) {
             return "null";

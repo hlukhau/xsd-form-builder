@@ -1140,6 +1140,101 @@ body {
 }
 
 /* Длинные подписи справочников (метод идентификации и т.п.) не раздувают форму в таблице */
+.manufacturer-details-edit-wrap {
+  min-width: 0;
+  max-width: 100%;
+  box-sizing: border-box;
+}
+
+.identification-method-select-wrap,
+.sanitary-measure-reason-select-wrap {
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+}
+
+/* Поле растёт по высоте вместе с многострочной подписью выбранного значения */
+.identification-method-select.ant-select.ant-select-single,
+.sanitary-measure-reason-select.ant-select.ant-select-single {
+  width: 100%;
+  max-width: 100%;
+  height: auto !important;
+  min-height: 32px;
+  vertical-align: top;
+}
+
+.identification-method-select.ant-select-single:not(.ant-select-customize-input) .ant-select-selector,
+.sanitary-measure-reason-select.ant-select-single:not(.ant-select-customize-input) .ant-select-selector {
+  height: auto !important;
+  min-height: 32px !important;
+  align-items: flex-start !important;
+  padding-block: 4px !important;
+  overflow: visible !important;
+}
+
+.identification-method-select.ant-select-single .ant-select-selection-wrap,
+.sanitary-measure-reason-select.ant-select-single .ant-select-selection-wrap {
+  align-items: flex-start;
+  min-width: 0;
+}
+
+.identification-method-select.ant-select-single .ant-select-selection-wrap::after,
+.identification-method-select.ant-select-single:not(.ant-select-customize-input) .ant-select-selector::after,
+.sanitary-measure-reason-select.ant-select-single .ant-select-selection-wrap::after,
+.sanitary-measure-reason-select.ant-select-single:not(.ant-select-customize-input) .ant-select-selector::after {
+  line-height: 1.35 !important;
+}
+
+.identification-method-select.ant-select-single .ant-select-selection-item,
+.identification-method-select.ant-select-single .ant-select-selection-placeholder,
+.sanitary-measure-reason-select.ant-select-single .ant-select-selection-item,
+.sanitary-measure-reason-select.ant-select-single .ant-select-selection-placeholder {
+  position: relative !important;
+  inset: auto !important;
+  display: block !important;
+  flex: 1 1 auto !important;
+  align-self: flex-start !important;
+  height: auto !important;
+  max-width: 100% !important;
+  white-space: normal !important;
+  word-break: break-word !important;
+  overflow-wrap: anywhere !important;
+  line-height: 1.35 !important;
+  overflow: visible !important;
+  text-overflow: clip !important;
+}
+
+.identification-method-select.ant-select-single.ant-select-show-arrow .ant-select-selection-item,
+.identification-method-select.ant-select-single.ant-select-show-arrow .ant-select-selection-placeholder,
+.sanitary-measure-reason-select.ant-select-single.ant-select-show-arrow .ant-select-selection-item,
+.sanitary-measure-reason-select.ant-select-single.ant-select-show-arrow .ant-select-selection-placeholder {
+  padding-inline-end: 22px !important;
+}
+
+.identification-method-select.ant-select-single .ant-select-arrow,
+.identification-method-select.ant-select-single .ant-select-clear,
+.sanitary-measure-reason-select.ant-select-single .ant-select-arrow,
+.sanitary-measure-reason-select.ant-select-single .ant-select-clear {
+  top: 8px !important;
+  margin-top: 0 !important;
+  inset-block-start: 8px !important;
+}
+
+.identification-method-dropdown.ant-select-dropdown .ant-select-item-option-content,
+.sanitary-measure-reason-dropdown.ant-select-dropdown .ant-select-item-option-content {
+  white-space: normal;
+  word-break: break-word;
+  overflow-wrap: anywhere;
+  line-height: 1.35;
+}
+
+.spread-zone-edit-panel {
+  min-width: 0;
+  max-width: 100%;
+  box-sizing: border-box;
+  padding-right: 8px;
+}
+
 .card-select-truncate.ant-select .ant-select-selector {
   max-width: 100%;
 }

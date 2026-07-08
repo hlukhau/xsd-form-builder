@@ -157,7 +157,7 @@ const SmdDiseaseTabEdit: React.FC<SmdDiseaseTabEditProps> = ({ data, onChange })
               expandedRowKeys:
                 selectedZoneIndex != null ? [`spread-zone-edit-${selectedZoneIndex}`] : [],
               expandedRowRender: (_, index) => (
-                <div style={{ maxWidth: '100%', overflowX: 'auto', paddingRight: 8 }}>
+                <div className="spread-zone-edit-panel">
                   <DetectionPlaceTabEdit
                     data={zones[index ?? 0] ?? {}}
                     onChange={(nextZone) => {

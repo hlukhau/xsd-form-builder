@@ -19,6 +19,7 @@ import type {
 import type { ValidationResult } from '@/utils/cardValidation'
 import { getAddressListFromParty, getAddressListFromSubject } from '@/utils/addressFormatUtils'
 import { remarkContactsIncomplete } from '@/utils/contactValidation'
+import { businessEntityIdMethodPairRemarks } from '@/utils/businessEntityIdentificationValidation'
 import { hasMeasureImplementationEntryContent, hasIdentityDocV3Content } from '@/utils/xmlExporter'
 import { hasMeasureDocDetailsContent } from './smdXmlExporter'
 import { getSmdPrimaryMeasure } from './smdSanitaryMeasureModel'
@@ -233,8 +234,8 @@ function collectDiseasePlaceRemarks(
     if (!organizationTrioComplete(o)) {
       add('Должны быть заполнены Страна, Наименование субъекта, Адрес')
     } else {
-      if (!empty(o.businessEntityId) && empty(o.identificationMethod)) {
-        add('Если указан идентификатор хозяйствующего субъекта, то метод идентификации должен быть указан обязательно')
+      for (const msg of businessEntityIdMethodPairRemarks(o, { legacyHozyaystvuyushchegoSubektaWording: true })) {
+        add(msg)
       }
       for (const addr of o.addresses ?? []) {
         if (measureExecutorAddressRowHasContent(addr)) {
@@ -398,7 +399,7 @@ function validateMeasuresSection(measure: SanitaryMeasure, add: (msg: string) =>
     if (!hasAuthority && !hasSubject) anyImplMissingExecutorChoice = true
 
     for (const subj of getSubjects(impl)) {
-      if (!subjTouched(subj)) continue
+      if (!subjectTouched(subj)) continue
       if (empty(measureExecutorSubjectCountry(subj))) anyImplMissingCountryOnSubject = true
       if (empty(measureExecutorSubjectName(subj))) anyImplMissingNameOnSubject = true
       if (!getMeasureExecutorSubjectAddressList(subj).some((a) => measureExecutorAddressRowHasContent(a))) {
@@ -451,10 +452,9 @@ function validateMeasuresSection(measure: SanitaryMeasure, add: (msg: string) =>
     }
 
     for (const subj of getSubjects(impl)) {
-      if (!subjTouched(subj)) continue
-      const beId = subj.businessEntity?.businessEntityId
-      if (!empty(beId) && empty(subj.businessEntity?.identificationMethod)) {
-        add('Если для субъекта определен идентификатор хозяйствующего субъекта, то также должен быть указан метод идентификации')
+      if (!subjectTouched(subj)) continue
+      for (const msg of businessEntityIdMethodPairRemarks(subj.businessEntity, { legacyHozyaystvuyushchegoSubektaWording: true })) {
+        add(msg)
       }
       const identityDoc = subj.identityDoc
       if (hasIdentityDocV3Content(identityDoc)) {
@@ -520,7 +520,7 @@ function validateProductSection(data: CardData, add: (msg: string) => void): voi
   let missingMfrAddress = false
   let missingMfrAddressCountry = false
   let missingMfrCityOrSettlement = false
-  let missingMfrIdMethod = false
+  let missingMfrIdMethodPair = false
 
   for (const item of items) {
     const product = item.product
@@ -539,12 +539,8 @@ function validateProductSection(data: CardData, add: (msg: string) => void): voi
         if (empty(addr.cityName) && empty(addr.settlementName)) missingMfrCityOrSettlement = true
       }
     }
-    if (
-      mfr?.subjectIdentifier != null &&
-      String(mfr.subjectIdentifier).trim() !== '' &&
-      empty(mfr.identificationMethod)
-    ) {
-      missingMfrIdMethod = true
+    if (businessEntityIdMethodPairRemarks(mfr, { legacyHozyaystvuyushchegoSubektaWording: true }).length > 0) {
+      missingMfrIdMethodPair = true
     }
   }
 
@@ -569,8 +565,8 @@ function validateProductSection(data: CardData, add: (msg: string) => void): voi
   if (missingMfrCityOrSettlement) {
     add('В составе каждого адреса изготовителя продукции должен быть указан или город, или населенный пункт')
   }
-  if (missingMfrIdMethod) {
-    add('Если по изготовителю продукции указан идентификатор хозяйствующего субъекта, то метод идентификации должен быть указан обязательно')
+  if (missingMfrIdMethodPair) {
+    add('Идентификатор субъекта и метод идентификации изготовителя продукции должны быть указаны одновременно или оба отсутствовать')
   }
 
 }
@@ -607,7 +603,7 @@ function validateTsdSection(data: CardData, add: (msg: string) => void): void {
   let tsdPartyMissingAddress = false
   let tsdAddressMissingCountry = false
   let tsdAddressMissingCityOrSettlement = false
-  let tsdPartyIdWithoutMethod = false
+  let tsdPartyIdMethodPairInvalid = false
 
   for (const batch of batches) {
     for (const doc of batch.shippingDocuments ?? []) {
@@ -622,12 +618,8 @@ function validateTsdSection(data: CardData, add: (msg: string) => void): void {
             if (empty(addr.cityName) && empty(addr.settlementName)) tsdAddressMissingCityOrSettlement = true
           }
         }
-        if (
-          party.subjectIdentifier != null &&
-          String(party.subjectIdentifier).trim() !== '' &&
-          empty(party.identificationMethod)
-        ) {
-          tsdPartyIdWithoutMethod = true
+        if (businessEntityIdMethodPairRemarks(party, { legacyHozyaystvuyushchegoSubektaWording: true }).length > 0) {
+          tsdPartyIdMethodPairInvalid = true
         }
       }
     }
@@ -660,8 +652,8 @@ function validateTsdSection(data: CardData, add: (msg: string) => void): void {
       add('Для каждого адреса изготовителя продукции изготовителя продукции в составе данных по ТСД должен быть указан или город, или населенный пункт')
     }
   }
-  if (hasAnyParty && tsdPartyIdWithoutMethod) {
-    add('Если по изготовителю продукции в составе данных по ТСД указан идентификатор хозяйствующего субъекта, то метод идентификации должен быть указан обязательно')
+  if (hasAnyParty && tsdPartyIdMethodPairInvalid) {
+    add('Идентификатор субъекта и метод идентификации изготовителя продукции в составе данных по ТСД должны быть указаны одновременно или оба отсутствовать')
   }
 
 }
@@ -766,8 +758,8 @@ function validateDiseaseSection(data: CardData, add: (msg: string) => void): voi
       if (!organizationTrioComplete(o)) {
         add('Должны быть заполнены Страна, Наименование субъекта, Адрес')
       } else {
-        if (!empty(o.businessEntityId) && empty(o.identificationMethod)) {
-          add('Если указан идентификатор хозяйствующего субъекта, то метод идентификации должен быть указан обязательно')
+        for (const msg of businessEntityIdMethodPairRemarks(o, { legacyHozyaystvuyushchegoSubektaWording: true })) {
+          add(msg)
         }
         for (const addr of o.addresses ?? []) {
           if (measureExecutorAddressRowHasContent(addr)) {

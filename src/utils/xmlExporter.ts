@@ -32,6 +32,11 @@ import type {
 import type { DprParsedBundle, DprResultDocRow } from '@/types/dprCard'
 import type { SmrParsedBundle, SmrMeasureDocDetails, SmrResultDocRow } from '@/types/smrCard'
 import type { SmaParsedBundle, SmarResponseKind } from '@/types/smaCard'
+import {
+  SMAR_ABSENT_PROCESSING_RESULT_CODE,
+  SMAR_EDOCCODE_ABSENT,
+  SMAR_EDOCCODE_INFO,
+} from '@/constants/smarResponse'
 import { SANITARY_MEASURE_START_DATE_XML_PLACEHOLDER } from '@/constants/measureXml'
 import { dprResultDocRowToMeasureDocDetails, hasDprResultDocRowContent } from '@/utils/dprResultDocMapping'
 import {
@@ -2400,8 +2405,58 @@ export function exportSmrParsedBundleToXml(bundle: SmrParsedBundle): string {
 }
 
 const SMA_XML_INDENT = '    '
-const SMA_EDOCCODE_INFO = 'R.SM.SS.09.002'
-const SMA_EDOCCODE_ABSENT = 'R.006'
+
+function exportSmaEdocHeaderXml(
+  parts: string[],
+  edoc: SmaParsedBundle['electronicDocument'],
+  edocCode: string
+): void {
+  const msg = (edoc.messageCode ?? '').trim() || 'P.SS.09.MSG.019'
+  const id = (edoc.documentId ?? '').trim() || `sma-${Date.now()}`
+  const dt = (edoc.documentDate ?? '').trim() ? toISODateTimeForXml(edoc.documentDate) : new Date().toISOString()
+  const lang = (edoc.language ?? '').trim() || 'ru'
+
+  parts.push('    <ccdo:EDocHeader>')
+  parts.push(`        <csdo:InfEnvelopeCode>${escapeXML(msg)}</csdo:InfEnvelopeCode>`)
+  parts.push(`        <csdo:EDocCode>${escapeXML(edocCode)}</csdo:EDocCode>`)
+  parts.push(`        <csdo:EDocId>${escapeXML(id)}</csdo:EDocId>`)
+  const refId = (edoc.sourceDocumentId ?? '').trim()
+  if (refId) {
+    parts.push(`        <csdo:EDocRefId>${escapeXML(refId)}</csdo:EDocRefId>`)
+  }
+  parts.push(`        <csdo:EDocDateTime>${escapeXML(dt)}</csdo:EDocDateTime>`)
+  parts.push(`        <csdo:LanguageCode>${escapeXML(lang)}</csdo:LanguageCode>`)
+  parts.push('    </ccdo:EDocHeader>')
+}
+
+function exportSmaProcessingResultToXml(bundle: SmaParsedBundle): string {
+  const edoc = bundle.electronicDocument
+  const eventDt = (bundle.eventDateTime ?? '').trim()
+    ? toISODateTimeForXml(bundle.eventDateTime)
+    : new Date().toISOString()
+  const resultCode = (bundle.processingResultV2Code ?? SMAR_ABSENT_PROCESSING_RESULT_CODE).trim()
+  const desc = (bundle.descriptionText ?? '').trim()
+
+  const parts: string[] = []
+  parts.push('<?xml version="1.0" encoding="UTF-8"?>')
+  parts.push('<doc:ProcessingResultDetails xmlns:ccdo="urn:EEC:M:ComplexDataObjects:v0.4.12"')
+  parts.push(' xmlns:csdo="urn:EEC:M:SimpleDataObjects:v0.4.12"')
+  parts.push(' xmlns:doc="urn:EEC:R:ProcessingResultDetails:v1.0.7"')
+  parts.push(' xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"')
+  parts.push(
+    ' xsi:schemaLocation="urn:EEC:R:ProcessingResultDetails:v1.0.7 EEC_R_ProcessingResultDetails_v1.0.7.xsd">'
+  )
+
+  exportSmaEdocHeaderXml(parts, edoc, SMAR_EDOCCODE_ABSENT)
+  parts.push(`    <csdo:EventDateTime>${escapeXML(eventDt)}</csdo:EventDateTime>`)
+  parts.push(`    <csdo:ProcessingResultV2Code>${escapeXML(resultCode)}</csdo:ProcessingResultV2Code>`)
+  if (desc) {
+    parts.push(`    <csdo:DescriptionText>${escapeXML(desc)}</csdo:DescriptionText>`)
+  }
+
+  parts.push('</doc:ProcessingResultDetails>')
+  return parts.join('\n')
+}
 
 function exportSmaMeasureDocReferenceXml(
   xmlParts: string[],
@@ -2452,16 +2507,14 @@ export function exportSmaParsedBundleToXml(
 ): string {
   const isAbsent =
     options?.responseKind === 'absent' ||
-    (bundle.electronicDocument.documentCode ?? '').trim() === SMA_EDOCCODE_ABSENT
+    (bundle.electronicDocument.documentCode ?? '').trim() === SMAR_EDOCCODE_ABSENT
+
+  if (isAbsent) {
+    return exportSmaProcessingResultToXml(bundle)
+  }
 
   const edoc = bundle.electronicDocument
-  const msg = (edoc.messageCode ?? '').trim() || 'P.SS.09.MSG.019'
-  const code = isAbsent
-    ? SMA_EDOCCODE_ABSENT
-    : (edoc.documentCode ?? '').trim() || SMA_EDOCCODE_INFO
-  const id = (edoc.documentId ?? '').trim() || `sma-${Date.now()}`
-  const dt = (edoc.documentDate ?? '').trim() ? toISODateTimeForXml(edoc.documentDate) : new Date().toISOString()
-  const lang = (edoc.language ?? '').trim() || 'ru'
+  const code = (edoc.documentCode ?? '').trim() || SMAR_EDOCCODE_INFO
 
   const parts: string[] = []
   parts.push('<?xml version="1.0" encoding="UTF-8"?>')
@@ -2475,55 +2528,43 @@ export function exportSmaParsedBundleToXml(
     ' xsi:schemaLocation="urn:EEC:R:SM:SS:09:AdditionalInfoDetails:v1.0.0 EEC_R_SM_SS_09_AdditionalInfoDetails_v1.0.0.xsd">'
   )
 
-  parts.push('    <ccdo:EDocHeader>')
-  parts.push(`        <csdo:InfEnvelopeCode>${escapeXML(msg)}</csdo:InfEnvelopeCode>`)
-  parts.push(`        <csdo:EDocCode>${escapeXML(code)}</csdo:EDocCode>`)
-  parts.push(`        <csdo:EDocId>${escapeXML(id)}</csdo:EDocId>`)
-  const refId = (edoc.sourceDocumentId ?? '').trim()
-  if (refId) {
-    parts.push(`        <csdo:EDocRefId>${escapeXML(refId)}</csdo:EDocRefId>`)
+  exportSmaEdocHeaderXml(parts, edoc, code)
+
+  parts.push('    <ccdo:UnifiedAuthorityDetails>')
+  const authCountry = (bundle.authority.country ?? '').trim()
+  if (authCountry) {
+    parts.push(
+      `        <csdo:UnifiedCountryCode codeListId="2021">${escapeXML(authCountry)}</csdo:UnifiedCountryCode>`
+    )
   }
-  parts.push(`        <csdo:EDocDateTime>${escapeXML(dt)}</csdo:EDocDateTime>`)
-  parts.push(`        <csdo:LanguageCode>${escapeXML(lang)}</csdo:LanguageCode>`)
-  parts.push('    </ccdo:EDocHeader>')
-
-  if (!isAbsent) {
-    parts.push('    <ccdo:UnifiedAuthorityDetails>')
-    const authCountry = (bundle.authority.country ?? '').trim()
-    if (authCountry) {
-      parts.push(
-        `        <csdo:UnifiedCountryCode codeListId="2021">${escapeXML(authCountry)}</csdo:UnifiedCountryCode>`
-      )
-    }
-    const authId = (bundle.authority.identifier ?? '').trim()
-    if (authId) parts.push(`        <csdo:AuthorityId>${escapeXML(authId)}</csdo:AuthorityId>`)
-    const authName = (bundle.authority.name ?? '').trim()
-    if (authName) parts.push(`        <csdo:AuthorityName>${escapeXML(authName)}</csdo:AuthorityName>`)
-    const authBrief = (bundle.authority.shortName ?? '').trim()
-    if (authBrief) {
-      parts.push(`        <csdo:AuthorityBriefName>${escapeXML(authBrief)}</csdo:AuthorityBriefName>`)
-    }
-    parts.push('    </ccdo:UnifiedAuthorityDetails>')
-
-    exportSmaIncidentAlertXml(parts, bundle.incidentAlert, SMA_XML_INDENT)
-
-    const mcc = (bundle.measureCountryCode ?? '').trim()
-    if (mcc) {
-      parts.push(`    <csdo:UnifiedCountryCode codeListId="2021">${escapeXML(mcc)}</csdo:UnifiedCountryCode>`)
-    }
-
-    exportSmaMeasureDocReferenceXml(parts, bundle.measureDocReference, SMA_XML_INDENT)
-
-    const spt = (bundle.sanitaryProductTypeCode ?? '').trim()
-    if (spt) parts.push(`    <smsdo:SanitaryProductTypeCode>${escapeXML(spt)}</smsdo:SanitaryProductTypeCode>`)
-    const pn = (bundle.productName ?? '').trim()
-    if (pn) parts.push(`    <csdo:ProductName>${escapeXML(pn)}</csdo:ProductName>`)
-    const ltm = (bundle.laboratoryTestMethodName ?? '').trim()
-    if (ltm) parts.push(`    <smsdo:LaboratoryTestMethodName>${escapeXML(ltm)}</smsdo:LaboratoryTestMethodName>`)
-
-    const docsXml = exportSmrDocContentDetailsXmlFragment(bundle.documents, SMA_XML_INDENT).trim()
-    if (docsXml) parts.push(docsXml)
+  const authId = (bundle.authority.identifier ?? '').trim()
+  if (authId) parts.push(`        <csdo:AuthorityId>${escapeXML(authId)}</csdo:AuthorityId>`)
+  const authName = (bundle.authority.name ?? '').trim()
+  if (authName) parts.push(`        <csdo:AuthorityName>${escapeXML(authName)}</csdo:AuthorityName>`)
+  const authBrief = (bundle.authority.shortName ?? '').trim()
+  if (authBrief) {
+    parts.push(`        <csdo:AuthorityBriefName>${escapeXML(authBrief)}</csdo:AuthorityBriefName>`)
   }
+  parts.push('    </ccdo:UnifiedAuthorityDetails>')
+
+  exportSmaIncidentAlertXml(parts, bundle.incidentAlert, SMA_XML_INDENT)
+
+  const mcc = (bundle.measureCountryCode ?? '').trim()
+  if (mcc) {
+    parts.push(`    <csdo:UnifiedCountryCode codeListId="2021">${escapeXML(mcc)}</csdo:UnifiedCountryCode>`)
+  }
+
+  exportSmaMeasureDocReferenceXml(parts, bundle.measureDocReference, SMA_XML_INDENT)
+
+  const spt = (bundle.sanitaryProductTypeCode ?? '').trim()
+  if (spt) parts.push(`    <smsdo:SanitaryProductTypeCode>${escapeXML(spt)}</smsdo:SanitaryProductTypeCode>`)
+  const pn = (bundle.productName ?? '').trim()
+  if (pn) parts.push(`    <csdo:ProductName>${escapeXML(pn)}</csdo:ProductName>`)
+  const ltm = (bundle.laboratoryTestMethodName ?? '').trim()
+  if (ltm) parts.push(`    <smsdo:LaboratoryTestMethodName>${escapeXML(ltm)}</smsdo:LaboratoryTestMethodName>`)
+
+  const docsXml = exportSmrDocContentDetailsXmlFragment(bundle.documents, SMA_XML_INDENT).trim()
+  if (docsXml) parts.push(docsXml)
 
   const desc = (bundle.descriptionText ?? '').trim()
   if (desc) {

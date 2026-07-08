@@ -234,19 +234,6 @@ const SmdInfoRequestsTab: React.FC<SmdInfoRequestsTabProps> = ({
               )
             }
             const tip = responseTooltip(record.edocCode)
-            const absentOnOutgoing = isOutgoing && isAbsentResponseCode(record.edocCode)
-            if (absentOnOutgoing) {
-              return (
-                <Tooltip title={tip}>
-                  <span
-                    style={{ ...linkIconStyle, cursor: 'default', opacity: 1 }}
-                    aria-label={tip}
-                  >
-                    <ResponseIcon edocCode={record.edocCode} inactiveAbsent />
-                  </span>
-                </Tooltip>
-              )
-            }
             const href = buildSmarCardViewUrl(smarId, g)
             return (
               <Tooltip title={tip}>
@@ -255,7 +242,10 @@ const SmdInfoRequestsTab: React.FC<SmdInfoRequestsTabProps> = ({
                   style={linkIconStyle}
                   aria-label={tip}
                 >
-                  <ResponseIcon edocCode={record.edocCode} />
+                  <ResponseIcon
+                    edocCode={record.edocCode}
+                    inactiveAbsent={isOutgoing && isAbsentResponseCode(record.edocCode)}
+                  />
                 </a>
               </Tooltip>
             )

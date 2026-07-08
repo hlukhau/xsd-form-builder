@@ -8,7 +8,7 @@ import { useCountryOptions } from '@/hooks/shared/useCountryOptions'
 import CountrySelect from '@/components/common/CountrySelect'
 import { useSupplyChainPartyKindOptions } from '@/hooks/shared/useSupplyChainPartyKindOptions'
 import { useLegalFormOptions } from '@/hooks/shared/useLegalFormOptions'
-import { useIdentificationMethodOptions } from '@/hooks/shared/useIdentificationMethodOptions'
+import { IdentificationMethodSelect } from '@/components/common/IdentificationMethodSelect'
 import { checkSupplyChainPartyKindExists } from '@/utils/referenceDataApi'
 import { getAddressListFromParty, getDefaultAddressKindName } from '@/utils/addressFormatUtils'
 import { useCommunicationChannelOptions } from '@/hooks/shared/useCommunicationChannelOptions'
@@ -53,7 +53,6 @@ const ManufacturerDetailsEdit: React.FC<ManufacturerDetailsEditProps> = ({
     !loadingLegalForms &&
     legalFormOptionsList.length >= 0 &&
     !legalFormOptionsList.some((o) => String(o.code) === String(legalFormCodeFromRef))
-  const { getSelectOptions: getIdentificationMethodSelectOptions, loading: loadingIdMethods } = useIdentificationMethodOptions(countryForLegalForm)
   const { getSelectOptions: getCommunicationChannelSelectOptions, loading: loadingCommunicationChannels } = useCommunicationChannelOptions()
   const [kindCodeError, setKindCodeError] = useState<boolean>(false)
   const [addressErrors, setAddressErrors] = useState<Record<string, string>>({})
@@ -239,7 +238,7 @@ const ManufacturerDetailsEdit: React.FC<ManufacturerDetailsEditProps> = ({
       layout="vertical"
       className="field-tag-form"
       onValuesChange={handleValuesChange}
-      style={embeddedInCollapse ? { maxWidth: '100%', minWidth: 0 } : undefined}
+      style={{ maxWidth: '100%', minWidth: 0 }}
     >
                 <Form.Item label="Страна" name="country">
                   <CountrySelect
@@ -325,21 +324,7 @@ const ManufacturerDetailsEdit: React.FC<ManufacturerDetailsEditProps> = ({
                   <Input maxLength={getMaxLength('subjectIdentifier')} showCount />
                 </Form.Item>
                 <Form.Item label="Метод идентификации" name="identificationMethod">
-                  <Select
-                    showSearch
-                    placeholder={countryForLegalForm ? 'Выберите из справочника (букв. обозначение — описание)' : 'Сначала укажите страну'}
-                    allowClear
-                    loading={loadingIdMethods}
-                    filterOption={(input, option) =>
-                      (option?.label ?? '').toLowerCase().includes(input.toLowerCase())
-                    }
-                    options={getIdentificationMethodSelectOptions()}
-                    disabled={!countryForLegalForm}
-                    notFoundContent={loadingIdMethods ? 'Загрузка...' : 'Нет данных по выбранной стране'}
-                    style={{ width: '100%', maxWidth: '100%' }}
-                    popupMatchSelectWidth={false}
-                    className={embeddedInCollapse ? 'card-select-truncate' : undefined}
-                  />
+                  <IdentificationMethodSelect countryCode={countryForLegalForm} />
                 </Form.Item>
                 <Form.Item label="Таможенный номер" name="customsNumber" rules={getFormRules('customsNumber')}>
                   <Input maxLength={getMaxLength('customsNumber')} showCount />
@@ -555,7 +540,7 @@ const ManufacturerDetailsEdit: React.FC<ManufacturerDetailsEditProps> = ({
   )
 
   return (
-    <div style={{ marginTop: embeddedInCollapse ? 0 : '16px' }}>
+    <div className="manufacturer-details-edit-wrap" style={{ marginTop: embeddedInCollapse ? 0 : '16px' }}>
       {embeddedInCollapse ? (
         formContent
       ) : (

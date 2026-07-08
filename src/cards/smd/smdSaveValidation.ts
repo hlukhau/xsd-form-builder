@@ -1,8 +1,9 @@
 import type { CardData, PhaCauseNotificationItem } from '@/types/card'
 import { SMD_MESSAGE_CANCEL, SMD_MESSAGE_CHANGE } from '@/constants/smdCard'
 import { getSmdPrimaryMeasure } from './smdSanitaryMeasureModel'
-import { getSmdRegulatoryDocCreationDate, getSmdRegulatoryDocId, getSmdRegulatoryMeasureDoc } from './smdMeasureDoc'
+import { getSmdRegulatoryMeasureDoc } from './smdMeasureDoc'
 import { resolveSmdMeasureStartDate } from './smdMeasureDates'
+import { collectBusinessEntityIdMethodPairErrorsFromCard } from '@/utils/businessEntityIdentificationValidation'
 
 function isBlank(s: string | null | undefined): boolean {
   return !s || !String(s).trim()
@@ -76,6 +77,8 @@ export function validateSmdCardBeforeSave(
       break
     }
   }
+
+  errors.push(...collectBusinessEntityIdMethodPairErrorsFromCard(data))
 
   return errors
 }

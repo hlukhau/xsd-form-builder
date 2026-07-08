@@ -29,6 +29,10 @@ import { exportCardDataToXML, hasIdentityDocV3Content, hasMeasureImplementationE
 import { fetchSchemaValidationErrors } from '@/utils/schemaValidationApi'
 import { isPpvApp } from '@/cards/config'
 import { remarkContactsIncomplete } from '@/utils/contactValidation'
+import {
+  businessEntityIdMethodPairRemarks,
+  pushBusinessEntityIdMethodPairErrors,
+} from '@/utils/businessEntityIdentificationValidation'
 
 export interface ValidationResult {
   success: boolean
@@ -482,7 +486,7 @@ export function validateOutgoingCard(data: CardData): ValidationResult {
     }
     if (mfr && !hasAtLeastOneAddress(mfr)) {
       add(sectionProduct, 'Должен быть указан хотя бы один адрес изготовителя продукции')
-    } else if (mfr) {
+    } else     if (mfr) {
       const addrs = getAddresses(mfr)
       for (const addr of addrs) {
         if (empty(addr?.country)) {
@@ -502,8 +506,8 @@ export function validateOutgoingCard(data: CardData): ValidationResult {
         add(sectionProduct, 'В составе каждого адреса изготовителя продукции должен быть указан или город, или населенный пункт')
       }
     }
-    if (mfr?.subjectIdentifier != null && String(mfr.subjectIdentifier).trim() !== '' && empty(mfr?.identificationMethod)) {
-      add(sectionProduct, 'Если по изготовителю продукции указан идентификатор хозяйствующего субъекта, то метод идентификации должен быть указан обязательно')
+    for (const msg of businessEntityIdMethodPairRemarks(mfr, { legacyHozyaystvuyushchegoSubektaWording: true })) {
+      add(sectionProduct, msg)
     }
     const mfrContactsRemark = remarkContactsIncomplete(mfr?.contacts, 'изготовителя продукции')
     if (mfrContactsRemark) {
@@ -564,7 +568,7 @@ export function validateOutgoingCard(data: CardData): ValidationResult {
   let tsdSupplyChainPartyMissingAddress = false
   let tsdSupplyChainAddressMissingCountry = false
   let tsdSupplyChainAddressMissingCityOrSettlement = false
-  let tsdSupplyChainPartyIdWithoutIdentificationMethod = false
+  let tsdSupplyChainPartyIdMethodPairInvalid = false
 
   for (const batch of batches) {
     for (const doc of batch?.shippingDocuments ?? []) {
@@ -584,12 +588,8 @@ export function validateOutgoingCard(data: CardData): ValidationResult {
           }
         }
 
-        if (
-          party.subjectIdentifier != null &&
-          String(party.subjectIdentifier).trim() !== '' &&
-          empty(party.identificationMethod)
-        ) {
-          tsdSupplyChainPartyIdWithoutIdentificationMethod = true
+        if (businessEntityIdMethodPairRemarks(party, { legacyHozyaystvuyushchegoSubektaWording: true }).length > 0) {
+          tsdSupplyChainPartyIdMethodPairInvalid = true
         }
       }
     }
@@ -639,10 +639,10 @@ export function validateOutgoingCard(data: CardData): ValidationResult {
     }
   }
 
-  if (hasAnyTsdSupplyChainParty && tsdSupplyChainPartyIdWithoutIdentificationMethod) {
+  if (hasAnyTsdSupplyChainParty && tsdSupplyChainPartyIdMethodPairInvalid) {
     add(
       sectionTsd,
-      'Если по изготовителю продукции в составе данных по ТСД указан идентификатор хозяйствующего субъекта, то метод идентификации должен быть указан обязательно'
+      'Идентификатор субъекта и метод идентификации изготовителя продукции в составе данных по ТСД должны быть указаны одновременно или оба отсутствовать'
     )
   }
 
@@ -787,8 +787,8 @@ export function validateOutgoingCard(data: CardData): ValidationResult {
           add(sectionDetectionPlace, 'В составе каждого адреса организации-места обнаружения должен быть указан или город, или населенный пункт')
         }
       }
-      if (org.businessEntityId != null && String(org.businessEntityId).trim() !== '' && empty(org.identificationMethod)) {
-        add(sectionDetectionPlace, 'Если для организации, указанной в качестве места обнаружения определен идентификатор хозяйствующего субъекта, то также должен быть указан метод идентификации')
+      for (const msg of businessEntityIdMethodPairRemarks(org, { legacyHozyaystvuyushchegoSubektaWording: true })) {
+        add(sectionDetectionPlace, msg)
       }
       const contactRemark = remarkContactsIncomplete(org.contacts, 'организации в месте обнаружения')
       if (contactRemark) {
@@ -972,6 +972,7 @@ function checkParty(
     pushFormatError(errors, `${path} → Контакт ${i + 1}`, 'communicationChannelId', c.communicationChannelId)
     pushFormatError(errors, `${path} → Контакт ${i + 1} (наименование)`, 'communicationChannelName', c.communicationChannelName)
   })
+  pushBusinessEntityIdMethodPairErrors(errors, path, party)
 }
 
 function checkTechnicalDocs(errors: string[], path: string, docs: TechnicalDocument[] | undefined): void {
@@ -1118,6 +1119,7 @@ export function pushMeasuresFormatErrors(
         if (addrList.length > 0) {
           checkAddressList(errors, `${subjPath} → Адрес`, addrList)
         }
+        pushBusinessEntityIdMethodPairErrors(errors, subjPath, subj.businessEntity)
       })
     })
   })
@@ -1252,6 +1254,10 @@ export function collectFormatValidationErrors(data: CardData): FormatValidationE
 
   pushDetectionPlaceFormatErrors(errors, 'Место обнаружения', data.detectionPlace)
 
+  phaSpreadingZonesList(data).forEach((zone, i) => {
+    pushDetectionPlaceFormatErrors(errors, `Зона распространения ${i + 1}`, zone)
+  })
+
   pushMeasuresFormatErrors(errors, data.measures)
 
   pushPhaXsdFormatErrors(errors, data)
@@ -1335,10 +1341,6 @@ function pushPhaXsdFormatErrors(errors: string[], data: CardData): void {
     if (m.measureName != null && String(m.measureName).trim() !== '' && (m.measureCode == null || m.measureCode === '')) {
       pushFormatError(errors, `Санитарные меры → Мера ${i + 1} → Наименование`, 'phaMeasureName', m.measureName)
     }
-  })
-
-  phaSpreadingZonesList(data).forEach((zone, i) => {
-    pushDetectionPlaceFormatErrors(errors, `Зона распространения ${i + 1}`, zone)
   })
 }
 

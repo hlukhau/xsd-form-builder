@@ -51,6 +51,15 @@ export const SMR_CANONICAL_XML_NAMESPACES: Record<string, string> = {
   xsi: 'http://www.w3.org/2001/XMLSchema-instance',
 }
 
+/** Карта SMAR «сведения отсутствуют»: корень ProcessingResultDetails */
+export const SMA_PROCESSING_RESULT_XML_NAMESPACES: Record<string, string> = {
+  ccdo: 'urn:EEC:M:ComplexDataObjects:v0.4.12',
+  csdo: 'urn:EEC:M:SimpleDataObjects:v0.4.12',
+  bdt: 'urn:EEC:M:BaseDataTypes:v0.4.12',
+  doc: 'urn:EEC:R:ProcessingResultDetails:v1.0.7',
+  xsi: 'http://www.w3.org/2001/XMLSchema-instance',
+}
+
 /** Карта SMAQ/SMAR (дополнительные сведения): корень AdditionalInfoDetails */
 export const SMA_CANONICAL_XML_NAMESPACES: Record<string, string> = {
   ccdo: 'urn:EEC:M:ComplexDataObjects:v0.4.12',
