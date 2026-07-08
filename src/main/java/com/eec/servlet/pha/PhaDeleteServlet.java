@@ -20,17 +20,25 @@ import java.util.regex.Pattern;
 /**
  * Удаление карты исходящих сведений PHA (только статус «Новое», PHASTATUSID = 5).
  * POST /api/pha/delete — JSON { "phaid": number, "guid": "..." }.
- * Условия: DATASOURCEKINDCODE = 2, PHASTATUSID = 5, пересечение publicHealthOut:edit с PHADEPPERMIS.
+ * Условия: DATASOURCEKINDCODE = 2, PHASTATUSID = 5, пересечение publicHealthOut:edit с PHADEPPERMIS,
+ * отсутствие в PHASTATUSHIST записи со статусом PENDING («Ожидает отправки»).
  */
 public class PhaDeleteServlet extends HttpServlet {
 
     private static final String DATASOURCEKINDCODE_OUTGOING = "2";
     /** «Новое» */
     private static final int PHASTATUSID_NEW = 5;
+    private static final String MSG_DELETE_FORBIDDEN_SENT =
+            "Карта сведений уже направлялась участникам ОП57. Удаление запрещено.";
 
     private static final String SQL_CHECK = ""
             + "SELECT p.INCIDENTID FROM PHA p "
             + "WHERE p.PHAID = ? AND TRIM(p.DATASOURCEKINDCODE) = ? AND p.PHASTATUSID = ?";
+
+    private static final String SQL_HAS_PENDING_IN_HISTORY = ""
+            + "SELECT 1 FROM PHASTATUSHIST STH "
+            + "JOIN PHASTATUS ST ON ST.PHASTATUSID = STH.PHASTATUSID "
+            + "WHERE ST.PHASTATUSCODE = 'PENDING' AND STH.PHAID = ? AND ROWNUM = 1";
 
     private static final String SQL_DEPS = "SELECT DEPID FROM PHADEPPERMIS WHERE PHAID = ?";
 
@@ -124,6 +132,11 @@ public class PhaDeleteServlet extends HttpServlet {
                 }
             }
 
+            if (hasPendingInStatusHistory(conn, phaid)) {
+                sendJsonError(response, HttpServletResponse.SC_BAD_REQUEST, MSG_DELETE_FORBIDDEN_SENT);
+                return;
+            }
+
             try (PreparedStatement ps = conn.prepareStatement(SQL_DELETE_STATUSHIST)) {
                 ps.setLong(1, phaid);
                 ps.executeUpdate();
@@ -160,6 +173,15 @@ public class PhaDeleteServlet extends HttpServlet {
             sendJsonError(response, HttpServletResponse.SC_INTERNAL_SERVER_ERROR, "Ошибка БД: " + e.getMessage());
         } finally {
             DatabaseUtil.closeConnection(conn);
+        }
+    }
+
+    private static boolean hasPendingInStatusHistory(Connection conn, long phaid) throws SQLException {
+        try (PreparedStatement ps = conn.prepareStatement(SQL_HAS_PENDING_IN_HISTORY)) {
+            ps.setLong(1, phaid);
+            try (ResultSet rs = ps.executeQuery()) {
+                return rs.next();
+            }
         }
     }
 
