@@ -12,6 +12,7 @@
     "build:dpr": "VITE_APP_BASE=/dpr_card/ vite build",
     "build:smd": "VITE_APP_BASE=/smd_card/ vite build",
     "build:smr": "VITE_APP_BASE=/smr_card/ vite build",
+    "build:sma": "VITE_APP_BASE=/sma_card/ vite build",
     "build:check": "tsc && vite build",
     "preview": "vite preview",
     "lint": "eslint . --ext ts,tsx --report-unused-disable-directives --max-warnings 0"

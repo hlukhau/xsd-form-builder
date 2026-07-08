@@ -115,13 +115,7 @@ function readinessLevelForMarkReadyDialog(
   return t || 'подразделения'
 }
 
-function smrHeaderTitle(meta: SmrMetadataView): string {
-  const cc = (meta.docCountryCode ?? '').trim()
-  const id = (meta.docId ?? '').trim()
-  const dt = formatDateOnly(meta.docCreationDate)
-  if (!cc && !id) return 'Карта сведений о результатах рассмотрения временной санитарной меры'
-  return `${cc} ${id}`.trim() + (dt !== '—' ? ` от ${dt}` : '')
-}
+const SMR_HEADER_TITLE = 'Карта результатов рассмотрений'
 
 export interface SmrCardProps {
   smrId: string
@@ -704,7 +698,7 @@ export function SmrCard({ smrId, guid, meta, parsed, onDataRefresh }: SmrCardPro
     >
       <div className="card-sticky-header" style={CARD_STICKY_HEADER_STYLE}>
         <div className="card-sticky-header-title-row">
-          <span className="card-sticky-header-title">{smrHeaderTitle(meta)}</span>
+          <span className="card-sticky-header-title">{SMR_HEADER_TITLE}</span>
           <Space size="small" wrap>
             {!isEditMode && canEditCard ? (
               <Button type="default" onClick={beginEdit}>

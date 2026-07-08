@@ -6,6 +6,17 @@ const DEFAULT_REGULATORY_DOC: MeasureDocDetails = {
   languageCode: 'ru',
 }
 
+/** Значение из measureDocDetails без подстановки шапки, если поле задано явно (в т.ч. пустая строка). */
+function pickMeasureDocField(
+  fromMeasure: string | undefined | null,
+  fallback: string | undefined | null
+): string {
+  if (fromMeasure !== undefined && fromMeasure !== null) {
+    return String(fromMeasure).trim()
+  }
+  return (fallback ?? '').trim()
+}
+
 /**
  * Документ, регламентирующий введение (отмену) меры — единственный источник SMD.DOCID / шапки.
  * Не путать с initialMeasureDocDetails и measureInitiationBasisDetails (только XML).
@@ -13,15 +24,14 @@ const DEFAULT_REGULATORY_DOC: MeasureDocDetails = {
 export function getSmdRegulatoryMeasureDoc(data: CardData): MeasureDocDetails {
   const measure = getSmdPrimaryMeasure(data)
   const fromMeasure = measure.measureDocDetails ?? {}
-  const docId =
-    fromMeasure.docId?.trim() ||
-    data.notification?.registrationNumber?.trim() ||
-    data.registrationNumber?.trim() ||
-    ''
-  const docCreationDate =
-    fromMeasure.docCreationDate?.trim().slice(0, 10) ||
-    data.notification?.formationDate?.trim().slice(0, 10) ||
-    ''
+  const docId = pickMeasureDocField(
+    fromMeasure.docId,
+    data.notification?.registrationNumber ?? data.registrationNumber
+  )
+  const docCreationDate = pickMeasureDocField(
+    fromMeasure.docCreationDate,
+    data.notification?.formationDate
+  ).slice(0, 10)
   const country = (
     fromMeasure.country ||
     data.notification?.country ||
@@ -38,10 +48,10 @@ export function getSmdRegulatoryMeasureDoc(data: CardData): MeasureDocDetails {
     country,
     docId,
     docCreationDate,
-    authorityName:
-      fromMeasure.authorityName?.trim() ||
-      data.notification?.authorizedBody?.name?.trim() ||
-      undefined,
+    authorityName: pickMeasureDocField(
+      fromMeasure.authorityName,
+      data.notification?.authorizedBody?.name
+    ),
   }
 }
 
@@ -58,8 +68,21 @@ export function getSmdRegulatoryDocCreationDate(data: CardData): string | null {
 /** Встраивает нормализованный regulatory-doc в measures[0] и шапку. */
 export function applySmdRegulatoryDocToCard(data: CardData): CardData {
   const measure = getSmdPrimaryMeasure(data)
+  const fromMeasure = measure.measureDocDetails ?? {}
   const doc = getSmdRegulatoryMeasureDoc(data)
-  const mergedMeasure = { ...measure, measureDocDetails: doc }
+  const mergedMeasure = {
+    ...measure,
+    measureDocDetails: {
+      ...fromMeasure,
+      country: doc.country,
+      docId: doc.docId,
+      docCreationDate: doc.docCreationDate,
+      authorityName:
+        fromMeasure.authorityName !== undefined && fromMeasure.authorityName !== null
+          ? fromMeasure.authorityName
+          : doc.authorityName,
+    },
+  }
   const docId = doc.docId?.trim() ?? ''
   const docDate = doc.docCreationDate?.trim().slice(0, 10) ?? ''
 
@@ -76,7 +99,10 @@ export function applySmdRegulatoryDocToCard(data: CardData): CardData {
           authorizedBody: {
             ...data.notification.authorizedBody,
             country: doc.country ?? data.notification.authorizedBody?.country ?? 'BY',
-            name: doc.authorityName ?? data.notification.authorizedBody?.name ?? '',
+            name:
+              fromMeasure.authorityName !== undefined && fromMeasure.authorityName !== null
+                ? fromMeasure.authorityName
+                : (doc.authorityName ?? data.notification.authorizedBody?.name ?? ''),
           },
         }
       : data.notification,

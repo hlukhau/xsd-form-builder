@@ -1,0 +1,61 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema" xmlns:ccdo="urn:EEC:M:ComplexDataObjects:v0.4.12" xmlns:csdo="urn:EEC:M:SimpleDataObjects:v0.4.12" xmlns:doc="urn:EEC:R:SM:SS:09:AdditionalInfoDetails:v1.0.0" xmlns:smcdo="urn:EEC:M:SM:ComplexDataObjects:v0.3.9" xmlns:smsdo="urn:EEC:M:SM:SimpleDataObjects:v0.3.9" elementFormDefault="qualified" targetNamespace="urn:EEC:R:SM:SS:09:AdditionalInfoDetails:v1.0.0" version="1.0.0">
+    <xs:import namespace="urn:EEC:M:SM:SimpleDataObjects:v0.3.9" schemaLocation="EEC_M_SM_SimpleDataObjects_v0.3.9.xsd"/>
+    <xs:import namespace="urn:EEC:M:SM:ComplexDataObjects:v0.3.9" schemaLocation="EEC_M_SM_ComplexDataObjects_v0.3.9.xsd"/>
+    <xs:import namespace="urn:EEC:M:SimpleDataObjects:v0.4.12" schemaLocation="EEC_M_SimpleDataObjects_v0.4.12.xsd"/>
+    <xs:import namespace="urn:EEC:M:ComplexDataObjects:v0.4.12" schemaLocation="EEC_M_ComplexDataObjects_v0.4.12.xsd"/>
+    <!--содержит дополнительную информацию-->
+    <!-- R.SM.SS.09.002.NSP: Дополнительные сведения о временных санитарных мерах (Дополнительная информация) -->
+    <!-- R.SM.SS.09.002: Дополнительные сведения о временных санитарных мерах (Дополнительные сведения о временных санитарных мерах. Детали) -->
+    <xs:element name="AdditionalInfoDetails" type="doc:AdditionalInfoDetailsType">
+        <xs:annotation>
+            <xs:documentation>Содержит дополнительные сведения о временных санитарных мерах</xs:documentation>
+        </xs:annotation>
+    </xs:element>
+    <!-- R.SM.SS.09.002.CDT: Дополнительные сведения о временных санитарных мерах (Дополнительные сведения о временных санитарных мерах_ Детали. Тип) -->
+    <xs:complexType name="AdditionalInfoDetailsType">
+        <xs:annotation>
+            <xs:documentation>Содержит дополнительные сведения о временных санитарных мерах</xs:documentation>
+        </xs:annotation>
+        <xs:sequence>
+            <xs:element minOccurs="0" ref="ccdo:EDocHeader"/>
+            <xs:element minOccurs="0" ref="ccdo:UnifiedAuthorityDetails">
+                <xs:annotation>
+                    <xs:documentation>сведения об уполномоченном органе государства-члена, запросившем дополнительные сведения</xs:documentation>
+                </xs:annotation>
+            </xs:element>
+            <xs:element minOccurs="0" ref="smcdo:IncidentAlertIdDetails">
+                <xs:annotation>
+                    <xs:documentation>идентификатор уведомления об инциденте, в отношении которого предоставляются дополнительные сведения</xs:documentation>
+                </xs:annotation>
+            </xs:element>
+            <xs:element minOccurs="0" ref="csdo:UnifiedCountryCode">
+                <xs:annotation>
+                    <xs:documentation>Кодовое обозначение страны, на территории которой введена временная санитарная мера</xs:documentation>
+                </xs:annotation>
+            </xs:element>
+            <xs:element minOccurs="0" ref="smcdo:MeasureDocReferenceDetails">
+                <xs:annotation>
+                    <xs:documentation>сведения о документе, вводящем временную меру, в отношении которой предоставляются дополнительные сведения</xs:documentation>
+                </xs:annotation>
+            </xs:element>
+            <xs:element minOccurs="0" ref="csdo:DescriptionText">
+                <xs:annotation>
+                    <xs:documentation>Запрос (ответ) дополнительной информации в текстовом виде</xs:documentation>
+                </xs:annotation>
+            </xs:element>
+            <xs:element minOccurs="0" ref="smsdo:SanitaryProductTypeCode"/>
+            <xs:element minOccurs="0" ref="csdo:ProductName"/>
+            <xs:element minOccurs="0" ref="smsdo:LaboratoryTestMethodName">
+                <xs:annotation>
+                    <xs:documentation>Наименование метода (вида) исследования, проведенного в отношении продукции</xs:documentation>
+                </xs:annotation>
+            </xs:element>
+            <xs:element maxOccurs="unbounded" minOccurs="0" ref="ccdo:DocContentDetails">
+                <xs:annotation>
+                    <xs:documentation>Сведения о запрашиваемом (приложенном) документе</xs:documentation>
+                </xs:annotation>
+            </xs:element>
+        </xs:sequence>
+    </xs:complexType>
+</xs:schema>

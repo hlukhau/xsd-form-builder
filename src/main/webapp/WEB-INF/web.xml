@@ -501,6 +501,72 @@
         <url-pattern>/api/smr/resolutions</url-pattern>
     </servlet-mapping>
 
+    <!-- Карта SMA (SMAQ/SMAR): дополнительные сведения -->
+    <servlet>
+        <servlet-name>SmaMetadataServlet</servlet-name>
+        <servlet-class>com.eec.servlet.sma.SmaMetadataServlet</servlet-class>
+    </servlet>
+    <servlet-mapping>
+        <servlet-name>SmaMetadataServlet</servlet-name>
+        <url-pattern>/api/sma/metadata/*</url-pattern>
+    </servlet-mapping>
+    <servlet>
+        <servlet-name>SmaXmlServlet</servlet-name>
+        <servlet-class>com.eec.servlet.sma.SmaXmlServlet</servlet-class>
+    </servlet>
+    <servlet-mapping>
+        <servlet-name>SmaXmlServlet</servlet-name>
+        <url-pattern>/api/sma/xml/*</url-pattern>
+    </servlet-mapping>
+    <servlet>
+        <servlet-name>SmaStatusHistoryServlet</servlet-name>
+        <servlet-class>com.eec.servlet.sma.SmaStatusHistoryServlet</servlet-class>
+    </servlet>
+    <servlet-mapping>
+        <servlet-name>SmaStatusHistoryServlet</servlet-name>
+        <url-pattern>/api/sma/status-history/*</url-pattern>
+    </servlet-mapping>
+    <servlet>
+        <servlet-name>SmaCreateEligibilityServlet</servlet-name>
+        <servlet-class>com.eec.servlet.sma.SmaCreateEligibilityServlet</servlet-class>
+    </servlet>
+    <servlet-mapping>
+        <servlet-name>SmaCreateEligibilityServlet</servlet-name>
+        <url-pattern>/api/sma/create-eligibility/*</url-pattern>
+    </servlet-mapping>
+    <servlet>
+        <servlet-name>SmaCreateSaveServlet</servlet-name>
+        <servlet-class>com.eec.servlet.sma.SmaCreateSaveServlet</servlet-class>
+    </servlet>
+    <servlet-mapping>
+        <servlet-name>SmaCreateSaveServlet</servlet-name>
+        <url-pattern>/api/sma/create-save</url-pattern>
+    </servlet-mapping>
+    <servlet>
+        <servlet-name>SmaSaveServlet</servlet-name>
+        <servlet-class>com.eec.servlet.sma.SmaSaveServlet</servlet-class>
+    </servlet>
+    <servlet-mapping>
+        <servlet-name>SmaSaveServlet</servlet-name>
+        <url-pattern>/api/sma/save</url-pattern>
+    </servlet-mapping>
+    <servlet>
+        <servlet-name>SmaDeleteDraftServlet</servlet-name>
+        <servlet-class>com.eec.servlet.sma.SmaDeleteDraftServlet</servlet-class>
+    </servlet>
+    <servlet-mapping>
+        <servlet-name>SmaDeleteDraftServlet</servlet-name>
+        <url-pattern>/api/sma/delete-draft</url-pattern>
+    </servlet-mapping>
+    <servlet>
+        <servlet-name>SmaStatusChangeServlet</servlet-name>
+        <servlet-class>com.eec.servlet.sma.SmaStatusChangeServlet</servlet-class>
+    </servlet>
+    <servlet-mapping>
+        <servlet-name>SmaStatusChangeServlet</servlet-name>
+        <url-pattern>/api/sma/status</url-pattern>
+    </servlet-mapping>
+
     <!-- Карта PHA: XML по PHAID из PHAXML -->
     <servlet>
         <servlet-name>PhaXmlServlet</servlet-name>

@@ -108,6 +108,11 @@ const SmdCard: React.FC<SmdCardProps> = ({
     ((copyFromSmdid != null && copyFromSmdid > 0) ||
       (copyFromSmdidRef.current != null && copyFromSmdidRef.current > 0))
   const [activeTabKey, setActiveTabKey] = useState('sanitary')
+  useEffect(() => {
+    const tab = new URLSearchParams(window.location.search).get('tab')?.trim().toLowerCase()
+    if (tab === 'info' || tab === 'info-requests') setActiveTabKey('info')
+    else if (tab === 'review') setActiveTabKey('review')
+  }, [])
   const [isEditMode, setIsEditMode] = useState(isCreateMode)
   const [saving, setSaving] = useState(false)
   const [statusHistoryVisible, setStatusHistoryVisible] = useState(false)
@@ -143,13 +148,15 @@ const SmdCard: React.FC<SmdCardProps> = ({
       setIsEditMode(isCreateMode)
       return
     }
+    // Не перезаписываем правки в режиме редактирования: sync обновляет registrationNumber из docId.
     if (
-      data.registrationNumber !== editedData.registrationNumber ||
-      (data.version !== undefined && data.version !== editedData.version)
+      !isEditMode &&
+      (data.registrationNumber !== editedData.registrationNumber ||
+        (data.version !== undefined && data.version !== editedData.version))
     ) {
       setEditedData(data)
     }
-  }, [data, cardIdentityKey, isCreateMode, editedData.registrationNumber, editedData.version])
+  }, [data, cardIdentityKey, isCreateMode, isEditMode, editedData.registrationNumber, editedData.version])
 
   const hasPersisted = effectiveSmdid.length > 0 && effectiveSmdid !== '-'
   const isIncoming = isSmdIncomingSource(meta.dataSourceKindName ?? data.source, meta.dataSourceKindCode)
@@ -160,6 +167,8 @@ const SmdCard: React.FC<SmdCardProps> = ({
   const smdVersion = meta.smdVersion ?? currentData.version ?? 1
   const regulatoryDocIdentityReadOnly =
     isNewVersionCopy || (hasPersisted && !isCreateMode && smdVersion > 1)
+  /** Номер и дата regulatory-doc редактируются только для версии 1 (SMD.DOCID / DOCCREATIONDATE). */
+  const regulatoryDocNumberDateReadOnly = regulatoryDocIdentityReadOnly
 
   const manageAccessRight = useMemo(() => {
     const api = resolveCardAccessApiSource(
@@ -430,7 +439,7 @@ const SmdCard: React.FC<SmdCardProps> = ({
   }
 
   const resolveXmlForValidation = useCallback(async (): Promise<string | null> => {
-    if (isCreateMode) {
+    if (isCreateMode || isEditMode) {
       const synced = syncSmdCardFromPrimaryMeasure(currentData)
       const xml = exportSmdCardDataToXML(synced).trim()
       return xml || null
@@ -449,13 +458,14 @@ const SmdCard: React.FC<SmdCardProps> = ({
       message.error(e instanceof Error ? e.message : 'Не удалось загрузить XML из БД')
       return null
     }
-  }, [isCreateMode, currentData, xmlBody, hasPersisted, effectiveSmdid, guid])
+  }, [isCreateMode, isEditMode, currentData, xmlBody, hasPersisted, effectiveSmdid, guid])
 
   const runValidation = async () => {
     setValidating(true)
     try {
+      const synced = syncSmdCardFromPrimaryMeasure(currentData)
       const xml = await resolveXmlForValidation()
-      const r = await validateSmdOutgoingCardFullWithSchema(currentData, xml)
+      const r = await validateSmdOutgoingCardFullWithSchema(synced, xml)
       setValidationResult(r)
       setValidationModalVisible(true)
       if (r.success) {
@@ -541,8 +551,9 @@ const SmdCard: React.FC<SmdCardProps> = ({
       onOk: async () => {
         setSending(true)
         try {
+          const synced = syncSmdCardFromPrimaryMeasure(currentData)
           const xml = await resolveXmlForValidation()
-          const validation = await validateSmdCardForSend(currentData, xml)
+          const validation = await validateSmdCardForSend(synced, xml)
           if (!validation.success) {
             setValidationResult(validation)
             setValidationModalVisible(true)
@@ -668,7 +679,7 @@ const SmdCard: React.FC<SmdCardProps> = ({
           <SmdSanitaryMeasureTab
             data={currentData}
             {...tabProps}
-            regulatoryDocReadOnly={regulatoryDocIdentityReadOnly}
+            regulatoryDocReadOnly={regulatoryDocNumberDateReadOnly}
           />
         </div>
       ),

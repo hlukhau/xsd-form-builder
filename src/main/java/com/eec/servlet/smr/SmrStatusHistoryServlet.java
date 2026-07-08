@@ -61,21 +61,7 @@ public class SmrStatusHistoryServlet extends HttpServlet {
             }
 
             List<String> items = new ArrayList<>();
-            try (PreparedStatement ps = conn.prepareStatement(SmrDbSupport.SQL_STATUS_HISTORY)) {
-                ps.setLong(1, smrId);
-                ps.setLong(2, smrId);
-                try (ResultSet rs = ps.executeQuery()) {
-                    while (rs.next()) {
-                        String status = rs.getString("SMRSTATUSNAME");
-                        Timestamp ts = rs.getTimestamp("SMRSTATUSDATETIME");
-                        String employee = rs.getString("EMPCODE");
-                        if (rs.wasNull()) employee = null;
-                        else if (employee != null && employee.trim().isEmpty()) employee = null;
-                        String dateTime = ts != null ? ts.toInstant().toString() : null;
-                        items.add(jsonItem(status, dateTime, employee));
-                    }
-                }
-            }
+            loadStatusHistory(conn, smrId, items);
 
             PrintWriter out = response.getWriter();
             out.write("[");
@@ -89,6 +75,43 @@ public class SmrStatusHistoryServlet extends HttpServlet {
         } finally {
             DatabaseUtil.closeConnection(conn);
         }
+    }
+
+    private static void loadStatusHistory(Connection conn, long smrId, List<String> items) throws SQLException {
+        try {
+            appendStatusHistoryRows(conn, SmrDbSupport.SQL_STATUS_HISTORY, smrId, items, true);
+        } catch (SQLException e) {
+            if (!isMissingTable(e)) {
+                throw e;
+            }
+            appendStatusHistoryRows(conn, SmrDbSupport.SQL_STATUS_HISTORY_HIST_ONLY, smrId, items, false);
+        }
+    }
+
+    private static void appendStatusHistoryRows(Connection conn, String sql, long smrId, List<String> items,
+                                                boolean withResolutions) throws SQLException {
+        try (PreparedStatement ps = conn.prepareStatement(sql)) {
+            ps.setLong(1, smrId);
+            if (withResolutions) {
+                ps.setLong(2, smrId);
+            }
+            try (ResultSet rs = ps.executeQuery()) {
+                while (rs.next()) {
+                    String status = rs.getString("SMRSTATUSNAME");
+                    Timestamp ts = rs.getTimestamp("SMRSTATUSDATETIME");
+                    String employee = rs.getString("EMPCODE");
+                    if (rs.wasNull()) employee = null;
+                    else if (employee != null && employee.trim().isEmpty()) employee = null;
+                    String dateTime = ts != null ? ts.toInstant().toString() : null;
+                    items.add(jsonItem(status, dateTime, employee));
+                }
+            }
+        }
+    }
+
+    private static boolean isMissingTable(SQLException e) {
+        String m = e.getMessage() != null ? e.getMessage() : "";
+        return m.contains("ORA-00942") || m.toLowerCase().contains("does not exist");
     }
 
     private static String jsonItem(String status, String dateTime, String employee) {

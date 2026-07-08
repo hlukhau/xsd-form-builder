@@ -51,6 +51,17 @@ export const SMR_CANONICAL_XML_NAMESPACES: Record<string, string> = {
   xsi: 'http://www.w3.org/2001/XMLSchema-instance',
 }
 
+/** Карта SMAQ/SMAR (дополнительные сведения): корень AdditionalInfoDetails */
+export const SMA_CANONICAL_XML_NAMESPACES: Record<string, string> = {
+  ccdo: 'urn:EEC:M:ComplexDataObjects:v0.4.12',
+  csdo: 'urn:EEC:M:SimpleDataObjects:v0.4.12',
+  bdt: 'urn:EEC:M:BaseDataTypes:v0.4.12',
+  smcdo: 'urn:EEC:M:SM:ComplexDataObjects:v0.3.9',
+  smsdo: 'urn:EEC:M:SM:SimpleDataObjects:v0.3.9',
+  doc: 'urn:EEC:R:SM:SS:09:AdditionalInfoDetails:v1.0.0',
+  xsi: 'http://www.w3.org/2001/XMLSchema-instance',
+}
+
 function escapeRegExp(value: string): string {
   return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
 }

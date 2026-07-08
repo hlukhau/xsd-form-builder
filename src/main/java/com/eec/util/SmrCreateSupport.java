@@ -39,12 +39,6 @@ public final class SmrCreateSupport {
 
     private static final String SQL_SMR_EXISTS = "SELECT SMRID FROM SMR WHERE SMDID = ? AND ROWNUM = 1";
 
-    private static final String SQL_SMRSTATUS_DRAFT_OUT = ""
-            + "SELECT SMRSTATUSID, TRIM(SMRSTATUSNAME) AS SMRSTATUSNAME FROM SMRSTATUS "
-            + "WHERE TRIM(TO_CHAR(DATASOURCEKINDCODE)) = ? "
-            + "AND TRIM(UPPER(SMRSTATUSCODE)) = 'DRAFT' "
-            + "AND SMRSTATUSACTFL = 1 AND ROWNUM = 1";
-
     private static final String SQL_RESPONSE_COUNTRY_BY = ""
             + "SELECT c.COUNTRYID, TRIM(c.COUNTRYCODE) AS COUNTRYCODE, TRIM(c.COUNTRYNAME) AS COUNTRYNAME "
             + "FROM COUNTRY c "
@@ -111,7 +105,7 @@ public final class SmrCreateSupport {
         }
         guid = guid.trim();
 
-        if (!PpvViewAccessHelper.canViewPpv(conn, smdid, guid)) {
+        if (!SmdViewAccessHelper.canViewSmd(conn, smdid, guid)) {
             return GateResult.denied("Нет доступа к просмотру карты SMD");
         }
 
@@ -204,24 +198,17 @@ public final class SmrCreateSupport {
             }
         }
 
-        int draftStatusId = 0;
-        String draftStatusName = null;
-        try (PreparedStatement ps = conn.prepareStatement(SQL_SMRSTATUS_DRAFT_OUT)) {
-            ps.setString(1, DSC_OUTGOING_SMR);
-            try (ResultSet rs = ps.executeQuery()) {
-                if (!rs.next()) {
-                    return GateResult.denied("В справочнике SMRSTATUS не найден черновик (DRAFT) для исходящего источника (DATASOURCEKINDCODE=2)");
-                }
-                draftStatusId = getIntObject(rs, "SMRSTATUSID");
-                draftStatusName = rs.getString("SMRSTATUSNAME");
-            }
+        Integer initialStatusId = SmrOutgoingStatusHelper.resolveOutgoingInitialCreateStatusId(conn);
+        if (initialStatusId == null) {
+            return GateResult.denied("В справочнике SMRSTATUS не найден начальный статус (NEW) для исходящего источника (DATASOURCEKINDCODE=2)");
         }
-        if (draftStatusId <= 0) {
-            return GateResult.denied("Некорректный идентификатор статуса черновика DPR");
+        String initialStatusName = SmrOutgoingStatusHelper.resolveOutgoingStatusName(conn, initialStatusId);
+        if (initialStatusName == null || initialStatusName.isEmpty()) {
+            return GateResult.denied("Не удалось определить наименование начального статуса SMR");
         }
 
         return GateResult.ok(smdid, docId, docCountryCode, messageCode, docCreationDate,
-                responseCountryId, responseCountryCode, responseCountryName, draftStatusId, draftStatusName);
+                responseCountryId, responseCountryCode, responseCountryName, initialStatusId, initialStatusName);
     }
 
     private static final String SQL_SMR_FOR_EDIT = ""
@@ -320,8 +307,8 @@ public final class SmrCreateSupport {
         if (statusCode == null || statusCode.isEmpty()) {
             return GateResult.denied("Удаление недоступно: у карты не определён код статуса в справочнике SMRSTATUS");
         }
-        if (!"DRAFT".equals(statusCode)) {
-            return GateResult.denied("Удалить можно только черновик карты (статус DRAFT)");
+        if (!("DRAFT".equals(statusCode) || "NEW".equals(statusCode))) {
+            return GateResult.denied("Удалить можно только карту в статусе «Новое» (NEW) или черновик (DRAFT)");
         }
         String rightsJson = RightsRegistryProvider.get().getRightsJson(guid);
         if (rightsJson == null || rightsJson.isEmpty()) {

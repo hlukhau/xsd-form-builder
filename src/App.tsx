@@ -1,11 +1,21 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { Routes, Route, useParams, useSearchParams, useNavigate, useLocation } from 'react-router-dom'
 import { message, Spin } from 'antd'
-import { isPhaApp, isPpvApp, isDprApp, isSmdApp, isSmrApp, getDpaLikeCardSessionKeys } from './cards/config'
+import { isPhaApp, isPpvApp, isDprApp, isSmdApp, isSmrApp, isSmaApp, getDpaLikeCardSessionKeys } from './cards/config'
 import { DangerousProductCard } from './cards/dpa'
 import { PhaCard } from './cards/pha'
 import { DprCard, DprCreateCard } from './cards/dpr'
 import { SmrCard, SmrCreateCard } from './cards/smr'
+import { SmaCard, SmaCreateCard } from './cards/sma'
+import {
+  fetchSmaqCreateEligibility,
+  fetchSmarCreateEligibility,
+  fetchSmaMetadata,
+  fetchSmaXml,
+} from './cards/sma/smaApi'
+import { eligibilityToCreateContext } from './cards/sma/smaCreateBundle'
+import { parseSmaXmlToBundle } from './utils/smaXmlParser'
+import type { SmaMetadataView, SmaCreateContext, SmaCardKind } from './types/smaCard'
 import { fetchSmrMetadata, fetchSmrXml, fetchSmrSmdIncomingActions } from './cards/smr/smrApi'
 import { parseSmrXmlToBundle } from './utils/smrXmlParser'
 import type { SmrMetadataView, SmrPrepareContext } from './types/smrCard'
@@ -1159,7 +1169,7 @@ function SmrCreateFromSmdContent() {
   const [elig, setElig] = useState<SmrPrepareContext | null>(null)
 
   useEffect(() => {
-    document.title = 'Создание карты сведений о результатах рассмотрения меры'
+    document.title = 'Создание карты результатов рассмотрений'
   }, [])
 
   useEffect(() => {
@@ -1253,7 +1263,7 @@ function SmrAppContent() {
   }, [guid])
 
   useEffect(() => {
-    document.title = 'Карта сведений о результатах рассмотрения меры'
+    document.title = 'Карта результатов рассмотрений'
   }, [])
 
   useEffect(() => {
@@ -1334,7 +1344,311 @@ function SmrAppContent() {
   return null
 }
 
+/** Создание SMAQ по SMD: /sma_card/create/smd/{SMDID}/{GUID} */
+function SmaCreateFromSmdContent() {
+  const { smdid, guid: guidParam } = useParams<{ smdid: string; guid: string }>()
+  const guid = guidParam ? decodeURIComponent(guidParam.trim()) : ''
+  const id = (smdid ?? '').trim()
+  const [loading, setLoading] = useState(false)
+  const [err, setErr] = useState<string | null>(null)
+  const [ctx, setCtx] = useState<SmaCreateContext | null>(null)
+
+  useEffect(() => {
+    document.title = 'Создание карты запроса дополнительных сведений'
+  }, [])
+
+  useEffect(() => {
+    setReferenceGuidContext(guid || undefined)
+  }, [guid])
+
+  useEffect(() => {
+    if (!id || !guid) {
+      setErr('Укажите SMDID и GUID в URL: /sma_card/create/smd/{SMDID}/{GUID}')
+      setCtx(null)
+      return
+    }
+    let cancelled = false
+    setLoading(true)
+    setErr(null)
+    setCtx(null)
+    ;(async () => {
+      try {
+        const r = await fetchSmaqCreateEligibility(id, guid)
+        if (cancelled) return
+        if (!r.allowed) {
+          setErr(r.reason || 'Создание карты недоступно')
+          setCtx(null)
+        } else {
+          const c = eligibilityToCreateContext(r)
+          if (!c) setErr('Нет контекста создания')
+          else setCtx(c)
+        }
+      } catch (e) {
+        if (!cancelled) {
+          setErr(e instanceof Error ? e.message : 'Ошибка проверки условий создания')
+          setCtx(null)
+        }
+      } finally {
+        if (!cancelled) setLoading(false)
+      }
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [id, guid])
+
+  if (loading) {
+    return (
+      <div style={{ textAlign: 'center', padding: 24 }}>
+        <Spin size="large" tip="Проверка условий создания карты SMAQ..." />
+      </div>
+    )
+  }
+
+  if (err || !ctx) {
+    return (
+      <div className="empty-state" style={{ padding: 24 }}>
+        <div style={{ color: '#ff4d4f', maxWidth: 640, margin: '0 auto', textAlign: 'center' }}>
+          {err || 'Нет данных'}
+        </div>
+      </div>
+    )
+  }
+
+  return <SmaCreateCard context={ctx} guid={guid} />
+}
+
+/** Создание SMAR по SMAQ: /sma_card/create/smaq/{SMAQID}/{GUID} */
+function SmaCreateFromSmaqContent() {
+  const { smaqid, guid: guidParam } = useParams<{ smaqid: string; guid: string }>()
+  const guid = guidParam ? decodeURIComponent(guidParam.trim()) : ''
+  const id = (smaqid ?? '').trim()
+  const [loading, setLoading] = useState(false)
+  const [err, setErr] = useState<string | null>(null)
+  const [ctx, setCtx] = useState<SmaCreateContext | null>(null)
+
+  useEffect(() => {
+    document.title = 'Создание карты ответа на запрос дополнительных сведений'
+  }, [])
+
+  useEffect(() => {
+    setReferenceGuidContext(guid || undefined)
+  }, [guid])
+
+  useEffect(() => {
+    if (!id || !guid) {
+      setErr('Укажите SMAQID и GUID в URL: /sma_card/create/smaq/{SMAQID}/{GUID}')
+      setCtx(null)
+      return
+    }
+    let cancelled = false
+    setLoading(true)
+    setErr(null)
+    setCtx(null)
+    ;(async () => {
+      try {
+        const r = await fetchSmarCreateEligibility(id, guid)
+        if (cancelled) return
+        if (!r.allowed) {
+          setErr(r.reason || 'Создание карты недоступно')
+          setCtx(null)
+        } else {
+          const c = eligibilityToCreateContext(r)
+          if (!c) setErr('Нет контекста создания')
+          else setCtx(c)
+        }
+      } catch (e) {
+        if (!cancelled) {
+          setErr(e instanceof Error ? e.message : 'Ошибка проверки условий создания')
+          setCtx(null)
+        }
+      } finally {
+        if (!cancelled) setLoading(false)
+      }
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [id, guid])
+
+  if (loading) {
+    return (
+      <div style={{ textAlign: 'center', padding: 24 }}>
+        <Spin size="large" tip="Проверка условий создания карты SMAR..." />
+      </div>
+    )
+  }
+
+  if (err || !ctx) {
+    return (
+      <div className="empty-state" style={{ padding: 24 }}>
+        <div style={{ color: '#ff4d4f', maxWidth: 640, margin: '0 auto', textAlign: 'center' }}>
+          {err || 'Нет данных'}
+        </div>
+      </div>
+    )
+  }
+
+  return <SmaCreateCard context={ctx} guid={guid} />
+}
+
+/** Карта SMAQ/SMAR: /sma_card/{smaq|smar}/{ID}/{GUID} */
+function SmaAppContent() {
+  const location = useLocation()
+  const { kind: kindParam, id: idParam, guid: guidFromRoute } = useParams<{
+    kind?: string
+    id?: string
+    guid?: string
+  }>()
+  const [searchParams] = useSearchParams()
+  const kindFromPath = (() => {
+    const p = location.pathname.replace(/\/$/, '')
+    if (p.includes('/smar/')) return 'smar'
+    if (p.includes('/smaq/')) return 'smaq'
+    return ''
+  })()
+  const kind = ((kindParam ?? kindFromPath) || '').trim().toLowerCase() as SmaCardKind
+  const cardId = (idParam ?? '').trim()
+  const guid =
+    guidFromRoute?.trim() ||
+    searchParams.get('guid')?.trim() ||
+    getPersistedReferenceGuid() ||
+    undefined
+
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const [meta, setMeta] = useState<SmaMetadataView | null>(null)
+  const [parsed, setParsed] = useState<ReturnType<typeof parseSmaXmlToBundle> | null>(null)
+
+  const reloadSmaCard = useCallback(async () => {
+    const g = guid?.trim()
+    if (!g || !/^\d+$/.test(cardId) || (kind !== 'smaq' && kind !== 'smar')) return
+    const [xmlText, m] = await Promise.all([fetchSmaXml(kind, cardId, g), fetchSmaMetadata(kind, cardId, g)])
+    setMeta(m)
+    setParsed(parseSmaXmlToBundle(xmlText))
+  }, [kind, cardId, guid])
+
+  useEffect(() => {
+    setReferenceGuidContext(guid)
+  }, [guid])
+
+  useEffect(() => {
+    document.title =
+      kind === 'smar'
+        ? 'Карта ответа на запрос дополнительных сведений'
+        : 'Карта запроса дополнительных сведений'
+  }, [kind])
+
+  useEffect(() => {
+    if (!cardId) {
+      setLoading(false)
+      setError(null)
+      setMeta(null)
+      setParsed(null)
+      return
+    }
+    if (kind !== 'smaq' && kind !== 'smar') {
+      setLoading(false)
+      setError('Укажите вид карты в URL: smaq или smar')
+      setMeta(null)
+      setParsed(null)
+      return
+    }
+    if (!/^\d+$/.test(cardId)) {
+      setLoading(false)
+      setError('Некорректный идентификатор карты')
+      setMeta(null)
+      setParsed(null)
+      return
+    }
+    if (!guid?.trim()) {
+      setLoading(false)
+      setError(`Для просмотра карты укажите GUID в URL: /sma_card/${kind}/{ID}/{GUID}`)
+      setMeta(null)
+      setParsed(null)
+      return
+    }
+    let cancelled = false
+    setLoading(true)
+    setError(null)
+    setMeta(null)
+    setParsed(null)
+    ;(async () => {
+      try {
+        const [xmlText, m] = await Promise.all([
+          fetchSmaXml(kind, cardId, guid),
+          fetchSmaMetadata(kind, cardId, guid),
+        ])
+        if (cancelled) return
+        setMeta(m)
+        setParsed(parseSmaXmlToBundle(xmlText))
+      } catch (err) {
+        if (!cancelled) {
+          setError(err instanceof Error ? err.message : 'Ошибка загрузки карты')
+        }
+      } finally {
+        if (!cancelled) setLoading(false)
+      }
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [kind, cardId, guid])
+
+  if (!cardId) {
+    return (
+      <div className="empty-state">
+        <div style={{ fontSize: '48px', marginBottom: '16px', opacity: 0.3 }}>📄</div>
+        <div style={{ fontSize: '18px', fontWeight: 500, color: '#595959' }}>
+          Откройте карту по SMAQID или SMARID
+        </div>
+      </div>
+    )
+  }
+
+  if (loading) {
+    return (
+      <div style={{ textAlign: 'center', padding: 24 }}>
+        <Spin size="large" tip="Загрузка карты..." />
+      </div>
+    )
+  }
+
+  if (error) {
+    return (
+      <div className="empty-state" style={{ padding: 24 }}>
+        <div style={{ color: '#ff4d4f', maxWidth: 560, margin: '0 auto', textAlign: 'center' }}>{error}</div>
+      </div>
+    )
+  }
+
+  if (meta && parsed) {
+    return (
+      <SmaCard
+        kind={kind}
+        cardId={cardId}
+        guid={guid}
+        meta={meta}
+        parsed={parsed}
+        onDataRefresh={reloadSmaCard}
+      />
+    )
+  }
+
+  return null
+}
+
 function App() {
+  if (isSmaApp()) {
+    return (
+      <Routes>
+        <Route path="/create/smd/:smdid/:guid" element={<SmaCreateFromSmdContent />} />
+        <Route path="/create/smaq/:smaqid/:guid" element={<SmaCreateFromSmaqContent />} />
+        <Route path="/:kind/:id/:guid" element={<SmaAppContent />} />
+        <Route path="/" element={<SmaAppContent />} />
+      </Routes>
+    )
+  }
   if (isSmrApp()) {
     return (
       <Routes>

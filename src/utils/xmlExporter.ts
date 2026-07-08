@@ -31,6 +31,7 @@ import type {
 } from '@/types/card'
 import type { DprParsedBundle, DprResultDocRow } from '@/types/dprCard'
 import type { SmrParsedBundle, SmrMeasureDocDetails, SmrResultDocRow } from '@/types/smrCard'
+import type { SmaParsedBundle, SmarResponseKind } from '@/types/smaCard'
 import { SANITARY_MEASURE_START_DATE_XML_PLACEHOLDER } from '@/constants/measureXml'
 import { dprResultDocRowToMeasureDocDetails, hasDprResultDocRowContent } from '@/utils/dprResultDocMapping'
 import {
@@ -2395,5 +2396,140 @@ export function exportSmrParsedBundleToXml(bundle: SmrParsedBundle): string {
   if (docsXml) parts.push(docsXml)
 
   parts.push('</doc:SanitaryMeasureConsiderationDetails>')
+  return parts.join('\n')
+}
+
+const SMA_XML_INDENT = '    '
+const SMA_EDOCCODE_INFO = 'R.SM.SS.09.002'
+const SMA_EDOCCODE_ABSENT = 'R.006'
+
+function exportSmaMeasureDocReferenceXml(
+  xmlParts: string[],
+  ref: SmaParsedBundle['measureDocReference'],
+  indent: string
+): void {
+  const country = (ref.country ?? '').trim()
+  const docId = (ref.docId ?? '').trim()
+  const docDate = (ref.docCreationDate ?? '').trim().slice(0, 10)
+  if (!country && !docId && !docDate) return
+  const inner = `${indent}    `
+  xmlParts.push(`${indent}<smcdo:MeasureDocReferenceDetails>`)
+  if (country) {
+    xmlParts.push(`${inner}<csdo:UnifiedCountryCode codeListId="2021">${escapeXML(country)}</csdo:UnifiedCountryCode>`)
+  }
+  if (docId) xmlParts.push(`${inner}<smsdo:DocId>${escapeXML(docId)}</smsdo:DocId>`)
+  if (docDate) xmlParts.push(`${inner}<csdo:DocCreationDate>${escapeXML(docDate)}</csdo:DocCreationDate>`)
+  xmlParts.push(`${indent}</smcdo:MeasureDocReferenceDetails>`)
+}
+
+function exportSmaIncidentAlertXml(
+  xmlParts: string[],
+  alert: SmaParsedBundle['incidentAlert'],
+  indent: string
+): void {
+  const country = (alert.country ?? '').trim()
+  const reg = (alert.registrationNumber ?? '').trim()
+  const typeCode = (alert.typeCode ?? '').trim()
+  const formDate = (alert.formationDate ?? '').trim().slice(0, 10)
+  if (!country && !reg && !typeCode && !formDate) return
+  const inner = `${indent}    `
+  xmlParts.push(`${indent}<smcdo:IncidentAlertIdDetails>`)
+  if (country) {
+    xmlParts.push(`${inner}<csdo:UnifiedCountryCode codeListId="2021">${escapeXML(country)}</csdo:UnifiedCountryCode>`)
+  }
+  if (reg) xmlParts.push(`${inner}<smsdo:IncidentId>${escapeXML(reg)}</smsdo:IncidentId>`)
+  if (typeCode) xmlParts.push(`${inner}<smsdo:IncidentKindCode>${escapeXML(typeCode)}</smsdo:IncidentKindCode>`)
+  if (formDate) xmlParts.push(`${inner}<csdo:DocCreationDate>${escapeXML(formDate)}</csdo:DocCreationDate>`)
+  xmlParts.push(`${indent}</smcdo:IncidentAlertIdDetails>`)
+}
+
+/**
+ * Полный XML карты SMAQ/SMAR (EEC_R_SM_SS_09_AdditionalInfoDetails).
+ */
+export function exportSmaParsedBundleToXml(
+  bundle: SmaParsedBundle,
+  options?: { responseKind?: SmarResponseKind }
+): string {
+  const isAbsent =
+    options?.responseKind === 'absent' ||
+    (bundle.electronicDocument.documentCode ?? '').trim() === SMA_EDOCCODE_ABSENT
+
+  const edoc = bundle.electronicDocument
+  const msg = (edoc.messageCode ?? '').trim() || 'P.SS.09.MSG.019'
+  const code = isAbsent
+    ? SMA_EDOCCODE_ABSENT
+    : (edoc.documentCode ?? '').trim() || SMA_EDOCCODE_INFO
+  const id = (edoc.documentId ?? '').trim() || `sma-${Date.now()}`
+  const dt = (edoc.documentDate ?? '').trim() ? toISODateTimeForXml(edoc.documentDate) : new Date().toISOString()
+  const lang = (edoc.language ?? '').trim() || 'ru'
+
+  const parts: string[] = []
+  parts.push('<?xml version="1.0" encoding="UTF-8"?>')
+  parts.push('<doc:AdditionalInfoDetails xmlns:ccdo="urn:EEC:M:ComplexDataObjects:v0.4.12"')
+  parts.push(' xmlns:csdo="urn:EEC:M:SimpleDataObjects:v0.4.12"')
+  parts.push(' xmlns:smcdo="urn:EEC:M:SM:ComplexDataObjects:v0.3.9"')
+  parts.push(' xmlns:smsdo="urn:EEC:M:SM:SimpleDataObjects:v0.3.9"')
+  parts.push(' xmlns:doc="urn:EEC:R:SM:SS:09:AdditionalInfoDetails:v1.0.0"')
+  parts.push(' xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"')
+  parts.push(
+    ' xsi:schemaLocation="urn:EEC:R:SM:SS:09:AdditionalInfoDetails:v1.0.0 EEC_R_SM_SS_09_AdditionalInfoDetails_v1.0.0.xsd">'
+  )
+
+  parts.push('    <ccdo:EDocHeader>')
+  parts.push(`        <csdo:InfEnvelopeCode>${escapeXML(msg)}</csdo:InfEnvelopeCode>`)
+  parts.push(`        <csdo:EDocCode>${escapeXML(code)}</csdo:EDocCode>`)
+  parts.push(`        <csdo:EDocId>${escapeXML(id)}</csdo:EDocId>`)
+  const refId = (edoc.sourceDocumentId ?? '').trim()
+  if (refId) {
+    parts.push(`        <csdo:EDocRefId>${escapeXML(refId)}</csdo:EDocRefId>`)
+  }
+  parts.push(`        <csdo:EDocDateTime>${escapeXML(dt)}</csdo:EDocDateTime>`)
+  parts.push(`        <csdo:LanguageCode>${escapeXML(lang)}</csdo:LanguageCode>`)
+  parts.push('    </ccdo:EDocHeader>')
+
+  if (!isAbsent) {
+    parts.push('    <ccdo:UnifiedAuthorityDetails>')
+    const authCountry = (bundle.authority.country ?? '').trim()
+    if (authCountry) {
+      parts.push(
+        `        <csdo:UnifiedCountryCode codeListId="2021">${escapeXML(authCountry)}</csdo:UnifiedCountryCode>`
+      )
+    }
+    const authId = (bundle.authority.identifier ?? '').trim()
+    if (authId) parts.push(`        <csdo:AuthorityId>${escapeXML(authId)}</csdo:AuthorityId>`)
+    const authName = (bundle.authority.name ?? '').trim()
+    if (authName) parts.push(`        <csdo:AuthorityName>${escapeXML(authName)}</csdo:AuthorityName>`)
+    const authBrief = (bundle.authority.shortName ?? '').trim()
+    if (authBrief) {
+      parts.push(`        <csdo:AuthorityBriefName>${escapeXML(authBrief)}</csdo:AuthorityBriefName>`)
+    }
+    parts.push('    </ccdo:UnifiedAuthorityDetails>')
+
+    exportSmaIncidentAlertXml(parts, bundle.incidentAlert, SMA_XML_INDENT)
+
+    const mcc = (bundle.measureCountryCode ?? '').trim()
+    if (mcc) {
+      parts.push(`    <csdo:UnifiedCountryCode codeListId="2021">${escapeXML(mcc)}</csdo:UnifiedCountryCode>`)
+    }
+
+    exportSmaMeasureDocReferenceXml(parts, bundle.measureDocReference, SMA_XML_INDENT)
+
+    const spt = (bundle.sanitaryProductTypeCode ?? '').trim()
+    if (spt) parts.push(`    <smsdo:SanitaryProductTypeCode>${escapeXML(spt)}</smsdo:SanitaryProductTypeCode>`)
+    const pn = (bundle.productName ?? '').trim()
+    if (pn) parts.push(`    <csdo:ProductName>${escapeXML(pn)}</csdo:ProductName>`)
+    const ltm = (bundle.laboratoryTestMethodName ?? '').trim()
+    if (ltm) parts.push(`    <smsdo:LaboratoryTestMethodName>${escapeXML(ltm)}</smsdo:LaboratoryTestMethodName>`)
+
+    const docsXml = exportSmrDocContentDetailsXmlFragment(bundle.documents, SMA_XML_INDENT).trim()
+    if (docsXml) parts.push(docsXml)
+  }
+
+  const desc = (bundle.descriptionText ?? '').trim()
+  if (desc) {
+    parts.push(`    <csdo:DescriptionText>${escapeXML(desc)}</csdo:DescriptionText>`)
+  }
+
+  parts.push('</doc:AdditionalInfoDetails>')
   return parts.join('\n')
 }

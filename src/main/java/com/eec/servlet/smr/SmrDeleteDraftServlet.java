@@ -67,7 +67,7 @@ public class SmrDeleteDraftServlet extends HttpServlet {
             conn.setAutoCommit(false);
             try {
                 execDelete(conn, SQL_DELETE_HIST, smrId);
-                execDelete(conn, SQL_DELETE_RESOLUTION, smrId);
+                execDeleteOptional(conn, SQL_DELETE_RESOLUTION, smrId);
                 execDeleteOptional(conn, SQL_DELETE_ACTOR, smrId);
                 execDelete(conn, SQL_DELETE_XML, smrId);
                 try (PreparedStatement ps = conn.prepareStatement(SQL_DELETE_SMR)) {

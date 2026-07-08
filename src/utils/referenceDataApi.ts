@@ -26,7 +26,7 @@ function dpaLikeCardApiSegment(): 'dpa' | 'ppv' {
  * При сборке PHA или PPV используем эндпоинты DPA (/dpa_card/), чтобы не дублировать код и данные.
  */
 function getReferenceDataBaseUrl(): string {
-  if (BASE_URL.includes('pha_card') || BASE_URL.includes('ppv_card') || BASE_URL.includes('dpr_card') || BASE_URL.includes('smr_card')) return '/dpa_card/'
+  if (BASE_URL.includes('pha_card') || BASE_URL.includes('ppv_card') || BASE_URL.includes('dpr_card') || BASE_URL.includes('smr_card') || BASE_URL.includes('sma_card')) return '/dpa_card/'
   return BASE_URL
 }
 

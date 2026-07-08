@@ -41,4 +41,29 @@ public final class SmrOutgoingStatusHelper {
             }
         }
     }
+
+    /**
+     * Начальный статус при создании исходящей SMR: DRAFT, если есть в справочнике, иначе NEW
+     * (в SMRSTATUS для DATASOURCEKINDCODE=2 часто задан только NEW).
+     */
+    public static Integer resolveOutgoingInitialCreateStatusId(Connection conn) throws SQLException {
+        Integer draft = resolveOutgoingStatusId(conn, "DRAFT");
+        if (draft != null) {
+            return draft;
+        }
+        return resolveOutgoingStatusId(conn, "NEW");
+    }
+
+    public static String resolveOutgoingStatusName(Connection conn, int statusId) throws SQLException {
+        if (statusId <= 0) {
+            return null;
+        }
+        try (PreparedStatement ps = conn.prepareStatement(
+                "SELECT TRIM(SMRSTATUSNAME) AS NM FROM SMRSTATUS WHERE SMRSTATUSID = ? AND ROWNUM = 1")) {
+            ps.setInt(1, statusId);
+            try (ResultSet rs = ps.executeQuery()) {
+                return rs.next() ? rs.getString("NM") : null;
+            }
+        }
+    }
 }

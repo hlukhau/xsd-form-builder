@@ -53,7 +53,7 @@ const SmdReviewResultsTab: React.FC<SmdReviewResultsTabProps> = ({
   const g = guid?.trim()
 
   const openUrl = useCallback((url: string) => {
-    window.open(url, '_blank', 'noopener,noreferrer')
+    window.location.assign(url)
   }, [])
 
   const columns: ColumnsType<SmdReviewResultRow> = useMemo(

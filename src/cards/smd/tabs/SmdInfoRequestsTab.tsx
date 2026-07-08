@@ -9,7 +9,7 @@ import {
   buildSmaqCardViewUrl,
   buildSmarCardCreateUrl,
   buildSmarCardViewUrl,
-} from '@/utils/smdCardUrl'
+} from '@/utils/smaCardUrl'
 
 interface SmdInfoRequestsTabProps {
   smdid: string
@@ -50,17 +50,34 @@ function buildTableRows(apiRows: SmdInfoRequestApiRow[]): SmdInfoRequestTableRow
   return result
 }
 
+function normalizeEdocCode(edocCode: string | null | undefined): string {
+  return (edocCode ?? '').trim().replace(/\./g, '').toUpperCase()
+}
+
+function isAbsentResponseCode(edocCode: string | null | undefined): boolean {
+  return normalizeEdocCode(edocCode) === 'R006'
+}
+
 function responseTooltip(edocCode: string | null | undefined): string {
+  if (isAbsentResponseCode(edocCode)) return 'Сведения отсутствуют'
   const code = (edocCode ?? '').trim()
-  if (code === 'R006') return 'Нет данных'
   if (code === 'R.SM.SS.09.002') return 'Дополнительные сведения'
   return code ? `Ответ (${code})` : 'Открыть карту ответа на запрос дополнительных сведений'
 }
 
-function ResponseIcon({ edocCode }: { edocCode: string | null | undefined }) {
-  const code = (edocCode ?? '').trim()
-  if (code === 'R006') {
-    return <MinusCircleOutlined style={{ fontSize: 18, color: '#8c8c8c' }} />
+function ResponseIcon({
+  edocCode,
+  inactiveAbsent,
+}: {
+  edocCode: string | null | undefined
+  inactiveAbsent?: boolean
+}) {
+  if (isAbsentResponseCode(edocCode)) {
+    return (
+      <MinusCircleOutlined
+        style={{ fontSize: 18, color: inactiveAbsent ? '#fa8c16' : '#8c8c8c' }}
+      />
+    )
   }
   return <FileTextOutlined style={{ fontSize: 18, color: '#1677ff' }} />
 }
@@ -108,8 +125,17 @@ const SmdInfoRequestsTab: React.FC<SmdInfoRequestsTabProps> = ({
   const g = guid?.trim()
 
   const openUrl = useCallback((url: string) => {
-    window.open(url, '_blank', 'noopener,noreferrer')
+    window.location.assign(url)
   }, [])
+
+  const linkIconStyle: React.CSSProperties = {
+    display: 'inline-flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 4,
+    lineHeight: 1,
+    cursor: 'pointer',
+  }
 
   const requestCellProps = useCallback(
     (record: SmdInfoRequestTableRow) => ({ rowSpan: record.requestRowSpan }),
@@ -150,18 +176,22 @@ const SmdInfoRequestsTab: React.FC<SmdInfoRequestsTabProps> = ({
           if (!g) {
             return (
               <Tooltip title="Для перехода укажите GUID в адресе карты">
-                <Button type="link" disabled icon={<FileTextOutlined style={{ fontSize: 18 }} />} />
+                <span style={{ ...linkIconStyle, opacity: 0.4, cursor: 'not-allowed' }}>
+                  <FileTextOutlined style={{ fontSize: 18 }} />
+                </span>
               </Tooltip>
             )
           }
+          const href = buildSmaqCardViewUrl(record.smaqId, g)
           return (
             <Tooltip title="Карта запроса дополнительных сведений">
-              <Button
-                type="link"
-                icon={<FileTextOutlined style={{ fontSize: 18, color: '#1677ff' }} />}
-                onClick={() => openUrl(buildSmaqCardViewUrl(record.smaqId, g))}
+              <a
+                href={href}
+                style={linkIconStyle}
                 aria-label="Открыть карту запроса дополнительных сведений"
-              />
+              >
+                <FileTextOutlined style={{ fontSize: 18, color: '#1677ff' }} />
+              </a>
             </Tooltip>
           )
         },
@@ -197,18 +227,36 @@ const SmdInfoRequestsTab: React.FC<SmdInfoRequestsTabProps> = ({
             if (!g) {
               return (
                 <Tooltip title="Для перехода укажите GUID в адресе карты">
-                  <Button type="link" disabled icon={<ResponseIcon edocCode={record.edocCode} />} />
+                  <span style={{ ...linkIconStyle, opacity: 0.4, cursor: 'not-allowed' }}>
+                    <ResponseIcon edocCode={record.edocCode} />
+                  </span>
                 </Tooltip>
               )
             }
+            const tip = responseTooltip(record.edocCode)
+            const absentOnOutgoing = isOutgoing && isAbsentResponseCode(record.edocCode)
+            if (absentOnOutgoing) {
+              return (
+                <Tooltip title={tip}>
+                  <span
+                    style={{ ...linkIconStyle, cursor: 'default', opacity: 1 }}
+                    aria-label={tip}
+                  >
+                    <ResponseIcon edocCode={record.edocCode} inactiveAbsent />
+                  </span>
+                </Tooltip>
+              )
+            }
+            const href = buildSmarCardViewUrl(smarId, g)
             return (
-              <Tooltip title={responseTooltip(record.edocCode)}>
-                <Button
-                  type="link"
-                  icon={<ResponseIcon edocCode={record.edocCode} />}
-                  onClick={() => openUrl(buildSmarCardViewUrl(smarId, g))}
-                  aria-label={responseTooltip(record.edocCode)}
-                />
+              <Tooltip title={tip}>
+                <a
+                  href={href}
+                  style={linkIconStyle}
+                  aria-label={tip}
+                >
+                  <ResponseIcon edocCode={record.edocCode} />
+                </a>
               </Tooltip>
             )
           }
@@ -235,7 +283,7 @@ const SmdInfoRequestsTab: React.FC<SmdInfoRequestsTabProps> = ({
         render: (v: string | null) => (v && String(v).trim() ? v : '—'),
       },
     ],
-    [g, canAddResponse, openUrl, requestCellProps]
+    [g, canAddResponse, isOutgoing, openUrl, requestCellProps]
   )
 
   if (!hasPersisted) {

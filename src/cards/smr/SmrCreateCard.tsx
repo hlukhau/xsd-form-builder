@@ -206,7 +206,7 @@ export function SmrCreateCard({ eligibility, smdid, guid }: SmrCreateCardProps) 
       <div className="card-sticky-header" style={CARD_STICKY_HEADER_STYLE}>
         <div className="card-sticky-header-title-row">
           <span className="card-sticky-header-title">
-            Создание карты сведений о результатах рассмотрения временной санитарной меры
+            Создание карты результатов рассмотрений
           </span>
           <Space size="small" wrap>
             <Button type="primary" onClick={() => void handleSave()} loading={saving} disabled={validateLoading}>

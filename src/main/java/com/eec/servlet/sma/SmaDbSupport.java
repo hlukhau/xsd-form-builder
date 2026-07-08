@@ -1,0 +1,191 @@
+package com.eec.servlet.sma;
+
+import java.sql.SQLException;
+
+/**
+ * SQL для карты дополнительных сведений SMAQ/SMAR.
+ */
+final class SmaDbSupport {
+
+    private SmaDbSupport() {
+    }
+
+    static final String SQL_METADATA_SMAQ_VW = ""
+            + "SELECT vw.SMDID, vw.SMAQID, s.DOCID, dc.COUNTRYCODE AS DOCCOUNTRYCODE, s.DOCCREATIONDATE, "
+            + "       NVL(c.COUNTRYNAME, 'Комиссия') AS REQUESTCOUNTRYNAME, "
+            + "       TRIM(TO_CHAR(vw.DATASOURCEKINDCODE)) AS DATASOURCEKINDCODE, t1.DATASOURCEKINDNAME, "
+            + "       vw.SMAQSTATUSNAME, vw.CREATIONDATETIME, vw.MODIFICATIONDATETIME, "
+            + "       smaq.SMAQSTATUSID, smaq.SMAQVERSION, smaq.SMDID AS SMAQ_SMDID, "
+            + "       TRIM(UPPER(NVL(st.SMAQSTATUSCODE, ''))) AS SMASTATUSCODE "
+            + "FROM VW_SMAQ vw "
+            + "LEFT JOIN DATASOURCEKIND t1 ON TRIM(TO_CHAR(vw.DATASOURCEKINDCODE)) = TRIM(TO_CHAR(t1.DATASOURCEKINDCODE)) "
+            + "LEFT JOIN SMAQ smaq ON smaq.SMAQID = vw.SMAQID "
+            + "LEFT JOIN SMD s ON s.SMDID = COALESCE(smaq.SMDID, vw.SMDID) "
+            + "LEFT JOIN COUNTRY dc ON dc.COUNTRYID = s.DOCCOUNTRYID "
+            + "LEFT JOIN COUNTRY c ON c.COUNTRYID = smaq.REQUESTCOUNTRYID "
+            + "LEFT JOIN SMAQSTATUS st ON st.SMAQSTATUSID = smaq.SMAQSTATUSID "
+            + "WHERE vw.SMAQID = ?";
+
+    static final String SQL_METADATA_SMAQ_VW_SESINT = ""
+            + "SELECT vw.SMDID, vw.SMAQID, s.DOCID, dc.COUNTRYCODE AS DOCCOUNTRYCODE, s.DOCCREATIONDATE, "
+            + "       NVL(c.COUNTRYNAME, 'Комиссия') AS REQUESTCOUNTRYNAME, "
+            + "       TRIM(TO_CHAR(vw.DATASOURCEKINDCODE)) AS DATASOURCEKINDCODE, t1.DATASOURCEKINDNAME, "
+            + "       vw.SMAQSTATUSNAME, vw.CREATIONDATETIME, vw.MODIFICATIONDATETIME, "
+            + "       smaq.SMAQSTATUSID, smaq.SMAQVERSION, smaq.SMDID AS SMAQ_SMDID, "
+            + "       TRIM(UPPER(NVL(st.SMAQSTATUSCODE, ''))) AS SMASTATUSCODE "
+            + "FROM SESINT.VW_SMAQ vw "
+            + "LEFT JOIN SESINT.DATASOURCEKIND t1 ON TRIM(TO_CHAR(vw.DATASOURCEKINDCODE)) = TRIM(TO_CHAR(t1.DATASOURCEKINDCODE)) "
+            + "LEFT JOIN SESINT.SMAQ smaq ON smaq.SMAQID = vw.SMAQID "
+            + "LEFT JOIN SESINT.SMD s ON s.SMDID = COALESCE(smaq.SMDID, vw.SMDID) "
+            + "LEFT JOIN SESINT.COUNTRY dc ON dc.COUNTRYID = s.DOCCOUNTRYID "
+            + "LEFT JOIN SESINT.COUNTRY c ON c.COUNTRYID = smaq.REQUESTCOUNTRYID "
+            + "LEFT JOIN SESINT.SMAQSTATUS st ON st.SMAQSTATUSID = smaq.SMAQSTATUSID "
+            + "WHERE vw.SMAQID = ?";
+
+    static final String SQL_METADATA_SMAQ_FALLBACK = ""
+            + "SELECT smaq.SMDID, smaq.SMAQID, s.DOCID, dc.COUNTRYCODE AS DOCCOUNTRYCODE, s.DOCCREATIONDATE, "
+            + "       NVL(c.COUNTRYNAME, 'Комиссия') AS REQUESTCOUNTRYNAME, "
+            + "       TRIM(TO_CHAR(smaq.DATASOURCEKINDCODE)) AS DATASOURCEKINDCODE, t1.DATASOURCEKINDNAME, "
+            + "       st.SMAQSTATUSNAME, smaq.CREATIONDATETIME, smaq.MODIFICATIONDATETIME, "
+            + "       smaq.SMAQSTATUSID, smaq.SMAQVERSION, smaq.SMDID AS SMAQ_SMDID, "
+            + "       TRIM(UPPER(NVL(st.SMAQSTATUSCODE, ''))) AS SMASTATUSCODE "
+            + "FROM SMAQ smaq "
+            + "JOIN SMD s ON s.SMDID = smaq.SMDID "
+            + "LEFT JOIN COUNTRY dc ON dc.COUNTRYID = s.DOCCOUNTRYID "
+            + "LEFT JOIN COUNTRY c ON c.COUNTRYID = smaq.REQUESTCOUNTRYID "
+            + "LEFT JOIN DATASOURCEKIND t1 ON TRIM(TO_CHAR(smaq.DATASOURCEKINDCODE)) = TRIM(TO_CHAR(t1.DATASOURCEKINDCODE)) "
+            + "LEFT JOIN SMAQSTATUS st ON st.SMAQSTATUSID = smaq.SMAQSTATUSID "
+            + "WHERE smaq.SMAQID = ?";
+
+    static final String SQL_METADATA_SMAQ_FALLBACK_SESINT = ""
+            + "SELECT smaq.SMDID, smaq.SMAQID, s.DOCID, dc.COUNTRYCODE AS DOCCOUNTRYCODE, s.DOCCREATIONDATE, "
+            + "       NVL(c.COUNTRYNAME, 'Комиссия') AS REQUESTCOUNTRYNAME, "
+            + "       TRIM(TO_CHAR(smaq.DATASOURCEKINDCODE)) AS DATASOURCEKINDCODE, t1.DATASOURCEKINDNAME, "
+            + "       st.SMAQSTATUSNAME, smaq.CREATIONDATETIME, smaq.MODIFICATIONDATETIME, "
+            + "       smaq.SMAQSTATUSID, smaq.SMAQVERSION, smaq.SMDID AS SMAQ_SMDID, "
+            + "       TRIM(UPPER(NVL(st.SMAQSTATUSCODE, ''))) AS SMASTATUSCODE "
+            + "FROM SESINT.SMAQ smaq "
+            + "JOIN SESINT.SMD s ON s.SMDID = smaq.SMDID "
+            + "LEFT JOIN SESINT.COUNTRY dc ON dc.COUNTRYID = s.DOCCOUNTRYID "
+            + "LEFT JOIN SESINT.COUNTRY c ON c.COUNTRYID = smaq.REQUESTCOUNTRYID "
+            + "LEFT JOIN SESINT.DATASOURCEKIND t1 ON TRIM(TO_CHAR(smaq.DATASOURCEKINDCODE)) = TRIM(TO_CHAR(t1.DATASOURCEKINDCODE)) "
+            + "LEFT JOIN SESINT.SMAQSTATUS st ON st.SMAQSTATUSID = smaq.SMAQSTATUSID "
+            + "WHERE smaq.SMAQID = ?";
+
+    static final String SQL_METADATA_SMAR_VW = ""
+            + "SELECT vw.SMDID, vw.SMAQID, vw.SMARID, s.DOCID, dc.COUNTRYCODE AS DOCCOUNTRYCODE, s.DOCCREATIONDATE, "
+            + "       NVL(c.COUNTRYNAME, 'Комиссия') AS REQUESTCOUNTRYNAME, "
+            + "       TRIM(TO_CHAR(vw.DATASOURCEKINDCODE)) AS DATASOURCEKINDCODE, t1.DATASOURCEKINDNAME, "
+            + "       vw.SMARSTATUSNAME, vw.CREATIONDATETIME, vw.MODIFICATIONDATETIME, "
+            + "       smar.SMARSTATUSID, smar.SMARVERSION, smar.SMAQID AS SMAR_SMAQID, "
+            + "       TRIM(UPPER(NVL(st.SMARSTATUSCODE, ''))) AS SMASTATUSCODE, "
+            + "       TRIM(x.EDOCCODE) AS EDOCCODE "
+            + "FROM VW_SMAR vw "
+            + "LEFT JOIN DATASOURCEKIND t1 ON TRIM(TO_CHAR(vw.DATASOURCEKINDCODE)) = TRIM(TO_CHAR(t1.DATASOURCEKINDCODE)) "
+            + "LEFT JOIN SMAR smar ON smar.SMARID = vw.SMARID "
+            + "LEFT JOIN SMAQ smaq ON smaq.SMAQID = COALESCE(smar.SMAQID, vw.SMAQID) "
+            + "LEFT JOIN SMD s ON s.SMDID = COALESCE(smaq.SMDID, vw.SMDID) "
+            + "LEFT JOIN COUNTRY dc ON dc.COUNTRYID = s.DOCCOUNTRYID "
+            + "LEFT JOIN COUNTRY c ON c.COUNTRYID = smaq.REQUESTCOUNTRYID "
+            + "LEFT JOIN SMARSTATUS st ON st.SMARSTATUSID = smar.SMARSTATUSID "
+            + "LEFT JOIN SMARXML x ON x.SMARID = smar.SMARID "
+            + "WHERE vw.SMARID = ?";
+
+    static final String SQL_METADATA_SMAR_VW_SESINT = ""
+            + "SELECT vw.SMDID, vw.SMAQID, vw.SMARID, s.DOCID, dc.COUNTRYCODE AS DOCCOUNTRYCODE, s.DOCCREATIONDATE, "
+            + "       NVL(c.COUNTRYNAME, 'Комиссия') AS REQUESTCOUNTRYNAME, "
+            + "       TRIM(TO_CHAR(vw.DATASOURCEKINDCODE)) AS DATASOURCEKINDCODE, t1.DATASOURCEKINDNAME, "
+            + "       vw.SMARSTATUSNAME, vw.CREATIONDATETIME, vw.MODIFICATIONDATETIME, "
+            + "       smar.SMARSTATUSID, smar.SMARVERSION, smar.SMAQID AS SMAR_SMAQID, "
+            + "       TRIM(UPPER(NVL(st.SMARSTATUSCODE, ''))) AS SMASTATUSCODE, "
+            + "       TRIM(x.EDOCCODE) AS EDOCCODE "
+            + "FROM SESINT.VW_SMAR vw "
+            + "LEFT JOIN SESINT.DATASOURCEKIND t1 ON TRIM(TO_CHAR(vw.DATASOURCEKINDCODE)) = TRIM(TO_CHAR(t1.DATASOURCEKINDCODE)) "
+            + "LEFT JOIN SESINT.SMAR smar ON smar.SMARID = vw.SMARID "
+            + "LEFT JOIN SESINT.SMAQ smaq ON smaq.SMAQID = COALESCE(smar.SMAQID, vw.SMAQID) "
+            + "LEFT JOIN SESINT.SMD s ON s.SMDID = COALESCE(smaq.SMDID, vw.SMDID) "
+            + "LEFT JOIN SESINT.COUNTRY dc ON dc.COUNTRYID = s.DOCCOUNTRYID "
+            + "LEFT JOIN SESINT.COUNTRY c ON c.COUNTRYID = smaq.REQUESTCOUNTRYID "
+            + "LEFT JOIN SESINT.SMARSTATUS st ON st.SMARSTATUSID = smar.SMARSTATUSID "
+            + "LEFT JOIN SESINT.SMARXML x ON x.SMARID = smar.SMARID "
+            + "WHERE vw.SMARID = ?";
+
+    static final String SQL_METADATA_SMAR_FALLBACK = ""
+            + "SELECT smaq.SMDID, smar.SMAQID, smar.SMARID, s.DOCID, dc.COUNTRYCODE AS DOCCOUNTRYCODE, s.DOCCREATIONDATE, "
+            + "       NVL(c.COUNTRYNAME, 'Комиссия') AS REQUESTCOUNTRYNAME, "
+            + "       TRIM(TO_CHAR(smar.DATASOURCEKINDCODE)) AS DATASOURCEKINDCODE, t1.DATASOURCEKINDNAME, "
+            + "       st.SMARSTATUSNAME, smar.CREATIONDATETIME, smar.MODIFICATIONDATETIME, "
+            + "       smar.SMARSTATUSID, smar.SMARVERSION, smar.SMAQID AS SMAR_SMAQID, "
+            + "       TRIM(UPPER(NVL(st.SMARSTATUSCODE, ''))) AS SMASTATUSCODE, "
+            + "       TRIM(x.EDOCCODE) AS EDOCCODE "
+            + "FROM SMAR smar "
+            + "JOIN SMAQ smaq ON smaq.SMAQID = smar.SMAQID "
+            + "JOIN SMD s ON s.SMDID = smaq.SMDID "
+            + "LEFT JOIN COUNTRY dc ON dc.COUNTRYID = s.DOCCOUNTRYID "
+            + "LEFT JOIN COUNTRY c ON c.COUNTRYID = smaq.REQUESTCOUNTRYID "
+            + "LEFT JOIN DATASOURCEKIND t1 ON TRIM(TO_CHAR(smar.DATASOURCEKINDCODE)) = TRIM(TO_CHAR(t1.DATASOURCEKINDCODE)) "
+            + "LEFT JOIN SMARSTATUS st ON st.SMARSTATUSID = smar.SMARSTATUSID "
+            + "LEFT JOIN SMARXML x ON x.SMARID = smar.SMARID "
+            + "WHERE smar.SMARID = ?";
+
+    static final String SQL_METADATA_SMAR_FALLBACK_SESINT = ""
+            + "SELECT smaq.SMDID, smar.SMAQID, smar.SMARID, s.DOCID, dc.COUNTRYCODE AS DOCCOUNTRYCODE, s.DOCCREATIONDATE, "
+            + "       NVL(c.COUNTRYNAME, 'Комиссия') AS REQUESTCOUNTRYNAME, "
+            + "       TRIM(TO_CHAR(smar.DATASOURCEKINDCODE)) AS DATASOURCEKINDCODE, t1.DATASOURCEKINDNAME, "
+            + "       st.SMARSTATUSNAME, smar.CREATIONDATETIME, smar.MODIFICATIONDATETIME, "
+            + "       smar.SMARSTATUSID, smar.SMARVERSION, smar.SMAQID AS SMAR_SMAQID, "
+            + "       TRIM(UPPER(NVL(st.SMARSTATUSCODE, ''))) AS SMASTATUSCODE, "
+            + "       TRIM(x.EDOCCODE) AS EDOCCODE "
+            + "FROM SESINT.SMAR smar "
+            + "JOIN SESINT.SMAQ smaq ON smaq.SMAQID = smar.SMAQID "
+            + "JOIN SESINT.SMD s ON s.SMDID = smaq.SMDID "
+            + "LEFT JOIN SESINT.COUNTRY dc ON dc.COUNTRYID = s.DOCCOUNTRYID "
+            + "LEFT JOIN SESINT.COUNTRY c ON c.COUNTRYID = smaq.REQUESTCOUNTRYID "
+            + "LEFT JOIN SESINT.DATASOURCEKIND t1 ON TRIM(TO_CHAR(smar.DATASOURCEKINDCODE)) = TRIM(TO_CHAR(t1.DATASOURCEKINDCODE)) "
+            + "LEFT JOIN SESINT.SMARSTATUS st ON st.SMARSTATUSID = smar.SMARSTATUSID "
+            + "LEFT JOIN SESINT.SMARXML x ON x.SMARID = smar.SMARID "
+            + "WHERE smar.SMARID = ?";
+
+    static final String SQL_SMDID_BY_SMAQ = "SELECT SMDID FROM SMAQ WHERE SMAQID = ?";
+
+    static final String SQL_SMDID_BY_SMAR = ""
+            + "SELECT sq.SMDID FROM SMAR sr JOIN SMAQ sq ON sq.SMAQID = sr.SMAQID WHERE sr.SMARID = ?";
+
+    static final String SQL_SMAQID_BY_SMAR = "SELECT SMAQID FROM SMAR WHERE SMARID = ?";
+
+    static final String SQL_SMAR_EXISTS_BY_SMAQ = "SELECT SMARID FROM SMAR WHERE SMAQID = ? AND ROWNUM = 1";
+
+    static final String SQL_SMD_DATASOURCE = ""
+            + "SELECT TRIM(TO_CHAR(DATASOURCEKINDCODE)) AS DSC FROM SMD WHERE SMDID = ?";
+
+    static final String SQL_SMD_DEPS = "SELECT DEPID FROM SMDDEPPERMIS WHERE SMDID = ?";
+
+    static final String SQL_SMAQ_XML = "SELECT SMAQXMLBODY FROM SMAQXML WHERE SMAQID = ?";
+
+    static final String SQL_SMAR_XML = "SELECT SMARXMLBODY FROM SMARXML WHERE SMARID = ?";
+
+    static final String SQL_SMAR_EDOCCODE = "SELECT TRIM(EDOCCODE) AS EDOCCODE FROM SMARXML WHERE SMARID = ?";
+
+    static final String SQL_SMAQ_STATUS_HISTORY = ""
+            + "SELECT st.SMAQSTATUSNAME, hs.SMAQSTATUSDATETIME, ep.EMPCODE "
+            + "FROM SMAQSTATUSHIST hs "
+            + "JOIN SMAQSTATUS st ON st.SMAQSTATUSID = hs.SMAQSTATUSID "
+            + "LEFT JOIN TB_USER us ON hs.USERID = us.USERID "
+            + "LEFT JOIN TB_EMP ep ON ep.EMPID = us.EMPID "
+            + "WHERE hs.SMAQID = ? "
+            + "ORDER BY hs.SMAQSTATUSDATETIME";
+
+    static final String SQL_SMAR_STATUS_HISTORY = ""
+            + "SELECT st.SMARSTATUSNAME, hs.SMARSTATUSDATETIME, ep.EMPCODE "
+            + "FROM SMARSTATUSHIST hs "
+            + "JOIN SMARSTATUS st ON st.SMARSTATUSID = hs.SMARSTATUSID "
+            + "LEFT JOIN TB_USER us ON hs.USERID = us.USERID "
+            + "LEFT JOIN TB_EMP ep ON ep.EMPID = us.EMPID "
+            + "WHERE hs.SMARID = ? "
+            + "ORDER BY hs.SMARSTATUSDATETIME";
+
+    static boolean isMissingObject(SQLException e) {
+        String msg = e.getMessage();
+        return msg != null && (msg.contains("ORA-00942") || msg.contains("ORA-00904"));
+    }
+}

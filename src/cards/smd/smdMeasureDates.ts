@@ -3,11 +3,13 @@ import { getSmdPrimaryMeasure } from './smdSanitaryMeasureModel'
 
 /** Дата начала действия меры (csdo:StartDate / SMD.SANITARYMEASURESTARTDATE). */
 export function resolveSmdMeasureStartDate(data: CardData): string | null {
-  const fromMeasure = getSmdPrimaryMeasure(data).startDate?.trim().slice(0, 10)
-  if (fromMeasure) return fromMeasure
+  const measure = getSmdPrimaryMeasure(data)
+  if (measure.startDate !== undefined && measure.startDate !== null) {
+    const trimmed = String(measure.startDate).trim().slice(0, 10)
+    return trimmed || null
+  }
   const explicit = data.smdMeasureStartDate?.trim().slice(0, 10)
-  if (explicit) return explicit
-  return null
+  return explicit || null
 }
 
 export function resolveSmdMeasureEndDate(data: CardData): string | null {

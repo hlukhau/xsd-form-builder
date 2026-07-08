@@ -17,7 +17,13 @@ export function getSmdPrimaryMeasure(data: CardData): SanitaryMeasure {
 /** Синхронизация шапки карты и SMD-индекса с блоком MeasureDocDetails и датами меры. */
 export function syncSmdCardFromPrimaryMeasure(data: CardData): CardData {
   const m = data.measures?.measures?.[0] ?? createDefaultSmdPrimaryMeasure()
-  const startDate = (m.startDate ?? data.smdMeasureStartDate ?? '').trim().slice(0, 10)
+  const startDate = (m.startDate ?? '').trim().slice(0, 10)
+  const endDate = (m.endDate ?? '').trim().slice(0, 10)
+  const syncedMeasure: SanitaryMeasure = {
+    ...m,
+    startDate: startDate || undefined,
+    endDate: endDate || undefined,
+  }
 
   const notification = data.notification ?? {
     country: 'BY',
@@ -34,7 +40,7 @@ export function syncSmdCardFromPrimaryMeasure(data: CardData): CardData {
     ...data,
     smdMeasureStartDate: startDate || undefined,
     notification,
-    measures: { measures: [m, ...(data.measures?.measures?.slice(1) ?? [])] },
+    measures: { measures: [syncedMeasure, ...(data.measures?.measures?.slice(1) ?? [])] },
   }
 
   return applySmdRegulatoryDocToCard(withMeasure)
