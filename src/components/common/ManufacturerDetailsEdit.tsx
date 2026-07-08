@@ -239,6 +239,7 @@ const ManufacturerDetailsEdit: React.FC<ManufacturerDetailsEditProps> = ({
       layout="vertical"
       className="field-tag-form"
       onValuesChange={handleValuesChange}
+      style={embeddedInCollapse ? { maxWidth: '100%', minWidth: 0 } : undefined}
     >
                 <Form.Item label="Страна" name="country">
                   <CountrySelect
@@ -335,6 +336,9 @@ const ManufacturerDetailsEdit: React.FC<ManufacturerDetailsEditProps> = ({
                     options={getIdentificationMethodSelectOptions()}
                     disabled={!countryForLegalForm}
                     notFoundContent={loadingIdMethods ? 'Загрузка...' : 'Нет данных по выбранной стране'}
+                    style={{ width: '100%', maxWidth: '100%' }}
+                    popupMatchSelectWidth={false}
+                    className={embeddedInCollapse ? 'card-select-truncate' : undefined}
                   />
                 </Form.Item>
                 <Form.Item label="Таможенный номер" name="customsNumber" rules={getFormRules('customsNumber')}>

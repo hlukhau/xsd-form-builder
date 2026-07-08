@@ -89,6 +89,9 @@ const SmdDiseaseTabEdit: React.FC<SmdDiseaseTabEditProps> = ({ data, onChange })
             rowKey={(_, index) => `spread-zone-edit-${index}`}
             dataSource={zones}
             pagination={false}
+            scroll={{ x: 960 }}
+            tableLayout="fixed"
+            style={{ width: '100%' }}
             columns={[
               {
                 title: '',
@@ -101,12 +104,15 @@ const SmdDiseaseTabEdit: React.FC<SmdDiseaseTabEditProps> = ({ data, onChange })
               {
                 title: 'Организация',
                 key: 'organization',
+                width: 180,
+                ellipsis: true,
                 render: (_: unknown, row: DetectionPlaceData) => formatPlaceOrganizationName(row),
               },
               {
                 title: 'Пункт пропуска',
                 key: 'checkpoint',
-                width: 200,
+                width: 160,
+                ellipsis: true,
                 render: (_: unknown, row: DetectionPlaceData) =>
                   formatPlaceCheckpointLabel(row, getCheckpointNameByCode),
               },
@@ -151,14 +157,16 @@ const SmdDiseaseTabEdit: React.FC<SmdDiseaseTabEditProps> = ({ data, onChange })
               expandedRowKeys:
                 selectedZoneIndex != null ? [`spread-zone-edit-${selectedZoneIndex}`] : [],
               expandedRowRender: (_, index) => (
-                <DetectionPlaceTabEdit
-                  data={zones[index ?? 0] ?? {}}
-                  onChange={(nextZone) => {
-                    const next = [...zones]
-                    next[index ?? 0] = nextZone
-                    setZones(next)
-                  }}
-                />
+                <div style={{ maxWidth: '100%', overflowX: 'auto', paddingRight: 8 }}>
+                  <DetectionPlaceTabEdit
+                    data={zones[index ?? 0] ?? {}}
+                    onChange={(nextZone) => {
+                      const next = [...zones]
+                      next[index ?? 0] = nextZone
+                      setZones(next)
+                    }}
+                  />
+                </div>
               ),
               expandIcon: () => null,
               expandIconColumnIndex: -1,

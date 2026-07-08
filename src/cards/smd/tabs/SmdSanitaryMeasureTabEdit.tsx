@@ -20,6 +20,7 @@ import {
   patchSmdPrimaryMeasure,
   syncSmdCardFromPrimaryMeasure,
 } from '../smdSanitaryMeasureModel'
+import { getSmdRegulatoryMeasureDoc } from '../smdMeasureDoc'
 import SmdIncidentAlertsEdit from './SmdIncidentAlertsEdit'
 
 interface SmdSanitaryMeasureTabEditProps {
@@ -34,6 +35,7 @@ const SmdSanitaryMeasureTabEdit: React.FC<SmdSanitaryMeasureTabEditProps> = ({
   regulatoryDocReadOnly,
 }) => {
   const measure = getSmdPrimaryMeasure(data)
+  const regulatoryDoc = getSmdRegulatoryMeasureDoc(data)
   const { getDisplayLabel: getCountryLabel } = useCountryOptions()
   const { countryOptions, loading: loadingCountries, normalizeCountryCode } = useCountryOptions()
   const {
@@ -74,7 +76,7 @@ const SmdSanitaryMeasureTabEdit: React.FC<SmdSanitaryMeasureTabEditProps> = ({
       measureDocDetails: {
         ...measure.measureDocDetails,
         ...doc,
-        country: 'BY',
+        country: (doc.country ?? regulatoryDoc.country ?? 'BY').trim().toUpperCase().slice(0, 2),
       },
     })
   }
@@ -241,11 +243,7 @@ const SmdSanitaryMeasureTabEdit: React.FC<SmdSanitaryMeasureTabEditProps> = ({
             ),
             children: (
               <MeasureDocDetailsEditStandalone
-                doc={{
-                  country: 'BY',
-                  languageCode: 'ru',
-                  ...measure.measureDocDetails,
-                }}
+                doc={regulatoryDoc}
                 onChange={handleDocChange}
                 title="документ"
                 defaultLanguageCode="ru"
@@ -258,7 +256,7 @@ const SmdSanitaryMeasureTabEdit: React.FC<SmdSanitaryMeasureTabEditProps> = ({
                 getMediaTypeCodeByName={getMediaTypeCodeByName}
                 readOnlyDocIdentity={regulatoryDocReadOnly}
                 countryReadOnly
-                fixedCountryCode="BY"
+                fixedCountryCode={regulatoryDoc.country || 'BY'}
               />
             ),
           },

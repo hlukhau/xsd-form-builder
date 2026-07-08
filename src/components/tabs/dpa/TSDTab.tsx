@@ -16,6 +16,8 @@ import { useShipDocKindOptions } from '@/hooks/shared/useShipDocKindOptions'
 import { useCountryOptions } from '@/hooks/shared/useCountryOptions'
 import { useCommunicationChannelOptions } from '@/hooks/shared/useCommunicationChannelOptions'
 import { buildContactDisplayLines } from '@/utils/contactDisplayUtils'
+import { useLegalFormOptions } from '@/hooks/shared/useLegalFormOptions'
+import { formatOrganizationalFormLabel } from '@/utils/organizationalFormDisplay'
 
 interface TSDTabProps {
   data: TSDData
@@ -61,6 +63,7 @@ const TSDTab: React.FC<TSDTabProps> = ({ data }) => {
   }
 
   const { getDisplayLabel: getCountryDisplayLabel } = useCountryOptions()
+  const { getNameByCode: getLegalFormNameByCode } = useLegalFormOptions(selectedParty?.country ?? '')
 
   if (!data || !data.batches || data.batches.length === 0) {
     return <div>Данные о партиях продукции не найдены</div>
@@ -351,7 +354,7 @@ const TSDTab: React.FC<TSDTabProps> = ({ data }) => {
               {selectedParty.shortName || '-'}
             </Descriptions.Item>
             <Descriptions.Item label="Организационно-правовая форма">
-              {selectedParty.organizationalForm || '-'}
+              {formatOrganizationalFormLabel(selectedParty, getLegalFormNameByCode)}
             </Descriptions.Item>
             <Descriptions.Item label="Идентификатор субъекта">
               {selectedParty.subjectIdentifier || '-'}

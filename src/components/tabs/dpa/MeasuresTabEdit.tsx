@@ -21,6 +21,12 @@ import { DpaEmbeddedUnifiedAuthorityForm } from '@/components/common/DpaEmbedded
 import { labelWithHelp } from '@/components/common/FieldHelp'
 import { FIELD_HELP } from '@/constants/fieldDescriptions'
 import { getMaxLength, validateFieldValue, getFormatHint } from '@/constants/xsdFieldConstraints'
+import {
+  measureDocValidityDaysFromPnD,
+  formatMeasureDocValidityDurationDays,
+  parseMeasureDocValidityDaysInput,
+  DOC_VALIDITY_DURATION_MAX_DAYS,
+} from '@/utils/measureDocValidityDuration'
 import { binaryDownloadFileName, blobMimeTypeFromDocBinaryMediaTypeCode } from '@/utils/docBinaryDownload'
 import { DATE_DISPLAY_FORMAT } from '@/constants/dateFormat'
 import type { CountryOption } from '@/utils/referenceDataApi'
@@ -35,12 +41,6 @@ import type {
   AddressDetails,
   ContactDetails,
 } from '@/types/card'
-
-/** Целое число дней для поля ввода, только если в модели уже PnD с целыми днями; иначе null (сырое значение остаётся только в docValidityDuration). */
-function measureDocValidityDaysFromPnD(xmlDuration: string | undefined): number | null {
-  const m = (xmlDuration ?? '').trim().match(/^P(\d+)D$/i)
-  return m ? parseInt(m[1], 10) : null
-}
 
 /** Документ, регламентирующий введение меры — вынесен на уровень модуля, чтобы при вводе не терялся фокус (компонент не пересоздаётся при каждом рендере). */
 const MeasureDocDetailsEditStandalone: React.FC<{
@@ -142,17 +142,13 @@ const MeasureDocDetailsEditStandalone: React.FC<{
         {countryReadOnly ? (
           <Input
             readOnly
-            value={
-              countryOptions.find(
-                (o) => (o.code || '').toUpperCase() === fixedCountryCode.toUpperCase()
+            value={(() => {
+              const code = (doc.country || fixedCountryCode || '').trim().toUpperCase()
+              const opt = countryOptions.find(
+                (o) => (o.code || '').toUpperCase() === code
               )
-                ? `${fixedCountryCode} - ${
-                    countryOptions.find(
-                      (o) => (o.code || '').toUpperCase() === fixedCountryCode.toUpperCase()
-                    )!.name
-                  }`
-                : fixedCountryCode
-            }
+              return opt?.name ? `${code} — ${opt.name}` : code || '—'
+            })()}
           />
         ) : (
           <CountrySelect
@@ -275,23 +271,22 @@ const MeasureDocDetailsEditStandalone: React.FC<{
         />
       </Form.Item>
       <Form.Item label={labelWithHelp('Срок действия документа в днях', FIELD_HELP.measureDocValidityDuration)}>
-        <InputNumber
-          min={1}
-          precision={0}
-          style={{ width: '100%' }}
-          placeholder="Целое число дней"
-          value={measureDocValidityDaysFromPnD(doc.docValidityDuration) ?? undefined}
-          onChange={(v) => {
-            if (v == null) {
+        <Input
+          inputMode="numeric"
+          maxLength={5}
+          placeholder={`Целое число дней (не более ${DOC_VALIDITY_DURATION_MAX_DAYS})`}
+          value={
+            measureDocValidityDaysFromPnD(doc.docValidityDuration) != null
+              ? String(measureDocValidityDaysFromPnD(doc.docValidityDuration))
+              : ''
+          }
+          onChange={(e) => {
+            const n = parseMeasureDocValidityDaysInput(e.target.value)
+            if (n == null) {
               onChange({ ...doc, docValidityDuration: undefined })
               return
             }
-            const n = typeof v === 'number' ? v : parseInt(String(v), 10)
-            if (!Number.isFinite(n) || n < 1) {
-              onChange({ ...doc, docValidityDuration: undefined })
-              return
-            }
-            onChange({ ...doc, docValidityDuration: `P${Math.floor(n)}D` })
+            onChange({ ...doc, docValidityDuration: formatMeasureDocValidityDurationDays(n) })
           }}
         />
       </Form.Item>

@@ -1138,3 +1138,14 @@ body {
   white-space: normal;
   word-break: break-word;
 }
+
+/* Длинные подписи справочников (метод идентификации и т.п.) не раздувают форму в таблице */
+.card-select-truncate.ant-select .ant-select-selector {
+  max-width: 100%;
+}
+.card-select-truncate.ant-select .ant-select-selection-item {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 100%;
+}
