@@ -33,7 +33,9 @@ import { checkAccessRight, resolveCardAccessApiSource } from '@/utils/referenceD
 import { smdApiSourceToAccessRight } from './smdApi'
 import type { ValidationResult } from '@/utils/cardValidation'
 import { useParentActivityPing } from '@/hooks/shared/useParentActivityPing'
+import { useCountryOptions } from '@/hooks/shared/useCountryOptions'
 import { postMessageFromCardToParent } from '@/utils/parentPostMessage'
+import { openSmdAllVersions } from '@/utils/smdAllVersions'
 import { getSmdMessageName, SMD_MESSAGE_CANCEL } from '@/constants/smdCard'
 import { parseElectronicDocContentBody } from '@/utils/xmlParser'
 
@@ -137,6 +139,7 @@ const SmdCard: React.FC<SmdCardProps> = ({
   const [electronicDocLoading, setElectronicDocLoading] = useState(false)
 
   useParentActivityPing()
+  const { countryOptions } = useCountryOptions()
 
   const effectiveSmdid = (smdid ?? '').trim()
   const cardIdentityKey = `${effectiveSmdid}|${data.registrationNumber ?? ''}|${data.version ?? ''}`
@@ -821,12 +824,7 @@ const SmdCard: React.FC<SmdCardProps> = ({
               : undefined
           }
           onOpenAllVersions={
-            hasPersisted
-              ? () =>
-                  message.info(
-                    'Реестр всех версий SMD — подключите URL реестра (фильтр: страна, номер, дата документа)'
-                  )
-              : undefined
+            hasPersisted ? () => openSmdAllVersions(meta, countryOptions) : undefined
           }
           statusButton={smdStatusResult.config}
           statusButtonComment={smdStatusResult.comment || undefined}
