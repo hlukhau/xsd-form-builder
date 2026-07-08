@@ -10,7 +10,7 @@ const HINT_NO_SEND =
   'Направление сведений недоступно: нет права, неверный статус карты или карта не является исходящей.'
 
 const HINT_NO_COMPLETE =
-  'Недостаточно прав: требуется sanitaryMeasureOut:status с пересечением подразделений с доступом к SMD (SMDDEPPERMIS).'
+  'Недостаточно прав: требуется sanitaryMeasureIn:status с пересечением подразделений с доступом к SMD (SMDDEPPERMIS).'
 
 const sendButton: StatusButtonConfig = {
   label: 'Направление сведений',

@@ -380,14 +380,14 @@ public final class SmaCreateSupport {
         if (statusCode == null || !"PROCESSING".equals(statusCode)) {
             return GateResult.denied("Завершение обработки возможно только при статусе «В обработке» (PROCESSING)");
         }
-        RightsDepKeysResult rights = loadRightsDepKeys(guid, "sanitaryMeasureOut:status",
-                AccessRightService::sanitaryMeasureOutStatusDepKeys);
+        RightsDepKeysResult rights = loadRightsDepKeys(guid, "sanitaryMeasureIn:status",
+                AccessRightService::sanitaryMeasureInStatusDepKeys);
         if (!rights.allowed) {
             return GateResult.denied(rights.reason);
         }
         Set<String> statusDepKeys = rights.depKeys;
         if (!SmdDepPermisUtil.hasOverlap(conn, smdid, statusDepKeys)) {
-            return GateResult.denied("Нет права: ни одно подразделение из sanitaryMeasureOut:status "
+            return GateResult.denied("Нет права: ни одно подразделение из sanitaryMeasureIn:status "
                     + "не входит в доступ к связанной карте SMD (SMDDEPPERMIS)");
         }
         if (kind == SmaCardKind.SMAQ) {

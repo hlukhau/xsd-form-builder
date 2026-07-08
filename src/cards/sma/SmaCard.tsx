@@ -326,9 +326,13 @@ export function SmaCard({ kind, cardId, guid, meta, parsed, onDataRefresh }: Sma
         return
       }
       if (action === 'complete_processing') {
+        const confirmContent =
+          kind === 'smar'
+            ? 'Карта с ответом на запрос будет переведена в статус „Обработано". Продолжить?'
+            : `Карта запроса ${docRegDisplay} будет переведена в статус „Обработано". Продолжить?`
         Modal.confirm({
           title: 'Завершение обработки',
-          content: `Карта ${kind === 'smaq' ? 'запроса' : 'ответа'} ${docRegDisplay} будет переведена в статус „Обработано". Продолжить?`,
+          content: confirmContent,
           okText: 'Завершить',
           cancelText: 'Отмена',
           onOk: async () => {
