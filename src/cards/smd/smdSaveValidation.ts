@@ -65,10 +65,6 @@ export function validateSmdCardBeforeSave(
     errors.push('Нельзя одновременно указать код и наименование принятой меры')
   }
 
-  if (doc?.docKindCode?.trim() && doc?.docKindName?.trim()) {
-    errors.push('Нельзя одновременно указать код и наименование вида документа')
-  }
-
   for (const row of data.smdIncidentAlerts ?? []) {
     if (isIncidentRowTouched(row) && !isIncidentRowComplete(row)) {
       errors.push(
