@@ -635,7 +635,7 @@ function hasProductDetailsContent(details: ProductDetails | undefined): boolean 
 }
 
 /** Есть ли контент у участника цепи поставки (собственные поля или адреса/контакты с контентом). */
-function hasSupplyChainPartyContent(party: SupplyChainPartyDetails | undefined): boolean {
+export function hasSupplyChainPartyContent(party: SupplyChainPartyDetails | undefined): boolean {
   if (!party) return false
   const s = (v: string | undefined) => (v ?? '').trim()
   if (s(party.country) || s(party.businessEntityName) || s(party.shortName) || s(party.organizationalForm) || s(party.businessEntityTypeCode) || s(party.subjectIdentifier) || s(party.customsNumber) || s(party.taxpayerId) || s(party.taxRegistrationReasonCode) || s(party.supplyChainPartyKindCode)) return true

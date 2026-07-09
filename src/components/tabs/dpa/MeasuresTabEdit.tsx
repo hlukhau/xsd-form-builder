@@ -84,7 +84,11 @@ const MeasureDocDetailsEditStandalone: React.FC<{
   fixedCountryCode = 'BY',
 }) => {
   const [uploadedFileName, setUploadedFileName] = useState<string>('')
-  const { getSelectOptions: getShipDocKindSelectOptions, loading: loadingShipDocKinds } = useShipDocKindOptions()
+  const {
+    getSelectOptions: getShipDocKindSelectOptions,
+    getNameByCode: getShipDocKindNameByCode,
+    loading: loadingShipDocKinds,
+  } = useShipDocKindOptions()
   const { getLangCatalogSelectOptions } = useLanguageOptions()
 
   const detectMediaType = (file: File): { mime: string; ext: string } => {
@@ -178,23 +182,23 @@ const MeasureDocDetailsEditStandalone: React.FC<{
           options={getLangCatalogSelectOptions()}
         />
       </Form.Item>
-      <Form.Item label="Вид">
+      <Form.Item label="Код вида документа">
         <Select
           showSearch
           allowClear
           loading={loadingShipDocKinds}
-          placeholder="Выберите вид из справочника"
+          placeholder="Выберите код вида документа из справочника"
           disabled={!!(doc.docKindName?.trim() && !doc.docKindCode?.trim())}
           value={doc.docKindCode || undefined}
           onChange={(code) => {
             if (!code) {
-              onChange({ ...doc, docKindCode: undefined, docKindCodeListId: undefined })
+              onChange({ ...doc, docKindCode: undefined, docKindCodeListId: undefined, docKindName: undefined })
             } else {
               onChange({
                 ...doc,
                 docKindCode: code,
                 docKindCodeListId: '2009',
-                docKindName: undefined,
+                docKindName: getShipDocKindNameByCode(code) ?? undefined,
               })
             }
           }}
@@ -205,8 +209,15 @@ const MeasureDocDetailsEditStandalone: React.FC<{
           style={{ maxWidth: 520, width: '100%' }}
         />
       </Form.Item>
-      {!doc.docKindCode?.trim() && (
-        <Form.Item label="Вид (текст, если не из справочника)">
+      {doc.docKindCode?.trim() ? (
+        <Form.Item label="Наименование вида документа">
+          <Input
+            readOnly
+            value={doc.docKindName ?? getShipDocKindNameByCode(doc.docKindCode) ?? ''}
+          />
+        </Form.Item>
+      ) : (
+        <Form.Item label="Наименование вида документа (если не из справочника)">
           <Input
             value={doc.docKindName ?? ''}
             onChange={(e) =>
@@ -1019,7 +1030,11 @@ export const MeasureImplementationDetailsEdit: React.FC<{
   getSanitaryMeasureObjKindSelectOptions,
   getSanitaryMeasureObjKindNameByCode,
 }) => {
-  const { getSelectOptions: getShipDocKindSelectOptions, loading: loadingShipDocKinds } = useShipDocKindOptions()
+  const {
+    getSelectOptions: getShipDocKindSelectOptions,
+    getNameByCode: getShipDocKindNameByCode,
+    loading: loadingShipDocKinds,
+  } = useShipDocKindOptions()
   const { getSelectOptions: getCheckpointSelectOptions, loading: loadingCheckpoints } =
     useBorderCheckpointOptions()
   const authorities = item.authorities?.length ? item.authorities : (item.authority ? [item.authority] : [])

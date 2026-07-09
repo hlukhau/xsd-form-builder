@@ -20,7 +20,8 @@ import type { ValidationResult } from '@/utils/cardValidation'
 import { getAddressListFromParty, getAddressListFromSubject } from '@/utils/addressFormatUtils'
 import { remarkContactsIncomplete } from '@/utils/contactValidation'
 import { businessEntityIdMethodPairRemarks } from '@/utils/businessEntityIdentificationValidation'
-import { hasMeasureImplementationEntryContent, hasIdentityDocV3Content } from '@/utils/xmlExporter'
+import { hasMeasureImplementationEntryContent, hasIdentityDocV3Content, hasSupplyChainPartyContent } from '@/utils/xmlExporter'
+import { hasPhaPatientGroupExportContent } from '@/cards/pha/phaPatientGroupXml'
 import { hasMeasureDocDetailsContent } from './smdXmlExporter'
 import { getSmdPrimaryMeasure } from './smdSanitaryMeasureModel'
 
@@ -207,7 +208,21 @@ function spreadingZonesList(data: CardData): DetectionPlaceData[] {
   return []
 }
 
-function smdPublicHealthIncidentSpecified(data: CardData): boolean {
+function getMeasureImplementationSubjectEntries(impl: MeasureImplementationItem): SubjectDetails[] {
+  if (impl.subjectDetailsList && impl.subjectDetailsList.length > 0) return impl.subjectDetailsList
+  if (impl.subjectDetails) return [impl.subjectDetails]
+  return []
+}
+
+function smdAuxiliaryPublicHealthIncidentFields(data: CardData): boolean {
+  const d = data.phaDisease
+  if (d?.crossborderSpreadRiskIndicator === 0 || d?.crossborderSpreadRiskIndicator === 1) return true
+  if ((data.detectionPlace?.description ?? '').trim()) return true
+  if ((data.phaPatientGroups ?? []).some(hasPhaPatientGroupExportContent)) return true
+  return spreadingZonesList(data).some((z) => (z.description ?? '').trim())
+}
+
+function smdPublicHealthIncidentCoreSpecified(data: CardData): boolean {
   const d = data.phaDisease
   if (d?.diseaseName?.trim()) return true
   if (d?.firstCaseDate?.trim() || d?.lastCaseDate?.trim()) return true
@@ -215,6 +230,39 @@ function smdPublicHealthIncidentSpecified(data: CardData): boolean {
   if (hasPlaceAnyBlock(data.detectionPlace)) return true
   if (spreadingZonesList(data).some(spreadingZoneTouched)) return true
   return false
+}
+
+function smdPublicHealthIncidentSpecified(data: CardData): boolean {
+  return smdPublicHealthIncidentCoreSpecified(data) || smdAuxiliaryPublicHealthIncidentFields(data)
+}
+
+function validateOrganizationInDiseasePlace(
+  o: BusinessEntityDetails | undefined,
+  add: (msg: string) => void,
+  contactScopePhrase: 'организации места обнаружения' | 'организации зоны распространения'
+): void {
+  if (!o || !organizationAnyFieldTouched(o)) return
+
+  for (const msg of businessEntityIdMethodPairRemarks(o, { legacyHozyaystvuyushchegoSubektaWording: true })) {
+    add(msg)
+  }
+  if (!organizationTrioComplete(o)) {
+    add('Должны быть заполнены Страна, Наименование субъекта, Адрес')
+  }
+  for (const addr of o.addresses ?? []) {
+    if (measureExecutorAddressRowHasContent(addr)) {
+      if (empty(addr.country)) add('В адресе должна быть указана страна')
+      if (!addressHasCityOrSettlement(addr)) add('В адресе должен быть указан город или населенный пункт')
+    }
+  }
+  const cr = remarkContactsIncomplete(o.contacts)
+  if (cr) {
+    add(
+      contactScopePhrase === 'организации места обнаружения'
+        ? 'Для контактного реквизита организации места обнаружения должно быть указано значение'
+        : 'Для контактного реквизита организации зоны распространения должно быть указано значение'
+    )
+  }
 }
 
 function collectDiseasePlaceRemarks(
@@ -233,29 +281,7 @@ function collectDiseasePlaceRemarks(
 
   const o = place?.organization
   if (o && organizationAnyFieldTouched(o)) {
-    for (const msg of businessEntityIdMethodPairRemarks(o, { legacyHozyaystvuyushchegoSubektaWording: true })) {
-      add(msg)
-    }
-    if (!organizationTrioComplete(o)) {
-      add('Должны быть заполнены Страна, Наименование субъекта, Адрес')
-    } else {
-      for (const addr of o.addresses ?? []) {
-        if (measureExecutorAddressRowHasContent(addr)) {
-          if (empty(addr.country)) add('В адресе должна быть указана страна')
-          if (!addressHasCityOrSettlement(addr)) add('В адресе должен быть указан город или населенный пункт')
-        }
-      }
-    }
-    const cr = remarkContactsIncomplete(o.contacts)
-    if (cr) {
-      add(
-        contactScopePhrase === 'организации места обнаружения'
-          ? 'Для контактного реквизита организации места обнаружения должно быть указано значение'
-          : contactScopePhrase === 'организации зоны распространения'
-            ? 'Для контактного реквизита организации зоны распространения должно быть указано значение'
-            : cr
-      )
-    }
+    validateOrganizationInDiseasePlace(o, add, contactScopePhrase as 'организации места обнаружения' | 'организации зоны распространения')
   }
 
   const bc = place?.borderCheckpoint
@@ -359,7 +385,11 @@ function validateSanitaryMeasureSection(
   }
 
   const reasonCode = (measure.measureReasonCode ?? '').trim()
-  if (reasonCode === '4' && !smdPublicHealthIncidentSpecified(data)) {
+  if (
+    reasonCode === '4' &&
+    !smdPublicHealthIncidentCoreSpecified(data) &&
+    !smdAuxiliaryPublicHealthIncidentFields(data)
+  ) {
     add(
       'В случае причины введения меры "ухудшение санитарно-эпидемиологической ситуации на территории государства-члена" должны быть указаны сведения об обнаружении болезни на закладке "Болезнь"'
     )
@@ -400,8 +430,7 @@ function validateMeasuresSection(measure: SanitaryMeasure, add: (msg: string) =>
     const hasSubject = getSubjects(impl).length > 0
     if (!hasAuthority && !hasSubject) anyImplMissingExecutorChoice = true
 
-    for (const subj of getSubjects(impl)) {
-      if (!subjectTouched(subj)) continue
+    for (const subj of getMeasureImplementationSubjectEntries(impl)) {
       if (empty(measureExecutorSubjectCountry(subj))) anyImplMissingCountryOnSubject = true
       if (empty(measureExecutorSubjectName(subj))) anyImplMissingNameOnSubject = true
       if (!getMeasureExecutorSubjectAddressList(subj).some((a) => measureExecutorAddressRowHasContent(a))) {
@@ -453,19 +482,22 @@ function validateMeasuresSection(measure: SanitaryMeasure, add: (msg: string) =>
       }
     }
 
-    for (const subj of getSubjects(impl)) {
-      if (!subjectTouched(subj)) continue
-      for (const msg of businessEntityIdMethodPairRemarks(subj.businessEntity, { legacyHozyaystvuyushchegoSubektaWording: true })) {
-        add(msg)
-      }
-      const identityDoc = subj.identityDoc
-      if (hasIdentityDocV3Content(identityDoc)) {
-        if (empty(identityDoc?.country)) {
-          add('В составе сведений об удостоверении личности субъекта, обеспечивающего соблюдение меры должна быть указана страна')
+    for (const subj of getMeasureImplementationSubjectEntries(impl)) {
+      if (subjectTouched(subj)) {
+        for (const msg of businessEntityIdMethodPairRemarks(subj.businessEntity, { legacyHozyaystvuyushchegoSubektaWording: true })) {
+          add(msg)
         }
-        if (empty(identityDoc?.docId)) {
-          add('В составе сведений об удостоверении личности субъекта, обеспечивающего соблюдение меры должен быть указан номер документа')
+        const identityDoc = subj.identityDoc
+        if (hasIdentityDocV3Content(identityDoc)) {
+          if (empty(identityDoc?.country)) {
+            add('В составе сведений об удостоверении личности субъекта, обеспечивающего соблюдение меры должна быть указана страна')
+          }
+          if (empty(identityDoc?.docId)) {
+            add('В составе сведений об удостоверении личности субъекта, обеспечивающего соблюдение меры должен быть указан номер документа')
+          }
         }
+        const cr = remarkContactsIncomplete(getMeasureSubjectContacts(subj))
+        if (cr) add(cr)
       }
       const subjAddrs = getMeasureExecutorSubjectAddressList(subj).filter((a) => measureExecutorAddressRowHasContent(a))
       if (subjAddrs.length > 0) {
@@ -484,8 +516,6 @@ function validateMeasuresSection(measure: SanitaryMeasure, add: (msg: string) =>
           add('В составе каждого адреса субъекта-исполнителя мероприятия должен быть указан или город, или населенный пункт')
         }
       }
-      const cr = remarkContactsIncomplete(getMeasureSubjectContacts(subj))
-      if (cr) add(cr)
     }
 
     const place = impl.placeDetails
@@ -607,9 +637,15 @@ function validateTsdSection(data: CardData, add: (msg: string) => void): void {
   let tsdAddressMissingCityOrSettlement = false
   let tsdPartyIdMethodPairInvalid = false
 
+  let tsdPartyMissingKind = false
+  let tsdPartyContactIncomplete = false
+
   for (const batch of batches) {
     for (const doc of batch.shippingDocuments ?? []) {
       for (const party of doc.supplyChainParties ?? []) {
+        if (!hasSupplyChainPartyContent(party)) continue
+        if (empty(party.supplyChainPartyKindCode)) tsdPartyMissingKind = true
+        if (remarkContactsIncomplete(party.contacts)) tsdPartyContactIncomplete = true
         if (empty(party.country)) tsdPartyMissingCountry = true
         if (empty(party.businessEntityName)) tsdPartyMissingName = true
         const addrList = getAddressListFromParty(party)
@@ -628,9 +664,17 @@ function validateTsdSection(data: CardData, add: (msg: string) => void): void {
   }
 
   const hasAnyParty = batches.some((b) =>
-    (b.shippingDocuments ?? []).some((d) => (d.supplyChainParties ?? []).length > 0)
+    (b.shippingDocuments ?? []).some((d) =>
+      (d.supplyChainParties ?? []).some((p) => hasSupplyChainPartyContent(p))
+    )
   )
   if (hasAnyParty) {
+    if (tsdPartyMissingKind) {
+      add('Вид участника цепи поставки в составе данных по ТСД должен быть указан')
+    }
+    if (tsdPartyContactIncomplete) {
+      add('Для контактного реквизита участника цепи поставки в составе данных по ТСД должно быть указано значение')
+    }
     if (tsdPartyMissingCountry) {
       add('Код страны регистрации изготовителя продукции в составе данных по ТСД должен быть указан')
     }
@@ -643,7 +687,9 @@ function validateTsdSection(data: CardData, add: (msg: string) => void): void {
   }
   const hasAnyPartyAddress = batches.some((b) =>
     (b.shippingDocuments ?? []).some((d) =>
-      (d.supplyChainParties ?? []).some((p) => getAddressListFromParty(p).length > 0)
+      (d.supplyChainParties ?? []).some(
+        (p) => hasSupplyChainPartyContent(p) && getAddressListFromParty(p).length > 0
+      )
     )
   )
   if (hasAnyPartyAddress) {
@@ -729,52 +775,39 @@ function validateViolationsSection(data: CardData, add: (msg: string) => void): 
 }
 
 function validateDiseaseSection(data: CardData, add: (msg: string) => void): void {
-  if (!smdPublicHealthIncidentSpecified(data)) return
+  const incidentCore = smdPublicHealthIncidentCoreSpecified(data)
 
-  const d: PhaDiseaseDetails | undefined = data.phaDisease
-  if (!d?.diseaseName?.trim()) {
-    add('Наименование болезни должно быть указано')
-  }
-
-  ;(d?.pathogens ?? []).forEach((p) => {
-    if (pathogenDetailsTouched(p) && empty(p.pathogenKindName)) {
-      add('Наименование типа возбудителя должно быть указано')
+  if (incidentCore) {
+    const d: PhaDiseaseDetails | undefined = data.phaDisease
+    if (!d?.diseaseName?.trim()) {
+      add('Наименование болезни должно быть указано')
     }
-  })
 
-  if (!hasPlaceAnyBlock(data.detectionPlace)) {
-    add('Должно быть заполнено место обнаружения болезни')
+    ;(d?.pathogens ?? []).forEach((p) => {
+      if (pathogenDetailsTouched(p) && empty(p.pathogenKindName)) {
+        add('Наименование типа возбудителя должно быть указано')
+      }
+    })
+
+    if (!hasPlaceAnyBlock(data.detectionPlace)) {
+      add('Должно быть заполнено место обнаружения болезни')
+    }
   }
 
-  for (const msg of collectDiseasePlaceRemarks(
-    data.detectionPlace,
-    'организации места обнаружения'
-  )) {
-    add(msg)
+  const detectionPlaceTouched =
+    hasPlaceAnyBlock(data.detectionPlace) || !!(data.detectionPlace?.description ?? '').trim()
+  if (detectionPlaceTouched) {
+    for (const msg of collectDiseasePlaceRemarks(
+      data.detectionPlace,
+      'организации места обнаружения'
+    )) {
+      add(msg)
+    }
   }
 
   for (const zone of spreadingZonesList(data)) {
     if (!spreadingZoneTouched(zone)) continue
-    const o = zone.organization
-    if (o && organizationAnyFieldTouched(o)) {
-      for (const msg of businessEntityIdMethodPairRemarks(o, { legacyHozyaystvuyushchegoSubektaWording: true })) {
-        add(msg)
-      }
-      if (!organizationTrioComplete(o)) {
-        add('Должны быть заполнены Страна, Наименование субъекта, Адрес')
-      } else {
-        for (const addr of o.addresses ?? []) {
-          if (measureExecutorAddressRowHasContent(addr)) {
-            if (empty(addr.country)) add('В адресе должна быть указана страна')
-            if (!addressHasCityOrSettlement(addr)) add('В адресе должен быть указан город или населенный пункт')
-          }
-        }
-      }
-      const cr = remarkContactsIncomplete(o.contacts)
-      if (cr) {
-        add('Для контактного реквизита организации зоны распространения должно быть указано значение')
-      }
-    }
+    validateOrganizationInDiseasePlace(zone.organization, add, 'организации зоны распространения')
     const bc = zone.borderCheckpoint
     if (bc && (bc.checkpointCode?.trim() || bc.checkpointName?.trim())) {
       if (empty(bc.checkpointCode) || empty(bc.checkpointName)) {
@@ -787,7 +820,6 @@ function validateDiseaseSection(data: CardData, add: (msg: string) => void): voi
       if (!addressHasCityOrSettlement(objAddr)) add('В адресе должен быть указан город или населенный пункт')
     }
   }
-
 }
 
 /** Форматно-логические контроли исходящей карты SMD по регламенту п. 8. */
