@@ -12,6 +12,8 @@ import { useIdentityDocKindOptions } from '@/hooks/shared/useIdentityDocKindOpti
 import { useLegalFormOptions } from '@/hooks/shared/useLegalFormOptions'
 import { useShipDocKindOptions } from '@/hooks/shared/useShipDocKindOptions'
 import { IdentificationMethodSelect } from '@/components/common/IdentificationMethodSelect'
+import { EntityIdMethodPairHint } from '@/components/common/EntityIdMethodPairHint'
+import { entityIdMethodPairInputStatus } from '@/utils/businessEntityIdentificationValidation'
 import { useBorderCheckpointOptions } from '@/hooks/shared/useBorderCheckpointOptions'
 import { useCommunicationChannelOptions } from '@/hooks/shared/useCommunicationChannelOptions'
 import { FieldTagBlock } from '@/components/common/FieldTag'
@@ -1373,6 +1375,8 @@ const SubjectDetailsUnifiedEdit: React.FC<{
 
   const subjectId = be?.businessEntityId
   const identificationMethod = be?.identificationMethod
+  const entityIdMethodSource = { businessEntityId: subjectId, identificationMethod }
+  const entityIdMethodStatus = entityIdMethodPairInputStatus(entityIdMethodSource)
   const customsNumber = be?.customsNumber
   const taxpayerId = be?.taxpayerId
 
@@ -1535,6 +1539,7 @@ const SubjectDetailsUnifiedEdit: React.FC<{
           onChange={(e) => upd({}, { businessEntityId: e.target.value })}
           maxLength={getMaxLength('subjectIdentifier')}
           showCount
+          status={entityIdMethodStatus}
         />
       </Form.Item>
       <Form.Item label="Метод идентификации">
@@ -1542,8 +1547,10 @@ const SubjectDetailsUnifiedEdit: React.FC<{
           countryCode={countryForLegalForm}
           value={identificationMethod || undefined}
           onChange={(v) => upd({}, { identificationMethod: v ?? undefined })}
+          status={entityIdMethodStatus}
         />
       </Form.Item>
+      <EntityIdMethodPairHint source={entityIdMethodSource} style={{ marginTop: -4 }} />
       <Form.Item label="Таможенный номер">
         <Input
           value={customsNumber}

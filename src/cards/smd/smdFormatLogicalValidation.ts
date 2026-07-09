@@ -138,6 +138,7 @@ function subjectTouched(sd: SubjectDetails | undefined): boolean {
     subjectAddressTouched(sd) ||
     hasIdentityDocV3Content(sd.identityDoc) ||
     (sd.businessEntity?.businessEntityId ?? '').trim() ||
+    (sd.businessEntity?.identificationMethod ?? '').trim() ||
     (getMeasureSubjectContacts(sd).length ?? 0) > 0
   )
 }
@@ -147,6 +148,7 @@ function organizationAnyFieldTouched(o: BusinessEntityDetails): boolean {
     o.country?.trim() ||
     o.businessEntityName?.trim() ||
     o.businessEntityId?.trim() ||
+    o.identificationMethod?.trim() ||
     (o.addresses ?? []).some((a) => measureExecutorAddressRowHasContent(a)) ||
     (o.contacts ?? []).some((c) => remarkContactsIncomplete([c]) != null)
   )
@@ -231,12 +233,12 @@ function collectDiseasePlaceRemarks(
 
   const o = place?.organization
   if (o && organizationAnyFieldTouched(o)) {
+    for (const msg of businessEntityIdMethodPairRemarks(o, { legacyHozyaystvuyushchegoSubektaWording: true })) {
+      add(msg)
+    }
     if (!organizationTrioComplete(o)) {
       add('Должны быть заполнены Страна, Наименование субъекта, Адрес')
     } else {
-      for (const msg of businessEntityIdMethodPairRemarks(o, { legacyHozyaystvuyushchegoSubektaWording: true })) {
-        add(msg)
-      }
       for (const addr of o.addresses ?? []) {
         if (measureExecutorAddressRowHasContent(addr)) {
           if (empty(addr.country)) add('В адресе должна быть указана страна')
@@ -755,12 +757,12 @@ function validateDiseaseSection(data: CardData, add: (msg: string) => void): voi
     if (!spreadingZoneTouched(zone)) continue
     const o = zone.organization
     if (o && organizationAnyFieldTouched(o)) {
+      for (const msg of businessEntityIdMethodPairRemarks(o, { legacyHozyaystvuyushchegoSubektaWording: true })) {
+        add(msg)
+      }
       if (!organizationTrioComplete(o)) {
         add('Должны быть заполнены Страна, Наименование субъекта, Адрес')
       } else {
-        for (const msg of businessEntityIdMethodPairRemarks(o, { legacyHozyaystvuyushchegoSubektaWording: true })) {
-          add(msg)
-        }
         for (const addr of o.addresses ?? []) {
           if (measureExecutorAddressRowHasContent(addr)) {
             if (empty(addr.country)) add('В адресе должна быть указана страна')

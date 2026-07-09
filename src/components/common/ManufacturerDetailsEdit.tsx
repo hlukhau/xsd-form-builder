@@ -9,6 +9,8 @@ import CountrySelect from '@/components/common/CountrySelect'
 import { useSupplyChainPartyKindOptions } from '@/hooks/shared/useSupplyChainPartyKindOptions'
 import { useLegalFormOptions } from '@/hooks/shared/useLegalFormOptions'
 import { IdentificationMethodSelect } from '@/components/common/IdentificationMethodSelect'
+import { EntityIdMethodPairHint } from '@/components/common/EntityIdMethodPairHint'
+import { entityIdMethodPairInputStatus } from '@/utils/businessEntityIdentificationValidation'
 import { checkSupplyChainPartyKindExists } from '@/utils/referenceDataApi'
 import { getAddressListFromParty, getDefaultAddressKindName } from '@/utils/addressFormatUtils'
 import { useCommunicationChannelOptions } from '@/hooks/shared/useCommunicationChannelOptions'
@@ -56,6 +58,12 @@ const ManufacturerDetailsEdit: React.FC<ManufacturerDetailsEditProps> = ({
   const { getSelectOptions: getCommunicationChannelSelectOptions, loading: loadingCommunicationChannels } = useCommunicationChannelOptions()
   const [kindCodeError, setKindCodeError] = useState<boolean>(false)
   const [addressErrors, setAddressErrors] = useState<Record<string, string>>({})
+
+  const entityIdMethodSource = {
+    subjectIdentifier: data.subjectIdentifier,
+    identificationMethod: data.identificationMethod,
+  }
+  const entityIdMethodStatus = entityIdMethodPairInputStatus(entityIdMethodSource)
 
   // Проверка кода вида участника по справочнику с дебаунсом (не при каждом вводе символа)
   useEffect(() => {
@@ -321,11 +329,12 @@ const ManufacturerDetailsEdit: React.FC<ManufacturerDetailsEditProps> = ({
                   </Form.Item>
                 )}
                 <Form.Item label="Идентификатор субъекта" name="subjectIdentifier" rules={getFormRules('subjectIdentifier')}>
-                  <Input maxLength={getMaxLength('subjectIdentifier')} showCount />
+                  <Input maxLength={getMaxLength('subjectIdentifier')} showCount status={entityIdMethodStatus} />
                 </Form.Item>
                 <Form.Item label="Метод идентификации" name="identificationMethod">
-                  <IdentificationMethodSelect countryCode={countryForLegalForm} />
+                  <IdentificationMethodSelect countryCode={countryForLegalForm} status={entityIdMethodStatus} />
                 </Form.Item>
+                <EntityIdMethodPairHint source={entityIdMethodSource} style={{ marginTop: -4 }} />
                 <Form.Item label="Таможенный номер" name="customsNumber" rules={getFormRules('customsNumber')}>
                   <Input maxLength={getMaxLength('customsNumber')} showCount />
                 </Form.Item>

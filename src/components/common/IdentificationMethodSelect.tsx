@@ -11,6 +11,7 @@ interface IdentificationMethodSelectProps {
   allowClear?: boolean
   disabled?: boolean
   placeholder?: string
+  status?: 'error' | 'warning'
 }
 
 /** Справочник методов идентификации (kindId): многострочное отображение, без горизонтального переполнения. */
@@ -21,6 +22,7 @@ export function IdentificationMethodSelect({
   allowClear = true,
   disabled,
   placeholder,
+  status,
 }: IdentificationMethodSelectProps) {
   const { options, loading } = useIdentificationMethodOptions(countryCode)
   const country = (countryCode ?? '').trim()
@@ -42,6 +44,7 @@ export function IdentificationMethodSelect({
       <Select
         className="identification-method-select"
         popupClassName={IDENTIFICATION_METHOD_DROPDOWN_CLASS}
+        status={status}
         showSearch
         allowClear={allowClear}
         placeholder={placeholder ?? (country ? 'Выберите значение' : 'Сначала укажите страну')}

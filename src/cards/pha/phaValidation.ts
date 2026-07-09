@@ -136,12 +136,12 @@ function collectPlaceRemarks(place: DetectionPlaceData | undefined): string[] {
 
   const o = place?.organization
   if (o && organizationAnyFieldTouched(o)) {
+    for (const msg of businessEntityIdMethodPairRemarks(o, { legacyHozyaystvuyushchegoSubektaWording: true })) {
+      add(msg)
+    }
     if (!organizationTrioComplete(o)) {
       add('Должны быть заполнены Страна, Наименование субъекта, Адрес')
     } else {
-      for (const msg of businessEntityIdMethodPairRemarks(o, { legacyHozyaystvuyushchegoSubektaWording: true })) {
-        add(msg)
-      }
       for (const addr of o.addresses ?? []) {
         if (!empty(addr.country) || addressHasCityOrSettlement(addr) || !empty(addr.fullAddress)) {
           if (empty(addr.country)) add('В адресе должна быть указана страна')

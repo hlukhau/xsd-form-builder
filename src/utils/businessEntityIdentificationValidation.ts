@@ -18,6 +18,24 @@ export const ENTITY_ID_WITHOUT_METHOD_MSG =
 export const ENTITY_METHOD_WITHOUT_ID_MSG =
   'Если указан метод идентификации, должен быть указан идентификатор субъекта'
 
+/** Подсказка под полями в форме (как для страны/города в адресе). */
+export function getEntityIdMethodPairInlineHint(src: EntityIdMethodSource | undefined | null): {
+  hasError: boolean
+  message: string
+} {
+  const remarks = businessEntityIdMethodPairRemarks(src)
+  return {
+    hasError: remarks.length > 0,
+    message: remarks[0] ?? '',
+  }
+}
+
+export function entityIdMethodPairInputStatus(
+  src: EntityIdMethodSource | undefined | null
+): 'error' | undefined {
+  return getEntityIdMethodPairInlineHint(src).hasError ? 'error' : undefined
+}
+
 /** Для save-blocking / format validation с путём к полю. */
 export function pushBusinessEntityIdMethodPairErrors(
   errors: string[],
