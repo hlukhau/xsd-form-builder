@@ -2,6 +2,7 @@ package com.eec.servlet.smr;
 
 import com.eec.rights.RightsRegistryProvider;
 import com.eec.util.DatabaseUtil;
+import com.eec.util.SmrAuthorityDbSupport;
 import com.eec.util.SmrCreateSupport;
 
 import javax.servlet.ServletException;
@@ -31,6 +32,11 @@ public class SmrCreateSaveServlet extends HttpServlet {
     private static final String SQL_NEXT_SMRID = "SELECT sqsmr.NEXTVAL AS N FROM DUAL";
 
     private static final String SQL_INSERT_SMR = ""
+            + "INSERT INTO SMR (SMRID, SMDID, DOCID, DATASOURCEKINDCODE, SMRSTATUSID, "
+            + "CREATIONDATETIME, MODIFICATIONDATETIME, RESPONSECOUNTRYID, SMRVERSION, AUTHORITYID) "
+            + "VALUES (?, ?, ?, 2, ?, SYSDATE, SYSDATE, ?, 1, ?)";
+
+    private static final String SQL_INSERT_SMR_NO_AUTH = ""
             + "INSERT INTO SMR (SMRID, SMDID, DOCID, DATASOURCEKINDCODE, SMRSTATUSID, "
             + "CREATIONDATETIME, MODIFICATIONDATETIME, RESPONSECOUNTRYID, SMRVERSION) "
             + "VALUES (?, ?, ?, 2, ?, SYSDATE, SYSDATE, ?, 1)";
@@ -132,8 +138,9 @@ public class SmrCreateSaveServlet extends HttpServlet {
 
             conn.setAutoCommit(false);
             try {
-                insertDprWithOptionalIncident(conn, smrId, smdid, gate.docId, gate.draftSmrStatusId,
-                        gate.responseCountryId);
+                Integer resolvedAuthorityId = SmrAuthorityDbSupport.resolveAuthorityId(conn, authorityId);
+                insertSmrWithOptionalAuthority(conn, smrId, smdid, gate.docId, gate.draftSmrStatusId,
+                        gate.responseCountryId, resolvedAuthorityId);
                 try (PreparedStatement ps = conn.prepareStatement(SQL_INSERT_SMRXML)) {
                     ps.setLong(1, smrId);
                     ps.setString(2, xml);
@@ -179,9 +186,27 @@ public class SmrCreateSaveServlet extends HttpServlet {
         }
     }
 
-    private static void insertDprWithOptionalIncident(Connection conn, long smrId, long smdid, String docId,
-                                                      int draftStatusId, long responseCountryId) throws SQLException {
-        try (PreparedStatement ps = conn.prepareStatement(SQL_INSERT_SMR)) {
+    private static void insertSmrWithOptionalAuthority(Connection conn, long smrId, long smdid, String docId,
+                                                       int draftStatusId, long responseCountryId,
+                                                       Integer authorityId) throws SQLException {
+        if (authorityId != null) {
+            try (PreparedStatement ps = conn.prepareStatement(SQL_INSERT_SMR)) {
+                ps.setLong(1, smrId);
+                ps.setLong(2, smdid);
+                ps.setString(3, docId);
+                ps.setInt(4, draftStatusId);
+                ps.setLong(5, responseCountryId);
+                ps.setInt(6, authorityId);
+                ps.executeUpdate();
+                return;
+            } catch (SQLException e) {
+                String m = e.getMessage() != null ? e.getMessage() : "";
+                if (!m.contains("ORA-00904")) {
+                    throw e;
+                }
+            }
+        }
+        try (PreparedStatement ps = conn.prepareStatement(SQL_INSERT_SMR_NO_AUTH)) {
             ps.setLong(1, smrId);
             ps.setLong(2, smdid);
             ps.setString(3, docId);

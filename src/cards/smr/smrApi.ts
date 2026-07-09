@@ -107,6 +107,7 @@ export async function postSmrSave(payload: {
   guid: string
   smrId: string
   smrXmlB64: string
+  authorityId?: string
 }): Promise<{ ok: boolean; smrStatusId?: number }> {
   const response = await fetch(getApiUrl('/api/smr/save'), {
     method: 'POST',

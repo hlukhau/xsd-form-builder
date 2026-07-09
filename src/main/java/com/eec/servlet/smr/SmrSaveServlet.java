@@ -2,6 +2,7 @@ package com.eec.servlet.smr;
 
 import com.eec.rights.RightsRegistryProvider;
 import com.eec.util.DatabaseUtil;
+import com.eec.util.SmrAuthorityDbSupport;
 import com.eec.util.SmrCreateSupport;
 import com.eec.util.SmrOutgoingStatusHelper;
 
@@ -38,6 +39,9 @@ public class SmrSaveServlet extends HttpServlet {
     private static final String SQL_READ_CLOB = "SELECT SMRXMLBODY FROM SMRXML WHERE SMRID = ?";
     private static final String SQL_UPDATE_XML = "UPDATE SMRXML SET SMRXMLBODY = ? WHERE SMRID = ?";
     private static final String SQL_UPDATE_SMR = ""
+            + "UPDATE SMR SET MODIFICATIONDATETIME = SYSDATE, SMRSTATUSID = ?, AUTHORITYID = ? WHERE SMRID = ? "
+            + "AND TRIM(TO_CHAR(DATASOURCEKINDCODE)) = '2'";
+    private static final String SQL_UPDATE_SMR_NO_AUTH = ""
             + "UPDATE SMR SET MODIFICATIONDATETIME = SYSDATE, SMRSTATUSID = ? WHERE SMRID = ? "
             + "AND TRIM(TO_CHAR(DATASOURCEKINDCODE)) = '2'";
     private static final String SQL_INSERT_HIST = ""
@@ -71,6 +75,7 @@ public class SmrSaveServlet extends HttpServlet {
         }
 
         String smrXmlB64 = jsonStringField(body, "smrXmlB64");
+        String authorityId = jsonStringField(body, "authorityId");
 
         Connection conn = null;
         try {
@@ -144,12 +149,31 @@ public class SmrSaveServlet extends HttpServlet {
 
             conn.setAutoCommit(false);
             try {
-                try (PreparedStatement ps = conn.prepareStatement(SQL_UPDATE_SMR)) {
+                Integer resolvedAuthorityId = SmrAuthorityDbSupport.resolveAuthorityId(conn, authorityId);
+                try (PreparedStatement ps = conn.prepareStatement(
+                        resolvedAuthorityId != null ? SQL_UPDATE_SMR : SQL_UPDATE_SMR_NO_AUTH)) {
                     ps.setInt(1, newStatusId);
-                    ps.setLong(2, smrId);
+                    if (resolvedAuthorityId != null) {
+                        ps.setInt(2, resolvedAuthorityId);
+                        ps.setLong(3, smrId);
+                    } else {
+                        ps.setLong(2, smrId);
+                    }
                     int n = ps.executeUpdate();
                     if (n != 1) {
                         throw new SQLException("UPDATE SMR: ожидалась одна строка, обновлено " + n);
+                    }
+                } catch (SQLException e) {
+                    if (resolvedAuthorityId == null || !(e.getMessage() != null && e.getMessage().contains("ORA-00904"))) {
+                        throw e;
+                    }
+                    try (PreparedStatement ps = conn.prepareStatement(SQL_UPDATE_SMR_NO_AUTH)) {
+                        ps.setInt(1, newStatusId);
+                        ps.setLong(2, smrId);
+                        int n = ps.executeUpdate();
+                        if (n != 1) {
+                            throw new SQLException("UPDATE SMR: ожидалась одна строка, обновлено " + n);
+                        }
                     }
                 }
                 try (PreparedStatement ps = conn.prepareStatement(SQL_UPDATE_XML)) {

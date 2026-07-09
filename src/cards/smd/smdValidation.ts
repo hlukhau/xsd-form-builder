@@ -2,6 +2,7 @@ import type { CardData } from '@/types/card'
 import type { ValidationResult } from '@/utils/cardValidation'
 import { fetchSchemaValidationErrors } from '@/utils/schemaValidationApi'
 import { validateSmdFormatLogical } from './smdFormatLogicalValidation'
+import { collectSmdFormatValidationErrors } from './smdFormatValidation'
 import { syncSmdCardFromPrimaryMeasure } from './smdSanitaryMeasureModel'
 
 function emptyXmlBody(xml: string | null | undefined): boolean {
@@ -62,6 +63,15 @@ export async function validateSmdOutgoingCardFullWithSchema(
   if (!logical.success) {
     return logical
   }
+
+  const formatResult = collectSmdFormatValidationErrors(data)
+  if (formatResult.errors.length > 0) {
+    return {
+      success: false,
+      sections: [{ sectionName: 'Структурный контроль', remarks: formatResult.errors }],
+    }
+  }
+
   return validateSmdCardXml(xml)
 }
 

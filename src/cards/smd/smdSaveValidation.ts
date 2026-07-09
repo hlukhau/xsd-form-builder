@@ -3,7 +3,7 @@ import { SMD_MESSAGE_CANCEL, SMD_MESSAGE_CHANGE } from '@/constants/smdCard'
 import { getSmdPrimaryMeasure } from './smdSanitaryMeasureModel'
 import { getSmdRegulatoryMeasureDoc } from './smdMeasureDoc'
 import { resolveSmdMeasureStartDate } from './smdMeasureDates'
-import { collectBusinessEntityIdMethodPairErrorsFromCard } from '@/utils/businessEntityIdentificationValidation'
+import { collectSmdFormatValidationErrors } from './smdFormatValidation'
 
 function isBlank(s: string | null | undefined): boolean {
   return !s || !String(s).trim()
@@ -78,7 +78,7 @@ export function validateSmdCardBeforeSave(
     }
   }
 
-  errors.push(...collectBusinessEntityIdMethodPairErrorsFromCard(data))
+  errors.push(...collectSmdFormatValidationErrors(data).errors)
 
   return errors
 }

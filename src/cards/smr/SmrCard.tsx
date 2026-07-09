@@ -3,15 +3,15 @@ import { Typography, Tabs, Descriptions, Button, Input, Collapse, Space, message
 import { LinkOutlined, DownloadOutlined } from '@ant-design/icons'
 import { format, parseISO } from 'date-fns'
 import { ru } from 'date-fns/locale'
-import { MeasureDocDetailsView } from '@/components/tabs/dpa/MeasuresTab'
-import { MeasureDocDetailsEditStandalone } from '@/components/tabs/dpa/MeasuresTabEdit'
 import SmdMeasureImplementationView from '@/cards/smd/tabs/SmdMeasureImplementationView'
 import StatusHistoryModal from '@/components/modals/dpa/StatusHistoryModal'
 import ElectronicDocumentModal from '@/components/modals/dpa/ElectronicDocumentModal'
 import AccessModal from '@/components/modals/dpa/AccessModal'
 import SaveBlockingErrorsModal from '@/components/modals/SaveBlockingErrorsModal'
 import { CardActions } from '@/cards/shared'
-import type { SmrMetadataView, SmrParsedBundle, SmrResultDocRow, SmrMeasureDocDetails } from '@/types/smrCard'
+import type { SmrMetadataView, SmrParsedBundle, SmrResultDocRow } from '@/types/smrCard'
+import { SmrSourceMeasureCardView } from '@/cards/smr/SmrSourceMeasureCardView'
+import { formatSmrCountryName, SMR_SOURCE_MEASURE_CARD_TITLE } from '@/cards/smr/smrDisplayUtils'
 import type { MeasureImplementationItem, StatusHistoryItem } from '@/types/card'
 import {
   fetchSmrResolutions,
@@ -29,7 +29,6 @@ import {
 import { useCountryOptions } from '@/hooks/shared/useCountryOptions'
 import { useLanguageOptions } from '@/hooks/shared/useLanguageOptions'
 import { useShipDocKindOptions } from '@/hooks/shared/useShipDocKindOptions'
-import { useMediaTypeOptions } from '@/hooks/shared/useMediaTypeOptions'
 import { binaryDownloadFileName, blobMimeTypeFromDocBinaryMediaTypeCode } from '@/utils/docBinaryDownload'
 import { DATE_TIME_DISPLAY_FORMAT_DATEFNS } from '@/constants/dateFormat'
 import { postMessageFromCardToParent } from '@/utils/parentPostMessage'
@@ -126,16 +125,9 @@ export interface SmrCardProps {
 }
 
 export function SmrCard({ smrId, guid, meta, parsed, onDataRefresh }: SmrCardProps) {
-  const { getDisplayLabel: countryLabel, countryOptions, loading: loadingCountries, normalizeCountryCode } =
-    useCountryOptions()
+  const { getDisplayLabel: countryLabel, countryOptions } = useCountryOptions()
   const { getLangCatalogSelectOptions } = useLanguageOptions()
   const { getNameByCode: shipDocKindName } = useShipDocKindOptions()
-  const {
-    getSelectOptions: getMediaTypeSelectOptions,
-    getNameByCode: getMediaTypeNameByCode,
-    getCodeByName: getMediaTypeCodeByName,
-    loading: loadingMediaTypes,
-  } = useMediaTypeOptions()
 
   const [statusModalOpen, setStatusModalOpen] = useState(false)
   const [statusLoading, setStatusLoading] = useState(false)
@@ -151,7 +143,6 @@ export function SmrCard({ smrId, guid, meta, parsed, onDataRefresh }: SmrCardPro
     name: '',
     shortName: '',
   })
-  const [measureDocEdit, setMeasureDocEdit] = useState<SmrMeasureDocDetails>({})
   const [authorityFilterDepIds, setAuthorityFilterDepIds] = useState<string[] | null>(null)
   const [descText, setDescText] = useState('')
   const [hasStatusRight, setHasStatusRight] = useState(false)
@@ -252,10 +243,11 @@ export function SmrCard({ smrId, guid, meta, parsed, onDataRefresh }: SmrCardPro
     }
   }, [guid, outgoing])
 
-  const authCountryDisplay =
-    (parsed.respondingAuthority.country ?? '').trim()
-      ? `${parsed.respondingAuthority.country} — ${countryLabel(parsed.respondingAuthority.country) || parsed.respondingAuthority.country}`
-      : '—'
+  const authCountryDisplay = formatSmrCountryName(
+    parsed.respondingAuthority.country,
+    countryOptions,
+    meta.responseCountryName
+  )
 
   const parsedForValidation: SmrParsedBundle = useMemo(() => {
     if (!isEditMode) return parsed
@@ -263,16 +255,15 @@ export function SmrCard({ smrId, guid, meta, parsed, onDataRefresh }: SmrCardPro
       ...parsed,
       respondingAuthority: {
         country: (authEdit.country || parsed.respondingAuthority.country)?.trim() ?? '',
-        identifier: '',
+        identifier: (authEdit.authorityUid ?? parsed.respondingAuthority.identifier ?? '').trim(),
         name: authEdit.name.trim(),
         shortName: authEdit.shortName.trim(),
       },
-      measureDoc: measureDocEdit,
       resultDescription: descText.trim() || null,
       measureImplementations: implementationsEdit,
       resultDocuments: documentsEdit,
     }
-  }, [isEditMode, parsed, authEdit, measureDocEdit, descText, implementationsEdit, documentsEdit])
+  }, [isEditMode, parsed, authEdit, descText, implementationsEdit, documentsEdit])
 
   const beginEdit = useCallback(() => {
     setAuthEdit({
@@ -281,7 +272,6 @@ export function SmrCard({ smrId, guid, meta, parsed, onDataRefresh }: SmrCardPro
       name: parsed.respondingAuthority.name?.trim() ?? '',
       shortName: parsed.respondingAuthority.shortName?.trim() ?? '',
     })
-    setMeasureDocEdit({ ...parsed.measureDoc })
     setDescText(parsed.resultDescription?.trim() ?? '')
     setImplementationsEdit(cloneImplementations(parsed.measureImplementations ?? []))
     setDocumentsEdit(JSON.parse(JSON.stringify(parsed.resultDocuments ?? [])) as SmrResultDocRow[])
@@ -306,11 +296,10 @@ export function SmrCard({ smrId, guid, meta, parsed, onDataRefresh }: SmrCardPro
         ...parsed,
         respondingAuthority: {
           country: (authEdit.country || parsed.respondingAuthority.country)?.trim() ?? '',
-          identifier: '',
+          identifier: (authEdit.authorityUid ?? parsed.respondingAuthority.identifier ?? '').trim(),
           name: authEdit.name.trim(),
           shortName: authEdit.shortName.trim(),
         },
-        measureDoc: measureDocEdit,
         resultDescription: descText.trim() || null,
         measureImplementations: implementationsEdit,
         resultDocuments: documentsEdit,
@@ -329,6 +318,7 @@ export function SmrCard({ smrId, guid, meta, parsed, onDataRefresh }: SmrCardPro
         guid: g,
         smrId,
         smrXmlB64: utf8ToBase64(fullXml),
+        authorityId: authEdit.authorityUid?.trim() || parsed.respondingAuthority.identifier?.trim() || undefined,
       })
       setSaveBlockingErrorsVisible(false)
       setSaveBlockingErrors([])
@@ -339,7 +329,7 @@ export function SmrCard({ smrId, guid, meta, parsed, onDataRefresh }: SmrCardPro
     } finally {
       setSaving(false)
     }
-  }, [guid, smrId, parsed, authEdit, measureDocEdit, descText, implementationsEdit, documentsEdit, onDataRefresh])
+  }, [guid, smrId, parsed, authEdit, descText, implementationsEdit, documentsEdit, onDataRefresh])
 
   const runForcedCardValidation = useCallback(async () => {
     if (!guid?.trim()) {
@@ -856,26 +846,15 @@ export function SmrCard({ smrId, guid, meta, parsed, onDataRefresh }: SmrCardPro
                         </Descriptions.Item>
                       </Descriptions>
                     )}
-                    <Typography.Title level={5}>
-                      Документ, устанавливающий временную санитарную меру
+                    <Typography.Title level={5} style={{ marginTop: isEditMode ? 0 : 24 }}>
+                      {SMR_SOURCE_MEASURE_CARD_TITLE}
                     </Typography.Title>
-                    {isEditMode ? (
-                      <MeasureDocDetailsEditStandalone
-                        doc={measureDocEdit}
-                        onChange={setMeasureDocEdit}
-                        title="документ меры"
-                        defaultLanguageCode="ru"
-                        loadingCountries={loadingCountries}
-                        countryOptions={countryOptions}
-                        normalizeCountryCode={normalizeCountryCode}
-                        loadingMediaTypes={loadingMediaTypes}
-                        getMediaTypeSelectOptions={getMediaTypeSelectOptions}
-                        getMediaTypeNameByCode={getMediaTypeNameByCode}
-                        getMediaTypeCodeByName={getMediaTypeCodeByName}
-                      />
-                    ) : (
-                      <MeasureDocDetailsView doc={parsed.measureDoc} />
-                    )}
+                    <SmrSourceMeasureCardView
+                      doc={parsed.measureDoc}
+                      countryCodeFallback={meta.docCountryCode}
+                      docIdFallback={meta.docId}
+                      docDateFallback={meta.docCreationDate}
+                    />
                   </div>
                 ),
               },

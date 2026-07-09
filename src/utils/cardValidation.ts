@@ -883,7 +883,7 @@ function pushFormatError(errors: string[], path: string, fieldKey: string, value
 }
 
 /** Убирает повторы одной и той же строки (один и тот же путь и текст — без двойного показа в модалке). */
-function dedupeFormatErrorsPreservingOrder(items: string[]): string[] {
+export function dedupeFormatErrorsPreservingOrder(items: string[]): string[] {
   const seen = new Set<string>()
   const out: string[] = []
   for (const item of items) {
@@ -1025,6 +1025,150 @@ function phaSpreadingZonesList(data: CardData): DetectionPlaceData[] {
   return []
 }
 
+function normalizeBatchViolationsList(v: ViolationsData | ViolationsData[] | undefined): ViolationsData[] {
+  if (v == null) return []
+  return Array.isArray(v) ? v : [v]
+}
+
+export interface ProductTsdFormatValidationOptions {
+  productBase: string
+  /** Префикс раздела ТСД, например «ТСД» или «Продукция 1 → ТСД». */
+  tsdSectionLabel: string
+  mainCommodityTrimmed?: string
+  indicatorUnitRequiredMessage?: string
+  /** Подпись блока участника цепи поставки на вкладке «Продукция». */
+  manufacturerPathLabel?: string
+}
+
+/** Форматные проверки вкладок «Продукция» и «ТСД» (общая логика DPA и SMD). */
+export function appendProductTsdFormatErrors(
+  errors: string[],
+  product: ProductData | undefined,
+  tsd: TSDData | undefined,
+  options: ProductTsdFormatValidationOptions
+): void {
+  const { productBase, tsdSectionLabel, mainCommodityTrimmed = '', indicatorUnitRequiredMessage, manufacturerPathLabel = 'Изготовитель' } =
+    options
+  const indicatorUnitMsg =
+    indicatorUnitRequiredMessage ??
+    'при заполненном значении показателя обязательно указывать единицу измерения.'
+
+  if (product) {
+    pushFormatError(errors, `${productBase} → Наименование вида продукции`, 'sanitaryProductTypeName', product.typeName)
+  }
+  if (product?.productDetails) {
+    const pd = product.productDetails
+    pushFormatError(errors, `${productBase} → Идентификатор продукции`, 'productId', pd.productId)
+    pushFormatError(errors, `${productBase} → Наименование`, 'productName', pd.productName)
+    pushFormatError(errors, `${productBase} → Торговое наименование`, 'tradeName', pd.tradeName)
+    ;(pd.tradeNames ?? []).forEach((t, i) =>
+      pushFormatError(errors, `${productBase} → Торговое наименование ${i + 1}`, 'tradeName', t)
+    )
+    pushFormatError(errors, `${productBase} → Описание`, 'description', pd.description)
+    pushFormatError(errors, `${productBase} → Код ТН ВЭД`, 'commodityCode', pd.commodityCode)
+    pushFormatError(errors, `${productBase} → Назначение`, 'productPurpose', pd.productPurpose)
+    pushFormatError(errors, `${productBase} → Способ применения`, 'applicationMethod', pd.applicationMethod)
+    pushFormatError(errors, `${productBase} → Форма выпуска`, 'releaseForm', pd.releaseForm)
+    pushFormatError(errors, `${productBase} → Условия хранения`, 'storageCondition', pd.storageCondition)
+    pushFormatError(errors, `${productBase} → Информация на этикетке`, 'labelText', pd.labelText)
+    checkTechnicalDocs(errors, `${productBase} → Техническая документация`, pd.technicalDocs)
+  }
+  if (product?.manufacturer) {
+    checkParty(errors, `${productBase} → ${manufacturerPathLabel}`, product.manufacturer)
+  }
+
+  if (!tsd?.batches?.length) return
+
+  tsd.batches.forEach((batch, bi) => {
+    const batchPath = `${tsdSectionLabel} → Партия ${bi + 1}`
+    pushFormatError(errors, `${batchPath} → Номер серии`, 'batchId', batch.batchId)
+    pushFormatError(errors, `${batchPath} → Примечание`, 'note', batch.note)
+    pushFormatError(errors, `${batchPath} → Номер товарной партии`, 'consignmentId', batch.consignmentId)
+    pushFormatError(errors, `${batchPath} → Количество товара (значение)`, 'measureValue', batch.commodityMeasure?.value)
+    if ((batch.commodityMeasure?.value ?? '').trim() && !(batch.commodityMeasure?.unitCode ?? '').trim()) {
+      errors.push(`${batchPath}: при указании «Количество товара» необходимо указать «Единица измерения»`)
+    }
+    pushFormatError(errors, `${batchPath} → Количество товара в партии (значение)`, 'measureValue', batch.batchCommodityMeasure?.value)
+    if ((batch.batchCommodityMeasure?.value ?? '').trim() && !(batch.batchCommodityMeasure?.unitCode ?? '').trim()) {
+      errors.push(`${batchPath}: при указании «Количество товара в партии» необходимо указать «Единица измерения»`)
+    }
+    ;(batch.complianceDocuments ?? []).forEach((d, i) => {
+      pushFormatError(errors, `${batchPath} → Документ соответствия ${i + 1} → Наименование`, 'docName', d.docName)
+      pushFormatError(errors, `${batchPath} → Документ соответствия ${i + 1} → Номер`, 'docId', d.docId)
+    })
+    ;(batch.shippingDocuments ?? []).forEach((doc, di) => {
+      const docPath = `${batchPath} → Товаросопроводительный документ ${di + 1}`
+      pushFormatError(errors, `${docPath} → Наименование`, 'docName500', doc.docName)
+      pushFormatError(errors, `${docPath} → Номер`, 'docId', doc.docId)
+      ;(doc.products ?? []).forEach((p, pi) => {
+        const pCc = (p.commodityCode ?? '').trim()
+        const sameAsMainProductTab = mainCommodityTrimmed !== '' && pCc === mainCommodityTrimmed
+        if (!sameAsMainProductTab) {
+          pushFormatError(errors, `${docPath} → Продукт ${pi + 1}`, 'commodityCode', p.commodityCode)
+        }
+        checkTechnicalDocs(errors, `${docPath} → Продукт ${pi + 1} → Техническая документация`, p.technicalDocs)
+      })
+      ;(doc.supplyChainParties ?? []).forEach((party, pi) => {
+        checkParty(errors, `${docPath} → Участник цепи поставки ${pi + 1}`, party)
+      })
+    })
+    normalizeBatchViolationsList(batch.violations).forEach((v, vi) => {
+      const vPath = `${batchPath} → Нарушение ${vi + 1}`
+      pushFormatError(errors, `${vPath} → Описание`, 'violationDescription', v.generalDescription)
+      ;(v.violatedRequirements ?? []).forEach((r, ri) => {
+        const idTrim = (r.technicalRegulationId ?? '').trim()
+        const fromDict = (r.techRegulDictionaryCode ?? '').trim() !== ''
+        if (idTrim && !fromDict) {
+          const manualMsg = validateFieldValue('technicalRegulationManualRegNum', idTrim)
+          if (manualMsg) {
+            errors.push(`${vPath} → Требование ${ri + 1} → Номер техрегламента: ${manualMsg}`)
+          }
+        }
+        pushFormatError(errors, `${vPath} → Требование ${ri + 1} → Номер техрегламента`, 'technicalRegulationId', r.technicalRegulationId)
+        pushFormatError(
+          errors,
+          `${vPath} → Требование ${ri + 1} → Наименование техрегламента`,
+          'violationTechnicalRegulationName',
+          r.technicalRegulationName
+        )
+        pushFormatError(errors, `${vPath} → Требование ${ri + 1} → Регистрационный номер`, 'registrationNumber', r.registrationNumber)
+        pushFormatError(errors, `${vPath} → Требование ${ri + 1} → Описание`, 'description', r.description)
+        ;(r.structuralElements ?? []).forEach((se, si) => {
+          pushFormatError(
+            errors,
+            `${vPath} → Требование ${ri + 1} → Структурный элемент ${si + 1} → Вид структурного документа`,
+            'docStructuralElementName',
+            se.elementName
+          )
+          pushFormatError(
+            errors,
+            `${vPath} → Требование ${ri + 1} → Структурный элемент ${si + 1} → Номер структурного элемента`,
+            'docStructuralElementId',
+            se.elementId
+          )
+        })
+      })
+      ;(v.violatedIndicators ?? []).forEach((ind, ii) => {
+        pushFormatError(errors, `${vPath} → Показатель ${ii + 1} → Наименование`, 'indicatorName', ind.indicatorName)
+        pushFormatError(errors, `${vPath} → Показатель ${ii + 1} → Значение`, 'indicatorValue', ind.indicatorValue)
+        if ((ind.indicatorValue ?? '').trim() && !(ind.unitCode ?? '').trim()) {
+          errors.push(`${vPath} → Показатель ${ii + 1}: ${indicatorUnitMsg}`)
+        }
+        pushFormatError(errors, `${vPath} → Показатель ${ii + 1} → Примечание`, 'noteText', ind.note)
+      })
+    })
+  })
+}
+
+/** Место обнаружения, зоны распространения и мероприятия (общая логика DPA и SMD). */
+export function appendOutgoingPlacesAndMeasuresFormatErrors(errors: string[], data: CardData): void {
+  pushDetectionPlaceFormatErrors(errors, 'Место обнаружения', data.detectionPlace)
+  phaSpreadingZonesList(data).forEach((zone, i) => {
+    pushDetectionPlaceFormatErrors(errors, `Зона распространения ${i + 1}`, zone)
+  })
+  pushMeasuresFormatErrors(errors, data.measures)
+}
+
 const MEASURE_PLACE_CHECKPOINT_PAIRING_HINT =
   'Укажите оба атрибута: код вида пункта пропуска и наименование пункта пропуска (или оставьте оба пустыми).'
 
@@ -1132,133 +1276,14 @@ export function pushMeasuresFormatErrors(
 export function collectFormatValidationErrors(data: CardData): FormatValidationErrors {
   const errors: string[] = []
 
-  const product: ProductData | undefined = data.product
-  if (product) {
-    pushFormatError(
-      errors,
-      'Продукция → Наименование вида продукции',
-      'sanitaryProductTypeName',
-      product.typeName
-    )
-  }
-  if (product?.productDetails) {
-    const pd = product.productDetails
-    const base = 'Продукция'
-    pushFormatError(errors, `${base} → Идентификатор продукции`, 'productId', pd.productId)
-    pushFormatError(errors, `${base} → Наименование`, 'productName', pd.productName)
-    pushFormatError(errors, `${base} → Торговое наименование`, 'tradeName', pd.tradeName)
-    ;(pd.tradeNames ?? []).forEach((t, i) => pushFormatError(errors, `${base} → Торговое наименование ${i + 1}`, 'tradeName', t))
-    pushFormatError(errors, `${base} → Описание`, 'description', pd.description)
-    pushFormatError(errors, `${base} → Код ТН ВЭД`, 'commodityCode', pd.commodityCode)
-    pushFormatError(errors, `${base} → Назначение`, 'productPurpose', pd.productPurpose)
-    pushFormatError(errors, `${base} → Способ применения`, 'applicationMethod', pd.applicationMethod)
-    pushFormatError(errors, `${base} → Форма выпуска`, 'releaseForm', pd.releaseForm)
-    pushFormatError(errors, `${base} → Условия хранения`, 'storageCondition', pd.storageCondition)
-    pushFormatError(errors, `${base} → Информация на этикетке`, 'labelText', pd.labelText)
-    checkTechnicalDocs(errors, `${base} → Техническая документация`, pd.technicalDocs)
-  }
-  if (product?.manufacturer) {
-    checkParty(errors, 'Продукция → Изготовитель', product.manufacturer)
-  }
-
-  const tsd: TSDData | undefined = data.tsd
-  /** Код ТН ВЭД с вкладки «Продукция»: те же значения во вложенных продуктах ТСД не считаем второй раз (избегаем дубля в отчёте). */
   const mainCommodityTrimmed = (data.product?.productDetails?.commodityCode ?? '').trim()
-  if (tsd?.batches?.length) {
-    tsd.batches.forEach((batch, bi) => {
-      const batchPath = `ТСД → Партия ${bi + 1}`
-      pushFormatError(errors, `${batchPath} → Номер серии`, 'batchId', batch.batchId)
-      pushFormatError(errors, `${batchPath} → Примечание`, 'note', batch.note)
-      pushFormatError(errors, `${batchPath} → Номер товарной партии`, 'consignmentId', batch.consignmentId)
-      pushFormatError(errors, `${batchPath} → Количество товара (значение)`, 'measureValue', batch.commodityMeasure?.value)
-      if ((batch.commodityMeasure?.value ?? '').trim() && !(batch.commodityMeasure?.unitCode ?? '').trim()) {
-        errors.push(`${batchPath}: при указании «Количество товара» необходимо указать «Единица измерения»`)
-      }
-      pushFormatError(errors, `${batchPath} → Количество товара в партии (значение)`, 'measureValue', batch.batchCommodityMeasure?.value)
-      if ((batch.batchCommodityMeasure?.value ?? '').trim() && !(batch.batchCommodityMeasure?.unitCode ?? '').trim()) {
-        errors.push(`${batchPath}: при указании «Количество товара в партии» необходимо указать «Единица измерения»`)
-      }
-      ;(batch.complianceDocuments ?? []).forEach((d, i) => {
-        pushFormatError(errors, `${batchPath} → Документ соответствия ${i + 1} → Наименование`, 'docName', d.docName)
-        pushFormatError(errors, `${batchPath} → Документ соответствия ${i + 1} → Номер`, 'docId', d.docId)
-      })
-      ;(batch.shippingDocuments ?? []).forEach((doc, di) => {
-        const docPath = `${batchPath} → Товаросопроводительный документ ${di + 1}`
-        pushFormatError(errors, `${docPath} → Наименование`, 'docName500', doc.docName)
-        pushFormatError(errors, `${docPath} → Номер`, 'docId', doc.docId)
-        ;(doc.products ?? []).forEach((p, pi) => {
-          const pCc = (p.commodityCode ?? '').trim()
-          const sameAsMainProductTab =
-            mainCommodityTrimmed !== '' && pCc === mainCommodityTrimmed
-          if (!sameAsMainProductTab) {
-            pushFormatError(
-              errors,
-              `${docPath} → Продукт ${pi + 1}`,
-              'commodityCode',
-              p.commodityCode
-            )
-          }
-          checkTechnicalDocs(errors, `${docPath} → Продукт ${pi + 1} → Техническая документация`, p.technicalDocs)
-        })
-        ;(doc.supplyChainParties ?? []).forEach((party, pi) => {
-          checkParty(errors, `${docPath} → Участник цепи поставки ${pi + 1}`, party)
-        })
-      })
-      ;(batch.violations ?? []).forEach((v, vi) => {
-        const vPath = `${batchPath} → Нарушение ${vi + 1}`
-        pushFormatError(errors, `${vPath} → Описание`, 'violationDescription', v.generalDescription)
-        ;(v.violatedRequirements ?? []).forEach((r, ri) => {
-          const idTrim = (r.technicalRegulationId ?? '').trim()
-          const fromDict = (r.techRegulDictionaryCode ?? '').trim() !== ''
-          if (idTrim && !fromDict) {
-            const manualMsg = validateFieldValue('technicalRegulationManualRegNum', idTrim)
-            if (manualMsg) {
-              errors.push(`${vPath} → Требование ${ri + 1} → Номер техрегламента: ${manualMsg}`)
-            }
-          }
-          pushFormatError(errors, `${vPath} → Требование ${ri + 1} → Номер техрегламента`, 'technicalRegulationId', r.technicalRegulationId)
-          pushFormatError(
-            errors,
-            `${vPath} → Требование ${ri + 1} → Наименование техрегламента`,
-            'violationTechnicalRegulationName',
-            r.technicalRegulationName
-          )
-          pushFormatError(errors, `${vPath} → Требование ${ri + 1} → Регистрационный номер`, 'registrationNumber', r.registrationNumber)
-          pushFormatError(errors, `${vPath} → Требование ${ri + 1} → Описание`, 'description', r.description)
-          ;(r.structuralElements ?? []).forEach((se, si) => {
-            pushFormatError(
-              errors,
-              `${vPath} → Требование ${ri + 1} → Структурный элемент ${si + 1} → Вид структурного документа`,
-              'docStructuralElementName',
-              se.elementName
-            )
-            pushFormatError(
-              errors,
-              `${vPath} → Требование ${ri + 1} → Структурный элемент ${si + 1} → Номер структурного элемента`,
-              'docStructuralElementId',
-              se.elementId
-            )
-          })
-        })
-        ;(v.violatedIndicators ?? []).forEach((ind, ii) => {
-          pushFormatError(errors, `${vPath} → Показатель ${ii + 1} → Наименование`, 'indicatorName', ind.indicatorName)
-          pushFormatError(errors, `${vPath} → Показатель ${ii + 1} → Значение`, 'indicatorValue', ind.indicatorValue)
-          if ((ind.indicatorValue ?? '').trim() && !(ind.unitCode ?? '').trim()) {
-            errors.push(`${vPath} → Показатель ${ii + 1}: при заполненном значении показателя обязательно указывать единицу измерения.`)
-          }
-          pushFormatError(errors, `${vPath} → Показатель ${ii + 1} → Примечание`, 'noteText', ind.note)
-        })
-      })
-    })
-  }
-
-  pushDetectionPlaceFormatErrors(errors, 'Место обнаружения', data.detectionPlace)
-
-  phaSpreadingZonesList(data).forEach((zone, i) => {
-    pushDetectionPlaceFormatErrors(errors, `Зона распространения ${i + 1}`, zone)
+  appendProductTsdFormatErrors(errors, data.product, data.tsd, {
+    productBase: 'Продукция',
+    tsdSectionLabel: 'ТСД',
+    mainCommodityTrimmed,
   })
 
-  pushMeasuresFormatErrors(errors, data.measures)
+  appendOutgoingPlacesAndMeasuresFormatErrors(errors, data)
 
   pushPhaXsdFormatErrors(errors, data)
 

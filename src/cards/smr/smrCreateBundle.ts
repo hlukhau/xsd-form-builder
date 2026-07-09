@@ -29,7 +29,7 @@ export function buildSmrCreateBundle(
     },
     respondingAuthority: {
       country: responseCountry,
-      identifier: auth.authorityUid?.trim() ?? '',
+      identifier: (auth.authorityUid ?? '').trim(),
       name: auth.name.trim(),
       shortName: auth.shortName.trim(),
     },

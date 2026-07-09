@@ -14,9 +14,10 @@ import { SmrRespondingAuthorityEdit } from '@/cards/smr/SmrRespondingAuthorityEd
 import { SmrResultDocumentsEdit } from '@/cards/smr/SmrResultDocumentsEdit'
 import { SmrMeasureImplementationEdit } from '@/cards/smr/SmrMeasureImplementationEdit'
 import { DprResultDescriptionField } from '@/cards/dpr/DprResultDescriptionField'
-import { MeasureDocDetailsView } from '@/components/tabs/dpa/MeasuresTab'
 import { exportSmrParsedBundleToXml } from '@/utils/xmlExporter'
 import { buildSmrCreateBundle } from '@/cards/smr/smrCreateBundle'
+import { SmrSourceMeasureCardView } from '@/cards/smr/SmrSourceMeasureCardView'
+import { formatSmrCountryName, SMR_SOURCE_MEASURE_CARD_TITLE } from '@/cards/smr/smrDisplayUtils'
 import { smrValidationReportContent } from '@/cards/smr/smrValidationReportContent'
 import {
   collectSmrFormatValidationErrors,
@@ -47,13 +48,6 @@ function dash(v: string | null | undefined): string {
   return t || '—'
 }
 
-function formatDateRu(iso: string | null | undefined): string {
-  if (!iso || iso.length < 10) return '—'
-  const [y, m, d] = iso.slice(0, 10).split('-')
-  if (!y || !m || !d) return iso
-  return `${d}.${m}.${y}`
-}
-
 function utf8ToBase64(s: string): string {
   return btoa(unescape(encodeURIComponent(s)))
 }
@@ -65,7 +59,7 @@ export interface SmrCreateCardProps {
 }
 
 export function SmrCreateCard({ eligibility, smdid, guid }: SmrCreateCardProps) {
-  const { getDisplayLabel: countryLabel } = useCountryOptions()
+  const { countryOptions } = useCountryOptions()
   const [saving, setSaving] = useState(false)
   const [validateLoading, setValidateLoading] = useState(false)
   const [authEdit, setAuthEdit] = useState({
@@ -84,10 +78,10 @@ export function SmrCreateCard({ eligibility, smdid, guid }: SmrCreateCardProps) 
   const rc = eligibility.responseCountryCode ?? 'BY'
   const rn = eligibility.responseCountryName ?? ''
   const responseCountryDisplay = rn ? `${rc} — ${rn}` : rc
+  const responseCountryNameOnly = formatSmrCountryName(rc, countryOptions, rn)
 
   const docCc = eligibility.docCountryCode ?? ''
   const docId = eligibility.docId ?? ''
-  const docCountryDisplay = docCc ? `${docCc} — ${countryLabel(docCc) || docCc}` : '—'
   const sourceDocLabel = [docCc, docId].filter(Boolean).join(' ') || '—'
 
   useEffect(() => {
@@ -197,7 +191,6 @@ export function SmrCreateCard({ eligibility, smdid, guid }: SmrCreateCardProps) 
     docId: docId || undefined,
     docCreationDate: eligibility.docCreationDate?.slice(0, 10) || undefined,
   }
-
   return (
     <div
       style={{ padding: 0, display: 'flex', flexDirection: 'column', minHeight: '100vh' }}
@@ -255,9 +248,6 @@ export function SmrCreateCard({ eligibility, smdid, guid }: SmrCreateCardProps) 
                 children: (
                   <div style={{ padding: 16 }}>
                     <Typography.Title level={5}>Уполномоченный орган</Typography.Title>
-                    <Descriptions column={1} bordered size="small" style={{ marginBottom: 16 }}>
-                      <Descriptions.Item label="Страна">{responseCountryDisplay}</Descriptions.Item>
-                    </Descriptions>
                     <SmrRespondingAuthorityEdit
                       value={{
                         country: authEdit.country || rc || 'BY',
@@ -273,21 +263,19 @@ export function SmrCreateCard({ eligibility, smdid, guid }: SmrCreateCardProps) 
                           shortName: next.shortName,
                         })
                       }
-                      countryDisplay={responseCountryDisplay}
+                      countryDisplay={responseCountryNameOnly}
                       isDraft
                       allowedAuthorityIds={authorityFilterDepIds}
                     />
                     <Typography.Title level={5} style={{ marginTop: 24 }}>
-                      Документ, устанавливающий временную санитарную меру
+                      {SMR_SOURCE_MEASURE_CARD_TITLE}
                     </Typography.Title>
-                    <Descriptions column={1} bordered size="small" style={{ marginBottom: 16 }}>
-                      <Descriptions.Item label="Страна">{docCountryDisplay}</Descriptions.Item>
-                      <Descriptions.Item label="Номер документа">{dash(docId)}</Descriptions.Item>
-                      <Descriptions.Item label="Дата формирования">
-                        {formatDateRu(eligibility.docCreationDate)}
-                      </Descriptions.Item>
-                    </Descriptions>
-                    <MeasureDocDetailsView doc={measureDocView} />
+                    <SmrSourceMeasureCardView
+                      doc={measureDocView}
+                      countryCodeFallback={docCc}
+                      docIdFallback={docId}
+                      docDateFallback={eligibility.docCreationDate}
+                    />
                   </div>
                 ),
               },
