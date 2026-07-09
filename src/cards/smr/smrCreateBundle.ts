@@ -27,12 +27,12 @@ export function buildSmrCreateBundle(
       validityPeriod: { start: '', end: '' },
       updateDateTime: '',
     },
-    respondingAuthority: {
-      country: responseCountry,
-      identifier: (auth.authorityUid ?? '').trim(),
-      name: auth.name.trim(),
-      shortName: auth.shortName.trim(),
-    },
+  respondingAuthority: {
+    country: responseCountry,
+    identifier: '',
+    name: auth.name.trim(),
+    shortName: auth.shortName.trim(),
+  },
     measureDoc: {
       country: docCountry,
       docId: (eligibility.docId ?? '').trim(),

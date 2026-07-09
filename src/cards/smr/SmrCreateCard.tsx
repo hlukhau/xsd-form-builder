@@ -77,8 +77,7 @@ export function SmrCreateCard({ eligibility, smdid, guid }: SmrCreateCardProps) 
 
   const rc = eligibility.responseCountryCode ?? 'BY'
   const rn = eligibility.responseCountryName ?? ''
-  const responseCountryDisplay = rn ? `${rc} — ${rn}` : rc
-  const responseCountryNameOnly = formatSmrCountryName(rc, countryOptions, rn)
+  const responseCountryDisplay = formatSmrCountryName(rc, countryOptions, rn)
 
   const docCc = eligibility.docCountryCode ?? ''
   const docId = eligibility.docId ?? ''
@@ -263,7 +262,7 @@ export function SmrCreateCard({ eligibility, smdid, guid }: SmrCreateCardProps) 
                           shortName: next.shortName,
                         })
                       }
-                      countryDisplay={responseCountryNameOnly}
+                      countryDisplay={responseCountryDisplay}
                       isDraft
                       allowedAuthorityIds={authorityFilterDepIds}
                     />

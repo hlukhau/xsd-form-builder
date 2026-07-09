@@ -2379,10 +2379,7 @@ export function exportSmrParsedBundleToXml(bundle: SmrParsedBundle): string {
   if (authCountry) {
     parts.push(`        <csdo:UnifiedCountryCode codeListId="2021">${escapeXML(authCountry)}</csdo:UnifiedCountryCode>`)
   }
-  const authId = (bundle.respondingAuthority.identifier ?? '').trim()
-  if (authId) {
-    parts.push(`        <csdo:AuthorityId>${escapeXML(authId)}</csdo:AuthorityId>`)
-  }
+  // csdo:AuthorityId в XML не экспортируем — AUTHORITYID хранится только в SMR.AUTHORITYID
   const authName = (bundle.respondingAuthority.name ?? '').trim()
   if (authName) parts.push(`        <csdo:AuthorityName>${escapeXML(authName)}</csdo:AuthorityName>`)
   const authBrief = (bundle.respondingAuthority.shortName ?? '').trim()

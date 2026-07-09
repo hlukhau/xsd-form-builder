@@ -106,6 +106,8 @@ public class SmrMetadataServlet extends HttpServlet {
                     String docCountryCode = rs.getString("DOCCOUNTRYCODE");
                     Timestamp docCreationDate = rs.getTimestamp("DOCCREATIONDATE");
                     String responseCountry = rs.getString("RESPONSECOUNTRYNAME");
+                    String responseCountryCode = rs.getString("RESPONSECOUNTRYCODE");
+                    String authorityUid = rs.getString("AUTHORITYUID");
                     String dscCode = rs.getString("DATASOURCEKINDCODE");
                     String dscName = rs.getString("DATASOURCEKINDNAME");
                     String statusName = rs.getString("SMRSTATUSNAME");
@@ -173,6 +175,8 @@ public class SmrMetadataServlet extends HttpServlet {
                     out.print(",\"docCountryCode\":" + quote(docCountryCode));
                     out.print(",\"docCreationDate\":" + quote(tsToIso(docCreationDate)));
                     out.print(",\"responseCountryName\":" + quote(responseCountry));
+                    out.print(",\"responseCountryCode\":" + quote(responseCountryCode));
+                    out.print(",\"authorityUid\":" + quote(authorityUid));
                     out.print(",\"datasourceKindCode\":" + quote(dscCode));
                     out.print(",\"datasourceKindName\":" + quote(dscName));
                     out.print(",\"smrStatusName\":" + quote(statusName));

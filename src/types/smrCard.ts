@@ -7,6 +7,9 @@ export interface SmrMetadataView {
   docCountryCode?: string | null
   docCreationDate?: string | null
   responseCountryName: string | null
+  responseCountryCode?: string | null
+  /** UID выбранного УО из SMR.AUTHORITYID → AUTHORITY.AUTHORITYUID */
+  authorityUid?: string | null
   datasourceKindCode: string | null
   datasourceKindName: string | null
   smrStatusName: string | null

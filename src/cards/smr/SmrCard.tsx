@@ -244,7 +244,13 @@ export function SmrCard({ smrId, guid, meta, parsed, onDataRefresh }: SmrCardPro
   }, [guid, outgoing])
 
   const authCountryDisplay = formatSmrCountryName(
-    parsed.respondingAuthority.country,
+    meta.responseCountryCode ?? parsed.respondingAuthority.country,
+    countryOptions,
+    meta.responseCountryName
+  )
+
+  const headerCountryDisplay = formatSmrCountryName(
+    meta.responseCountryCode ?? parsed.respondingAuthority.country,
     countryOptions,
     meta.responseCountryName
   )
@@ -255,7 +261,7 @@ export function SmrCard({ smrId, guid, meta, parsed, onDataRefresh }: SmrCardPro
       ...parsed,
       respondingAuthority: {
         country: (authEdit.country || parsed.respondingAuthority.country)?.trim() ?? '',
-        identifier: (authEdit.authorityUid ?? parsed.respondingAuthority.identifier ?? '').trim(),
+        identifier: '',
         name: authEdit.name.trim(),
         shortName: authEdit.shortName.trim(),
       },
@@ -267,8 +273,8 @@ export function SmrCard({ smrId, guid, meta, parsed, onDataRefresh }: SmrCardPro
 
   const beginEdit = useCallback(() => {
     setAuthEdit({
-      country: parsed.respondingAuthority.country?.trim() ?? '',
-      authorityUid: parsed.respondingAuthority.identifier?.trim() || undefined,
+      country: meta.responseCountryCode?.trim() || parsed.respondingAuthority.country?.trim() || '',
+      authorityUid: meta.authorityUid?.trim() || undefined,
       name: parsed.respondingAuthority.name?.trim() ?? '',
       shortName: parsed.respondingAuthority.shortName?.trim() ?? '',
     })
@@ -276,7 +282,7 @@ export function SmrCard({ smrId, guid, meta, parsed, onDataRefresh }: SmrCardPro
     setImplementationsEdit(cloneImplementations(parsed.measureImplementations ?? []))
     setDocumentsEdit(JSON.parse(JSON.stringify(parsed.resultDocuments ?? [])) as SmrResultDocRow[])
     setIsEditMode(true)
-  }, [parsed])
+  }, [parsed, meta])
 
   const cancelEdit = useCallback(() => {
     setSaveBlockingErrorsVisible(false)
@@ -296,7 +302,7 @@ export function SmrCard({ smrId, guid, meta, parsed, onDataRefresh }: SmrCardPro
         ...parsed,
         respondingAuthority: {
           country: (authEdit.country || parsed.respondingAuthority.country)?.trim() ?? '',
-          identifier: (authEdit.authorityUid ?? parsed.respondingAuthority.identifier ?? '').trim(),
+          identifier: '',
           name: authEdit.name.trim(),
           shortName: authEdit.shortName.trim(),
         },
@@ -318,7 +324,7 @@ export function SmrCard({ smrId, guid, meta, parsed, onDataRefresh }: SmrCardPro
         guid: g,
         smrId,
         smrXmlB64: utf8ToBase64(fullXml),
-        authorityId: authEdit.authorityUid?.trim() || parsed.respondingAuthority.identifier?.trim() || undefined,
+        authorityId: authEdit.authorityUid?.trim() || undefined,
       })
       setSaveBlockingErrorsVisible(false)
       setSaveBlockingErrors([])
@@ -753,7 +759,7 @@ export function SmrCard({ smrId, guid, meta, parsed, onDataRefresh }: SmrCardPro
               <Text>{docRegDisplay}</Text>
             )}
           </Descriptions.Item>
-          <Descriptions.Item label="Страна">{dash(meta.responseCountryName)}</Descriptions.Item>
+          <Descriptions.Item label="Страна">{headerCountryDisplay}</Descriptions.Item>
           <Descriptions.Item label="Статус">
             {isEditMode ? (
               <Text>{dash(meta.smrStatusName)}</Text>

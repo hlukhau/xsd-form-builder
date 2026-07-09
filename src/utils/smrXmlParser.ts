@@ -57,7 +57,8 @@ function parseEdocHeader(edocHeader: Element | null): ElectronicDocument {
 function parseUnifiedAuthority(authority: Element | null): SmrParsedBundle['respondingAuthority'] {
   return {
     country: authority ? getTextContent(authority, 'UnifiedCountryCode') || '' : '',
-    identifier: authority ? getTextContent(authority, 'AuthorityId') || '' : '',
+    /** csdo:AuthorityId в карточку не переносим (в XML не экспортируется; UID — из метаданных SMR.authorityUid). */
+    identifier: '',
     name: authority ? getTextContent(authority, 'AuthorityName') || '' : '',
     shortName:
       authority

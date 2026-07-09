@@ -27,7 +27,6 @@ public final class SmrDraftXmlBuilder {
         String incCountry = escapeXml(docCountryCode != null ? docCountryCode.trim().toUpperCase() : "");
         String incId = escapeXml(trimToEmpty(docId));
         String kind = escapeXml(trimToEmpty(messageCode));
-        String authId = escapeXml(trimToEmpty(authorityId));
         String authName = escapeXml(trimToEmpty(authorityName));
         String authBrief = escapeXml(trimToEmpty(authorityBriefName));
         String desc = descriptionText != null && !descriptionText.trim().isEmpty()
@@ -37,9 +36,6 @@ public final class SmrDraftXmlBuilder {
         StringBuilder authBlock = new StringBuilder();
         authBlock.append("    <ccdo:UnifiedAuthorityDetails>\n");
         authBlock.append("        <csdo:UnifiedCountryCode codeListId=\"2021\">BY</csdo:UnifiedCountryCode>\n");
-        if (!authId.isEmpty()) {
-            authBlock.append("        <csdo:AuthorityId>").append(authId).append("</csdo:AuthorityId>\n");
-        }
         if (!authName.isEmpty()) {
             authBlock.append("        <csdo:AuthorityName>").append(authName).append("</csdo:AuthorityName>\n");
         }

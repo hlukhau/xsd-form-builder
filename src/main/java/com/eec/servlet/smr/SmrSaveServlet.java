@@ -150,21 +150,20 @@ public class SmrSaveServlet extends HttpServlet {
             conn.setAutoCommit(false);
             try {
                 Integer resolvedAuthorityId = SmrAuthorityDbSupport.resolveAuthorityId(conn, authorityId);
-                try (PreparedStatement ps = conn.prepareStatement(
-                        resolvedAuthorityId != null ? SQL_UPDATE_SMR : SQL_UPDATE_SMR_NO_AUTH)) {
+                try (PreparedStatement ps = conn.prepareStatement(SQL_UPDATE_SMR)) {
                     ps.setInt(1, newStatusId);
                     if (resolvedAuthorityId != null) {
                         ps.setInt(2, resolvedAuthorityId);
-                        ps.setLong(3, smrId);
                     } else {
-                        ps.setLong(2, smrId);
+                        ps.setNull(2, java.sql.Types.INTEGER);
                     }
+                    ps.setLong(3, smrId);
                     int n = ps.executeUpdate();
                     if (n != 1) {
                         throw new SQLException("UPDATE SMR: ожидалась одна строка, обновлено " + n);
                     }
                 } catch (SQLException e) {
-                    if (resolvedAuthorityId == null || !(e.getMessage() != null && e.getMessage().contains("ORA-00904"))) {
+                    if (!(e.getMessage() != null && e.getMessage().contains("ORA-00904"))) {
                         throw e;
                     }
                     try (PreparedStatement ps = conn.prepareStatement(SQL_UPDATE_SMR_NO_AUTH)) {
