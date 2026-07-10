@@ -1191,7 +1191,8 @@ function exportDocContentDetailsBlock(xmlParts: string[], doc: MeasureDocDetails
   if (doc.docKindCode?.trim()) {
     const listId = doc.docKindCodeListId?.trim() || '2009'
     xmlParts.push(`${inner}<csdo:DocKindCode codeListId="${escapeXML(listId)}">${escapeXML(doc.docKindCode.trim())}</csdo:DocKindCode>`)
-  } else if (doc.docKindName?.trim()) {
+  }
+  if (doc.docKindName?.trim()) {
     xmlParts.push(`${inner}<csdo:DocKindName>${escapeXML(doc.docKindName.trim())}</csdo:DocKindName>`)
   }
   if (doc.docName) xmlParts.push(`${inner}<csdo:DocName>${escapeXML(doc.docName)}</csdo:DocName>`)
@@ -1242,7 +1243,8 @@ function exportMeasureDocDetails(xmlParts: string[], doc: MeasureDocDetails, tag
   if (doc.docKindCode?.trim()) {
     const listId = doc.docKindCodeListId?.trim() || '2009'
     xmlParts.push(`${inner}<csdo:DocKindCode codeListId="${escapeXML(listId)}">${escapeXML(doc.docKindCode.trim())}</csdo:DocKindCode>`)
-  } else if (doc.docKindName?.trim()) {
+  }
+  if (doc.docKindName?.trim()) {
     xmlParts.push(`${inner}<csdo:DocKindName>${escapeXML(doc.docKindName.trim())}</csdo:DocKindName>`)
   }
   if (doc.docName) xmlParts.push(`${inner}<csdo:DocName>${escapeXML(doc.docName)}</csdo:DocName>`)
@@ -1314,7 +1316,8 @@ function exportMeasureImplementation(xmlParts: string[], impl: MeasureImplementa
     if (impl.documentDetails.docKindCode?.trim()) {
       const listId = impl.documentDetails.docKindCodeListId?.trim() || '2009'
       xmlParts.push(`${indent}    <csdo:DocKindCode codeListId="${escapeXML(listId)}">${escapeXML(impl.documentDetails.docKindCode.trim())}</csdo:DocKindCode>`)
-    } else if (impl.documentDetails.docKindName?.trim()) {
+    }
+    if (impl.documentDetails.docKindName?.trim()) {
       xmlParts.push(`${indent}    <csdo:DocKindName>${escapeXML(impl.documentDetails.docKindName.trim())}</csdo:DocKindName>`)
     }
     if (impl.documentDetails.docName) xmlParts.push(`${indent}    <csdo:DocName>${escapeXML(impl.documentDetails.docName)}</csdo:DocName>`)
@@ -2286,7 +2289,8 @@ function exportSmrMeasureDocDetailsXml(xmlParts: string[], doc: SmrMeasureDocDet
   if (doc.docKindCode?.trim()) {
     const listId = doc.docKindCodeListId?.trim() || '2009'
     xmlParts.push(`${inner}<csdo:DocKindCode codeListId="${escapeXML(listId)}">${escapeXML(doc.docKindCode.trim())}</csdo:DocKindCode>`)
-  } else if (doc.docKindName?.trim()) {
+  }
+  if (doc.docKindName?.trim()) {
     xmlParts.push(`${inner}<csdo:DocKindName>${escapeXML(doc.docKindName.trim())}</csdo:DocKindName>`)
   }
   if (doc.docName) xmlParts.push(`${inner}<csdo:DocName>${escapeXML(doc.docName)}</csdo:DocName>`)
@@ -2538,8 +2542,7 @@ export function exportSmaParsedBundleToXml(
       `        <csdo:UnifiedCountryCode codeListId="2021">${escapeXML(authCountry)}</csdo:UnifiedCountryCode>`
     )
   }
-  const authId = (bundle.authority.identifier ?? '').trim()
-  if (authId) parts.push(`        <csdo:AuthorityId>${escapeXML(authId)}</csdo:AuthorityId>`)
+  // csdo:AuthorityId в XML не экспортируем — AUTHORITYID хранится только в SMAQ.AUTHORITYID
   const authName = (bundle.authority.name ?? '').trim()
   if (authName) parts.push(`        <csdo:AuthorityName>${escapeXML(authName)}</csdo:AuthorityName>`)
   const authBrief = (bundle.authority.shortName ?? '').trim()
@@ -2558,7 +2561,9 @@ export function exportSmaParsedBundleToXml(
   exportSmaMeasureDocReferenceXml(parts, bundle.measureDocReference, SMA_XML_INDENT)
 
   const spt = (bundle.sanitaryProductTypeCode ?? '').trim()
-  if (spt) parts.push(`    <smsdo:SanitaryProductTypeCode>${escapeXML(spt)}</smsdo:SanitaryProductTypeCode>`)
+  if (spt) {
+    parts.push(`    <smsdo:SanitaryProductTypeCode codeListId="1025">${escapeXML(spt)}</smsdo:SanitaryProductTypeCode>`)
+  }
   const pn = (bundle.productName ?? '').trim()
   if (pn) parts.push(`    <csdo:ProductName>${escapeXML(pn)}</csdo:ProductName>`)
   const ltm = (bundle.laboratoryTestMethodName ?? '').trim()

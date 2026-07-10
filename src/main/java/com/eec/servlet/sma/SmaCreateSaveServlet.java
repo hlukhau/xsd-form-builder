@@ -28,7 +28,12 @@ public class SmaCreateSaveServlet extends HttpServlet {
     private static final String SQL_NEXT_SMAQ_VERSION = ""
             + "SELECT NVL(MAX(SMAQVERSION), 0) + 1 AS N FROM SMAQ WHERE SMDID = ?";
 
-    private static final String SQL_INSERT_SMAQ = ""
+    static final String SQL_INSERT_SMAQ = ""
+            + "INSERT INTO SMAQ (SMAQID, SMDID, DOCID, DATASOURCEKINDCODE, SMAQSTATUSID, "
+            + "CREATIONDATETIME, MODIFICATIONDATETIME, REQUESTCOUNTRYID, SMAQVERSION, AUTHORITYID) "
+            + "VALUES (?, ?, ?, 2, ?, SYSDATE, SYSDATE, ?, ?, ?)";
+
+    private static final String SQL_INSERT_SMAQ_NO_AUTH = ""
             + "INSERT INTO SMAQ (SMAQID, SMDID, DOCID, DATASOURCEKINDCODE, SMAQSTATUSID, "
             + "CREATIONDATETIME, MODIFICATIONDATETIME, REQUESTCOUNTRYID, SMAQVERSION) "
             + "VALUES (?, ?, ?, 2, ?, SYSDATE, SYSDATE, ?, ?)";
@@ -39,6 +44,11 @@ public class SmaCreateSaveServlet extends HttpServlet {
             + "VALUES (?, ?, 2, ?, SYSDATE, SYSDATE, ?, ?)";
 
     private static final String SQL_INSERT_SMAR = ""
+            + "INSERT INTO SMAR (SMARID, SMAQID, DATASOURCEKINDCODE, SMARSTATUSID, "
+            + "CREATIONDATETIME, MODIFICATIONDATETIME, SMARVERSION, RESPONSECOUNTRYID) "
+            + "VALUES (?, ?, 2, ?, SYSDATE, SYSDATE, 1, ?)";
+
+    private static final String SQL_INSERT_SMAR_NO_RESP_COUNTRY = ""
             + "INSERT INTO SMAR (SMARID, SMAQID, DATASOURCEKINDCODE, SMARSTATUSID, "
             + "CREATIONDATETIME, MODIFICATIONDATETIME, SMARVERSION) "
             + "VALUES (?, ?, 2, ?, SYSDATE, SYSDATE, 1)";
@@ -142,7 +152,9 @@ public class SmaCreateSaveServlet extends HttpServlet {
 
         conn.setAutoCommit(false);
         try {
-            insertSmaq(conn, smaqId, smdid, gate.docId, gate.draftStatusId, gate.requestCountryId, smaqVersion);
+            Integer resolvedAuthorityId = com.eec.util.SmrAuthorityDbSupport.resolveAuthorityId(conn, authorityId);
+            insertSmaq(conn, smaqId, smdid, gate.docId, gate.draftStatusId, gate.requestCountryId, smaqVersion,
+                    resolvedAuthorityId);
             insertXml(conn, true, smaqId, xml, EDOC_SMAQ);
             insertHist(conn, true, smaqId, gate.draftStatusId, userId);
             conn.commit();
@@ -195,12 +207,7 @@ public class SmaCreateSaveServlet extends HttpServlet {
 
         conn.setAutoCommit(false);
         try {
-            try (PreparedStatement ps = conn.prepareStatement(SQL_INSERT_SMAR)) {
-                ps.setLong(1, smarId);
-                ps.setLong(2, smaqid);
-                ps.setInt(3, gate.draftStatusId);
-                ps.executeUpdate();
-            }
+            insertSmar(conn, smarId, smaqid, gate.draftStatusId, gate.requestCountryId);
             insertXml(conn, false, smarId, xml, edocCode);
             insertHist(conn, false, smarId, gate.draftStatusId, userId);
             conn.commit();
@@ -212,6 +219,31 @@ public class SmaCreateSaveServlet extends HttpServlet {
         }
 
         writeOk(response, SmaCardKind.SMAR, smarId);
+    }
+
+    private static void insertSmar(Connection conn, long smarId, long smaqid, int statusId,
+                                   long responseCountryId) throws SQLException {
+        if (responseCountryId > 0) {
+            try (PreparedStatement ps = conn.prepareStatement(SQL_INSERT_SMAR)) {
+                ps.setLong(1, smarId);
+                ps.setLong(2, smaqid);
+                ps.setInt(3, statusId);
+                ps.setLong(4, responseCountryId);
+                ps.executeUpdate();
+                return;
+            } catch (SQLException e) {
+                String m = e.getMessage() != null ? e.getMessage() : "";
+                if (!m.contains("ORA-00904")) {
+                    throw e;
+                }
+            }
+        }
+        try (PreparedStatement ps = conn.prepareStatement(SQL_INSERT_SMAR_NO_RESP_COUNTRY)) {
+            ps.setLong(1, smarId);
+            ps.setLong(2, smaqid);
+            ps.setInt(3, statusId);
+            ps.executeUpdate();
+        }
     }
 
     private static long nextId(Connection conn, String sql, String seqName) throws SQLException, IOException {
@@ -250,8 +282,27 @@ public class SmaCreateSaveServlet extends HttpServlet {
     }
 
     private static void insertSmaq(Connection conn, long smaqId, long smdid, String docId,
-                                     int statusId, long requestCountryId, int smaqVersion) throws SQLException {
-        try (PreparedStatement ps = conn.prepareStatement(SQL_INSERT_SMAQ)) {
+                                     int statusId, long requestCountryId, int smaqVersion,
+                                     Integer authorityId) throws SQLException {
+        if (authorityId != null) {
+            try (PreparedStatement ps = conn.prepareStatement(SQL_INSERT_SMAQ)) {
+                ps.setLong(1, smaqId);
+                ps.setLong(2, smdid);
+                ps.setString(3, docId);
+                ps.setInt(4, statusId);
+                ps.setLong(5, requestCountryId);
+                ps.setInt(6, smaqVersion);
+                ps.setInt(7, authorityId);
+                ps.executeUpdate();
+                return;
+            } catch (SQLException e) {
+                String m = e.getMessage() != null ? e.getMessage() : "";
+                if (!m.contains("ORA-00904")) {
+                    throw e;
+                }
+            }
+        }
+        try (PreparedStatement ps = conn.prepareStatement(SQL_INSERT_SMAQ_NO_AUTH)) {
             ps.setLong(1, smaqId);
             ps.setLong(2, smdid);
             ps.setString(3, docId);

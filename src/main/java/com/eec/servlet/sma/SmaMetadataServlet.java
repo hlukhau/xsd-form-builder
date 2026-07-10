@@ -126,6 +126,20 @@ public class SmaMetadataServlet extends HttpServlet {
         String docCountryCode = rs.getString("DOCCOUNTRYCODE");
         Timestamp docCreationDate = rs.getTimestamp("DOCCREATIONDATE");
         String requestCountry = rs.getString("REQUESTCOUNTRYNAME");
+        String requestCountryCode = null;
+        String authorityUid = null;
+        if (kind == SmaCardKind.SMAQ) {
+            try {
+                requestCountryCode = rs.getString("REQUESTCOUNTRYCODE");
+            } catch (SQLException ignored) {
+                requestCountryCode = null;
+            }
+            try {
+                authorityUid = rs.getString("AUTHORITYUID");
+            } catch (SQLException ignored) {
+                authorityUid = null;
+            }
+        }
         String dscCode = rs.getString("DATASOURCEKINDCODE");
         String dscName = rs.getString("DATASOURCEKINDNAME");
         String statusName = kind == SmaCardKind.SMAQ ? rs.getString("SMAQSTATUSNAME") : rs.getString("SMARSTATUSNAME");
@@ -171,6 +185,10 @@ public class SmaMetadataServlet extends HttpServlet {
         out.print(",\"docCountryCode\":" + SmaServletUtil.quote(docCountryCode));
         out.print(",\"docCreationDate\":" + SmaServletUtil.quote(SmaServletUtil.tsToIso(docCreationDate)));
         out.print(",\"requestCountryName\":" + SmaServletUtil.quote(requestCountry));
+        if (kind == SmaCardKind.SMAQ) {
+            out.print(",\"requestCountryCode\":" + SmaServletUtil.quote(requestCountryCode));
+            out.print(",\"authorityUid\":" + SmaServletUtil.quote(authorityUid));
+        }
         out.print(",\"datasourceKindCode\":" + SmaServletUtil.quote(dscCode));
         out.print(",\"datasourceKindName\":" + SmaServletUtil.quote(dscName));
         out.print(",\"statusName\":" + SmaServletUtil.quote(statusName));

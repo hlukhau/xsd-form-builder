@@ -166,6 +166,7 @@ export async function postSmaSave(payload: {
   guid: string
   smaXmlB64: string
   responseKind?: SmarResponseKind
+  authorityId?: string
 }): Promise<{ ok: boolean; statusId?: number; edocCode?: string }> {
   const response = await fetch(getApiUrl('/api/sma/save'), {
     method: 'POST',

@@ -91,7 +91,8 @@ function exportMeasureDocDetails(
     xmlParts.push(
       `${inner}<csdo:DocKindCode codeListId="${escapeXML(listId)}">${escapeXML(doc.docKindCode.trim())}</csdo:DocKindCode>`
     )
-  } else if (doc.docKindName?.trim()) {
+  }
+  if (doc.docKindName?.trim()) {
     xmlParts.push(`${inner}<csdo:DocKindName>${escapeXML(doc.docKindName.trim())}</csdo:DocKindName>`)
   }
   if (doc.docName) xmlParts.push(`${inner}<csdo:DocName>${escapeXML(doc.docName)}</csdo:DocName>`)

@@ -44,6 +44,10 @@ export const XSD_FIELD_CONSTRAINTS: Record<string, FieldConstraint> = {
   productId: { maxLength: 50, messageMaxLength: 'Не более 50 символов (csdo:Id50Type)' },
   productName: { maxLength: 300, messageMaxLength: 'Не более 300 символов (csdo:Name300Type)' },
   tradeName: { maxLength: 300, messageMaxLength: 'Не более 300 символов (csdo:Name300Type)' },
+  laboratoryTestMethodName: {
+    maxLength: 500,
+    messageMaxLength: 'Не более 500 символов (csdo:Name500Type, smsdo:LaboratoryTestMethodName)',
+  },
   /** smsdo:SanitaryProductTypeName → csdo:Name300Type */
   sanitaryProductTypeName: {
     maxLength: 300,

@@ -9,8 +9,8 @@ import {
   Space,
   message,
   Modal,
-  Segmented,
   Table,
+  Select,
 } from 'antd'
 import { LinkOutlined, DownloadOutlined } from '@ant-design/icons'
 import { format, parseISO } from 'date-fns'
@@ -42,6 +42,12 @@ import { DATE_TIME_DISPLAY_FORMAT_DATEFNS } from '@/constants/dateFormat'
 import { exportSmaParsedBundleToXml } from '@/utils/xmlExporter'
 import { SmaDocumentsEdit } from '@/cards/sma/SmaDocumentsEdit'
 import { SmaAuthorityEdit } from '@/cards/sma/SmaAuthorityEdit'
+import { SmaIncidentAlertEdit, emptySmaIncidentAlert } from '@/cards/sma/SmaIncidentAlertEdit'
+import { SmarResponseKindDisplay } from '@/cards/sma/SmarResponseKindDisplay'
+import { formatSmaCountryName } from '@/cards/sma/smaDisplayUtils'
+import { formatSanitaryProductTypeLabel } from '@/cards/smd/smdProductBatchHelpers'
+import { useSanitaryProdTypeOptions } from '@/hooks/shared/useSanitaryProdTypeOptions'
+import { getMaxLength } from '@/constants/xsdFieldConstraints'
 import {
   SmarAbsentResponseFields,
   defaultSmarAbsentResponseValue,
@@ -64,9 +70,9 @@ const CARD_STICKY_HEADER_STYLE: CSSProperties = {
   isolation: 'isolate',
   display: 'flex',
   flexDirection: 'column',
-  maxHeight: '20vh',
-  overflow: 'auto',
-  flexShrink: 0,
+  height: '100vh',
+  maxHeight: '100vh',
+  overflow: 'hidden',
 }
 
 function formatDt(iso: string | null | undefined): string {
@@ -142,7 +148,9 @@ export interface SmaCardProps {
 }
 
 export function SmaCard({ kind, cardId, guid, meta, parsed, onDataRefresh }: SmaCardProps) {
-  const { getDisplayLabel: countryLabel } = useCountryOptions()
+  const { countryOptions } = useCountryOptions()
+  const { getSelectOptions: getSanitaryProdTypeSelectOptions, getNameByCode: getSanitaryProdTypeNameByCode, loading: loadingSanitaryProdTypes } =
+    useSanitaryProdTypeOptions()
   const { getLangCatalogSelectOptions } = useLanguageOptions()
   const { getNameByCode: shipDocKindName } = useShipDocKindOptions()
   const { getNameByCode: incidentKindName } = useIncidentAlertKindOptions()
@@ -172,6 +180,7 @@ export function SmaCard({ kind, cardId, guid, meta, parsed, onDataRefresh }: Sma
   const [absentResponse, setAbsentResponse] = useState<SmarAbsentResponseValue>(() =>
     absentValueFromParsed(parsed)
   )
+  const [incidentAlertEdit, setIncidentAlertEdit] = useState(emptySmaIncidentAlert)
 
   const outgoing = String(meta.datasourceKindCode ?? '').trim() === '2'
   const canEditCard = meta.canEdit === true
@@ -200,12 +209,28 @@ export function SmaCard({ kind, cardId, guid, meta, parsed, onDataRefresh }: Sma
     return [cc, id].filter(Boolean).join(' ') || '—'
   }, [meta.docCountryCode, meta.docId, parsed.measureDocReference])
 
-  const authCountryDisplay =
-    (parsed.authority.country ?? '').trim()
-      ? `${parsed.authority.country} — ${countryLabel(parsed.authority.country) || parsed.authority.country}`
-      : meta.requestCountryName?.trim() || '—'
+  const authCountryDisplay = formatSmaCountryName(
+    parsed.authority.country?.trim() || meta.requestCountryCode?.trim(),
+    countryOptions,
+    meta.requestCountryName
+  )
 
-  const requestCountryDisplay = meta.requestCountryName?.trim() || '—'
+  const requestCountryDisplay = formatSmaCountryName(
+    meta.requestCountryCode,
+    countryOptions,
+    meta.requestCountryName
+  )
+
+  const measureDocCountryDisplay = formatSmaCountryName(
+    parsed.measureDocReference.country?.trim() || meta.docCountryCode?.trim(),
+    countryOptions
+  )
+
+  const sanitaryProductTypeDisplay = formatSanitaryProductTypeLabel(
+    parsed.sanitaryProductTypeCode ?? undefined,
+    undefined,
+    (code) => getSanitaryProdTypeNameByCode(code) ?? ''
+  )
 
   useEffect(() => {
     if (!guid?.trim() || !outgoing) {
@@ -243,7 +268,7 @@ export function SmaCard({ kind, cardId, guid, meta, parsed, onDataRefresh }: Sma
       processingResultV2Code: isAbsentResponse ? absentResponse.processingResultV2Code : null,
       authority: {
         country: (authEdit.country || parsed.authority.country)?.trim() ?? '',
-        identifier: authEdit.authorityUid?.trim() ?? parsed.authority.identifier ?? '',
+        identifier: '',
         name: authEdit.name.trim(),
         shortName: authEdit.shortName.trim(),
       },
@@ -254,6 +279,7 @@ export function SmaCard({ kind, cardId, guid, meta, parsed, onDataRefresh }: Sma
       productName: isAbsentResponse ? null : productName.trim() || null,
       laboratoryTestMethodName: isAbsentResponse ? null : laboratoryTestMethodName.trim() || null,
       documents: isAbsentResponse ? [] : documentsEdit,
+      incidentAlert: kind === 'smaq' && isEditMode ? incidentAlertEdit : parsed.incidentAlert,
     }
   }, [
     isEditMode,
@@ -266,12 +292,17 @@ export function SmaCard({ kind, cardId, guid, meta, parsed, onDataRefresh }: Sma
     documentsEdit,
     isAbsentResponse,
     absentResponse,
+    kind,
+    incidentAlertEdit,
   ])
 
   const beginEdit = useCallback(() => {
+    const isSmar = kind === 'smar'
     setAuthEdit({
-      country: parsed.authority.country?.trim() ?? '',
-      authorityUid: parsed.authority.identifier?.trim() || undefined,
+      country: isSmar
+        ? meta.requestCountryCode?.trim() || parsed.authority.country?.trim() || ''
+        : parsed.authority.country?.trim() ?? meta.requestCountryCode?.trim() ?? '',
+      authorityUid: isSmar ? undefined : meta.authorityUid?.trim() || undefined,
       name: parsed.authority.name?.trim() ?? '',
       shortName: parsed.authority.shortName?.trim() ?? '',
     })
@@ -280,10 +311,11 @@ export function SmaCard({ kind, cardId, guid, meta, parsed, onDataRefresh }: Sma
     setProductName(parsed.productName?.trim() ?? '')
     setLaboratoryTestMethodName(parsed.laboratoryTestMethodName?.trim() ?? '')
     setDocumentsEdit(JSON.parse(JSON.stringify(parsed.documents ?? [])) as SmaDocRow[])
+    setIncidentAlertEdit({ ...parsed.incidentAlert })
     setAbsentResponse(absentValueFromParsed(parsed))
     setResponseKind(resolveSmarResponseKind(meta, parsed))
     setIsEditMode(true)
-  }, [parsed, meta])
+  }, [parsed, meta, kind])
 
   const cancelEdit = useCallback(() => {
     setIsEditMode(false)
@@ -297,6 +329,10 @@ export function SmaCard({ kind, cardId, guid, meta, parsed, onDataRefresh }: Sma
       message.error('Нет GUID')
       return
     }
+    if (kind === 'smar' && responseKind === 'info' && !descText.trim()) {
+      message.error('Заполните описание ответа')
+      return
+    }
     setSaving(true)
     try {
       const xml = exportSmaParsedBundleToXml(parsedForSave, {
@@ -308,6 +344,7 @@ export function SmaCard({ kind, cardId, guid, meta, parsed, onDataRefresh }: Sma
         guid: g,
         smaXmlB64: utf8ToBase64(xml),
         responseKind: kind === 'smar' ? responseKind : undefined,
+        authorityId: kind === 'smaq' ? authEdit.authorityUid?.trim() || undefined : undefined,
       })
       setIsEditMode(false)
       await onDataRefresh?.()
@@ -316,7 +353,7 @@ export function SmaCard({ kind, cardId, guid, meta, parsed, onDataRefresh }: Sma
     } finally {
       setSaving(false)
     }
-  }, [guid, kind, cardId, parsedForSave, responseKind, onDataRefresh])
+  }, [guid, kind, cardId, parsedForSave, responseKind, onDataRefresh, authEdit.authorityUid])
 
   const runStatusAction = useCallback(
     async (action: string) => {
@@ -475,7 +512,9 @@ export function SmaCard({ kind, cardId, guid, meta, parsed, onDataRefresh }: Sma
         children: (
           <Descriptions column={1} bordered size="small">
             <Descriptions.Item label="Страна">
-              {row.countryCode ? `${row.countryCode} — ${countryLabel(row.countryCode) || row.countryCode}` : '—'}
+              {row.countryCode
+                ? formatSmaCountryName(row.countryCode, countryOptions)
+                : '—'}
             </Descriptions.Item>
             <Descriptions.Item label="Язык">{row.languageCode ? langLabel(row.languageCode) : '—'}</Descriptions.Item>
             <Descriptions.Item label="Вид">{docKindLabel(row)}</Descriptions.Item>
@@ -495,7 +534,7 @@ export function SmaCard({ kind, cardId, guid, meta, parsed, onDataRefresh }: Sma
           </Descriptions>
         ),
       })),
-    [parsed.documents, countryLabel, langLabel, docKindLabel]
+    [parsed.documents, countryOptions, langLabel, docKindLabel]
   )
 
   const incidentRow = parsed.incidentAlert
@@ -585,7 +624,7 @@ export function SmaCard({ kind, cardId, guid, meta, parsed, onDataRefresh }: Sma
             )}
           </Descriptions.Item>
           {kind === 'smar' ? (
-            <Descriptions.Item label="Связанный запрос SMAQ">
+            <Descriptions.Item label="Связанный запрос">
               {smaqHref ? (
                 <Button
                   type="link"
@@ -593,7 +632,7 @@ export function SmaCard({ kind, cardId, guid, meta, parsed, onDataRefresh }: Sma
                   onClick={() => window.location.assign(smaqHref)}
                   style={{ padding: 0, height: 'auto' }}
                 >
-                  SMAQ {meta.linkedSmaqid}
+                  {meta.linkedSmaqid}
                 </Button>
               ) : (
                 <Text>—</Text>
@@ -644,10 +683,9 @@ export function SmaCard({ kind, cardId, guid, meta, parsed, onDataRefresh }: Sma
             statusButtonsLoading={statusActionLoading}
           />
         )}
-      </div>
 
-      <div className="card-tabs-wrapper" style={{ flex: 1, overflow: 'auto', minHeight: 0 }}>
-        <Tabs
+        <div className="card-tabs-wrapper">
+          <Tabs
           defaultActiveKey="main"
           items={[
             {
@@ -660,11 +698,10 @@ export function SmaCard({ kind, cardId, guid, meta, parsed, onDataRefresh }: Sma
                       <Typography.Text type="secondary" style={{ display: 'block', marginBottom: 8 }}>
                         Вид ответа
                       </Typography.Text>
-                      <Segmented
-                        disabled={!isEditMode}
+                      <SmarResponseKindDisplay
+                        editable={isEditMode}
                         value={responseKind}
-                        onChange={(v) => {
-                          const next = v as SmarResponseKind
+                        onChange={(next) => {
                           setResponseKind(next)
                           if (next === 'absent') {
                             setAbsentResponse((prev) => ({
@@ -673,10 +710,6 @@ export function SmaCard({ kind, cardId, guid, meta, parsed, onDataRefresh }: Sma
                             }))
                           }
                         }}
-                        options={[
-                          { label: 'Дополнительные сведения', value: 'info' },
-                          { label: 'Сведения отсутствуют', value: 'absent' },
-                        ]}
                       />
                     </div>
                   ) : null}
@@ -708,6 +741,7 @@ export function SmaCard({ kind, cardId, guid, meta, parsed, onDataRefresh }: Sma
                               ? 'Уполномоченный орган, запросивший сведения'
                               : 'Уполномоченный орган, представивший ответ'
                           }
+                          hideAuthoritySelect={kind === 'smar'}
                         />
                       ) : (
                         <Descriptions column={1} bordered size="small" style={{ marginBottom: 16 }}>
@@ -723,11 +757,7 @@ export function SmaCard({ kind, cardId, guid, meta, parsed, onDataRefresh }: Sma
                         Исходная карта сведений о временной санитарной мере
                       </Typography.Title>
                       <Descriptions column={1} bordered size="small" style={{ marginBottom: 16 }}>
-                        <Descriptions.Item label="Страна">
-                          {parsed.measureDocReference.country
-                            ? `${parsed.measureDocReference.country} — ${countryLabel(parsed.measureDocReference.country) || parsed.measureDocReference.country}`
-                            : dash(parsed.measureCountryCode)}
-                        </Descriptions.Item>
+                        <Descriptions.Item label="Страна">{measureDocCountryDisplay}</Descriptions.Item>
                         <Descriptions.Item label="Номер документа">
                           {dash(parsed.measureDocReference.docId ?? meta.docId)}
                         </Descriptions.Item>
@@ -737,7 +767,9 @@ export function SmaCard({ kind, cardId, guid, meta, parsed, onDataRefresh }: Sma
                       </Descriptions>
 
                       <Typography.Title level={5}>Уведомление о нежелательной ситуации</Typography.Title>
-                      {hasIncident ? (
+                      {kind === 'smaq' && isEditMode ? (
+                        <SmaIncidentAlertEdit value={incidentAlertEdit} onChange={setIncidentAlertEdit} />
+                      ) : hasIncident ? (
                         <Table
                           size="small"
                           pagination={false}
@@ -747,7 +779,7 @@ export function SmaCard({ kind, cardId, guid, meta, parsed, onDataRefresh }: Sma
                             {
                               title: 'Страна',
                               key: 'country',
-                              render: (_, row) => countryLabel(row.country) || row.country || '—',
+                              render: (_, row) => formatSmaCountryName(row.country, countryOptions) || '—',
                             },
                             {
                               title: 'Рег. номер',
@@ -788,17 +820,30 @@ export function SmaCard({ kind, cardId, guid, meta, parsed, onDataRefresh }: Sma
                           value={isEditMode ? descText : parsed.descriptionText ?? ''}
                           onChange={(e) => setDescText(e.target.value)}
                           autoSize={{ minRows: 3, maxRows: 12 }}
+                          maxLength={isEditMode ? getMaxLength('description') : undefined}
+                          showCount={isEditMode}
                           style={{ marginTop: 4 }}
                         />
                       </div>
                       <div style={{ marginBottom: 16 }}>
                         <Typography.Text type="secondary">Код вида продукции</Typography.Text>
-                        <Input
-                          readOnly={!isEditMode}
-                          value={isEditMode ? sanitaryProductTypeCode : parsed.sanitaryProductTypeCode ?? ''}
-                          onChange={(e) => setSanitaryProductTypeCode(e.target.value)}
-                          style={{ marginTop: 4 }}
-                        />
+                        {isEditMode ? (
+                          <Select
+                            showSearch
+                            allowClear
+                            loading={loadingSanitaryProdTypes}
+                            value={sanitaryProductTypeCode.trim() || undefined}
+                            onChange={(v) => setSanitaryProductTypeCode(v ?? '')}
+                            options={getSanitaryProdTypeSelectOptions()}
+                            filterOption={(input, option) =>
+                              String(option?.label ?? '').toLowerCase().includes(input.toLowerCase())
+                            }
+                            style={{ width: '100%', marginTop: 4 }}
+                            placeholder="Выберите код вида продукции"
+                          />
+                        ) : (
+                          <Input readOnly value={sanitaryProductTypeDisplay} style={{ marginTop: 4 }} />
+                        )}
                       </div>
                       <div style={{ marginBottom: 16 }}>
                         <Typography.Text type="secondary">Наименование продукции</Typography.Text>
@@ -806,6 +851,8 @@ export function SmaCard({ kind, cardId, guid, meta, parsed, onDataRefresh }: Sma
                           readOnly={!isEditMode}
                           value={isEditMode ? productName : parsed.productName ?? ''}
                           onChange={(e) => setProductName(e.target.value)}
+                          maxLength={isEditMode ? getMaxLength('productName') : undefined}
+                          showCount={isEditMode}
                           style={{ marginTop: 4 }}
                         />
                       </div>
@@ -817,18 +864,24 @@ export function SmaCard({ kind, cardId, guid, meta, parsed, onDataRefresh }: Sma
                             isEditMode ? laboratoryTestMethodName : parsed.laboratoryTestMethodName ?? ''
                           }
                           onChange={(e) => setLaboratoryTestMethodName(e.target.value)}
+                          maxLength={isEditMode ? getMaxLength('laboratoryTestMethodName') : undefined}
+                          showCount={isEditMode}
                           style={{ marginTop: 4 }}
                         />
                       </div>
 
-                      <Typography.Title level={5}>Документы</Typography.Title>
-                      {isEditMode ? (
-                        <SmaDocumentsEdit documents={documentsEdit} onChange={setDocumentsEdit} />
-                      ) : docPanels.length === 0 ? (
-                        <Text type="secondary">Нет приложенных документов</Text>
-                      ) : (
-                        <Collapse items={docPanels} />
-                      )}
+                      {kind !== 'smaq' ? (
+                        <>
+                          <Typography.Title level={5}>Документы</Typography.Title>
+                          {isEditMode ? (
+                            <SmaDocumentsEdit documents={documentsEdit} onChange={setDocumentsEdit} />
+                          ) : docPanels.length === 0 ? (
+                            <Text type="secondary">Нет приложенных документов</Text>
+                          ) : (
+                            <Collapse items={docPanels} />
+                          )}
+                        </>
+                      ) : null}
                     </>
                   ) : (
                     <>
@@ -845,6 +898,7 @@ export function SmaCard({ kind, cardId, guid, meta, parsed, onDataRefresh }: Sma
             },
           ]}
         />
+        </div>
       </div>
 
       <StatusHistoryModal

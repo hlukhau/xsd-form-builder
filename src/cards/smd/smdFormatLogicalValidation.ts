@@ -241,10 +241,12 @@ function validateOrganizationInDiseasePlace(
   add: (msg: string) => void,
   contactScopePhrase: 'организации места обнаружения' | 'организации зоны распространения'
 ): void {
-  if (!o || !organizationAnyFieldTouched(o)) return
+  if (o === undefined) return
 
-  for (const msg of businessEntityIdMethodPairRemarks(o, { legacyHozyaystvuyushchegoSubektaWording: true })) {
-    add(msg)
+  if (organizationAnyFieldTouched(o)) {
+    for (const msg of businessEntityIdMethodPairRemarks(o, { legacyHozyaystvuyushchegoSubektaWording: true })) {
+      add(msg)
+    }
   }
   if (!organizationTrioComplete(o)) {
     add('Должны быть заполнены Страна, Наименование субъекта, Адрес')
@@ -280,7 +282,7 @@ function collectDiseasePlaceRemarks(
   }
 
   const o = place?.organization
-  if (o && organizationAnyFieldTouched(o)) {
+  if (o !== undefined) {
     validateOrganizationInDiseasePlace(o, add, contactScopePhrase as 'организации места обнаружения' | 'организации зоны распространения')
   }
 
@@ -775,22 +777,38 @@ function validateViolationsSection(data: CardData, add: (msg: string) => void): 
 }
 
 function validateDiseaseSection(data: CardData, add: (msg: string) => void): void {
-  const incidentCore = smdPublicHealthIncidentCoreSpecified(data)
+  if (!smdPublicHealthIncidentSpecified(data)) return
 
-  if (incidentCore) {
-    const d: PhaDiseaseDetails | undefined = data.phaDisease
-    if (!d?.diseaseName?.trim()) {
-      add('Наименование болезни должно быть указано')
+  const remarks: string[] = []
+  const push = (msg: string) => {
+    if (!remarks.includes(msg)) remarks.push(msg)
+  }
+
+  const d: PhaDiseaseDetails | undefined = data.phaDisease
+  if (!d?.diseaseName?.trim()) {
+    push('Наименование болезни должно быть указано')
+  }
+
+  if (empty(d?.firstCaseDate)) {
+    push('Дата первого случая должна быть указана')
+  }
+
+  ;(d?.pathogens ?? []).forEach((p) => {
+    if (pathogenDetailsTouched(p) && empty(p.pathogenKindName)) {
+      push('Наименование типа возбудителя должно быть указано')
     }
+  })
 
-    ;(d?.pathogens ?? []).forEach((p) => {
-      if (pathogenDetailsTouched(p) && empty(p.pathogenKindName)) {
-        add('Наименование типа возбудителя должно быть указано')
-      }
-    })
+  if (!hasPlaceAnyBlock(data.detectionPlace)) {
+    push('Должно быть заполнено место обнаружения болезни')
+  }
 
-    if (!hasPlaceAnyBlock(data.detectionPlace)) {
-      add('Должно быть заполнено место обнаружения болезни')
+  for (const g of data.phaPatientGroups ?? []) {
+    if (!hasPhaPatientGroupExportContent(g)) continue
+    const pq = g.personQuantity != null ? String(g.personQuantity).trim() : ''
+    if (empty(pq)) {
+      push('Для каждой группы пациентов должно быть указано количество')
+      break
     }
   }
 
@@ -801,25 +819,35 @@ function validateDiseaseSection(data: CardData, add: (msg: string) => void): voi
       data.detectionPlace,
       'организации места обнаружения'
     )) {
-      add(msg)
+      push(msg)
     }
+  } else if (data.detectionPlace?.organization !== undefined) {
+    validateOrganizationInDiseasePlace(
+      data.detectionPlace.organization,
+      push,
+      'организации места обнаружения'
+    )
   }
 
   for (const zone of spreadingZonesList(data)) {
+    if (zone.organization !== undefined) {
+      validateOrganizationInDiseasePlace(zone.organization, push, 'организации зоны распространения')
+    }
     if (!spreadingZoneTouched(zone)) continue
-    validateOrganizationInDiseasePlace(zone.organization, add, 'организации зоны распространения')
     const bc = zone.borderCheckpoint
     if (bc && (bc.checkpointCode?.trim() || bc.checkpointName?.trim())) {
       if (empty(bc.checkpointCode) || empty(bc.checkpointName)) {
-        add('Код и наименование пункта пропуска должны быть заполнены')
+        push('Код и наименование пункта пропуска должны быть заполнены')
       }
     }
     const objAddr = zone.address
     if (objAddr && (objectAddressHasMinimum(objAddr) || !empty(objAddr.country))) {
-      if (empty(objAddr.country)) add('В адресе должна быть указана страна')
-      if (!addressHasCityOrSettlement(objAddr)) add('В адресе должен быть указан город или населенный пункт')
+      if (empty(objAddr.country)) push('В адресе должна быть указана страна')
+      if (!addressHasCityOrSettlement(objAddr)) push('В адресе должен быть указан город или населенный пункт')
     }
   }
+
+  for (const msg of remarks) add(msg)
 }
 
 /** Форматно-логические контроли исходящей карты SMD по регламенту п. 8. */

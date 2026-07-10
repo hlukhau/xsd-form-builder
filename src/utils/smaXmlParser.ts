@@ -79,7 +79,8 @@ function parseEdocHeader(edocHeader: Element | null): ElectronicDocument {
 function parseAuthority(authority: Element | null): SmaParsedBundle['authority'] {
   return {
     country: authority ? getTextContent(authority, 'UnifiedCountryCode') || '' : '',
-    identifier: authority ? getTextContent(authority, 'AuthorityId') || '' : '',
+    /** csdo:AuthorityId в карточку не переносим (в XML не экспортируется; UID — из метаданных SMAQ.authorityUid). */
+    identifier: '',
     name: authority ? getTextContent(authority, 'AuthorityName') || '' : '',
     shortName:
       authority

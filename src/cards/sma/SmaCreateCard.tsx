@@ -1,12 +1,17 @@
 import { useCallback, useEffect, useState, type CSSProperties } from 'react'
-import { Typography, Tabs, Descriptions, Button, Space, message, Input, Segmented } from 'antd'
+import { Typography, Tabs, Descriptions, Button, Space, message, Input, Select } from 'antd'
 import type { SmaCreateContext, SmaDocRow, SmarResponseKind } from '@/types/smaCard'
 import { fetchRightsByGuid, getSmrAuthorityFilterDepIdsFromRights, type RightsJson } from '@/utils/referenceDataApi'
 import { postSmaCreateSave } from '@/cards/sma/smaApi'
 import { useCountryOptions } from '@/hooks/shared/useCountryOptions'
+import { useSanitaryProdTypeOptions } from '@/hooks/shared/useSanitaryProdTypeOptions'
 import { CardActions } from '@/cards/shared'
 import { SmaAuthorityEdit } from '@/cards/sma/SmaAuthorityEdit'
 import { SmaDocumentsEdit } from '@/cards/sma/SmaDocumentsEdit'
+import { SmaIncidentAlertEdit, emptySmaIncidentAlert } from '@/cards/sma/SmaIncidentAlertEdit'
+import { formatSmaCountryName } from '@/cards/sma/smaDisplayUtils'
+import { SmarResponseKindDisplay } from '@/cards/sma/SmarResponseKindDisplay'
+import { getMaxLength } from '@/constants/xsdFieldConstraints'
 import {
   SmarAbsentResponseFields,
   defaultSmarAbsentResponseValue,
@@ -26,9 +31,9 @@ const CARD_STICKY_HEADER_STYLE: CSSProperties = {
   isolation: 'isolate',
   display: 'flex',
   flexDirection: 'column',
-  maxHeight: '20vh',
-  overflow: 'auto',
-  flexShrink: 0,
+  height: '100vh',
+  maxHeight: '100vh',
+  overflow: 'hidden',
 }
 
 const BASE_URL = (import.meta.env.BASE_URL || '/').replace(/\/?$/, '/')
@@ -61,7 +66,9 @@ export interface SmaCreateCardProps {
 }
 
 export function SmaCreateCard({ context, guid }: SmaCreateCardProps) {
-  const { getDisplayLabel: countryLabel } = useCountryOptions()
+  const { countryOptions } = useCountryOptions()
+  const { getSelectOptions: getSanitaryProdTypeSelectOptions, loading: loadingSanitaryProdTypes } =
+    useSanitaryProdTypeOptions()
   const [saving, setSaving] = useState(false)
   const [authEdit, setAuthEdit] = useState({
     country: 'BY',
@@ -77,22 +84,38 @@ export function SmaCreateCard({ context, guid }: SmaCreateCardProps) {
   const [documentsEdit, setDocumentsEdit] = useState<SmaDocRow[]>([])
   const [responseKind, setResponseKind] = useState<SmarResponseKind>('info')
   const [absentResponse, setAbsentResponse] = useState<SmarAbsentResponseValue>(defaultSmarAbsentResponseValue)
+  const [incidentAlert, setIncidentAlert] = useState(emptySmaIncidentAlert)
 
   const isSmaq = context.kind === 'smaq'
   const isAbsent = !isSmaq && responseKind === 'absent'
 
   const rc = context.requestCountryCode ?? 'BY'
   const rn = context.requestCountryName ?? ''
-  const requestCountryDisplay = rn ? `${rc} — ${rn}` : rc
+  const requestCountryDisplay = formatSmaCountryName(rc, countryOptions, rn)
 
   const docCc = context.docCountryCode ?? ''
   const docId = context.docId ?? ''
-  const docCountryDisplay = docCc ? `${docCc} — ${countryLabel(docCc) || docCc}` : '—'
+  const docCountryDisplay = formatSmaCountryName(docCc, countryOptions)
   const sourceDocLabel = [docCc, docId].filter(Boolean).join(' ') || '—'
 
   useEffect(() => {
     setAuthEdit((prev) => ({ ...prev, country: rc || prev.country || 'BY' }))
   }, [rc])
+
+  useEffect(() => {
+    if (isSmaq) return
+    setAuthEdit({
+      country: context.requestCountryCode?.trim() || 'BY',
+      authorityUid: undefined,
+      name: context.linkedAuthorityName?.trim() ?? '',
+      shortName: context.linkedAuthorityBriefName?.trim() ?? '',
+    })
+  }, [
+    isSmaq,
+    context.requestCountryCode,
+    context.linkedAuthorityName,
+    context.linkedAuthorityBriefName,
+  ])
 
   useEffect(() => {
     if (!guid?.trim()) {
@@ -126,6 +149,10 @@ export function SmaCreateCard({ context, guid }: SmaCreateCardProps) {
   }, [isSmaq, context.smdid, context.smaqid, guid])
 
   const handleSave = useCallback(async () => {
+    if (!isSmaq && !isAbsent && !descriptionText.trim()) {
+      message.error('Заполните описание ответа')
+      return
+    }
     setSaving(true)
     try {
       const bundle = buildSmaCreateBundle(
@@ -140,6 +167,7 @@ export function SmaCreateCard({ context, guid }: SmaCreateCardProps) {
           responseKind: isSmaq ? undefined : responseKind,
           eventDateTime: isAbsent ? absentResponse.eventDateTime : undefined,
           processingResultV2Code: isAbsent ? absentResponse.processingResultV2Code : undefined,
+          incidentAlert: isSmaq ? incidentAlert : undefined,
         }
       )
       const xml = exportSmaParsedBundleToXml(bundle, { responseKind: isSmaq ? undefined : responseKind })
@@ -182,6 +210,7 @@ export function SmaCreateCard({ context, guid }: SmaCreateCardProps) {
     absentResponse,
     isAbsent,
     isSmaq,
+    incidentAlert,
   ])
 
   const draftName = context.draftStatusName ?? 'Черновик'
@@ -217,13 +246,13 @@ export function SmaCreateCard({ context, guid }: SmaCreateCardProps) {
         >
           <Descriptions.Item label="Исходная карта SMD">{sourceDocLabel}</Descriptions.Item>
           {!isSmaq && context.smaqid != null ? (
-            <Descriptions.Item label="Запрос SMAQ">
+            <Descriptions.Item label="Связанный запрос">
               <Button
                 type="link"
                 style={{ padding: 0, height: 'auto' }}
                 onClick={() => window.location.assign(buildSmaqCardViewUrl(context.smaqid!, guid.trim()))}
               >
-                SMAQ {context.smaqid}
+                {context.smaqid}
               </Button>
             </Descriptions.Item>
           ) : null}
@@ -239,10 +268,9 @@ export function SmaCreateCard({ context, guid }: SmaCreateCardProps) {
           onStatusAction={() => {}}
           onElectronicDocumentClick={() => message.info('Электронный документ будет доступен после сохранения карты')}
         />
-      </div>
 
-      <div className="card-tabs-wrapper" style={{ flex: 1, overflow: 'auto', minHeight: 0 }}>
-        <Tabs
+        <div className="card-tabs-wrapper">
+          <Tabs
           defaultActiveKey="main"
           items={[
             {
@@ -255,10 +283,10 @@ export function SmaCreateCard({ context, guid }: SmaCreateCardProps) {
                       <Typography.Text type="secondary" style={{ display: 'block', marginBottom: 8 }}>
                         Вид ответа
                       </Typography.Text>
-                      <Segmented
+                      <SmarResponseKindDisplay
+                        editable
                         value={responseKind}
-                        onChange={(v) => {
-                          const next = v as SmarResponseKind
+                        onChange={(next) => {
                           setResponseKind(next)
                           if (next === 'absent') {
                             setAbsentResponse((prev) => ({
@@ -267,10 +295,6 @@ export function SmaCreateCard({ context, guid }: SmaCreateCardProps) {
                             }))
                           }
                         }}
-                        options={[
-                          { label: 'Дополнительные сведения', value: 'info' },
-                          { label: 'Сведения отсутствуют', value: 'absent' },
-                        ]}
                       />
                     </div>
                   ) : null}
@@ -278,9 +302,6 @@ export function SmaCreateCard({ context, guid }: SmaCreateCardProps) {
                   {!isAbsent ? (
                     <>
                       <Typography.Title level={5}>Уполномоченный орган</Typography.Title>
-                      <Descriptions column={1} bordered size="small" style={{ marginBottom: 16 }}>
-                        <Descriptions.Item label="Страна">{requestCountryDisplay}</Descriptions.Item>
-                      </Descriptions>
                       <SmaAuthorityEdit
                         value={{
                           country: authEdit.country || rc || 'BY',
@@ -304,6 +325,7 @@ export function SmaCreateCard({ context, guid }: SmaCreateCardProps) {
                             ? 'Уполномоченный орган, запросивший сведения'
                             : 'Уполномоченный орган, представивший ответ'
                         }
+                        hideAuthoritySelect={!isSmaq}
                       />
 
                       <Typography.Title level={5} style={{ marginTop: 24 }}>
@@ -317,7 +339,16 @@ export function SmaCreateCard({ context, guid }: SmaCreateCardProps) {
                         </Descriptions.Item>
                       </Descriptions>
 
-                      <Typography.Title level={5}>
+                      {isSmaq ? (
+                        <>
+                          <Typography.Title level={5} style={{ marginTop: 24 }}>
+                            Уведомление о нежелательной ситуации
+                          </Typography.Title>
+                          <SmaIncidentAlertEdit value={incidentAlert} onChange={setIncidentAlert} />
+                        </>
+                      ) : null}
+
+                      <Typography.Title level={5} style={{ marginTop: 24 }}>
                         {isSmaq ? 'Запрос' : 'Ответ на запрос'}
                       </Typography.Title>
                       <div style={{ marginBottom: 16 }}>
@@ -326,15 +357,25 @@ export function SmaCreateCard({ context, guid }: SmaCreateCardProps) {
                           value={descriptionText}
                           onChange={(e) => setDescriptionText(e.target.value)}
                           autoSize={{ minRows: 3, maxRows: 12 }}
+                          maxLength={getMaxLength('description')}
+                          showCount
                           style={{ marginTop: 4 }}
                         />
                       </div>
                       <div style={{ marginBottom: 16 }}>
                         <Typography.Text type="secondary">Код вида продукции</Typography.Text>
-                        <Input
-                          value={sanitaryProductTypeCode}
-                          onChange={(e) => setSanitaryProductTypeCode(e.target.value)}
-                          style={{ marginTop: 4 }}
+                        <Select
+                          showSearch
+                          allowClear
+                          loading={loadingSanitaryProdTypes}
+                          value={sanitaryProductTypeCode.trim() || undefined}
+                          onChange={(v) => setSanitaryProductTypeCode(v ?? '')}
+                          options={getSanitaryProdTypeSelectOptions()}
+                          filterOption={(input, option) =>
+                            String(option?.label ?? '').toLowerCase().includes(input.toLowerCase())
+                          }
+                          style={{ width: '100%', marginTop: 4 }}
+                          placeholder="Выберите код вида продукции"
                         />
                       </div>
                       <div style={{ marginBottom: 16 }}>
@@ -342,6 +383,8 @@ export function SmaCreateCard({ context, guid }: SmaCreateCardProps) {
                         <Input
                           value={productName}
                           onChange={(e) => setProductName(e.target.value)}
+                          maxLength={getMaxLength('productName')}
+                          showCount
                           style={{ marginTop: 4 }}
                         />
                       </div>
@@ -350,12 +393,18 @@ export function SmaCreateCard({ context, guid }: SmaCreateCardProps) {
                         <Input
                           value={laboratoryTestMethodName}
                           onChange={(e) => setLaboratoryTestMethodName(e.target.value)}
+                          maxLength={getMaxLength('laboratoryTestMethodName')}
+                          showCount
                           style={{ marginTop: 4 }}
                         />
                       </div>
 
-                      <Typography.Title level={5}>Документы</Typography.Title>
-                      <SmaDocumentsEdit documents={documentsEdit} onChange={setDocumentsEdit} />
+                      {!isSmaq ? (
+                        <>
+                          <Typography.Title level={5}>Документы</Typography.Title>
+                          <SmaDocumentsEdit documents={documentsEdit} onChange={setDocumentsEdit} />
+                        </>
+                      ) : null}
                     </>
                   ) : (
                     <>
@@ -368,6 +417,7 @@ export function SmaCreateCard({ context, guid }: SmaCreateCardProps) {
             },
           ]}
         />
+        </div>
       </div>
     </div>
   )

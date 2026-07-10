@@ -24,6 +24,7 @@ export function buildSmaCreateBundle(
     responseKind?: SmarResponseKind
     eventDateTime?: string | null
     processingResultV2Code?: string | null
+    incidentAlert?: import('@/types/smaCard').SmaIncidentAlert
   }
 ): SmaParsedBundle {
   const authCountry = (auth.country || context.requestCountryCode || 'BY').trim()
@@ -51,7 +52,7 @@ export function buildSmaCreateBundle(
       : null,
     authority: {
       country: authCountry,
-      identifier: auth.authorityUid?.trim() ?? '',
+      identifier: '',
       name: auth.name.trim(),
       shortName: auth.shortName.trim(),
     },
@@ -63,7 +64,7 @@ export function buildSmaCreateBundle(
           docId: (context.docId ?? '').trim(),
           docCreationDate: (context.docCreationDate ?? '').trim().slice(0, 10),
         },
-    incidentAlert: { country: '', registrationNumber: '', typeCode: '', formationDate: '' },
+    incidentAlert: options?.incidentAlert ?? { country: '', registrationNumber: '', typeCode: '', formationDate: '' },
     descriptionText: descriptionText.trim() || null,
     sanitaryProductTypeCode: isSmarAbsent ? null : options?.sanitaryProductTypeCode?.trim() || null,
     productName: isSmarAbsent ? null : options?.productName?.trim() || null,
@@ -85,6 +86,8 @@ export function eligibilityToCreateContext(elig: {
   requestCountryName?: string | null
   draftStatusId?: number
   draftStatusName?: string | null
+  linkedAuthorityName?: string | null
+  linkedAuthorityBriefName?: string | null
 }): import('@/types/smaCard').SmaCreateContext | null {
   const kind = elig.kind === 'smar' ? 'smar' : elig.kind === 'smaq' ? 'smaq' : null
   if (!kind || elig.smdid == null || elig.draftStatusId == null) return null
@@ -100,5 +103,7 @@ export function eligibilityToCreateContext(elig: {
     requestCountryName: elig.requestCountryName ?? null,
     draftStatusId: elig.draftStatusId,
     draftStatusName: elig.draftStatusName ?? null,
+    linkedAuthorityName: elig.linkedAuthorityName ?? null,
+    linkedAuthorityBriefName: elig.linkedAuthorityBriefName ?? null,
   }
 }

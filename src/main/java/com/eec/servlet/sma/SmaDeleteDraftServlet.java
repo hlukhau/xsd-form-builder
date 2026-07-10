@@ -58,7 +58,7 @@ public class SmaDeleteDraftServlet extends HttpServlet {
                     : SmaCreateSupport.evaluateSmarDeleteGate(conn, cardId, guid);
             if (!gate.allowed) {
                 sendErr(response, HttpServletResponse.SC_FORBIDDEN,
-                        gate.reason != null ? gate.reason : "Удаление черновика недоступно");
+                        gate.reason != null ? gate.reason : "Удаление карты недоступно");
                 return;
             }
 

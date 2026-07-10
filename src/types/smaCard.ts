@@ -15,6 +15,9 @@ export interface SmaMetadataView {
   docCountryCode?: string | null
   docCreationDate?: string | null
   requestCountryName: string | null
+  requestCountryCode?: string | null
+  /** UID выбранного УО из SMAQ.AUTHORITYID → AUTHORITY.AUTHORITYUID */
+  authorityUid?: string | null
   datasourceKindCode: string | null
   datasourceKindName: string | null
   statusName: string | null
@@ -46,6 +49,9 @@ export interface SmaCreateEligibilityResponse {
   requestCountryName?: string | null
   draftStatusId?: number
   draftStatusName?: string | null
+  /** SMAR: наименование УО из связанного SMAQ */
+  linkedAuthorityName?: string | null
+  linkedAuthorityBriefName?: string | null
 }
 
 /** Контекст создания карты (из eligibility). */
@@ -61,6 +67,9 @@ export interface SmaCreateContext {
   requestCountryName: string | null
   draftStatusId: number
   draftStatusName: string | null
+  /** SMAR: наименование УО из связанного SMAQ */
+  linkedAuthorityName?: string | null
+  linkedAuthorityBriefName?: string | null
 }
 
 /** Тело POST /api/sma/create-save */

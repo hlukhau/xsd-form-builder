@@ -19,6 +19,8 @@ export interface SmaAuthorityEditProps {
   allowedAuthorityIds?: string[] | null
   /** Подпись роли органа в карте */
   roleLabel?: string
+  /** Скрыть выпадающий список выбора УО (для SMAR — УО из связанного запроса). */
+  hideAuthoritySelect?: boolean
 }
 
 /** Блок «Уполномоченный орган» SMAQ/SMAR. */
@@ -29,6 +31,7 @@ export function SmaAuthorityEdit({
   isDraft,
   allowedAuthorityIds,
   roleLabel = 'Уполномоченный орган',
+  hideAuthoritySelect = false,
 }: SmaAuthorityEditProps) {
   const countryCode = (value.country ?? '').trim() || undefined
   const { options: authorityOptions, loading: loadingAuthorities, getSelectOptions, getAuthorityByUid } =
@@ -38,18 +41,8 @@ export function SmaAuthorityEdit({
 
   useEffect(() => {
     const uid = value.authorityUid?.trim()
-    if (uid) {
-      setSelectedUid(uid)
-      return
-    }
-    const name = (value.name ?? '').trim()
-    if (!name) {
-      setSelectedUid(undefined)
-      return
-    }
-    const match = authorityOptions.find((o) => (o.name ?? '').trim() === name)
-    setSelectedUid(match?.uid)
-  }, [value.authorityUid, value.name, authorityOptions])
+    setSelectedUid(uid || undefined)
+  }, [value.authorityUid])
 
   const handleSelect = (uid: string | null) => {
     if (!uid) {
@@ -93,38 +86,40 @@ export function SmaAuthorityEdit({
         <Typography.Text type="secondary">Идентификатор</Typography.Text>
         <Input readOnly value="—" style={{ marginTop: 4 }} />
       </div>
-      <div style={{ marginBottom: 16 }}>
-        <div style={{ marginBottom: 4, color: 'rgba(0, 0, 0, 0.45)', fontSize: 14 }}>
-          {labelWithHelp(`Выбор ${roleLabel.toLowerCase()}`, FIELD_HELP.authority)}
+      {!hideAuthoritySelect ? (
+        <div style={{ marginBottom: 16 }}>
+          <div style={{ marginBottom: 4, color: 'rgba(0, 0, 0, 0.45)', fontSize: 14 }}>
+            {labelWithHelp(`Выбор ${roleLabel.toLowerCase()}`, FIELD_HELP.authority)}
+          </div>
+          <Select
+            showSearch
+            allowClear
+            style={{ width: '100%', marginTop: 4 }}
+            placeholder={
+              !countryCode
+                ? 'Страна не указана'
+                : !isDraft
+                  ? 'Доступно только в статусе «Черновик»'
+                  : `Выберите ${roleLabel.toLowerCase()}`
+            }
+            loading={loadingAuthorities}
+            value={selectedUid}
+            onChange={handleSelect}
+            disabled={selectDisabled}
+            filterOption={(input, option) =>
+              (option?.label ?? '').toLowerCase().includes(input.toLowerCase())
+            }
+            options={selectOptions}
+            notFoundContent={
+              loadingAuthorities
+                ? 'Загрузка...'
+                : authorityOptions.length === 0
+                  ? 'Нет доступных УО по правам пользователя'
+                  : 'Не найдено'
+            }
+          />
         </div>
-        <Select
-          showSearch
-          allowClear
-          style={{ width: '100%', marginTop: 4 }}
-          placeholder={
-            !countryCode
-              ? 'Страна не указана'
-              : !isDraft
-                ? 'Доступно только в статусе «Черновик»'
-                : `Выберите ${roleLabel.toLowerCase()}`
-          }
-          loading={loadingAuthorities}
-          value={selectedUid}
-          onChange={handleSelect}
-          disabled={selectDisabled}
-          filterOption={(input, option) =>
-            (option?.label ?? '').toLowerCase().includes(input.toLowerCase())
-          }
-          options={selectOptions}
-          notFoundContent={
-            loadingAuthorities
-              ? 'Загрузка...'
-              : authorityOptions.length === 0
-                ? 'Нет доступных УО по правам пользователя'
-                : 'Не найдено'
-          }
-        />
-      </div>
+      ) : null}
       <div style={{ marginBottom: 16 }}>
         <Typography.Text type="secondary">Наименование</Typography.Text>
         <Input readOnly value={(value.name ?? '').trim() || '—'} style={{ marginTop: 4 }} />

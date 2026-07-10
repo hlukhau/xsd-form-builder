@@ -9,7 +9,10 @@ import java.sql.Date;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
+import java.sql.Clob;
 import java.util.Set;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 /**
  * Проверки создания, редактирования, удаления и смены статуса карты SMAQ/SMAR.
@@ -53,6 +56,22 @@ public final class SmaCreateSupport {
 
     private static final String SQL_SMAR_EXISTS_BY_SMAQ = "SELECT SMARID FROM SMAR WHERE SMAQID = ? AND ROWNUM = 1";
 
+    private static final String SQL_SMAQ_REQUEST_COUNTRY = ""
+            + "SELECT sq.REQUESTCOUNTRYID, TRIM(c.COUNTRYCODE) AS COUNTRYCODE, TRIM(c.COUNTRYNAME) AS COUNTRYNAME "
+            + "FROM SMAQ sq LEFT JOIN COUNTRY c ON c.COUNTRYID = sq.REQUESTCOUNTRYID WHERE sq.SMAQID = ?";
+
+    private static final String SQL_SMAQ_XML_BODY = "SELECT SMAQXMLBODY FROM SMAQXML WHERE SMAQID = ?";
+
+    private static final String SQL_SMAR_HAS_PENDING_IN_HIST = ""
+            + "SELECT 1 FROM SMARSTATUSHIST hs "
+            + "JOIN SMARSTATUS st ON st.SMARSTATUSID = hs.SMARSTATUSID "
+            + "WHERE hs.SMARID = ? AND TRIM(UPPER(st.SMARSTATUSCODE)) = 'PENDING' AND ROWNUM = 1";
+
+    private static final Pattern AUTHORITY_NAME_IN_XML = Pattern.compile(
+            "<(?:\\w+:)?AuthorityName[^>]*>([^<]*)</(?:\\w+:)?AuthorityName>");
+    private static final Pattern AUTHORITY_BRIEF_IN_XML = Pattern.compile(
+            "<(?:\\w+:)?AuthorityBriefName[^>]*>([^<]*)</(?:\\w+:)?AuthorityBriefName>");
+
     private static final String SQL_REQUEST_COUNTRY_BY = ""
             + "SELECT c.COUNTRYID, TRIM(c.COUNTRYCODE) AS COUNTRYCODE, TRIM(c.COUNTRYNAME) AS COUNTRYNAME "
             + "FROM COUNTRY c "
@@ -79,11 +98,15 @@ public final class SmaCreateSupport {
         public final String requestCountryName;
         public final int draftStatusId;
         public final String draftStatusName;
+        /** Для SMAR: наименование УО из связанного SMAQ (XML). */
+        public final String linkedAuthorityName;
+        /** Для SMAR: краткое наименование УО из связанного SMAQ (XML). */
+        public final String linkedAuthorityBriefName;
 
         private GateResult(boolean allowed, String reason, long smdid, long smaqid, String docId,
                            String docCountryCode, Date docCreationDate, long requestCountryId,
                            String requestCountryCode, String requestCountryName, int draftStatusId,
-                           String draftStatusName) {
+                           String draftStatusName, String linkedAuthorityName, String linkedAuthorityBriefName) {
             this.allowed = allowed;
             this.reason = reason;
             this.smdid = smdid;
@@ -96,21 +119,24 @@ public final class SmaCreateSupport {
             this.requestCountryName = requestCountryName;
             this.draftStatusId = draftStatusId;
             this.draftStatusName = draftStatusName;
+            this.linkedAuthorityName = linkedAuthorityName;
+            this.linkedAuthorityBriefName = linkedAuthorityBriefName;
         }
 
         public static GateResult denied(String reason) {
-            return new GateResult(false, reason, 0L, 0L, null, null, null, 0L, null, null, 0, null);
+            return new GateResult(false, reason, 0L, 0L, null, null, null, 0L, null, null, 0, null, null, null);
         }
 
         public static GateResult ok(long smdid, long smaqid, String docId, String docCountryCode,
                                     Date docCreationDate, long requestCountryId, String requestCountryCode,
                                     String requestCountryName, int draftStatusId, String draftStatusName) {
             return new GateResult(true, null, smdid, smaqid, docId, docCountryCode, docCreationDate,
-                    requestCountryId, requestCountryCode, requestCountryName, draftStatusId, draftStatusName);
+                    requestCountryId, requestCountryCode, requestCountryName, draftStatusId, draftStatusName,
+                    null, null);
         }
 
         public static GateResult okLinked(long smdid, long smaqid) {
-            return new GateResult(true, null, smdid, smaqid, null, null, null, 0L, null, null, 0, null);
+            return new GateResult(true, null, smdid, smaqid, null, null, null, 0L, null, null, 0, null, null, null);
         }
     }
 
@@ -275,8 +301,29 @@ public final class SmaCreateSupport {
         }
         String newStatusName = resolveOutgoingStatusName(conn, SmaCardKind.SMAR, newStatusId);
 
-        return GateResult.ok(smdid, smaqid, docId, docCountryCode, docCreationDate,
-                0L, null, null, newStatusId, newStatusName);
+        long requestCountryId = 0L;
+        String requestCountryCode = null;
+        String requestCountryName = null;
+        try (PreparedStatement ps = conn.prepareStatement(SQL_SMAQ_REQUEST_COUNTRY)) {
+            ps.setLong(1, smaqid);
+            try (ResultSet rs = ps.executeQuery()) {
+                if (rs.next()) {
+                    requestCountryId = rs.getLong("REQUESTCOUNTRYID");
+                    if (rs.wasNull()) {
+                        requestCountryId = 0L;
+                    }
+                    requestCountryCode = rs.getString("COUNTRYCODE");
+                    requestCountryName = rs.getString("COUNTRYNAME");
+                }
+            }
+        }
+
+        String linkedAuthorityName = loadSmaqAuthorityNameFromXml(conn, smaqid);
+        String linkedAuthorityBriefName = loadSmaqAuthorityBriefNameFromXml(conn, smaqid);
+
+        return new GateResult(true, null, smdid, smaqid, docId, docCountryCode, docCreationDate,
+                requestCountryId, requestCountryCode, requestCountryName, newStatusId, newStatusName,
+                linkedAuthorityName, linkedAuthorityBriefName);
     }
 
     public static GateResult evaluateSmaqEditGate(Connection conn, long smaqId, String guid) throws SQLException {
@@ -315,8 +362,7 @@ public final class SmaCreateSupport {
         if (!rights.allowed) {
             return GateResult.denied(rights.reason);
         }
-        return evaluateOutgoingDeleteGate(conn, SmaCardKind.SMAR, smarId, guid, rights.depKeys,
-                "sanitaryMeasureOut:edit", SQL_SMAR_CORE);
+        return evaluateSmarOutgoingDeleteGate(conn, smarId, guid, rights.depKeys, "sanitaryMeasureOut:edit");
     }
 
     public static GateResult evaluateSmaqSendGate(Connection conn, long smaqId, String guid) throws SQLException {
@@ -491,6 +537,92 @@ public final class SmaCreateSupport {
                     + " не входит в доступ к связанной карте SMD (SMDDEPPERMIS)");
         }
         return GateResult.okLinked(smdid, smaqid);
+    }
+
+    /** Удаление исходящего SMAR: статус NEW и отсутствие «Ожидает отправки» (PENDING) в истории. */
+    private static GateResult evaluateSmarOutgoingDeleteGate(Connection conn, long smarId, String guid,
+                                                             Set<String> depKeys, String rightLabel)
+            throws SQLException {
+        if (guid == null || guid.trim().isEmpty() || smarId <= 0) {
+            return GateResult.denied("Не заданы идентификатор карты или guid");
+        }
+        guid = guid.trim();
+        if (!SmaAccessHelper.canViewSmar(conn, smarId, guid)) {
+            return GateResult.denied("Нет доступа к просмотру карты");
+        }
+        long smdid = 0L;
+        long smaqid = 0L;
+        String dsc = null;
+        String statusCode = null;
+        try (PreparedStatement ps = conn.prepareStatement(SQL_SMAR_CORE)) {
+            ps.setLong(1, smarId);
+            try (ResultSet rs = ps.executeQuery()) {
+                if (!rs.next()) {
+                    return GateResult.denied("Карта не найдена");
+                }
+                smdid = rs.getLong("SMDID");
+                smaqid = rs.getLong("SMAQID");
+                dsc = rs.getString("DSC");
+                statusCode = rs.getString("STCODE");
+            }
+        }
+        if (dsc == null || !DSC_OUTGOING.equals(dsc.trim())) {
+            return GateResult.denied("Удаление доступно только для исходящей карты (DATASOURCEKINDCODE=2)");
+        }
+        if (statusCode == null || !"NEW".equals(statusCode)) {
+            return GateResult.denied("Удалить ответ можно только в статусе «Новое»");
+        }
+        try (PreparedStatement ps = conn.prepareStatement(SQL_SMAR_HAS_PENDING_IN_HIST)) {
+            ps.setLong(1, smarId);
+            try (ResultSet rs = ps.executeQuery()) {
+                if (rs.next()) {
+                    return GateResult.denied("Карта уже направлялась участникам. Удаление запрещено.");
+                }
+            }
+        }
+        if (depKeys == null || depKeys.isEmpty()) {
+            return GateResult.denied("В карте прав не заданы подразделения для " + rightLabel);
+        }
+        if (!SmdDepPermisUtil.hasOverlap(conn, smdid, depKeys)) {
+            return GateResult.denied("Нет права на удаление: ни одно подразделение из " + rightLabel
+                    + " не входит в доступ к связанной карте SMD (SMDDEPPERMIS)");
+        }
+        return GateResult.okLinked(smdid, smaqid);
+    }
+
+    private static String loadSmaqAuthorityNameFromXml(Connection conn, long smaqId) throws SQLException {
+        return firstXmlMatch(conn, smaqId, AUTHORITY_NAME_IN_XML);
+    }
+
+    private static String loadSmaqAuthorityBriefNameFromXml(Connection conn, long smaqId) throws SQLException {
+        return firstXmlMatch(conn, smaqId, AUTHORITY_BRIEF_IN_XML);
+    }
+
+    private static String firstXmlMatch(Connection conn, long smaqId, Pattern pattern) throws SQLException {
+        try (PreparedStatement ps = conn.prepareStatement(SQL_SMAQ_XML_BODY)) {
+            ps.setLong(1, smaqId);
+            try (ResultSet rs = ps.executeQuery()) {
+                if (!rs.next()) {
+                    return null;
+                }
+                Clob clob = rs.getClob(1);
+                if (clob == null) {
+                    return null;
+                }
+                String xml = clob.getSubString(1, (int) clob.length());
+                if (xml == null || xml.isEmpty()) {
+                    return null;
+                }
+                Matcher m = pattern.matcher(xml);
+                while (m.find()) {
+                    String val = m.group(1);
+                    if (val != null && !val.trim().isEmpty()) {
+                        return val.trim();
+                    }
+                }
+            }
+        }
+        return null;
     }
 
     private static GateResult evaluateOutgoingSendGate(Connection conn, SmaCardKind kind, long cardId, String guid,

@@ -1195,7 +1195,7 @@ export const MeasureImplementationDetailsEdit: React.FC<{
                         ...item.documentDetails,
                         docKindCode: code ?? undefined,
                         docKindCodeListId: code ? '2009' : undefined,
-                        docKindName: undefined,
+                        docKindName: code ? getShipDocKindNameByCode(code) ?? undefined : undefined,
                       })
                     }
                     filterOption={(input, option) =>
@@ -1204,6 +1204,18 @@ export const MeasureImplementationDetailsEdit: React.FC<{
                     style={{ maxWidth: 520, width: '100%' }}
                   />
                 </Form.Item>
+                {item.documentDetails.docKindCode?.trim() ? (
+                  <Form.Item label="Наименование вида документа">
+                    <Input
+                      readOnly
+                      value={
+                        item.documentDetails.docKindName ??
+                        getShipDocKindNameByCode(item.documentDetails.docKindCode) ??
+                        ''
+                      }
+                    />
+                  </Form.Item>
+                ) : null}
                 <Form.Item label={labelWithHelp('Наименование документа', FIELD_HELP.implDocName)}>
                   <Input
                     value={item.documentDetails.docName}

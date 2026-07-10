@@ -70,6 +70,10 @@ public class SmaCreateEligibilityServlet extends HttpServlet {
             out.print(",\"requestCountryName\":" + SmaServletUtil.quote(g.requestCountryName));
             out.print(",\"draftStatusId\":" + g.draftStatusId);
             out.print(",\"draftStatusName\":" + SmaServletUtil.quote(g.draftStatusName));
+            if (target.createKind == SmaCardKind.SMAR) {
+                out.print(",\"linkedAuthorityName\":" + SmaServletUtil.quote(g.linkedAuthorityName));
+                out.print(",\"linkedAuthorityBriefName\":" + SmaServletUtil.quote(g.linkedAuthorityBriefName));
+            }
             out.print("}");
             out.flush();
         } catch (SQLException e) {

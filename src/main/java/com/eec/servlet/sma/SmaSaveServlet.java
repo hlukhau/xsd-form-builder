@@ -57,6 +57,7 @@ public class SmaSaveServlet extends HttpServlet {
         long cardId = Long.parseLong(idStr.trim());
         String smaXmlB64 = SmaServletUtil.jsonStringField(body, "smaXmlB64");
         String responseKind = SmaServletUtil.jsonStringField(body, "responseKind");
+        String authorityId = SmaServletUtil.jsonStringField(body, "authorityId");
 
         Connection conn = null;
         try {
@@ -136,7 +137,7 @@ public class SmaSaveServlet extends HttpServlet {
 
             conn.setAutoCommit(false);
             try {
-                updateCard(conn, kind, cardId, newStatusId);
+                updateCard(conn, kind, cardId, newStatusId, authorityId);
                 updateXml(conn, kind, cardId, xmlNew, edocCode);
                 if (newStatusId != currentStatusId) {
                     insertHist(conn, kind, cardId, newStatusId, userId);
@@ -197,13 +198,78 @@ public class SmaSaveServlet extends HttpServlet {
         return EDOC_SMAR_INFO;
     }
 
-    private static void updateCard(Connection conn, SmaCardKind kind, long cardId, int statusId) throws SQLException {
-        String sql = kind == SmaCardKind.SMAQ
-                ? "UPDATE SMAQ SET MODIFICATIONDATETIME = SYSDATE, SMAQSTATUSID = ? WHERE SMAQID = ? "
-                + "AND TRIM(TO_CHAR(DATASOURCEKINDCODE)) = '2'"
-                : "UPDATE SMAR SET MODIFICATIONDATETIME = SYSDATE, SMARSTATUSID = ? WHERE SMARID = ? "
-                + "AND TRIM(TO_CHAR(DATASOURCEKINDCODE)) = '2'";
-        try (PreparedStatement ps = conn.prepareStatement(sql)) {
+    private static final String SQL_UPDATE_SMAQ = ""
+            + "UPDATE SMAQ SET MODIFICATIONDATETIME = SYSDATE, SMAQSTATUSID = ?, AUTHORITYID = ? WHERE SMAQID = ? "
+            + "AND TRIM(TO_CHAR(DATASOURCEKINDCODE)) = '2'";
+
+    private static final String SQL_UPDATE_SMAQ_NO_AUTH = ""
+            + "UPDATE SMAQ SET MODIFICATIONDATETIME = SYSDATE, SMAQSTATUSID = ? WHERE SMAQID = ? "
+            + "AND TRIM(TO_CHAR(DATASOURCEKINDCODE)) = '2'";
+
+    private static final String SQL_UPDATE_SMAR = ""
+            + "UPDATE SMAR SET MODIFICATIONDATETIME = SYSDATE, SMARSTATUSID = ?, RESPONSECOUNTRYID = ? "
+            + "WHERE SMARID = ? AND TRIM(TO_CHAR(DATASOURCEKINDCODE)) = '2'";
+
+    private static final String SQL_UPDATE_SMAR_NO_RESP_COUNTRY = ""
+            + "UPDATE SMAR SET MODIFICATIONDATETIME = SYSDATE, SMARSTATUSID = ? WHERE SMARID = ? "
+            + "AND TRIM(TO_CHAR(DATASOURCEKINDCODE)) = '2'";
+
+    private static final String SQL_SMAQ_REQUEST_COUNTRY_BY_SMAR = ""
+            + "SELECT sq.REQUESTCOUNTRYID FROM SMAR smar "
+            + "JOIN SMAQ sq ON sq.SMAQID = smar.SMAQID WHERE smar.SMARID = ?";
+
+    private static void updateCard(Connection conn, SmaCardKind kind, long cardId, int statusId,
+                                   String authorityId) throws SQLException {
+        if (kind == SmaCardKind.SMAQ) {
+            Integer resolvedAuthorityId = com.eec.util.SmrAuthorityDbSupport.resolveAuthorityId(conn, authorityId);
+            try (PreparedStatement ps = conn.prepareStatement(SQL_UPDATE_SMAQ)) {
+                ps.setInt(1, statusId);
+                if (resolvedAuthorityId != null) {
+                    ps.setInt(2, resolvedAuthorityId);
+                } else {
+                    ps.setNull(2, java.sql.Types.INTEGER);
+                }
+                ps.setLong(3, cardId);
+                int n = ps.executeUpdate();
+                if (n != 1) {
+                    throw new SQLException("UPDATE SMAQ: ожидалась одна строка, обновлено " + n);
+                }
+                return;
+            } catch (SQLException e) {
+                if (!(e.getMessage() != null && e.getMessage().contains("ORA-00904"))) {
+                    throw e;
+                }
+            }
+            try (PreparedStatement ps = conn.prepareStatement(SQL_UPDATE_SMAQ_NO_AUTH)) {
+                ps.setInt(1, statusId);
+                ps.setLong(2, cardId);
+                int n = ps.executeUpdate();
+                if (n != 1) {
+                    throw new SQLException("UPDATE SMAQ: ожидалась одна строка, обновлено " + n);
+                }
+                return;
+            }
+        }
+        long responseCountryId = resolveSmarResponseCountryId(conn, cardId);
+        try (PreparedStatement ps = conn.prepareStatement(SQL_UPDATE_SMAR)) {
+            ps.setInt(1, statusId);
+            if (responseCountryId > 0) {
+                ps.setLong(2, responseCountryId);
+            } else {
+                ps.setNull(2, java.sql.Types.BIGINT);
+            }
+            ps.setLong(3, cardId);
+            int n = ps.executeUpdate();
+            if (n != 1) {
+                throw new SQLException("UPDATE SMAR: ожидалась одна строка, обновлено " + n);
+            }
+            return;
+        } catch (SQLException e) {
+            if (!(e.getMessage() != null && e.getMessage().contains("ORA-00904"))) {
+                throw e;
+            }
+        }
+        try (PreparedStatement ps = conn.prepareStatement(SQL_UPDATE_SMAR_NO_RESP_COUNTRY)) {
             ps.setInt(1, statusId);
             ps.setLong(2, cardId);
             int n = ps.executeUpdate();
@@ -211,6 +277,19 @@ public class SmaSaveServlet extends HttpServlet {
                 throw new SQLException("UPDATE: ожидалась одна строка, обновлено " + n);
             }
         }
+    }
+
+    private static long resolveSmarResponseCountryId(Connection conn, long smarId) throws SQLException {
+        try (PreparedStatement ps = conn.prepareStatement(SQL_SMAQ_REQUEST_COUNTRY_BY_SMAR)) {
+            ps.setLong(1, smarId);
+            try (ResultSet rs = ps.executeQuery()) {
+                if (rs.next()) {
+                    long id = rs.getLong("REQUESTCOUNTRYID");
+                    return rs.wasNull() ? 0L : id;
+                }
+            }
+        }
+        return 0L;
     }
 
     private static void updateXml(Connection conn, SmaCardKind kind, long cardId, String xml, String edocCode)
