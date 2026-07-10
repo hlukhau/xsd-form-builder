@@ -191,6 +191,8 @@ export interface AuthorityOption {
   name: string
   briefName: string
   countryCode: string
+  /** Числовой AUTHORITYID из справочника (для сохранения в SMR.AUTHORITYID). */
+  authorityId?: number
 }
 
 export interface SanitaryProdTypeOption {

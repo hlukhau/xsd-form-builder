@@ -141,6 +141,7 @@ public class SmrCreateSaveServlet extends HttpServlet {
                 Integer resolvedAuthorityId = SmrAuthorityDbSupport.resolveAuthorityId(conn, authorityId);
                 insertSmrWithOptionalAuthority(conn, smrId, smdid, gate.docId, gate.draftSmrStatusId,
                         gate.responseCountryId, resolvedAuthorityId);
+                SmrAuthorityDbSupport.updateSmrAuthorityId(conn, smrId, resolvedAuthorityId);
                 try (PreparedStatement ps = conn.prepareStatement(SQL_INSERT_SMRXML)) {
                     ps.setLong(1, smrId);
                     ps.setString(2, xml);

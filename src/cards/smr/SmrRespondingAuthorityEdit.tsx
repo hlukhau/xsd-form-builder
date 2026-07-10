@@ -7,6 +7,8 @@ import { FIELD_HELP } from '@/constants/fieldDescriptions'
 export interface SmrRespondingAuthorityValue {
   country: string
   authorityUid?: string
+  /** Числовой AUTHORITYID из справочника */
+  authorityDbId?: number
   name: string
   shortName: string
 }
@@ -46,13 +48,25 @@ export function SmrRespondingAuthorityEdit({
       return
     }
     const match = authorityOptions.find((o) => (o.name ?? '').trim() === name)
-    setSelectedUid(match?.uid)
-  }, [value.authorityUid, value.name, authorityOptions])
+    if (match?.uid) {
+      setSelectedUid(match.uid)
+      onChange({
+        ...value,
+        authorityUid: match.uid,
+        authorityDbId: match.authorityId,
+        name: match.name,
+        shortName: match.briefName || '',
+        country: match.countryCode || value.country,
+      })
+    } else {
+      setSelectedUid(undefined)
+    }
+  }, [value.authorityUid, value.name, authorityOptions, onChange, value])
 
   const handleSelect = (uid: string | null) => {
     if (!uid) {
       setSelectedUid(undefined)
-      onChange({ ...value, authorityUid: undefined, name: '', shortName: '' })
+      onChange({ ...value, authorityUid: undefined, authorityDbId: undefined, name: '', shortName: '' })
       return
     }
     const authority = getAuthorityByUid(uid)
@@ -62,12 +76,13 @@ export function SmrRespondingAuthorityEdit({
         ...value,
         country: authority.countryCode || value.country,
         authorityUid: uid,
+        authorityDbId: authority.authorityId,
         name: authority.name,
         shortName: authority.briefName || '',
       })
     } else {
       setSelectedUid(uid)
-      onChange({ ...value, authorityUid: uid })
+      onChange({ ...value, authorityUid: uid, authorityDbId: undefined })
     }
   }
 

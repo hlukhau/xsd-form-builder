@@ -13,6 +13,19 @@ public final class SmrAuthorityDbSupport {
     private static final String SQL_AUTHORITY_ID_BY_UID =
             "SELECT AUTHORITYID FROM AUTHORITY WHERE TRIM(AUTHORITYUID) = ?";
 
+    private static final String SQL_AUTHORITY_ID_BY_UID_SESINT =
+            "SELECT AUTHORITYID FROM SESINT.AUTHORITY WHERE TRIM(AUTHORITYUID) = ?";
+
+    private static final String SQL_AUTHORITY_ID_EXISTS =
+            "SELECT AUTHORITYID FROM AUTHORITY WHERE AUTHORITYID = ?";
+
+    private static final String SQL_AUTHORITY_ID_EXISTS_SESINT =
+            "SELECT AUTHORITYID FROM SESINT.AUTHORITY WHERE AUTHORITYID = ?";
+
+    private static final String SQL_UPDATE_SMR_AUTHORITY =
+            "UPDATE SMR SET AUTHORITYID = ? WHERE SMRID = ? "
+            + "AND TRIM(TO_CHAR(DATASOURCEKINDCODE)) = '2'";
+
     private SmrAuthorityDbSupport() {
     }
 
@@ -24,14 +37,71 @@ public final class SmrAuthorityDbSupport {
             return null;
         }
         String trimmed = authorityIdStr.trim();
-        try (PreparedStatement ps = conn.prepareStatement(SQL_AUTHORITY_ID_BY_UID)) {
-            ps.setString(1, trimmed);
+        Integer byUid = lookupAuthorityIdByUid(conn, SQL_AUTHORITY_ID_BY_UID, trimmed);
+        if (byUid != null) {
+            return byUid;
+        }
+        byUid = lookupAuthorityIdByUid(conn, SQL_AUTHORITY_ID_BY_UID_SESINT, trimmed);
+        if (byUid != null) {
+            return byUid;
+        }
+        try {
+            int numericId = Integer.parseInt(trimmed);
+            if (numericId > 0 && authorityIdExists(conn, numericId)) {
+                return numericId;
+            }
+        } catch (NumberFormatException ignored) {
+            // not a numeric AUTHORITYID
+        }
+        return null;
+    }
+
+    /** Записывает AUTHORITYID после INSERT SMR (как при редактировании через UPDATE). */
+    public static void updateSmrAuthorityId(Connection conn, long smrId, Integer authorityId) throws SQLException {
+        if (authorityId == null) {
+            return;
+        }
+        try (PreparedStatement ps = conn.prepareStatement(SQL_UPDATE_SMR_AUTHORITY)) {
+            ps.setInt(1, authorityId);
+            ps.setLong(2, smrId);
+            ps.executeUpdate();
+        } catch (SQLException e) {
+            String m = e.getMessage() != null ? e.getMessage() : "";
+            if (!m.contains("ORA-00904")) {
+                throw e;
+            }
+        }
+    }
+
+    private static Integer lookupAuthorityIdByUid(Connection conn, String sql, String uid) throws SQLException {
+        try (PreparedStatement ps = conn.prepareStatement(sql)) {
+            ps.setString(1, uid);
             try (ResultSet rs = ps.executeQuery()) {
                 if (rs.next()) {
-                    return rs.getInt("AUTHORITYID");
+                    int id = rs.getInt("AUTHORITYID");
+                    return rs.wasNull() ? null : id;
                 }
             }
         }
         return null;
+    }
+
+    private static boolean authorityIdExists(Connection conn, int authorityId) throws SQLException {
+        for (String sql : new String[]{SQL_AUTHORITY_ID_EXISTS, SQL_AUTHORITY_ID_EXISTS_SESINT}) {
+            try (PreparedStatement ps = conn.prepareStatement(sql)) {
+                ps.setInt(1, authorityId);
+                try (ResultSet rs = ps.executeQuery()) {
+                    if (rs.next()) {
+                        return true;
+                    }
+                }
+            } catch (SQLException e) {
+                String m = e.getMessage() != null ? e.getMessage() : "";
+                if (!m.contains("ORA-00904") && !m.contains("ORA-00942")) {
+                    throw e;
+                }
+            }
+        }
+        return false;
     }
 }

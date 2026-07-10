@@ -196,7 +196,12 @@ public class AuthorityOptionsServlet extends HttpServlet {
                 briefName = briefName.replace("\\", "\\\\").replace("\"", "\\\"");
                 code = code.replace("\\", "\\\\").replace("\"", "\\\"");
                 
-                out.print("{\"uid\":\"" + uid + "\",\"name\":\"" + name + "\",\"briefName\":\"" + briefName + "\",\"countryCode\":\"" + code + "\"}");
+                out.print("{\"uid\":\"" + uid + "\",\"name\":\"" + name + "\",\"briefName\":\"" + briefName
+                        + "\",\"countryCode\":\"" + code + "\"");
+                if (authority.authorityId != null) {
+                    out.print(",\"authorityId\":" + authority.authorityId);
+                }
+                out.print("}");
             }
             
             out.print("]");

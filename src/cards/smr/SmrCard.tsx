@@ -140,6 +140,7 @@ export function SmrCard({ smrId, guid, meta, parsed, onDataRefresh }: SmrCardPro
   const [authEdit, setAuthEdit] = useState({
     country: '',
     authorityUid: undefined as string | undefined,
+    authorityDbId: undefined as number | undefined,
     name: '',
     shortName: '',
   })
@@ -320,11 +321,14 @@ export function SmrCard({ smrId, guid, meta, parsed, onDataRefresh }: SmrCardPro
         return
       }
       const fullXml = exportSmrParsedBundleToXml(bundle)
+      const resolvedAuthorityId =
+        authEdit.authorityUid?.trim() ||
+        (authEdit.authorityDbId != null ? String(authEdit.authorityDbId) : undefined)
       await postSmrSave({
         guid: g,
         smrId,
         smrXmlB64: utf8ToBase64(fullXml),
-        authorityId: authEdit.authorityUid?.trim() || undefined,
+        authorityId: resolvedAuthorityId,
       })
       setSaveBlockingErrorsVisible(false)
       setSaveBlockingErrors([])
@@ -834,6 +838,7 @@ export function SmrCard({ smrId, guid, meta, parsed, onDataRefresh }: SmrCardPro
                           setAuthEdit({
                             country: next.country,
                             authorityUid: next.authorityUid,
+                            authorityDbId: next.authorityDbId,
                             name: next.name,
                             shortName: next.shortName,
                           })

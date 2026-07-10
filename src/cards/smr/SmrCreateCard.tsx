@@ -65,6 +65,7 @@ export function SmrCreateCard({ eligibility, smdid, guid }: SmrCreateCardProps) 
   const [authEdit, setAuthEdit] = useState({
     country: 'BY',
     authorityUid: undefined as string | undefined,
+    authorityDbId: undefined as number | undefined,
     name: '',
     shortName: '',
   })
@@ -131,11 +132,14 @@ export function SmrCreateCard({ eligibility, smdid, guid }: SmrCreateCardProps) 
         return
       }
       const xml = exportSmrParsedBundleToXml(bundle)
+      const resolvedAuthorityId =
+        authEdit.authorityUid?.trim() ||
+        (authEdit.authorityDbId != null ? String(authEdit.authorityDbId) : undefined)
       const { smrId } = await postSmrCreateSave({
         guid: guid.trim(),
         smdid,
         smrXmlB64: utf8ToBase64(xml),
-        authorityId: authEdit.authorityUid?.trim() || undefined,
+        authorityId: resolvedAuthorityId,
         authorityName: authEdit.name.trim() || undefined,
         authorityBriefName: authEdit.shortName.trim() || undefined,
         descriptionText: descriptionText.trim() || undefined,
@@ -258,6 +262,7 @@ export function SmrCreateCard({ eligibility, smdid, guid }: SmrCreateCardProps) 
                         setAuthEdit({
                           country: next.country,
                           authorityUid: next.authorityUid,
+                          authorityDbId: next.authorityDbId,
                           name: next.name,
                           shortName: next.shortName,
                         })
