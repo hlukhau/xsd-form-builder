@@ -428,35 +428,32 @@ public final class SmaCreateSupport {
         if (kind == null || cardId <= 0 || guid == null || guid.trim().isEmpty()) {
             return GateResult.denied("Не заданы вид карты, идентификатор или guid");
         }
+        // Входящий SMAQ: статус «Ответ направлен» / PROCESSED только после успешной отправки ответа системой.
+        if (kind == SmaCardKind.SMAQ) {
+            return GateResult.denied(
+                    "Завершение обработки недоступно для карты запроса: статус меняется при отправке ответа");
+        }
         guid = guid.trim();
-        boolean canView = kind == SmaCardKind.SMAQ
-                ? SmaAccessHelper.canViewSmaq(conn, cardId, guid)
-                : SmaAccessHelper.canViewSmar(conn, cardId, guid);
+        boolean canView = SmaAccessHelper.canViewSmar(conn, cardId, guid);
         if (!canView) {
             return GateResult.denied("Нет доступа к просмотру карты");
         }
 
-        String sql = kind == SmaCardKind.SMAQ ? SQL_SMAQ_CORE : SQL_SMAR_CORE;
         long smdid = 0L;
         long smaqid = 0L;
         String dsc = null;
         String statusCode = null;
-        try (PreparedStatement ps = conn.prepareStatement(sql)) {
+        try (PreparedStatement ps = conn.prepareStatement(SQL_SMAR_CORE)) {
             ps.setLong(1, cardId);
             try (ResultSet rs = ps.executeQuery()) {
                 if (!rs.next()) {
                     return GateResult.denied("Карта не найдена");
                 }
                 smdid = rs.getLong("SMDID");
-                if (kind == SmaCardKind.SMAR) {
-                    smaqid = rs.getLong("SMAQID");
-                }
+                smaqid = rs.getLong("SMAQID");
                 dsc = rs.getString("DSC");
                 statusCode = rs.getString("STCODE");
             }
-        }
-        if (kind == SmaCardKind.SMAQ && smdid <= 0) {
-            return GateResult.denied("У карты SMAQ не задана связь с SMD (SMDID)");
         }
         if (dsc == null || !DSC_INCOMING.equals(dsc.trim())) {
             return GateResult.denied("Завершение обработки доступно только для входящей карты (DATASOURCEKINDCODE=1)");
@@ -473,9 +470,6 @@ public final class SmaCreateSupport {
         if (!SmdDepPermisUtil.hasOverlap(conn, smdid, statusDepKeys)) {
             return GateResult.denied("Нет права: ни одно подразделение из sanitaryMeasureIn:status "
                     + "не входит в доступ к связанной карте SMD (SMDDEPPERMIS)");
-        }
-        if (kind == SmaCardKind.SMAQ) {
-            return GateResult.okLinked(smdid, 0L);
         }
         return GateResult.okLinked(smdid, smaqid);
     }
