@@ -2443,7 +2443,8 @@ function parseOrganizationDetails(placeElement: Element): BusinessEntityDetails 
     addresses.length > 0 ||
     contacts.length > 0
   if (!hasOrgContent) {
-    return undefined
+    // Тег OrganizationDetails в XML есть, но без содержимого — сохраняем пустой блок для валидации (кейс 4).
+    return {}
   }
   
   return {

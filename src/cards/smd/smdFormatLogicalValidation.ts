@@ -24,6 +24,7 @@ import { hasMeasureImplementationEntryContent, hasIdentityDocV3Content, hasSuppl
 import { hasPhaPatientGroupExportContent } from '@/cards/pha/phaPatientGroupXml'
 import { hasMeasureDocDetailsContent } from './smdXmlExporter'
 import { getSmdPrimaryMeasure } from './smdSanitaryMeasureModel'
+import { resolveSmdMeasureStartDate } from './smdMeasureDates'
 
 function empty(s: string | undefined | null): boolean {
   return s == null || String(s).trim() === ''
@@ -233,6 +234,8 @@ function smdPublicHealthIncidentCoreSpecified(data: CardData): boolean {
 }
 
 function smdPublicHealthIncidentSpecified(data: CardData): boolean {
+  if (data.detectionPlace?.organization !== undefined) return true
+  if (spreadingZonesList(data).some((z) => z.organization !== undefined)) return true
   return smdPublicHealthIncidentCoreSpecified(data) || smdAuxiliaryPublicHealthIncidentFields(data)
 }
 
@@ -307,6 +310,10 @@ function validateSanitaryMeasureSection(
   data: CardData,
   add: (msg: string) => void
 ): void {
+  if (!resolveSmdMeasureStartDate(data)) {
+    add('В составе сведений о  временной санитарной мере должна быть указана дата начала')
+  }
+
   if (empty(measure.measureCode) && empty(measure.measureName)) {
     add(
       'В составе каждого набора сведений о  временной санитарной мере должен быть указан или Код принятой меры, или ее Наименование'

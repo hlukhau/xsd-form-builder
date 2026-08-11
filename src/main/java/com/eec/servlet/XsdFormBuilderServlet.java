@@ -327,7 +327,9 @@ public class XsdFormBuilderServlet extends HttpServlet {
         System.out.println("[XsdFormBuilderServlet] Path parts count: " + parts.length + ", parts: " + java.util.Arrays.toString(parts));
 
         // Если путь содержит 2 сегмента: /{context}/{DPAID|PHAID}/{GUID}
-        // Опционально: ?command=copy или ?command=delete — вызов API без нажатия кнопки (без проверки прав)
+        // Опционально: ?command=copy или ?command=delete — вызов API/сценария без нажатия кнопки (реестр).
+        // delete: DPA/PPV/PHA/SMD → соответствующий /api/.../delete
+        // copy: SPA + autoRunCopyFromUrl на фронте
         if (parts.length == 2) {
             String dpaidStr = parts[0];
             String guid = parts[1];
@@ -342,24 +344,36 @@ public class XsdFormBuilderServlet extends HttpServlet {
             if (command != null && !command.trim().isEmpty()) {
                 String cmd = command.trim().toLowerCase();
                 if ("delete".equals(cmd)) {
-                    long dpaid;
+                    long cardId;
                     try {
-                        dpaid = Long.parseLong(dpaidStr);
+                        cardId = Long.parseLong(dpaidStr);
                     } catch (NumberFormatException e) {
                         response.setStatus(HttpServletResponse.SC_BAD_REQUEST);
                         response.setContentType("application/json;charset=UTF-8");
-                        response.getWriter().print("{\"success\":false,\"message\":\"Неверный DPAID\"}");
+                        response.getWriter().print("{\"success\":false,\"message\":\"Неверный идентификатор карты\"}");
                         return;
                     }
                     String uri = request.getRequestURI();
                     boolean phaContext = uri != null && uri.contains("/pha_card/");
                     boolean ppvContext = uri != null && uri.contains("/ppv_card/");
-                    String body = phaContext
-                            ? "{\"phaid\":" + dpaid + ",\"guid\":\"" + escapeJsonString(guid) + "\"}"
-                            : "{\"dpaid\":" + dpaid + ",\"guid\":\"" + escapeJsonString(guid) + "\"}";
+                    boolean smdContext = uri != null && uri.contains("/smd_card/");
+                    String body;
+                    String deleteApi;
+                    if (phaContext) {
+                        body = "{\"phaid\":" + cardId + ",\"guid\":\"" + escapeJsonString(guid) + "\"}";
+                        deleteApi = "/api/pha/delete";
+                    } else if (ppvContext) {
+                        body = "{\"dpaid\":" + cardId + ",\"guid\":\"" + escapeJsonString(guid) + "\"}";
+                        deleteApi = "/api/ppv/delete";
+                    } else if (smdContext) {
+                        body = "{\"smdid\":" + cardId + ",\"guid\":\"" + escapeJsonString(guid) + "\"}";
+                        deleteApi = "/api/smd/delete";
+                    } else {
+                        body = "{\"dpaid\":" + cardId + ",\"guid\":\"" + escapeJsonString(guid) + "\"}";
+                        deleteApi = "/api/dpa/delete";
+                    }
                     HttpServletRequest wrapped = new PostBodyRequestWrapper(request, body, true);
                     try {
-                        String deleteApi = phaContext ? "/api/pha/delete" : ppvContext ? "/api/ppv/delete" : "/api/dpa/delete";
                         request.getRequestDispatcher(deleteApi).forward(wrapped, response);
                     } catch (Exception e) {
                         System.err.println("[XsdFormBuilderServlet] command=delete forward error: " + e.getMessage());

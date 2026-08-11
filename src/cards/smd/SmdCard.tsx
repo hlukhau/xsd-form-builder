@@ -52,6 +52,8 @@ interface SmdCardProps {
   onUpdate?: (data: CardData) => void
   onSaveNewCard?: (smdid: number) => void
   onMetaUpdate?: (meta: SmdMetadata) => void
+  /** Автоматически выполнить сценарий «Новая версия» (URL ?command=copy), как DPA/PHA. */
+  autoRunCopyFromUrl?: boolean
 }
 
 const CARD_STICKY_HEADER_STYLE: CSSProperties = {
@@ -83,8 +85,10 @@ const SmdCard: React.FC<SmdCardProps> = ({
   onUpdate,
   onSaveNewCard,
   onMetaUpdate,
+  autoRunCopyFromUrl,
 }) => {
   const copyFromSmdidRef = useRef<number | undefined>(undefined)
+  const copyCommandHandledRef = useRef(false)
   const loadedCardKeyRef = useRef<string>('')
   useEffect(() => {
     if (copyFromSmdid != null && copyFromSmdid > 0) {
@@ -498,7 +502,7 @@ const SmdCard: React.FC<SmdCardProps> = ({
     )
   }
 
-  const handleCopy = async () => {
+  const handleCopy = useCallback(async () => {
     if (!effectiveSmdid || !guid || !onMakeCopy) return
     try {
       const res = await canCreateSmdNewVersion(effectiveSmdid, guid)
@@ -526,7 +530,14 @@ const SmdCard: React.FC<SmdCardProps> = ({
     } catch (e) {
       message.error(e instanceof Error ? e.message : 'Ошибка проверки возможности создания новой версии')
     }
-  }
+  }, [effectiveSmdid, guid, onMakeCopy, meta.smdVersion, data])
+
+  useEffect(() => {
+    if (!autoRunCopyFromUrl) return
+    if (copyCommandHandledRef.current) return
+    copyCommandHandledRef.current = true
+    void handleCopy()
+  }, [autoRunCopyFromUrl, handleCopy])
 
   const handleCancelEdit = () => {
     setEditedData(data)

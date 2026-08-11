@@ -711,6 +711,7 @@ function SmdAppContent() {
           }
           navigate(`/-/${guid ?? ''}`, { state: { newVersionFrom: sourceSmdid, initialCardData } })
         }}
+        autoRunCopyFromUrl={(searchParams.get('command') ?? '').toLowerCase() === 'copy'}
         onMetaUpdate={setMeta}
         onCardDeleted={() => {
           markCardDeletedInSession()
