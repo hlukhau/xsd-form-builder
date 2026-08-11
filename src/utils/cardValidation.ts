@@ -33,6 +33,11 @@ import {
   businessEntityIdMethodPairRemarks,
   pushBusinessEntityIdMethodPairErrors,
 } from '@/utils/businessEntityIdentificationValidation'
+import {
+  isRegistrationCertificateDocKind,
+  registrationCertificateDocIdMatchesAuthorityCountry,
+  REGISTRATION_CERTIFICATE_COUNTRY_MISMATCH_REMARK,
+} from '@/utils/registrationCertificateCountryMatch'
 
 export interface ValidationResult {
   success: boolean
@@ -705,6 +710,20 @@ export function validateOutgoingCard(data: CardData): ValidationResult {
     if (empty(doc?.authority?.authorityName)) {
       add(sectionCompliance, 'Для каждого документа об оценке соответствия продукции должно быть указано наименование уполномоченного органа')
     }
+  }
+  let registrationCertCountryMismatch = false
+  for (const doc of complianceList) {
+    if (!isRegistrationCertificateDocKind(doc?.docKindCode)) continue
+    const docId = (doc?.docId ?? doc?.registrationCertificateId ?? '').trim()
+    const country = (doc?.authority?.country ?? '').trim()
+    if (!docId || !country) continue
+    if (!registrationCertificateDocIdMatchesAuthorityCountry(docId, country)) {
+      registrationCertCountryMismatch = true
+      break
+    }
+  }
+  if (registrationCertCountryMismatch) {
+    add(sectionCompliance, REGISTRATION_CERTIFICATE_COUNTRY_MISMATCH_REMARK)
   }
   if (sectionCompliance.remarks.length) sections.push(sectionCompliance)
 

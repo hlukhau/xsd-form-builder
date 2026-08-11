@@ -20,6 +20,10 @@ import { DpaEmbeddedUnifiedAuthorityForm } from '@/components/common/DpaEmbedded
 import { requestLabProtocols, LAB_PROTOCOLS_RESPONSE_ERROR_MESSAGE } from '@/utils/referenceDataApi'
 import { parseLabProtocolsXml } from '@/utils/labProtocolsXmlParser'
 import {
+  LAB_PROTOCOLS_DOC_ID_COUNTRY_MISMATCH_WARNING,
+  registrationCertificateDocIdMatchesAuthorityCountry,
+} from '@/utils/registrationCertificateCountryMatch'
+import {
   getAddressListFromParty,
   formatAddressList,
   formatAddressLine,
@@ -148,6 +152,10 @@ const ComplianceDocumentsTabEdit: React.FC<ComplianceDocumentsTabEditProps> = ({
     const countryCode = doc.authority?.country?.trim()
     if (!countryCode) {
       message.warning('Код страны уполномоченного органа не указан')
+      return
+    }
+    if (!registrationCertificateDocIdMatchesAuthorityCountry(docId, countryCode)) {
+      message.warning(LAB_PROTOCOLS_DOC_ID_COUNTRY_MISMATCH_WARNING)
       return
     }
     setProtocolsLoading(true)

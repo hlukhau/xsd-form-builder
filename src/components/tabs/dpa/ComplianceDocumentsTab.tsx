@@ -20,6 +20,10 @@ import { useMediaTypeOptions } from '@/hooks/shared/useMediaTypeOptions'
 import { requestLabProtocols, LAB_PROTOCOLS_RESPONSE_ERROR_MESSAGE } from '@/utils/referenceDataApi'
 import { parseLabProtocolsXml } from '@/utils/labProtocolsXmlParser'
 import type { LaboratoryProtocolsData } from '@/types/card'
+import {
+  LAB_PROTOCOLS_DOC_ID_COUNTRY_MISMATCH_WARNING,
+  registrationCertificateDocIdMatchesAuthorityCountry,
+} from '@/utils/registrationCertificateCountryMatch'
 
 interface ComplianceDocumentsTabProps {
   /** По XSD документы соответствия только в tsd.batches[].complianceDocuments */
@@ -214,6 +218,10 @@ const ComplianceDocumentsTab: React.FC<ComplianceDocumentsTabProps> = ({
     const countryCode = doc.authority?.country?.trim()
     if (!countryCode) {
       message.warning('Код страны уполномоченного органа не указан')
+      return
+    }
+    if (!registrationCertificateDocIdMatchesAuthorityCountry(docId, countryCode)) {
+      message.warning(LAB_PROTOCOLS_DOC_ID_COUNTRY_MISMATCH_WARNING)
       return
     }
 
