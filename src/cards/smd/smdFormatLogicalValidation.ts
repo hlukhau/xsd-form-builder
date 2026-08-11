@@ -277,16 +277,24 @@ function collectDiseasePlaceRemarks(
   const remarks: string[] = []
   const add = (msg: string) => remarks.push(msg)
 
-  if (!hasPlaceAnyBlock(place)) {
-    add(
-      'Должен быть заполнен хотя бы один из  следующих реквизитов: Организация, Пункт пропуска, Адрес или Географические координаты'
-    )
-    return remarks
-  }
-
+  // Кейс 4: тег OrganizationDetails есть (в т.ч. пустой {}) — проверяем до early-return.
   const o = place?.organization
   if (o !== undefined) {
-    validateOrganizationInDiseasePlace(o, add, contactScopePhrase as 'организации места обнаружения' | 'организации зоны распространения')
+    validateOrganizationInDiseasePlace(
+      o,
+      add,
+      contactScopePhrase as 'организации места обнаружения' | 'организации зоны распространения'
+    )
+  }
+
+  if (!hasPlaceAnyBlock(place)) {
+    // Если организация уже заявлена тегом, замечание кейса 4 выше достаточно.
+    if (o === undefined) {
+      add(
+        'Должен быть заполнен хотя бы один из  следующих реквизитов: Организация, Пункт пропуска, Адрес или Географические координаты'
+      )
+    }
+    return remarks
   }
 
   const bc = place?.borderCheckpoint
@@ -820,7 +828,9 @@ function validateDiseaseSection(data: CardData, add: (msg: string) => void): voi
   }
 
   const detectionPlaceTouched =
-    hasPlaceAnyBlock(data.detectionPlace) || !!(data.detectionPlace?.description ?? '').trim()
+    hasPlaceAnyBlock(data.detectionPlace) ||
+    !!(data.detectionPlace?.description ?? '').trim() ||
+    data.detectionPlace?.organization !== undefined
   if (detectionPlaceTouched) {
     for (const msg of collectDiseasePlaceRemarks(
       data.detectionPlace,
@@ -828,12 +838,6 @@ function validateDiseaseSection(data: CardData, add: (msg: string) => void): voi
     )) {
       push(msg)
     }
-  } else if (data.detectionPlace?.organization !== undefined) {
-    validateOrganizationInDiseasePlace(
-      data.detectionPlace.organization,
-      push,
-      'организации места обнаружения'
-    )
   }
 
   for (const zone of spreadingZonesList(data)) {

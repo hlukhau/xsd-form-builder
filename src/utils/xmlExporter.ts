@@ -668,7 +668,8 @@ function hasIndicatorContent(ind: ViolatedIndicator | undefined): boolean {
 /** Есть ли контент у места обнаружения/зоны распространения (с учётом вложенных пустых). */
 function hasDetectionPlaceContent(place: DetectionPlaceData | undefined): boolean {
   if (!place) return false
-  if (place.organization && hasOrganizationContent(place.organization)) return true
+  // Пустой OrganizationDetails ({}) из XML тоже считаем контентом — иначе тег теряется при сохранении (кейс 4).
+  if (place.organization !== undefined) return true
   if (place.borderCheckpoint && (place.borderCheckpoint.checkpointCode?.trim() || place.borderCheckpoint.checkpointName?.trim())) return true
   if (place.address && hasAddressContent(place.address)) return true
   if (place.geoCoordinates?.some(c => (c.longitude ?? '').trim() || (c.latitude ?? '').trim())) return true
@@ -1024,46 +1025,54 @@ export function exportDetectionPlace(
   if (!hasDetectionPlaceContent(place)) return
   xmlParts.push(`${indent}<smcdo:${wrapperTag}>`)
   // Порядок по XSD LocationDetailsType: OrganizationDetails, BorderCheckpointDetails, ObjectAddressDetails, GeoCoordinateDetails, DescriptionText
-  if (place.organization && hasOrganizationContent(place.organization)) {
+  if (place.organization !== undefined) {
     xmlParts.push(`${indent}    <smcdo:OrganizationDetails>`)
-    if (place.organization.country) {
-      xmlParts.push(`${indent}        <csdo:UnifiedCountryCode codeListId="2021">${escapeXML(place.organization.country)}</csdo:UnifiedCountryCode>`)
-    }
-    if (place.organization.businessEntityName) xmlParts.push(`${indent}        <csdo:BusinessEntityName>${escapeXML(place.organization.businessEntityName)}</csdo:BusinessEntityName>`)
-    if (place.organization.businessEntityBriefName) xmlParts.push(`${indent}        <csdo:BusinessEntityBriefName>${escapeXML(place.organization.businessEntityBriefName)}</csdo:BusinessEntityBriefName>`)
-    appendBusinessEntityLegalFormToXml(xmlParts, `${indent}        `, {
-      businessEntityTypeCode: place.organization.businessEntityTypeCode,
-      businessEntityTypeCodeListId: place.organization.businessEntityTypeCodeListId,
-      organizationalForm: (place.organization as unknown as SupplyChainPartyDetails).organizationalForm,
-      businessEntityTypeName: place.organization.businessEntityTypeName,
-    })
-    const orgParty = place.organization as unknown as SupplyChainPartyDetails
-    const businessEntityIdValue =
-      (place.organization.businessEntityId ?? orgParty.subjectIdentifier)?.trim() || ''
-    const idMethod = (place.organization.identificationMethod ?? '').trim()
-    if (businessEntityIdValue && idMethod) {
-      xmlParts.push(
-        `${indent}        <csdo:BusinessEntityId kindId="${escapeXML(idMethod)}">${escapeXML(businessEntityIdValue)}</csdo:BusinessEntityId>`
-      )
-    }
-    if (place.organization.customsNumber) {
-      xmlParts.push(`${indent}        <csdo:UniqueCustomsNumberId>${escapeXML(place.organization.customsNumber)}</csdo:UniqueCustomsNumberId>`)
-    }
-    if (place.organization.taxpayerId) xmlParts.push(`${indent}        <csdo:TaxpayerId>${escapeXML(place.organization.taxpayerId)}</csdo:TaxpayerId>`)
-    if (place.organization.taxRegistrationReasonCode) {
-      xmlParts.push(`${indent}        <csdo:TaxRegistrationReasonCode>${escapeXML(place.organization.taxRegistrationReasonCode)}</csdo:TaxRegistrationReasonCode>`)
-    }
-    const addrsWithContent = (place.organization.addresses ?? []).filter(hasAddressContent)
-    if (addrsWithContent.length > 0) {
-      addrsWithContent.forEach(addr => {
-        exportAddress(xmlParts, addr, addr.addressKindCode || '1', `${indent}        `)
+    if (hasOrganizationContent(place.organization)) {
+      if (place.organization.country) {
+        xmlParts.push(`${indent}        <csdo:UnifiedCountryCode codeListId="2021">${escapeXML(place.organization.country)}</csdo:UnifiedCountryCode>`)
+      }
+      if (place.organization.businessEntityName) {
+        xmlParts.push(`${indent}        <csdo:BusinessEntityName>${escapeXML(place.organization.businessEntityName)}</csdo:BusinessEntityName>`)
+      }
+      if (place.organization.businessEntityBriefName) {
+        xmlParts.push(`${indent}        <csdo:BusinessEntityBriefName>${escapeXML(place.organization.businessEntityBriefName)}</csdo:BusinessEntityBriefName>`)
+      }
+      appendBusinessEntityLegalFormToXml(xmlParts, `${indent}        `, {
+        businessEntityTypeCode: place.organization.businessEntityTypeCode,
+        businessEntityTypeCodeListId: place.organization.businessEntityTypeCodeListId,
+        organizationalForm: (place.organization as unknown as SupplyChainPartyDetails).organizationalForm,
+        businessEntityTypeName: place.organization.businessEntityTypeName,
       })
-    }
-    const contactsWithContent = (place.organization.contacts ?? []).filter(hasContactContent)
-    if (contactsWithContent.length > 0) {
-      contactsWithContent.forEach((contact) =>
-        exportCommunicationDetailsBlock(xmlParts, contact, `${indent}        `)
-      )
+      const orgParty = place.organization as unknown as SupplyChainPartyDetails
+      const businessEntityIdValue =
+        (place.organization.businessEntityId ?? orgParty.subjectIdentifier)?.trim() || ''
+      const idMethod = (place.organization.identificationMethod ?? '').trim()
+      if (businessEntityIdValue && idMethod) {
+        xmlParts.push(
+          `${indent}        <csdo:BusinessEntityId kindId="${escapeXML(idMethod)}">${escapeXML(businessEntityIdValue)}</csdo:BusinessEntityId>`
+        )
+      }
+      if (place.organization.customsNumber) {
+        xmlParts.push(`${indent}        <csdo:UniqueCustomsNumberId>${escapeXML(place.organization.customsNumber)}</csdo:UniqueCustomsNumberId>`)
+      }
+      if (place.organization.taxpayerId) {
+        xmlParts.push(`${indent}        <csdo:TaxpayerId>${escapeXML(place.organization.taxpayerId)}</csdo:TaxpayerId>`)
+      }
+      if (place.organization.taxRegistrationReasonCode) {
+        xmlParts.push(`${indent}        <csdo:TaxRegistrationReasonCode>${escapeXML(place.organization.taxRegistrationReasonCode)}</csdo:TaxRegistrationReasonCode>`)
+      }
+      const addrsWithContent = (place.organization.addresses ?? []).filter(hasAddressContent)
+      if (addrsWithContent.length > 0) {
+        addrsWithContent.forEach((addr) => {
+          exportAddress(xmlParts, addr, addr.addressKindCode || '1', `${indent}        `)
+        })
+      }
+      const contactsWithContent = (place.organization.contacts ?? []).filter(hasContactContent)
+      if (contactsWithContent.length > 0) {
+        contactsWithContent.forEach((contact) =>
+          exportCommunicationDetailsBlock(xmlParts, contact, `${indent}        `)
+        )
+      }
     }
     xmlParts.push(`${indent}    </smcdo:OrganizationDetails>`)
   }

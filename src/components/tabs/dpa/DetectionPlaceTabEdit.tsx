@@ -135,7 +135,11 @@ const DetectionPlaceTabEdit: React.FC<DetectionPlaceTabEditProps> = ({ data, onC
   const handleOrganizationChange = (org: SupplyChainPartyDetails) => {
     const be = supplyChainPartyToBusinessEntity(org)
     if (detectionPlaceOrganizationEmpty(be)) {
-      onChange({ ...data, organization: undefined })
+      // Пустой OrganizationDetails из XML храним как {} — иначе кейс 4 валидации пропадает.
+      onChange({
+        ...data,
+        organization: data.organization !== undefined ? {} : undefined,
+      })
     } else {
       onChange({ ...data, organization: be })
     }
