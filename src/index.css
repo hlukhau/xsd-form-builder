@@ -1060,6 +1060,21 @@ body {
   white-space: normal;
 }
 
+/* Колонка «Действия»: ссылка «Протоколы лабораторных исследований» не обрезается */
+.compliance-doc-actions-cell {
+  vertical-align: top !important;
+  overflow: visible !important;
+  white-space: normal !important;
+}
+.compliance-doc-actions-cell .ant-btn.ant-btn-link {
+  white-space: normal !important;
+  height: auto !important;
+  line-height: 1.4;
+  padding-inline: 0;
+  text-align: left;
+  max-width: 100%;
+}
+
 /* Принятые меры: многострочное отображение "Наименование меры" в Select */
 .measures-edit-table .measure-name-cell .ant-select {
   width: 100%;

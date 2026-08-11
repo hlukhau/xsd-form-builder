@@ -12,7 +12,6 @@ import {
   buildSmdProductBatchSummaryLabel,
   createEmptySmdProductBatch,
   formatSanitaryProductTypeLabel,
-  getSmdBatchPrimaryRow,
   normalizeProductData,
   normalizeTsdData,
   patchSmdProductBatchSummary,
@@ -108,7 +107,6 @@ const SmdProductsTabEdit: React.FC<SmdProductsTabEditProps> = ({ data, onChange,
       batches.map((b, i) => {
         const product = b.product
         const pd = product?.productDetails
-        const primaryBatch = getSmdBatchPrimaryRow(b)
         return {
           key: b.key || `row-${i}`,
           productName: pd?.productName?.trim() || b.summaryLabel?.trim() || `Продукция ${i + 1}`,
@@ -118,7 +116,7 @@ const SmdProductsTabEdit: React.FC<SmdProductsTabEditProps> = ({ data, onChange,
             getSanitaryProdTypeNameByCode
           ),
           manufacturer: product?.manufacturer?.businessEntityName?.trim() || '—',
-          batchId: primaryBatch?.batchDetails?.batchId?.trim() || '—',
+          productId: pd?.productId?.trim() || '—',
           commodityCode: pd?.commodityCode?.trim() || '—',
           batch: b,
         }
@@ -156,7 +154,7 @@ const SmdProductsTabEdit: React.FC<SmdProductsTabEditProps> = ({ data, onChange,
     { title: 'Наименование продукции', dataIndex: 'productName', key: 'productName' },
     { title: 'Вид продукции', dataIndex: 'productType', key: 'productType', width: 200 },
     { title: 'Изготовитель', dataIndex: 'manufacturer', key: 'manufacturer' },
-    { title: 'Идентификатор партии', dataIndex: 'batchId', key: 'batchId', width: 140 },
+    { title: 'Идентификатор', dataIndex: 'productId', key: 'productId', width: 140 },
     { title: 'Код ТН ВЭД ЕАЭС', dataIndex: 'commodityCode', key: 'commodityCode', width: 140 },
     {
       title: '',

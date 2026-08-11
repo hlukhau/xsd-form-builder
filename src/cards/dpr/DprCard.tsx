@@ -924,8 +924,7 @@ export function DprCard({ dprid, guid, meta, parsed, onDataRefresh }: DprCardPro
                         <Descriptions.Item label="Краткое наименование">{dash(parsed.notifyingAuthority.shortName)}</Descriptions.Item>
                       </Descriptions>
                     )}
-                    <Typography.Title level={5}>Исходная карта сведений о выявленных нарушениях</Typography.Title>
-                    <Descriptions column={1} bordered size="small">
+                    <Descriptions column={1} bordered size="small" style={{ marginTop: 24 }}>
                       <Descriptions.Item label="Страна">
                         {parsed.incidentAlert.country
                           ? `${parsed.incidentAlert.country} — ${countryLabel(parsed.incidentAlert.country) || parsed.incidentAlert.country}`

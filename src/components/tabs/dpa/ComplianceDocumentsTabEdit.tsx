@@ -233,18 +233,19 @@ const ComplianceDocumentsTabEdit: React.FC<ComplianceDocumentsTabEditProps> = ({
     {
       title: 'Действия',
       key: 'actions',
-      width: 200,
+      width: 300,
+      onCell: () => ({ className: 'compliance-doc-actions-cell' }),
       render: (_: any, record: ComplianceDocument, docIndex: number) => (
         <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: 2 }}>
-          <Button type="link" icon={<EyeOutlined />} onClick={() => { setAuthorityContext({ batchIndex, docIndex }); setAuthorityModalVisible(true) }} style={{ padding: 0, height: 'auto' }}>
+          <Button type="link" icon={<EyeOutlined />} onClick={() => { setAuthorityContext({ batchIndex, docIndex }); setAuthorityModalVisible(true) }} style={{ padding: 0, height: 'auto', whiteSpace: 'normal', textAlign: 'left' }}>
             Уполномоченный орган
           </Button>
           {showLabProtocolsLink && record.docKindCode === '25' && (
-            <Button type="link" onClick={() => handleRequestProtocols(record)} style={{ padding: 0, height: 'auto' }}>
+            <Button type="link" onClick={() => handleRequestProtocols(record)} style={{ padding: 0, height: 'auto', whiteSpace: 'normal', textAlign: 'left' }}>
               Протоколы лабораторных исследований
             </Button>
           )}
-          <Button type="link" danger icon={<DeleteOutlined />} onClick={() => handleRemoveDocument(batchIndex, docIndex)} style={{ padding: 0, height: 'auto' }}>
+          <Button type="link" danger icon={<DeleteOutlined />} onClick={() => handleRemoveDocument(batchIndex, docIndex)} style={{ padding: 0, height: 'auto', whiteSpace: 'normal', textAlign: 'left' }}>
             Удалить
           </Button>
         </div>

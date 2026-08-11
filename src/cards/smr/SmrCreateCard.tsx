@@ -17,7 +17,7 @@ import { DprResultDescriptionField } from '@/cards/dpr/DprResultDescriptionField
 import { exportSmrParsedBundleToXml } from '@/utils/xmlExporter'
 import { buildSmrCreateBundle } from '@/cards/smr/smrCreateBundle'
 import { SmrSourceMeasureCardView } from '@/cards/smr/SmrSourceMeasureCardView'
-import { formatSmrCountryName, SMR_SOURCE_MEASURE_CARD_TITLE } from '@/cards/smr/smrDisplayUtils'
+import { formatSmrCountryName } from '@/cards/smr/smrDisplayUtils'
 import { smrValidationReportContent } from '@/cards/smr/smrValidationReportContent'
 import {
   collectSmrFormatValidationErrors,
@@ -228,7 +228,7 @@ export function SmrCreateCard({ eligibility, smdid, guid }: SmrCreateCardProps) 
           style={{ margin: 0 }}
           className="card-header-descriptions"
         >
-          <Descriptions.Item label="Исходная карта SMD">{sourceDocLabel}</Descriptions.Item>
+          <Descriptions.Item label="Исходная карта">{sourceDocLabel}</Descriptions.Item>
           <Descriptions.Item label="Страна">{responseCountryDisplay}</Descriptions.Item>
           <Descriptions.Item label="Статус">{draftName}</Descriptions.Item>
           <Descriptions.Item label="Источник">исходящие</Descriptions.Item>
@@ -271,15 +271,14 @@ export function SmrCreateCard({ eligibility, smdid, guid }: SmrCreateCardProps) 
                       isDraft
                       allowedAuthorityIds={authorityFilterDepIds}
                     />
-                    <Typography.Title level={5} style={{ marginTop: 24 }}>
-                      {SMR_SOURCE_MEASURE_CARD_TITLE}
-                    </Typography.Title>
-                    <SmrSourceMeasureCardView
-                      doc={measureDocView}
-                      countryCodeFallback={docCc}
-                      docIdFallback={docId}
-                      docDateFallback={eligibility.docCreationDate}
-                    />
+                    <div style={{ marginTop: 24 }}>
+                      <SmrSourceMeasureCardView
+                        doc={measureDocView}
+                        countryCodeFallback={docCc}
+                        docIdFallback={docId}
+                        docDateFallback={eligibility.docCreationDate}
+                      />
+                    </div>
                   </div>
                 ),
               },

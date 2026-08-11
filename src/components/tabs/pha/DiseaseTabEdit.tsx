@@ -121,7 +121,7 @@ const DiseaseTabEdit: React.FC<DiseaseTabEditProps> = ({ data, onChange }) => {
         </Form.Item>
         <Form.Item
           label="Дата последнего случая"
-          tooltip="Дата закрытия (архивации) нежелательной ситуации"
+          tooltip="Дата выявления последнего случая инфекционной или массовой неинфекционной болезни (отравления)"
         >
           <DatePicker
             format={DATE_DISPLAY_FORMAT}

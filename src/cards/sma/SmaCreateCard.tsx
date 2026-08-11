@@ -244,7 +244,7 @@ export function SmaCreateCard({ context, guid }: SmaCreateCardProps) {
           style={{ margin: 0 }}
           className="card-header-descriptions"
         >
-          <Descriptions.Item label="Исходная карта SMD">{sourceDocLabel}</Descriptions.Item>
+          <Descriptions.Item label="Исходная карта">{sourceDocLabel}</Descriptions.Item>
           {!isSmaq && context.smaqid != null ? (
             <Descriptions.Item label="Связанный запрос">
               <Button
@@ -328,10 +328,7 @@ export function SmaCreateCard({ context, guid }: SmaCreateCardProps) {
                         hideAuthoritySelect={!isSmaq}
                       />
 
-                      <Typography.Title level={5} style={{ marginTop: 24 }}>
-                        Исходная карта сведений о временной санитарной мере
-                      </Typography.Title>
-                      <Descriptions column={1} bordered size="small" style={{ marginBottom: 16 }}>
+                      <Descriptions column={1} bordered size="small" style={{ marginTop: 24, marginBottom: 16 }}>
                         <Descriptions.Item label="Страна">{docCountryDisplay}</Descriptions.Item>
                         <Descriptions.Item label="Номер документа">{dash(docId)}</Descriptions.Item>
                         <Descriptions.Item label="Дата документа">

@@ -609,7 +609,7 @@ export function SmaCard({ kind, cardId, guid, meta, parsed, onDataRefresh }: Sma
           style={{ margin: 0 }}
           className="card-header-descriptions"
         >
-          <Descriptions.Item label="Исходная карта SMD">
+          <Descriptions.Item label="Исходная карта">
             {smdHref ? (
               <Button
                 type="link"
@@ -753,10 +753,7 @@ export function SmaCard({ kind, cardId, guid, meta, parsed, onDataRefresh }: Sma
                         </Descriptions>
                       )}
 
-                      <Typography.Title level={5}>
-                        Исходная карта сведений о временной санитарной мере
-                      </Typography.Title>
-                      <Descriptions column={1} bordered size="small" style={{ marginBottom: 16 }}>
+                      <Descriptions column={1} bordered size="small" style={{ marginTop: 24, marginBottom: 16 }}>
                         <Descriptions.Item label="Страна">{measureDocCountryDisplay}</Descriptions.Item>
                         <Descriptions.Item label="Номер документа">
                           {dash(parsed.measureDocReference.docId ?? meta.docId)}

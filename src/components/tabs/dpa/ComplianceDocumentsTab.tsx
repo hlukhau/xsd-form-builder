@@ -301,13 +301,15 @@ const ComplianceDocumentsTab: React.FC<ComplianceDocumentsTabProps> = ({
     {
       title: 'Действия',
       key: 'actions',
+      width: 300,
+      onCell: () => ({ className: 'compliance-doc-actions-cell' }),
       render: (_: any, record: ComplianceDocument) => (
         <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: 2 }}>
           <Button
             type="link"
             icon={<EyeOutlined />}
             onClick={() => handleViewAuthority(record)}
-            style={{ padding: 0, height: 'auto' }}
+            style={{ padding: 0, height: 'auto', whiteSpace: 'normal', textAlign: 'left' }}
           >
             Уполномоченный орган
           </Button>
@@ -315,7 +317,7 @@ const ComplianceDocumentsTab: React.FC<ComplianceDocumentsTabProps> = ({
             <Button
               type="link"
               onClick={() => handleRequestProtocols(record)}
-              style={{ padding: 0, height: 'auto' }}
+              style={{ padding: 0, height: 'auto', whiteSpace: 'normal', textAlign: 'left' }}
             >
               Протоколы лабораторных исследований
             </Button>

@@ -289,7 +289,7 @@ export function DprCreateCard({ eligibility, ppvid, guid }: DprCreateCardProps) 
           style={{ margin: 0 }}
           className="card-header-descriptions"
         >
-          <Descriptions.Item label="Исходная карта (PPV)">{dash(eligibility.incidentId)}</Descriptions.Item>
+          <Descriptions.Item label="Исходная карта">{dash(eligibility.incidentId)}</Descriptions.Item>
           <Descriptions.Item label="Страна">{responseCountryDisplay}</Descriptions.Item>
           <Descriptions.Item label="Статус">{draftName}</Descriptions.Item>
           <Descriptions.Item label="Источник">исходящие</Descriptions.Item>
@@ -334,10 +334,7 @@ export function DprCreateCard({ eligibility, ppvid, guid }: DprCreateCardProps) 
                       isDraft
                       allowedAuthorityIds={authorityFilterDepIds}
                     />
-                    <Typography.Title level={5} style={{ marginTop: 24 }}>
-                      Исходная карта сведений о выявленных нарушениях
-                    </Typography.Title>
-                    <Descriptions column={1} bordered size="small">
+                    <Descriptions column={1} bordered size="small" style={{ marginTop: 24 }}>
                       <Descriptions.Item label="Страна">{alertCountryDisplay}</Descriptions.Item>
                       <Descriptions.Item label="Регистрационный номер">{dash(eligibility.incidentId)}</Descriptions.Item>
                       <Descriptions.Item label="Вид уведомления">

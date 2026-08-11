@@ -64,7 +64,7 @@ const SmdDiseaseTabView: React.FC<{ data: CardData }> = ({ data }) => {
         <Descriptions.Item label="Дата первого случая">{formatDate(d?.firstCaseDate)}</Descriptions.Item>
         <Descriptions.Item
           label={
-            <span title="Дата закрытия (архивации) нежелательной ситуации">Дата последнего случая</span>
+            <span title="Дата выявления последнего случая инфекционной или массовой неинфекционной болезни (отравления)">Дата последнего случая</span>
           }
         >
           {formatDate(d?.lastCaseDate)}

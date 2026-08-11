@@ -25,5 +25,3 @@ export function formatSmrCountryName(
   }
   return c
 }
-
-export const SMR_SOURCE_MEASURE_CARD_TITLE = 'Исходная карта о временной санитарной мере'

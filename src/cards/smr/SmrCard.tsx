@@ -11,7 +11,7 @@ import SaveBlockingErrorsModal from '@/components/modals/SaveBlockingErrorsModal
 import { CardActions } from '@/cards/shared'
 import type { SmrMetadataView, SmrParsedBundle, SmrResultDocRow } from '@/types/smrCard'
 import { SmrSourceMeasureCardView } from '@/cards/smr/SmrSourceMeasureCardView'
-import { formatSmrCountryName, SMR_SOURCE_MEASURE_CARD_TITLE } from '@/cards/smr/smrDisplayUtils'
+import { formatSmrCountryName } from '@/cards/smr/smrDisplayUtils'
 import type { MeasureImplementationItem, StatusHistoryItem } from '@/types/card'
 import {
   fetchSmrResolutions,
@@ -125,7 +125,7 @@ export interface SmrCardProps {
 }
 
 export function SmrCard({ smrId, guid, meta, parsed, onDataRefresh }: SmrCardProps) {
-  const { getDisplayLabel: countryLabel, countryOptions } = useCountryOptions()
+  const { countryOptions } = useCountryOptions()
   const { getLangCatalogSelectOptions } = useLanguageOptions()
   const { getNameByCode: shipDocKindName } = useShipDocKindOptions()
 
@@ -622,7 +622,7 @@ export function SmrCard({ smrId, guid, meta, parsed, onDataRefresh }: SmrCardPro
         children: (
           <Descriptions column={1} bordered size="small">
             <Descriptions.Item label="Страна">
-              {row.countryCode ? `${row.countryCode} — ${countryLabel(row.countryCode) || row.countryCode}` : '—'}
+              {row.countryCode ? formatSmrCountryName(row.countryCode, countryOptions) : '—'}
             </Descriptions.Item>
             <Descriptions.Item label="Язык">{row.languageCode ? langLabel(row.languageCode) : '—'}</Descriptions.Item>
             <Descriptions.Item label="Вид">{docKindLabel(row)}</Descriptions.Item>
@@ -657,7 +657,7 @@ export function SmrCard({ smrId, guid, meta, parsed, onDataRefresh }: SmrCardPro
           </Descriptions>
         ),
       })),
-    [parsed.resultDocuments, countryLabel, langLabel, docKindLabel]
+    [parsed.resultDocuments, countryOptions, langLabel, docKindLabel]
   )
 
   const statusBtn = outgoing
@@ -754,7 +754,7 @@ export function SmrCard({ smrId, guid, meta, parsed, onDataRefresh }: SmrCardPro
           style={{ margin: 0 }}
           className="card-header-descriptions"
         >
-          <Descriptions.Item label="Исходная карта SMD">
+          <Descriptions.Item label="Исходная карта">
             {smdHref ? (
               <Button type="link" icon={<LinkOutlined />} onClick={openSmd} style={{ padding: 0, height: 'auto' }}>
                 {docRegDisplay}
@@ -857,15 +857,14 @@ export function SmrCard({ smrId, guid, meta, parsed, onDataRefresh }: SmrCardPro
                         </Descriptions.Item>
                       </Descriptions>
                     )}
-                    <Typography.Title level={5} style={{ marginTop: isEditMode ? 0 : 24 }}>
-                      {SMR_SOURCE_MEASURE_CARD_TITLE}
-                    </Typography.Title>
-                    <SmrSourceMeasureCardView
-                      doc={parsed.measureDoc}
-                      countryCodeFallback={meta.docCountryCode}
-                      docIdFallback={meta.docId}
-                      docDateFallback={meta.docCreationDate}
-                    />
+                    <div style={{ marginTop: isEditMode ? 0 : 24 }}>
+                      <SmrSourceMeasureCardView
+                        doc={parsed.measureDoc}
+                        countryCodeFallback={meta.docCountryCode}
+                        docIdFallback={meta.docId}
+                        docDateFallback={meta.docCreationDate}
+                      />
+                    </div>
                   </div>
                 ),
               },
