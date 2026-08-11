@@ -1326,9 +1326,7 @@ function exportMeasureImplementation(xmlParts: string[], impl: MeasureImplementa
       const listId = impl.documentDetails.docKindCodeListId?.trim() || '2009'
       xmlParts.push(`${indent}    <csdo:DocKindCode codeListId="${escapeXML(listId)}">${escapeXML(impl.documentDetails.docKindCode.trim())}</csdo:DocKindCode>`)
     }
-    if (impl.documentDetails.docKindName?.trim()) {
-      xmlParts.push(`${indent}    <csdo:DocKindName>${escapeXML(impl.documentDetails.docKindName.trim())}</csdo:DocKindName>`)
-    }
+    // csdo:DocKindName в MeasureImplementationDetails → DocReferenceDetails по схеме не выводится
     if (impl.documentDetails.docName) xmlParts.push(`${indent}    <csdo:DocName>${escapeXML(impl.documentDetails.docName)}</csdo:DocName>`)
     if (impl.documentDetails.docId) xmlParts.push(`${indent}    <csdo:DocId>${escapeXML(impl.documentDetails.docId)}</csdo:DocId>`)
     if (impl.documentDetails.docCreationDate) xmlParts.push(`${indent}    <csdo:DocCreationDate>${escapeXML(impl.documentDetails.docCreationDate)}</csdo:DocCreationDate>`)

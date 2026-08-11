@@ -102,7 +102,7 @@ export const XSD_FIELD_CONSTRAINTS: Record<string, FieldConstraint> = {
   settlementName: { maxLength: 120, messageMaxLength: 'Не более 120 символов (csdo:Name120Type)' },
   streetName: { maxLength: 120, messageMaxLength: 'Не более 120 символов (csdo:Name120Type)' },
   buildingNumberId: { maxLength: 50, messageMaxLength: 'Не более 50 символов (csdo:Id50Type)' },
-  roomNumberId: { maxLength: 50, messageMaxLength: 'Не более 50 символов (csdo:Id50Type)' },
+  roomNumberId: { maxLength: 20, messageMaxLength: 'Не более 20 символов (csdo:Id20Type)' },
   fullAddress: { maxLength: 1000, messageMaxLength: 'Не более 1000 символов (csdo:AddressText/Text1000Type)' },
 
   // Место обнаружения, прочие текстовые описания
@@ -120,14 +120,15 @@ export const XSD_FIELD_CONSTRAINTS: Record<string, FieldConstraint> = {
   },
 
   // Документы (соответствия, меры, уведомления)
-  docKindName: { maxLength: 300, messageMaxLength: 'Не более 300 символов (csdo:Name300Type)' },
+  /** csdo:DocKindName (MeasureDocDetails / InitialMeasureDocDetails / IdentityDocV3Details и др.) — Name500Type */
+  docKindName: { maxLength: 500, messageMaxLength: 'Не более 500 символов (csdo:Name500Type)' },
   docName: { maxLength: 300, messageMaxLength: 'Не более 300 символов (csdo:Name300Type)' },
   /** Наименование документа в технической документации и товаросопроводительных документах (csdo:Name500Type) */
   docName500: { maxLength: 500, messageMaxLength: 'Не более 500 символов (csdo:Name500Type)' },
   /** smcdo:MeasureDocDetails / InitialMeasureDocDetails → csdo:DocName (Name500Type) */
   measureDocDetailsDocName: { maxLength: 500, messageMaxLength: 'Не более 500 символов (csdo:Name500Type, csdo:DocName)' },
-  /** smcdo:MeasureDocDetails / InitialMeasureDocDetails → csdo:DocSeriesId — до 30 символов по требованиям формы */
-  measureDocDetailsDocSeriesId: { maxLength: 30, messageMaxLength: 'Не более 30 символов (csdo:DocSeriesId)' },
+  /** smcdo:MeasureDocDetails / InitialMeasureDocDetails → csdo:DocSeriesId — Id20Type по ОФЭД */
+  measureDocDetailsDocSeriesId: { maxLength: 20, messageMaxLength: 'Не более 20 символов (csdo:DocSeriesId)' },
   /** smcdo:MeasureDocDetails / InitialMeasureDocDetails → csdo:PageQuantity (Quantity4Type) */
   measureDocPageQuantity: {
     maxLength: 4,
@@ -180,7 +181,7 @@ export const XSD_FIELD_CONSTRAINTS: Record<string, FieldConstraint> = {
       'Номер должен соответствовать шаблону: ТР ТС 003/2012 или ТР ЕАЭС 042/2017 (ТР, пробел, ТС или ЕАЭС, пробел, 3 цифры, «/», 4 цифры)',
     formatHint: 'ТР ТС 003/2012 или ТР ЕАЭС 042/2017',
   },
-  indicatorName: { maxLength: 300, messageMaxLength: 'Не более 300 символов' },
+  indicatorName: { maxLength: 500, messageMaxLength: 'Не более 500 символов (csdo:Name500Type)' },
   /** Значение показателя в нарушениях: строка до 100 символов */
   indicatorValue: {
     maxLength: 100,
@@ -222,7 +223,7 @@ export const XSD_FIELD_CONSTRAINTS: Record<string, FieldConstraint> = {
   // ТСД: партия, примечание, числовые значения мер (количество)
   batchId: { maxLength: 50, messageMaxLength: 'Не более 50 символов (csdo:Id50Type)' },
   note: { maxLength: 4000, messageMaxLength: 'Не более 4000 символов (csdo:NoteText/Text4000Type)' },
-  consignmentId: { maxLength: 50, messageMaxLength: 'Не более 50 символов (csdo:Id50Type)' },
+  consignmentId: { maxLength: 20, messageMaxLength: 'Не более 20 символов (csdo:Id20Type)' },
   /** Значение величины измерения (PhysicalMeasureType: до 18 цифр целой части, до 6 после точки). Разделитель — только точка. */
   measureValue: {
     pattern: DECIMAL_18_6_PATTERN,

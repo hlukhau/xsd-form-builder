@@ -1195,7 +1195,8 @@ export const MeasureImplementationDetailsEdit: React.FC<{
                         ...item.documentDetails,
                         docKindCode: code ?? undefined,
                         docKindCodeListId: code ? '2009' : undefined,
-                        docKindName: code ? getShipDocKindNameByCode(code) ?? undefined : undefined,
+                        // В DocReferenceDetails мероприятия DocKindName в XML не допускается — не сохраняем.
+                        docKindName: undefined,
                       })
                     }
                     filterOption={(input, option) =>
@@ -1208,11 +1209,7 @@ export const MeasureImplementationDetailsEdit: React.FC<{
                   <Form.Item label="Наименование вида документа">
                     <Input
                       readOnly
-                      value={
-                        item.documentDetails.docKindName ??
-                        getShipDocKindNameByCode(item.documentDetails.docKindCode) ??
-                        ''
-                      }
+                      value={getShipDocKindNameByCode(item.documentDetails.docKindCode) ?? ''}
                     />
                   </Form.Item>
                 ) : null}

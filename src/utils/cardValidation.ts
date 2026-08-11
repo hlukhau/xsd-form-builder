@@ -1122,7 +1122,7 @@ export function appendProductTsdFormatErrors(
       errors.push(`${batchPath}: при указании «Количество товара в партии» необходимо указать «Единица измерения»`)
     }
     ;(batch.complianceDocuments ?? []).forEach((d, i) => {
-      pushFormatError(errors, `${batchPath} → Документ соответствия ${i + 1} → Наименование`, 'docName', d.docName)
+      pushFormatError(errors, `${batchPath} → Документ соответствия ${i + 1} → Наименование`, 'docName500', d.docName)
       pushFormatError(errors, `${batchPath} → Документ соответствия ${i + 1} → Номер`, 'docId', d.docId)
     })
     ;(batch.shippingDocuments ?? []).forEach((doc, di) => {
