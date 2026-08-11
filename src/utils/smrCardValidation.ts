@@ -2,14 +2,31 @@
  * Валидация исходящей карты SMR.
  */
 import type { SmrParsedBundle } from '@/types/smrCard'
-import type { MeasureImplementationItem, MeasuresData, SubjectDetails } from '@/types/card'
+import type {
+  MeasureImplementationItem,
+  MeasuresData,
+  SubjectDetails,
+  UnifiedAuthorityDetails,
+} from '@/types/card'
 import type { ValidationResult } from '@/utils/cardValidation'
-import { pushMeasuresFormatErrors, validateDprMeasuresFormatLogical } from '@/utils/cardValidation'
+import { pushMeasuresFormatErrors } from '@/utils/cardValidation'
 import { validateFieldValue } from '@/constants/xsdFieldConstraints'
 import { fetchSchemaValidationErrors } from '@/utils/schemaValidationApi'
 
 function empty(s: string | null | undefined): boolean {
   return s == null || String(s).trim() === ''
+}
+
+function hasDocReferenceContent(doc: MeasureImplementationItem['documentDetails']): boolean {
+  if (!doc) return false
+  return !(
+    empty(doc.docKindCode) &&
+    empty(doc.docKindName) &&
+    empty(doc.docName) &&
+    empty(doc.docId) &&
+    empty(doc.docCreationDate) &&
+    empty(doc.docStartDate)
+  )
 }
 
 function pushFormatError(errors: string[], path: string, fieldKey: string, value: string | undefined): void {
@@ -28,10 +45,104 @@ function getMeasureImplementationSubjects(impl: MeasureImplementationItem): Subj
   return impl.subjectDetails ? [impl.subjectDetails] : []
 }
 
+function getMeasureImplementationAuthorities(impl: MeasureImplementationItem): UnifiedAuthorityDetails[] {
+  if (impl.authorities && impl.authorities.length > 0) return impl.authorities
+  return impl.authority ? [impl.authority] : []
+}
+
+function measureExecutorSubjectCountry(sd: SubjectDetails): string | undefined {
+  const v = sd.businessEntity?.country ?? sd.country
+  if (v == null || String(v).trim() === '') return undefined
+  return String(v).trim()
+}
+
+function measureExecutorSubjectName(sd: SubjectDetails): string | undefined {
+  const v = sd.businessEntity?.businessEntityName ?? sd.subjectName
+  if (v == null || String(v).trim() === '') return undefined
+  return String(v).trim()
+}
+
 function measureImplementationsToMeasuresData(
   items: MeasureImplementationItem[] | null | undefined
 ): MeasuresData {
   return { measures: [{ measureImplementationDetails: items ?? [] }] }
+}
+
+/**
+ * Форматно-логические контроли вкладки «Мероприятия» исходящей SMR
+ * (smcdo:MeasureImplementationDetails), без проверок «принятой меры» DPA/DPR.
+ */
+export function validateSmrMeasuresFormatLogical(
+  items: MeasureImplementationItem[] | null | undefined
+): ValidationResult {
+  const remarks: string[] = []
+  const add = (msg: string) => {
+    if (!remarks.includes(msg)) remarks.push(msg)
+  }
+
+  const impls = items ?? []
+  if (impls.length === 0) {
+    add(
+      'должен быть указан хотя бы один набор сведений о мероприятии, обеспечивающем соблюдение меры'
+    )
+    return { success: false, sections: [{ sectionName: 'Мероприятия', remarks }] }
+  }
+
+  let anyMissingCore = false
+  let anyMissingStartDate = false
+  let anyMissingSubjectCountry = false
+  let anyMissingSubjectName = false
+
+  for (const impl of impls) {
+    const hasEntity =
+      getMeasureImplementationAuthorities(impl).length > 0 ||
+      getMeasureImplementationSubjects(impl).length > 0
+    const hasDoc = hasDocReferenceContent(impl.documentDetails)
+    const hasKind = !empty(impl.measureAffectedObjectKindCode)
+    const hasRegion = !empty(impl.placeDetails?.regionName)
+    if (!hasEntity || !hasDoc || !hasKind || !hasRegion) {
+      anyMissingCore = true
+    }
+    if (empty(impl.startDate)) {
+      anyMissingStartDate = true
+    }
+
+    for (const authority of getMeasureImplementationAuthorities(impl)) {
+      if (empty(authority.country)) {
+        add('Страна уполномоченного органа, обеспечивающего соблюдение меры должна быть указана')
+      }
+      if (empty(authority.authorityName)) {
+        add('Наименование уполномоченного органа, обеспечивающего соблюдение меры должно быть указано')
+      }
+    }
+
+    for (const subj of getMeasureImplementationSubjects(impl)) {
+      if (empty(measureExecutorSubjectCountry(subj))) anyMissingSubjectCountry = true
+      if (empty(measureExecutorSubjectName(subj))) anyMissingSubjectName = true
+    }
+  }
+
+  if (anyMissingCore) {
+    add(
+      'В составе каждого набора сведений о мероприятии, обеспечивающем соблюдение меры должны быть указаны сведения об исполнителе, документ, устанавливающий мероприятие, вид объекта действия меры и регион'
+    )
+  }
+  if (anyMissingStartDate) {
+    add(
+      'В составе каждого набора сведений о мероприятии, обеспечивающем соблюдение меры должна быть указана дата начала мероприятия'
+    )
+  }
+  if (anyMissingSubjectCountry) {
+    add('Код страны регистрации субъекта, обеспечивающего соблюдение меры должен быть указан')
+  }
+  if (anyMissingSubjectName) {
+    add('Наименование субъекта, обеспечивающего соблюдение меры должно быть указано')
+  }
+
+  if (remarks.length === 0) {
+    return { success: true, sections: [] }
+  }
+  return { success: false, sections: [{ sectionName: 'Мероприятия', remarks }] }
 }
 
 /** SES2025-314 для мероприятий SMR. */
@@ -95,22 +206,18 @@ export function collectSmrFormatValidationErrors(parsed: SmrParsedBundle): strin
 export function validateSmrFormatLogical(parsed: SmrParsedBundle): ValidationResult {
   const sections: { sectionName: string; remarks: string[] }[] = []
 
-  const measuresRes = validateDprMeasuresFormatLogical(
-    measureImplementationsToMeasuresData(parsed.measureImplementations)
-  )
+  const measuresRes = validateSmrMeasuresFormatLogical(parsed.measureImplementations)
   if (!measuresRes.success) {
-    const renamed = measuresRes.sections.map((s) => ({
-      ...s,
-      sectionName: s.sectionName === 'Принятые меры' ? 'Мероприятия' : s.sectionName,
-    }))
-    sections.push(...renamed)
+    sections.push(...measuresRes.sections)
   }
 
   const pairing = collectSmrSubjectIdentifierPairingErrors(parsed.measureImplementations)
   if (pairing.length > 0) {
     const measuresSection = sections.find((s) => s.sectionName === 'Мероприятия')
     if (measuresSection) {
-      measuresSection.remarks.push(...pairing)
+      for (const msg of pairing) {
+        if (!measuresSection.remarks.includes(msg)) measuresSection.remarks.push(msg)
+      }
     } else {
       sections.push({ sectionName: 'Мероприятия', remarks: pairing })
     }
