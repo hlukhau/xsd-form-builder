@@ -39,6 +39,11 @@ public final class SmrCreateSupport {
 
     private static final String SQL_SMR_EXISTS = "SELECT SMRID FROM SMR WHERE SMDID = ? AND ROWNUM = 1";
 
+    private static final String SQL_SMR_HAS_PENDING_IN_HIST = ""
+            + "SELECT 1 FROM SMRSTATUSHIST hs "
+            + "JOIN SMRSTATUS st ON st.SMRSTATUSID = hs.SMRSTATUSID "
+            + "WHERE hs.SMRID = ? AND TRIM(UPPER(st.SMRSTATUSCODE)) = 'PENDING' AND ROWNUM = 1";
+
     private static final String SQL_RESPONSE_COUNTRY_BY = ""
             + "SELECT c.COUNTRYID, TRIM(c.COUNTRYCODE) AS COUNTRYCODE, TRIM(c.COUNTRYNAME) AS COUNTRYNAME "
             + "FROM COUNTRY c "
@@ -274,7 +279,8 @@ public final class SmrCreateSupport {
 
     /**
      * Удаление черновика исходящей SMR: те же права и SMDDEPPERMIS, что и для редактирования,
-     * статус только {@code DRAFT} (по коду {@code SMRSTATUSCODE}).
+     * статус только {@code DRAFT}/{@code NEW} (по коду {@code SMRSTATUSCODE}).
+     * Проверка истории PENDING (отправка ОП58) сюда не входит — только при самом удалении.
      */
     public static GateResult evaluateDeleteDraftGate(Connection conn, long smrId, String guid) throws SQLException {
         if (guid == null || guid.trim().isEmpty() || smrId <= 0) {
@@ -323,6 +329,26 @@ public final class SmrCreateSupport {
                     + "не входит в доступ к связанной карте SMD (SMDDEPPERMIS)");
         }
         return GateResult.ok(smdid, null, null, null, null, 0L, null, null, 0, null);
+    }
+
+    /**
+     * Запрет удаления, если карта уже направлялась участникам ОП58
+     * (в истории статусов есть запись со статусом PENDING).
+     */
+    public static GateResult evaluateDeleteBlockedByOp58Send(Connection conn, long smrId) throws SQLException {
+        if (smrId <= 0) {
+            return GateResult.denied("Не задан SMRID");
+        }
+        try (PreparedStatement ps = conn.prepareStatement(SQL_SMR_HAS_PENDING_IN_HIST)) {
+            ps.setLong(1, smrId);
+            try (ResultSet rs = ps.executeQuery()) {
+                if (rs.next()) {
+                    return GateResult.denied(
+                            "Карта сведений уже направлялась участникам ОП58. Удаление запрещено");
+                }
+            }
+        }
+        return GateResult.ok(0L, null, null, null, null, 0L, null, null, 0, null);
     }
 
     /**

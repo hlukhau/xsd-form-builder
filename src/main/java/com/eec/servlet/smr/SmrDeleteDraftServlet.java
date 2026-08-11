@@ -63,6 +63,12 @@ public class SmrDeleteDraftServlet extends HttpServlet {
                         gate.reason != null ? gate.reason : "Удаление черновика недоступно");
                 return;
             }
+            SmrCreateSupport.GateResult op58 = SmrCreateSupport.evaluateDeleteBlockedByOp58Send(conn, smrId);
+            if (!op58.allowed) {
+                sendErr(response, HttpServletResponse.SC_FORBIDDEN,
+                        op58.reason != null ? op58.reason : "Удаление запрещено");
+                return;
+            }
 
             conn.setAutoCommit(false);
             try {
