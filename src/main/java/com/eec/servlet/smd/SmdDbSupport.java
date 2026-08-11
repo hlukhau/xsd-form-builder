@@ -153,12 +153,15 @@ final class SmdDbSupport {
             + "AND TRIM(UPPER(st.SMRSTATUSCODE)) IN ('SENT', 'DELIVERED') "
             + "AND ROWNUM = 1";
 
-    /** Связанная карта SMR отправлена (привязан электронный документ). */
+    /**
+     * Связанная карта SMR отправлена (есть привязка ЭД через SMR2EDOCLINK — на стендах, где таблица есть).
+     * Не использовать SMRXML.EDOCID: в схеме колонки нет (ORA-00904).
+     */
     static final String SQL_SMR_REVIEW_OUTCOME_SENT_BY_EDOC = ""
             + "SELECT 1 FROM SMR smr "
-            + "JOIN SMRXML x ON x.SMRID = smr.SMRID "
+            + "JOIN SMR2EDOCLINK link ON link.SMRID = smr.SMRID "
             + "WHERE smr.SMDID = ? "
-            + "AND x.EDOCID IS NOT NULL AND LENGTH(TRIM(TO_CHAR(x.EDOCID))) > 0 "
+            + "AND link.EDOCID IS NOT NULL AND LENGTH(TRIM(TO_CHAR(link.EDOCID))) > 0 "
             + "AND ROWNUM = 1";
 
     static final String SQL_SMD_STATUS_ROW = ""
@@ -181,5 +184,21 @@ final class SmdDbSupport {
         }
         Throwable cause = e.getCause();
         return cause != e && cause instanceof SQLException && isMissingObject((SQLException) cause);
+    }
+
+    /** Отсутствует объект или колонка (для опциональных fallback-запросов). */
+    static boolean isMissingObjectOrColumn(SQLException e) {
+        if (isMissingObject(e)) {
+            return true;
+        }
+        if (e == null) {
+            return false;
+        }
+        String msg = e.getMessage();
+        if (msg != null && (msg.contains("ORA-00904") || msg.contains("недопустимый идентификатор"))) {
+            return true;
+        }
+        Throwable cause = e.getCause();
+        return cause != e && cause instanceof SQLException && isMissingObjectOrColumn((SQLException) cause);
     }
 }

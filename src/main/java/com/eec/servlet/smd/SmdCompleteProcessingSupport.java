@@ -85,28 +85,20 @@ final class SmdCompleteProcessingSupport {
         return new Eligibility(true, null);
     }
 
-    /** Связанная карта SMR подготовлена и отправлена. */
+    /** Связанная карта SMR подготовлена и отправлена (статус SENT/DELIVERED или привязка ЭД). */
     static boolean isReviewOutcomeSent(Connection conn, long smdid) throws SQLException {
-        SQLException last = null;
-        for (String sql : new String[] {
-                SmdDbSupport.SQL_SMR_REVIEW_OUTCOME_SENT_BY_STATUS,
-                SmdDbSupport.SQL_SMR_REVIEW_OUTCOME_SENT_BY_EDOC,
-        }) {
-            try {
-                if (queryExists(conn, sql, smdid)) {
-                    return true;
-                }
-            } catch (SQLException e) {
-                last = e;
-                if (!SmdDbSupport.isMissingObject(e)) {
-                    throw e;
-                }
+        if (queryExists(conn, SmdDbSupport.SQL_SMR_REVIEW_OUTCOME_SENT_BY_STATUS, smdid)) {
+            return true;
+        }
+        try {
+            return queryExists(conn, SmdDbSupport.SQL_SMR_REVIEW_OUTCOME_SENT_BY_EDOC, smdid);
+        } catch (SQLException e) {
+            // SMR2EDOCLINK / EDOCID могут отсутствовать на стенде — ориентируемся на статус SMR.
+            if (SmdDbSupport.isMissingObjectOrColumn(e)) {
+                return false;
             }
+            throw e;
         }
-        if (last != null) {
-            return false;
-        }
-        return false;
     }
 
     private static boolean queryExists(Connection conn, String sql, long smdid) throws SQLException {
