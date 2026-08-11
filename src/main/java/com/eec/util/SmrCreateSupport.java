@@ -417,9 +417,8 @@ public final class SmrCreateSupport {
             + "SELECT 1 FROM SMRRESOLUTION WHERE SMRID = ? AND DEPKINDID = ? AND ROWNUM = 1";
 
     /**
-     * Направление исходящей SMR участникам ОП 57: {@code sanitaryMeasureIn:status} ∩ SMDDEPPERMIS,
-     * {@code DATASOURCEKINDCODE = 2}, статус NEW (с резолюцией областного уровня dep0602 / DEPKINDID 73),
-     * FAILED или ERROR.
+     * Направление исходящей SMR участникам ОП 58: {@code sanitaryMeasureIn:status} ∩ SMDDEPPERMIS,
+     * {@code DATASOURCEKINDCODE = 2}, статус NEW, FAILED или ERROR.
      */
     public static GateResult evaluateOutgoingSmrSendGate(Connection conn, long smrId, String guid) throws SQLException {
         GateResult statusGate = evaluateOutgoingSmrStatusGate(conn, smrId, guid);
@@ -438,19 +437,11 @@ public final class SmrCreateSupport {
         if (statusCode == null || statusCode.isEmpty()) {
             return GateResult.denied("Не определён код статуса карты в справочнике SMRSTATUS");
         }
-        if ("FAILED".equals(statusCode) || "ERROR".equals(statusCode)) {
+        if ("NEW".equals(statusCode) || "FAILED".equals(statusCode) || "ERROR".equals(statusCode)) {
             return statusGate;
         }
-        if ("NEW".equals(statusCode)) {
-            if (hasRegionalResolutionForOutgoingSend(conn, smrId)) {
-                return statusGate;
-            }
-            return GateResult.denied(
-                    "Направление при статусе «Новое» возможно только при наличии резолюции областного уровня "
-                            + "(в SMRRESOLUTION запись по DEPKINDCODE dep0602 или DEPKINDID 73).");
-        }
         return GateResult.denied(
-                "Направление сведений возможно только при статусе «Новое» (с резолюцией областного уровня), "
+                "Направление сведений возможно только при статусе «Новое», "
                         + "«Отправка не удалась» или «Ошибка обработки».");
     }
 

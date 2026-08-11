@@ -27,7 +27,7 @@ import java.util.regex.Pattern;
  * POST /api/smr/status — тело: {@code smrId}, {@code action}, {@code guid}.
  * Входящая (DSC=1): {@code complete_processing} — PROCESSING→PROCESSED, sanitaryMeasureOut:status ∩ SMDDEPPERMIS.
  * Исходящая (DSC=2): mark_ready, to_new (sanitaryMeasureIn:status ∩ SMDDEPPERMIS);
- * send — отдельный gate {@link SmrCreateSupport#evaluateOutgoingSmrSendGate} (NEW+областная резолюция / FAILED / ERROR).
+ * send — отдельный gate {@link SmrCreateSupport#evaluateOutgoingSmrSendGate} (NEW / FAILED / ERROR).
  * mark_ready: черновик→новое+резолюция (dep0601/dep0602/dep0603 по depkindid 72/73/74); новое+районная→резолюция dep0602 без смены статуса.
  */
 public class SmrStatusChangeServlet extends HttpServlet {
@@ -331,18 +331,11 @@ public class SmrStatusChangeServlet extends HttpServlet {
 
     private void handleSend(HttpServletResponse response, Connection conn, long smrId, int currentStatusId,
                             String currentStatusCode, Integer userId) throws IOException, SQLException {
-        if ("NEW".equals(currentStatusCode)) {
-            if (!SmrCreateSupport.hasRegionalResolutionForOutgoingSend(conn, smrId)) {
-                fail(conn, response, HttpServletResponse.SC_BAD_REQUEST,
-                        "Направление при статусе «Новое» возможно только при наличии резолюции областного уровня "
-                                + "(в SMRRESOLUTION запись по DEPKINDCODE dep0602 или DEPKINDID 73).");
-                return;
-            }
-        } else if ("FAILED".equals(currentStatusCode) || "ERROR".equals(currentStatusCode)) {
-            // повторная отправка без дополнительной проверки резолюции по ТЗ
-        } else {
+        if (!"NEW".equals(currentStatusCode)
+                && !"FAILED".equals(currentStatusCode)
+                && !"ERROR".equals(currentStatusCode)) {
             fail(conn, response, HttpServletResponse.SC_BAD_REQUEST,
-                    "Направление возможно только при статусе «Новое» (с резолюцией областного уровня), "
+                    "Направление возможно только при статусе «Новое», "
                             + "«Отправка не удалась» или «Ошибка обработки».");
             return;
         }

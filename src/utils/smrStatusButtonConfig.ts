@@ -28,7 +28,7 @@ function hintNoStatusRight(): string {
 }
 
 function hintNoSendRight(): string {
-  return 'Направление сведений недоступно: нет права sanitaryMeasureIn:status с пересечением SMDDEPPERMIS, неверный статус карты или отсутствует резолюция областного уровня (dep0602 / DEPKINDID 73).'
+  return 'Направление сведений недоступно: нет права sanitaryMeasureIn:status с пересечением SMDDEPPERMIS или неверный статус карты (нужны «Новое», «Отправка не удалась» или «Ошибка обработки»).'
 }
 
 function hintRightsDepKindId(): string {
@@ -41,10 +41,6 @@ function getResolutionButtonLabel(userDepKindCode: string | null | undefined): s
   if (c === 'dep0602') return 'Отметить готовность (областной ЦГЭ)'
   if (c === 'dep0603') return 'Отметить готовность (республиканский ЦГЭ)'
   return 'Отметить готовность'
-}
-
-function resolutionCodes(resolutions: SmrResolutionRow[]): string[] {
-  return resolutions.map((r) => String(r.depKindCode ?? '').trim()).filter(Boolean)
 }
 
 function hasDistrictResolution(resolutions: SmrResolutionRow[]): boolean {
@@ -88,13 +84,10 @@ function canShowOutgoingSmrMarkReady(
 }
 
 const hintSendOp57 =
-  'Направление сведений участникам ОП 57: после подтверждения выполняется валидация карты, затем статус «Ожидает отправки».'
+  'Направление сведений участникам ОП 58: после подтверждения выполняется валидация карты, затем статус «Ожидает отправки».'
 
 const hintNewToPending =
-  'Новое при резолюции областного уровня → Ожидает отправки (направление в ОП 57 после валидации).'
-
-const NEED_REGIONAL_DEP0602_HINT =
-  'Ожидается резолюция областного уровня (в SMRRESOLUTION — запись по уровню dep0602).'
+  'Новое → Ожидает отправки (направление в ОП 58 после валидации).'
 
 const sendOp57Button: StatusButtonConfig = {
   label: 'Направление сведений',
@@ -116,11 +109,8 @@ export function outgoingSmrStatusButton(
   const noSt = hintNoStatusRight()
   const noSend = hintNoSendRight()
   const resolutionLabel = getResolutionButtonLabel(userDepKindCode)
-  const codes = resolutionCodes(resolutions)
   const hasRegionalDep0602 = hasRegionalResolutionForSend(resolutions)
   const hasDistrictRes = hasDistrictResolution(resolutions)
-  const hasResolutionOfUserLevel =
-    userDepKindCode && codes.some((c) => norm(c) === norm(userDepKindCode))
 
   if (!hasStatusRight) {
     return { config: null, comment: noSt }
@@ -128,62 +118,53 @@ export function outgoingSmrStatusButton(
 
   const code = norm(smrStatusCode)
   if (code) {
+    if (code === 'new' || code === 'failed' || code === 'error') {
+      if (hasSendRight) {
+        return {
+          config: code === 'new'
+            ? { label: 'Направление сведений', action: 'send', hint: hintNewToPending }
+            : sendOp57Button,
+          comment: code === 'new' ? hintNewToPending : hintSendOp57,
+        }
+      }
+      if (code === 'new' && canShowOutgoingSmrMarkReady(rightsDepKindId, code, hasDistrictRes, hasRegionalDep0602)) {
+        const isRegionalOnNew = rightsDepKindId === RIGHTS_DEPKIND_REGIONAL
+        const draftHint =
+          userDepKindName && userDepKindName.trim()
+            ? `Наложение резолюции уровня «${userDepKindName.trim()}» и перевод в «Новое».`
+            : 'Наложение резолюции и перевод карты в статус «Новое».'
+        const hintRegionalSecond =
+          'Будет записана резолюция областного уровня о готовности к отправке; статус карты останется «Новое».'
+        return {
+          config: {
+            label: resolutionLabel,
+            action: 'mark_ready',
+            hint: isRegionalOnNew ? hintRegionalSecond : draftHint,
+          },
+          comment: isRegionalOnNew ? hintRegionalSecond : draftHint,
+        }
+      }
+      return { config: null, comment: noSend }
+    }
     if (canShowOutgoingSmrMarkReady(rightsDepKindId, code, hasDistrictRes, hasRegionalDep0602)) {
-      const isRegionalOnNew = code === 'new' && rightsDepKindId === RIGHTS_DEPKIND_REGIONAL
       const draftHint =
         userDepKindName && userDepKindName.trim()
           ? `Наложение резолюции уровня «${userDepKindName.trim()}» и перевод в «Новое».`
           : 'Наложение резолюции и перевод карты в статус «Новое».'
-      const hintRegionalSecond =
-        'Будет записана резолюция областного уровня о готовности к отправке; статус карты останется «Новое».'
       return {
         config: {
           label: resolutionLabel,
           action: 'mark_ready',
-          hint: isRegionalOnNew ? hintRegionalSecond : draftHint,
+          hint: draftHint,
         },
-        comment: isRegionalOnNew ? hintRegionalSecond : draftHint,
+        comment: draftHint,
       }
     }
     if (code === 'draft' && !rightsAllowMarkReadyDraft(rightsDepKindId)) {
       return { config: null, comment: hintRightsDepKindId() }
     }
-    if (code === 'new') {
-      if (hasRegionalDep0602 && hasSendRight) {
-        return {
-          config: { label: 'Направление сведений', action: 'send', hint: hintNewToPending },
-          comment: hintNewToPending,
-        }
-      }
-      if (hasRegionalDep0602 && !hasSendRight) {
-        return { config: null, comment: noSend }
-      }
-      if (hasResolutionOfUserLevel && !hasRegionalDep0602) {
-        return { config: null, comment: NEED_REGIONAL_DEP0602_HINT }
-      }
-      const hintNew =
-        userDepKindCode && norm(userDepKindCode) === 'dep0601'
-          ? NEED_REGIONAL_DEP0602_HINT
-          : 'Наложите резолюцию своего уровня либо дождитесь резолюции областного уровня (dep0602).'
-      if (rightsDepKindId === RIGHTS_DEPKIND_DISTRICT || rightsDepKindId === RIGHTS_DEPKIND_REPUBLIC) {
-        return { config: null, comment: hintNew }
-      }
-      if (rightsDepKindId === RIGHTS_DEPKIND_REGIONAL && !hasDistrictRes) {
-        return { config: null, comment: 'Нет резолюции районного ЦГЭ' }
-      }
-      return { config: null, comment: hintRightsDepKindId() }
-    }
     if (code === 'pending' || code === 'sent') {
       return { config: null, comment: '' }
-    }
-    if (code === 'failed' || code === 'error') {
-      if (hasSendRight) {
-        return {
-          config: sendOp57Button,
-          comment: hintSendOp57,
-        }
-      }
-      return { config: null, comment: noSend }
     }
     if (code === 'delivered') {
       return { config: null, comment: '' }
@@ -192,29 +173,41 @@ export function outgoingSmrStatusButton(
 
   const sid = statusId ?? -1
   const fallbackCode =
-    sid === SMR_DRAFT ? 'draft' : sid === SMR_NEW ? 'new' : sid === SMR_PENDING || sid === SMR_SENT ? 'pending' : ''
+    sid === SMR_DRAFT
+      ? 'draft'
+      : sid === SMR_NEW
+        ? 'new'
+        : sid === SMR_FAILED
+          ? 'failed'
+          : sid === SMR_ERROR
+            ? 'error'
+            : sid === SMR_PENDING || sid === SMR_SENT
+              ? 'pending'
+              : ''
+  if (fallbackCode === 'new' || fallbackCode === 'failed' || fallbackCode === 'error') {
+    if (hasSendRight) {
+      return {
+        config: fallbackCode === 'new'
+          ? { label: 'Направление сведений', action: 'send', hint: hintNewToPending }
+          : sendOp57Button,
+        comment: fallbackCode === 'new' ? hintNewToPending : hintSendOp57,
+      }
+    }
+    return { config: null, comment: noSend }
+  }
   if (fallbackCode) {
     if (canShowOutgoingSmrMarkReady(rightsDepKindId, fallbackCode, hasDistrictRes, hasRegionalDep0602)) {
-      const isRegionalOnNew = fallbackCode === 'new' && rightsDepKindId === RIGHTS_DEPKIND_REGIONAL
       const draftHint =
         userDepKindName && userDepKindName.trim()
           ? `Наложение резолюции уровня «${userDepKindName.trim()}» и перевод в «Новое».`
           : 'Наложение резолюции и перевод карты в статус «Новое».'
-      const hintRegionalSecond =
-        'Будет записана резолюция областного уровня о готовности к отправке; статус карты останется «Новое».'
       return {
         config: {
           label: resolutionLabel,
           action: 'mark_ready',
-          hint: isRegionalOnNew ? hintRegionalSecond : draftHint,
+          hint: draftHint,
         },
-        comment: isRegionalOnNew ? hintRegionalSecond : draftHint,
-      }
-    }
-    if (fallbackCode === 'new' && hasRegionalDep0602 && hasSendRight) {
-      return {
-        config: { label: 'Направление сведений', action: 'send', hint: hintNewToPending },
-        comment: hintNewToPending,
+        comment: draftHint,
       }
     }
     if (fallbackCode === 'pending') {
@@ -248,19 +241,19 @@ export function outgoingSmrStatusButton(
     return { config: null, comment: hintRightsDepKindId() }
   }
   if (s.includes('новое') || s.includes('новая')) {
+    if (hasSendRight) {
+      return {
+        config: { label: 'Направление сведений', action: 'send', hint: hintNewToPending },
+        comment: hintNewToPending,
+      }
+    }
     if (canShowOutgoingSmrMarkReady(rightsDepKindId, 'new', hasDistrictRes, hasRegionalDep0602)) {
       return {
         config: { label: resolutionLabel, action: 'mark_ready', hint: 'Наложение резолюции областного уровня.' },
         comment: 'Новое',
       }
     }
-    if (hasRegionalDep0602 && hasSendRight) {
-      return {
-        config: { label: 'Направление сведений', action: 'send', hint: hintNewToPending },
-        comment: hintNewToPending,
-      }
-    }
-    return { config: null, comment: hasRegionalDep0602 && !hasSendRight ? noSend : 'Новое' }
+    return { config: null, comment: noSend }
   }
   if (s.includes('не удалась') || s.includes('ошибка')) {
     if (hasSendRight) {
