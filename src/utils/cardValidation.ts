@@ -953,6 +953,16 @@ function checkParty(
   }
   pushFormatError(errors, `${path} → Наименование`, 'businessEntityName', party.businessEntityName)
   pushFormatError(errors, `${path} → Краткое наименование`, 'shortName', party.shortName)
+  if (isPpvApp()) {
+    const name = (party.businessEntityName ?? '').trim()
+    const brief = (party.shortName ?? '').trim()
+    // PC_PPV пишет name + ' ' + brief в PPVMANUFBUSENTSEARCH.MANUFBUSENTNAME (VARCHAR2(300))
+    if (name && brief && name.length + 1 + brief.length > 300) {
+      errors.push(
+        `${path}: суммарная длина «Наименование субъекта» и «Краткое наименование» не должна превышать 300 символов (ограничение индекса поиска в БД). Сейчас: ${name.length + 1 + brief.length}.`
+      )
+    }
+  }
   if (!(party.businessEntityTypeCodeListId === '2049' && (party.businessEntityTypeCode ?? '').trim())) {
     pushFormatError(errors, `${path} → ОПФ`, 'organizationalForm', party.organizationalForm)
   }
