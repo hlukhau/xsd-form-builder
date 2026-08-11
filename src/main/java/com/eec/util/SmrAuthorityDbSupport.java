@@ -26,6 +26,10 @@ public final class SmrAuthorityDbSupport {
             "UPDATE SMR SET AUTHORITYID = ? WHERE SMRID = ? "
             + "AND TRIM(TO_CHAR(DATASOURCEKINDCODE)) = '2'";
 
+    private static final String SQL_UPDATE_SMAQ_AUTHORITY =
+            "UPDATE SMAQ SET AUTHORITYID = ? WHERE SMAQID = ? "
+            + "AND TRIM(TO_CHAR(DATASOURCEKINDCODE)) = '2'";
+
     private SmrAuthorityDbSupport() {
     }
 
@@ -58,12 +62,22 @@ public final class SmrAuthorityDbSupport {
 
     /** Записывает AUTHORITYID после INSERT SMR (как при редактировании через UPDATE). */
     public static void updateSmrAuthorityId(Connection conn, long smrId, Integer authorityId) throws SQLException {
+        updateAuthorityId(conn, SQL_UPDATE_SMR_AUTHORITY, smrId, authorityId);
+    }
+
+    /** Записывает AUTHORITYID после INSERT SMAQ. */
+    public static void updateSmaqAuthorityId(Connection conn, long smaqId, Integer authorityId) throws SQLException {
+        updateAuthorityId(conn, SQL_UPDATE_SMAQ_AUTHORITY, smaqId, authorityId);
+    }
+
+    private static void updateAuthorityId(Connection conn, String sql, long cardId, Integer authorityId)
+            throws SQLException {
         if (authorityId == null) {
             return;
         }
-        try (PreparedStatement ps = conn.prepareStatement(SQL_UPDATE_SMR_AUTHORITY)) {
+        try (PreparedStatement ps = conn.prepareStatement(sql)) {
             ps.setInt(1, authorityId);
-            ps.setLong(2, smrId);
+            ps.setLong(2, cardId);
             ps.executeUpdate();
         } catch (SQLException e) {
             String m = e.getMessage() != null ? e.getMessage() : "";

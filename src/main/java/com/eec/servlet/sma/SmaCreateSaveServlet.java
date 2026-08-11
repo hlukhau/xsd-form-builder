@@ -144,6 +144,21 @@ public class SmaCreateSaveServlet extends HttpServlet {
                     "В карте прав доступа укажите атрибут userId (для записи SMAQSTATUSHIST)");
             return;
         }
+        if (authorityName == null || authorityName.trim().isEmpty()) {
+            sendErr(response, HttpServletResponse.SC_BAD_REQUEST,
+                    "Заполните наименование уполномоченного органа");
+            return;
+        }
+        if (descriptionText == null || descriptionText.trim().isEmpty()) {
+            sendErr(response, HttpServletResponse.SC_BAD_REQUEST, "Заполните описание запроса");
+            return;
+        }
+        Integer resolvedAuthorityId = com.eec.util.SmrAuthorityDbSupport.resolveAuthorityId(conn, authorityId);
+        if (resolvedAuthorityId == null) {
+            sendErr(response, HttpServletResponse.SC_BAD_REQUEST,
+                    "Выберите уполномоченный орган (не удалось определить AUTHORITYID для SMAQ.AUTHORITYID)");
+            return;
+        }
 
         long smaqId = nextId(conn, SQL_NEXT_SMAQID, "sqsmaq");
         int smaqVersion = resolveNextSmaqVersion(conn, smdid);
@@ -157,9 +172,10 @@ public class SmaCreateSaveServlet extends HttpServlet {
 
         conn.setAutoCommit(false);
         try {
-            Integer resolvedAuthorityId = com.eec.util.SmrAuthorityDbSupport.resolveAuthorityId(conn, authorityId);
             insertSmaq(conn, smaqId, smdid, gate.docId, gate.draftStatusId, gate.requestCountryId, smaqVersion,
                     resolvedAuthorityId);
+            // Гарантируем AUTHORITYID даже если INSERT шёл без колонки / с fallback.
+            com.eec.util.SmrAuthorityDbSupport.updateSmaqAuthorityId(conn, smaqId, resolvedAuthorityId);
             insertXml(conn, true, smaqId, xml, EDOC_SMAQ);
             insertHist(conn, true, smaqId, gate.draftStatusId, userId);
             conn.commit();

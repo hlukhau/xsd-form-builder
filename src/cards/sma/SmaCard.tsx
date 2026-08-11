@@ -54,6 +54,10 @@ import {
   defaultSmarAbsentResponseValue,
   type SmarAbsentResponseValue,
 } from '@/cards/sma/SmarAbsentResponseFields'
+import {
+  validateSmaIncidentAlertComplete,
+  validateSmaqRequiredFields,
+} from '@/cards/sma/smaSaveValidation'
 import { SMAR_EDOCCODE_ABSENT, SMAR_EDOCCODE_INFO } from '@/constants/smarResponse'
 import { buildSmdCardViewUrl, buildSmaqCardViewUrl } from '@/utils/smaCardUrl'
 import { outgoingSmaStatusButton, incomingSmaCompleteProcessingButton } from '@/utils/smaStatusButtonConfig'
@@ -167,6 +171,7 @@ export function SmaCard({ kind, cardId, guid, meta, parsed, onDataRefresh }: Sma
   const [authEdit, setAuthEdit] = useState({
     country: '',
     authorityUid: undefined as string | undefined,
+    authorityDbId: undefined as number | undefined,
     name: '',
     shortName: '',
   })
@@ -191,6 +196,7 @@ export function SmaCard({ kind, cardId, guid, meta, parsed, onDataRefresh }: Sma
   const isDraftAuthority =
     statusId === 4 ||
     (meta.statusCode ?? '').toUpperCase() === 'DRAFT' ||
+    (kind === 'smaq' && (meta.statusCode ?? '').toUpperCase() === 'NEW') ||
     /черновик/i.test(meta.statusName ?? '')
 
   const isAbsentResponse = kind === 'smar' && responseKind === 'absent'
@@ -300,11 +306,14 @@ export function SmaCard({ kind, cardId, guid, meta, parsed, onDataRefresh }: Sma
 
   const beginEdit = useCallback(() => {
     const isSmar = kind === 'smar'
+    const uid = isSmar ? undefined : meta.authorityUid?.trim() || undefined
     setAuthEdit({
       country: isSmar
         ? meta.requestCountryCode?.trim() || parsed.authority.country?.trim() || ''
         : parsed.authority.country?.trim() ?? meta.requestCountryCode?.trim() ?? '',
-      authorityUid: isSmar ? undefined : meta.authorityUid?.trim() || undefined,
+      // Не подставлять УО, если в карте не указан (meta.authorityUid пуст)
+      authorityUid: uid,
+      authorityDbId: undefined,
       name: parsed.authority.name?.trim() ?? '',
       shortName: parsed.authority.shortName?.trim() ?? '',
     })
@@ -331,7 +340,21 @@ export function SmaCard({ kind, cardId, guid, meta, parsed, onDataRefresh }: Sma
       message.error('Нет GUID')
       return
     }
-    if (kind === 'smar' && responseKind === 'info' && !descText.trim()) {
+    if (kind === 'smaq') {
+      const reqErr = validateSmaqRequiredFields({
+        descriptionText: descText,
+        authorityName: authEdit.name,
+      })
+      if (reqErr) {
+        message.error(reqErr)
+        return
+      }
+      const incErr = validateSmaIncidentAlertComplete(incidentAlertEdit)
+      if (incErr) {
+        message.error(incErr)
+        return
+      }
+    } else if (kind === 'smar' && responseKind === 'info' && !descText.trim()) {
       message.error('Заполните описание ответа')
       return
     }
@@ -340,13 +363,16 @@ export function SmaCard({ kind, cardId, guid, meta, parsed, onDataRefresh }: Sma
       const xml = exportSmaParsedBundleToXml(parsedForSave, {
         responseKind: kind === 'smar' ? responseKind : undefined,
       })
+      const resolvedAuthorityId =
+        authEdit.authorityUid?.trim() ||
+        (authEdit.authorityDbId != null ? String(authEdit.authorityDbId) : undefined)
       await postSmaSave({
         kind,
         id: cardId,
         guid: g,
         smaXmlB64: utf8ToBase64(xml),
         responseKind: kind === 'smar' ? responseKind : undefined,
-        authorityId: kind === 'smaq' ? authEdit.authorityUid?.trim() || undefined : undefined,
+        authorityId: kind === 'smaq' ? resolvedAuthorityId : undefined,
       })
       setIsEditMode(false)
       await onDataRefresh?.()
@@ -355,7 +381,19 @@ export function SmaCard({ kind, cardId, guid, meta, parsed, onDataRefresh }: Sma
     } finally {
       setSaving(false)
     }
-  }, [guid, kind, cardId, parsedForSave, responseKind, onDataRefresh, authEdit.authorityUid])
+  }, [
+    guid,
+    kind,
+    cardId,
+    parsedForSave,
+    responseKind,
+    onDataRefresh,
+    authEdit.authorityUid,
+    authEdit.authorityDbId,
+    authEdit.name,
+    descText,
+    incidentAlertEdit,
+  ])
 
   const runStatusAction = useCallback(
     async (action: string) => {
@@ -759,6 +797,7 @@ export function SmaCard({ kind, cardId, guid, meta, parsed, onDataRefresh }: Sma
                           value={{
                             country: authEdit.country || parsed.authority.country || '',
                             authorityUid: authEdit.authorityUid,
+                            authorityDbId: authEdit.authorityDbId,
                             name: authEdit.name,
                             shortName: authEdit.shortName,
                           }}
@@ -766,6 +805,7 @@ export function SmaCard({ kind, cardId, guid, meta, parsed, onDataRefresh }: Sma
                             setAuthEdit({
                               country: next.country,
                               authorityUid: next.authorityUid,
+                              authorityDbId: next.authorityDbId,
                               name: next.name,
                               shortName: next.shortName,
                             })

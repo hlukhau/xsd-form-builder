@@ -7,6 +7,8 @@ import { FIELD_HELP } from '@/constants/fieldDescriptions'
 export interface SmaAuthorityValue {
   country: string
   authorityUid?: string
+  /** Числовой AUTHORITYID из справочника (для SMAQ.AUTHORITYID). */
+  authorityDbId?: number
   name: string
   shortName: string
 }
@@ -47,7 +49,7 @@ export function SmaAuthorityEdit({
   const handleSelect = (uid: string | null) => {
     if (!uid) {
       setSelectedUid(undefined)
-      onChange({ ...value, authorityUid: undefined, name: '', shortName: '' })
+      onChange({ ...value, authorityUid: undefined, authorityDbId: undefined, name: '', shortName: '' })
       return
     }
     const authority = getAuthorityByUid(uid)
@@ -57,6 +59,7 @@ export function SmaAuthorityEdit({
         ...value,
         country: authority.countryCode || value.country,
         authorityUid: uid,
+        authorityDbId: authority.authorityId,
         name: authority.name,
         shortName: authority.briefName || '',
       })
@@ -99,7 +102,7 @@ export function SmaAuthorityEdit({
               !countryCode
                 ? 'Страна не указана'
                 : !isDraft
-                  ? 'Доступно только в статусе «Черновик»'
+                  ? 'Доступно только в статусе «Черновик» / «Новое»'
                   : `Выберите ${roleLabel.toLowerCase()}`
             }
             loading={loadingAuthorities}

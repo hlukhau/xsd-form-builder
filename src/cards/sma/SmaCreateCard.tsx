@@ -21,6 +21,10 @@ import {
 import { exportSmaParsedBundleToXml } from '@/utils/xmlExporter'
 import { buildSmaCreateBundle } from '@/cards/sma/smaCreateBundle'
 import { buildSmdCardViewUrl, buildSmaqCardViewUrl } from '@/utils/smaCardUrl'
+import {
+  validateSmaIncidentAlertComplete,
+  validateSmaqRequiredFields,
+} from '@/cards/sma/smaSaveValidation'
 
 const CARD_STICKY_HEADER_STYLE: CSSProperties = {
   position: 'sticky',
@@ -75,6 +79,7 @@ export function SmaCreateCard({ context, guid }: SmaCreateCardProps) {
   const [authEdit, setAuthEdit] = useState({
     country: 'BY',
     authorityUid: undefined as string | undefined,
+    authorityDbId: undefined as number | undefined,
     name: '',
     shortName: '',
   })
@@ -128,6 +133,7 @@ export function SmaCreateCard({ context, guid }: SmaCreateCardProps) {
     setAuthEdit({
       country: context.requestCountryCode?.trim() || 'BY',
       authorityUid: undefined,
+      authorityDbId: undefined,
       name: context.linkedAuthorityName?.trim() ?? '',
       shortName: context.linkedAuthorityBriefName?.trim() ?? '',
     })
@@ -170,7 +176,21 @@ export function SmaCreateCard({ context, guid }: SmaCreateCardProps) {
   }, [isSmaq, context.smdid, context.smaqid, guid])
 
   const handleSave = useCallback(async () => {
-    if (!isSmaq && !isAbsent && !descriptionText.trim()) {
+    if (isSmaq) {
+      const reqErr = validateSmaqRequiredFields({
+        descriptionText,
+        authorityName: authEdit.name,
+      })
+      if (reqErr) {
+        message.error(reqErr)
+        return
+      }
+      const incErr = validateSmaIncidentAlertComplete(incidentAlert)
+      if (incErr) {
+        message.error(incErr)
+        return
+      }
+    } else if (!isAbsent && !descriptionText.trim()) {
       message.error('Заполните описание ответа')
       return
     }
@@ -192,13 +212,16 @@ export function SmaCreateCard({ context, guid }: SmaCreateCardProps) {
         }
       )
       const xml = exportSmaParsedBundleToXml(bundle, { responseKind: isSmaq ? undefined : responseKind })
+      const resolvedAuthorityId =
+        authEdit.authorityUid?.trim() ||
+        (authEdit.authorityDbId != null ? String(authEdit.authorityDbId) : undefined)
       const result = await postSmaCreateSave({
         kind: context.kind,
         guid: guid.trim(),
         smdid: isSmaq ? String(context.smdid) : undefined,
         smaqid: !isSmaq && context.smaqid != null ? String(context.smaqid) : undefined,
         smaXmlB64: utf8ToBase64(xml),
-        authorityId: authEdit.authorityUid?.trim() || undefined,
+        authorityId: isSmaq ? resolvedAuthorityId : undefined,
         authorityName: authEdit.name.trim() || undefined,
         authorityBriefName: authEdit.shortName.trim() || undefined,
         descriptionText: isAbsent
@@ -327,6 +350,7 @@ export function SmaCreateCard({ context, guid }: SmaCreateCardProps) {
                         value={{
                           country: authEdit.country || rc || 'BY',
                           authorityUid: authEdit.authorityUid,
+                          authorityDbId: authEdit.authorityDbId,
                           name: authEdit.name,
                           shortName: authEdit.shortName,
                         }}
@@ -334,6 +358,7 @@ export function SmaCreateCard({ context, guid }: SmaCreateCardProps) {
                           setAuthEdit({
                             country: next.country,
                             authorityUid: next.authorityUid,
+                            authorityDbId: next.authorityDbId,
                             name: next.name,
                             shortName: next.shortName,
                           })

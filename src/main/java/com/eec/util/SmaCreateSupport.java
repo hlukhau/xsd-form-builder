@@ -67,6 +67,11 @@ public final class SmaCreateSupport {
             + "JOIN SMARSTATUS st ON st.SMARSTATUSID = hs.SMARSTATUSID "
             + "WHERE hs.SMARID = ? AND TRIM(UPPER(st.SMARSTATUSCODE)) = 'PENDING' AND ROWNUM = 1";
 
+    private static final String SQL_SMAQ_HAS_PENDING_IN_HIST = ""
+            + "SELECT 1 FROM SMAQSTATUSHIST hs "
+            + "JOIN SMAQSTATUS st ON st.SMAQSTATUSID = hs.SMAQSTATUSID "
+            + "WHERE hs.SMAQID = ? AND TRIM(UPPER(st.SMAQSTATUSCODE)) = 'PENDING' AND ROWNUM = 1";
+
     private static final Pattern AUTHORITY_NAME_IN_XML = Pattern.compile(
             "<(?:\\w+:)?AuthorityName[^>]*>([^<]*)</(?:\\w+:)?AuthorityName>");
     private static final Pattern AUTHORITY_BRIEF_IN_XML = Pattern.compile(
@@ -390,8 +395,7 @@ public final class SmaCreateSupport {
         if (!rights.allowed) {
             return GateResult.denied(rights.reason);
         }
-        return evaluateOutgoingDeleteGate(conn, SmaCardKind.SMAQ, smaqId, guid, rights.depKeys,
-                "sanitaryMeasureIn:status", SQL_SMAQ_CORE);
+        return evaluateSmaqOutgoingDeleteGate(conn, smaqId, guid, rights.depKeys, "sanitaryMeasureIn:status");
     }
 
     public static GateResult evaluateSmarDeleteGate(Connection conn, long smarId, String guid) throws SQLException {
@@ -569,6 +573,59 @@ public final class SmaCreateSupport {
                     + " не входит в доступ к связанной карте SMD (SMDDEPPERMIS)");
         }
         return GateResult.okLinked(smdid, smaqid);
+    }
+
+    /**
+     * Удаление исходящего SMAQ: статус NEW (или DRAFT) и отсутствие PENDING в истории
+     * (карта ещё не направлялась участникам).
+     */
+    private static GateResult evaluateSmaqOutgoingDeleteGate(Connection conn, long smaqId, String guid,
+                                                             Set<String> depKeys, String rightLabel)
+            throws SQLException {
+        if (guid == null || guid.trim().isEmpty() || smaqId <= 0) {
+            return GateResult.denied("Не заданы идентификатор карты или guid");
+        }
+        guid = guid.trim();
+        if (!SmaAccessHelper.canViewSmaq(conn, smaqId, guid)) {
+            return GateResult.denied("Нет доступа к просмотру карты");
+        }
+        long smdid = 0L;
+        String dsc = null;
+        String statusCode = null;
+        try (PreparedStatement ps = conn.prepareStatement(SQL_SMAQ_CORE)) {
+            ps.setLong(1, smaqId);
+            try (ResultSet rs = ps.executeQuery()) {
+                if (!rs.next()) {
+                    return GateResult.denied("Карта не найдена");
+                }
+                smdid = rs.getLong("SMDID");
+                dsc = rs.getString("DSC");
+                statusCode = rs.getString("STCODE");
+            }
+        }
+        if (dsc == null || !DSC_OUTGOING.equals(dsc.trim())) {
+            return GateResult.denied("Удаление доступно только для исходящей карты (DATASOURCEKINDCODE=2)");
+        }
+        if (statusCode == null || (!"NEW".equals(statusCode) && !"DRAFT".equals(statusCode))) {
+            return GateResult.denied("Удалить запрос можно только в статусе «Новое» (или черновик)");
+        }
+        try (PreparedStatement ps = conn.prepareStatement(SQL_SMAQ_HAS_PENDING_IN_HIST)) {
+            ps.setLong(1, smaqId);
+            try (ResultSet rs = ps.executeQuery()) {
+                if (rs.next()) {
+                    return GateResult.denied(
+                            "Карта сведений уже направлялась участникам ОП58. Удаление запрещено");
+                }
+            }
+        }
+        if (depKeys == null || depKeys.isEmpty()) {
+            return GateResult.denied("В карте прав не заданы подразделения для " + rightLabel);
+        }
+        if (!SmdDepPermisUtil.hasOverlap(conn, smdid, depKeys)) {
+            return GateResult.denied("Нет права на удаление: ни одно подразделение из " + rightLabel
+                    + " не входит в доступ к связанной карте SMD (SMDDEPPERMIS)");
+        }
+        return GateResult.okLinked(smdid, 0L);
     }
 
     /** Удаление исходящего SMAR: статус NEW и отсутствие «Ожидает отправки» (PENDING) в истории. */
