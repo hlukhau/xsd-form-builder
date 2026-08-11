@@ -159,6 +159,11 @@ public final class AccessRightService {
         return depKeysFromRightsBlock(rightsJson, "sanitaryMeasureOut", "edit");
     }
 
+    /** Ключи sanitaryMeasureOut.send. */
+    public static Set<String> sanitaryMeasureOutSendDepKeys(String rightsJson) {
+        return depKeysFromRightsBlock(rightsJson, "sanitaryMeasureOut", "send");
+    }
+
     /** Ключи объекта up.violationDetectedOut.status (DEPID в JSON прав). */
     public static Set<String> violationDetectedOutStatusDepKeys(String rightsJson) {
         Set<String> keys = new HashSet<>();

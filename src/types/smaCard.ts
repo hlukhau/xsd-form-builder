@@ -52,6 +52,13 @@ export interface SmaCreateEligibilityResponse {
   /** SMAR: наименование УО из связанного SMAQ */
   linkedAuthorityName?: string | null
   linkedAuthorityBriefName?: string | null
+  /** SMAR: префилл из SMAQ */
+  linkedSanitaryProductTypeCode?: string | null
+  linkedProductName?: string | null
+  linkedIncidentCountry?: string | null
+  linkedIncidentRegistrationNumber?: string | null
+  linkedIncidentTypeCode?: string | null
+  linkedIncidentFormationDate?: string | null
 }
 
 /** Контекст создания карты (из eligibility). */
@@ -70,6 +77,12 @@ export interface SmaCreateContext {
   /** SMAR: наименование УО из связанного SMAQ */
   linkedAuthorityName?: string | null
   linkedAuthorityBriefName?: string | null
+  linkedSanitaryProductTypeCode?: string | null
+  linkedProductName?: string | null
+  linkedIncidentCountry?: string | null
+  linkedIncidentRegistrationNumber?: string | null
+  linkedIncidentTypeCode?: string | null
+  linkedIncidentFormationDate?: string | null
 }
 
 /** Тело POST /api/sma/create-save */

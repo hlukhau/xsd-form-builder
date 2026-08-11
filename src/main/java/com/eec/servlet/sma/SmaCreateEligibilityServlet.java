@@ -73,6 +73,15 @@ public class SmaCreateEligibilityServlet extends HttpServlet {
             if (target.createKind == SmaCardKind.SMAR) {
                 out.print(",\"linkedAuthorityName\":" + SmaServletUtil.quote(g.linkedAuthorityName));
                 out.print(",\"linkedAuthorityBriefName\":" + SmaServletUtil.quote(g.linkedAuthorityBriefName));
+                out.print(",\"linkedSanitaryProductTypeCode\":"
+                        + SmaServletUtil.quote(g.linkedSanitaryProductTypeCode));
+                out.print(",\"linkedProductName\":" + SmaServletUtil.quote(g.linkedProductName));
+                out.print(",\"linkedIncidentCountry\":" + SmaServletUtil.quote(g.linkedIncidentCountry));
+                out.print(",\"linkedIncidentRegistrationNumber\":"
+                        + SmaServletUtil.quote(g.linkedIncidentRegistrationNumber));
+                out.print(",\"linkedIncidentTypeCode\":" + SmaServletUtil.quote(g.linkedIncidentTypeCode));
+                out.print(",\"linkedIncidentFormationDate\":"
+                        + SmaServletUtil.quote(g.linkedIncidentFormationDate));
             }
             out.print("}");
             out.flush();

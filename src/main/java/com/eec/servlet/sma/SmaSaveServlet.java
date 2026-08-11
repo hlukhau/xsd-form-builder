@@ -27,9 +27,14 @@ import java.util.regex.Pattern;
  */
 public class SmaSaveServlet extends HttpServlet {
 
-    private static final String EDOC_VERSION = "1.0.0";
+    private static final String EDOC_VERSION_INFO = "1.0.0";
+    private static final String EDOC_VERSION_ABSENT = "1.0.7";
     private static final String EDOC_SMAR_INFO = "R.SM.SS.09.002";
     private static final String EDOC_SMAR_ABSENT = "R.006";
+
+    private static String edocVersionFor(String edocCode) {
+        return EDOC_SMAR_ABSENT.equals(edocCode) ? EDOC_VERSION_ABSENT : EDOC_VERSION_INFO;
+    }
 
     @Override
     protected void doPost(HttpServletRequest request, HttpServletResponse response)
@@ -299,7 +304,7 @@ public class SmaSaveServlet extends HttpServlet {
                     "UPDATE SMAQXML SET SMAQXMLBODY = ?, EDOCCODE = ?, EDOCVERSION = ? WHERE SMAQID = ?")) {
                 ps.setString(1, xml);
                 ps.setString(2, edocCode);
-                ps.setString(3, EDOC_VERSION);
+                ps.setString(3, edocVersionFor(edocCode));
                 ps.setLong(4, cardId);
                 ps.executeUpdate();
                 return;
@@ -319,7 +324,7 @@ public class SmaSaveServlet extends HttpServlet {
                 "UPDATE SMARXML SET SMARXMLBODY = ?, EDOCCODE = ?, EDOCVERSION = ? WHERE SMARID = ?")) {
             ps.setString(1, xml);
             ps.setString(2, edocCode);
-            ps.setString(3, EDOC_VERSION);
+            ps.setString(3, edocVersionFor(edocCode));
             ps.setLong(4, cardId);
             ps.executeUpdate();
         } catch (SQLException e) {

@@ -33,6 +33,7 @@ import {
   fetchSmaStatusHistory,
 } from '@/cards/sma/smaApi'
 import { fetchRightsByGuid, getSmrAuthorityFilterDepIdsFromRights, type RightsJson } from '@/utils/referenceDataApi'
+import { useParentActivityPing } from '@/hooks/shared/useParentActivityPing'
 import { useCountryOptions } from '@/hooks/shared/useCountryOptions'
 import { useLanguageOptions } from '@/hooks/shared/useLanguageOptions'
 import { useShipDocKindOptions } from '@/hooks/shared/useShipDocKindOptions'
@@ -148,6 +149,7 @@ export interface SmaCardProps {
 }
 
 export function SmaCard({ kind, cardId, guid, meta, parsed, onDataRefresh }: SmaCardProps) {
+  useParentActivityPing()
   const { countryOptions } = useCountryOptions()
   const { getSelectOptions: getSanitaryProdTypeSelectOptions, getNameByCode: getSanitaryProdTypeNameByCode, loading: loadingSanitaryProdTypes } =
     useSanitaryProdTypeOptions()
@@ -504,6 +506,18 @@ export function SmaCard({ kind, cardId, guid, meta, parsed, onDataRefresh }: Sma
     }
   }
 
+  const downloadAnyXml = (row: SmaDocRow) => {
+    const xml = row.anyDetailsXml?.trim()
+    if (!xml) return
+    const blob = new Blob([xml], { type: 'application/xml;charset=utf-8' })
+    const url = URL.createObjectURL(blob)
+    const link = document.createElement('a')
+    link.href = url
+    link.download = 'document.xml'
+    link.click()
+    URL.revokeObjectURL(url)
+  }
+
   const docPanels = useMemo(
     () =>
       parsed.documents.map((row, i) => ({
@@ -519,12 +533,35 @@ export function SmaCard({ kind, cardId, guid, meta, parsed, onDataRefresh }: Sma
             <Descriptions.Item label="Язык">{row.languageCode ? langLabel(row.languageCode) : '—'}</Descriptions.Item>
             <Descriptions.Item label="Вид">{docKindLabel(row)}</Descriptions.Item>
             <Descriptions.Item label="Наименование">{dash(row.docName)}</Descriptions.Item>
+            <Descriptions.Item label="Серия">{dash(row.docSeriesId)}</Descriptions.Item>
             <Descriptions.Item label="Номер">{dash(row.docId)}</Descriptions.Item>
             <Descriptions.Item label="Дата документа">{formatDateOnly(row.docCreationDate)}</Descriptions.Item>
+            <Descriptions.Item label="Дата начала срока действия">
+              {formatDateOnly(row.docStartDate)}
+            </Descriptions.Item>
+            <Descriptions.Item label="Дата истечения срока действия">
+              {formatDateOnly(row.docValidityDate)}
+            </Descriptions.Item>
+            <Descriptions.Item label="Срок действия документа">
+              {dash(row.docValidityDuration)}
+            </Descriptions.Item>
+            <Descriptions.Item label="Наименование уполномоченного органа">
+              {dash(row.authorityName)}
+            </Descriptions.Item>
             <Descriptions.Item label="Описание">{dash(row.descriptionText)}</Descriptions.Item>
+            <Descriptions.Item label="Количество листов">{dash(row.pageQuantity)}</Descriptions.Item>
             <Descriptions.Item label="Документ в бинарном виде">
               {row.docBinaryText?.trim() ? (
                 <Button type="link" icon={<DownloadOutlined />} onClick={() => downloadBinary(row)}>
+                  Скачать
+                </Button>
+              ) : (
+                '—'
+              )}
+            </Descriptions.Item>
+            <Descriptions.Item label="XML">
+              {row.anyDetailsXml?.trim() ? (
+                <Button type="link" icon={<DownloadOutlined />} onClick={() => downloadAnyXml(row)}>
                   Скачать
                 </Button>
               ) : (
@@ -564,7 +601,7 @@ export function SmaCard({ kind, cardId, guid, meta, parsed, onDataRefresh }: Sma
     kind === 'smaq'
       ? 'Описание запроса'
       : isAbsentResponse
-        ? 'Описание результата обработки'
+        ? 'Описание'
         : 'Описание ответа'
 
   return (

@@ -88,6 +88,12 @@ export function eligibilityToCreateContext(elig: {
   draftStatusName?: string | null
   linkedAuthorityName?: string | null
   linkedAuthorityBriefName?: string | null
+  linkedSanitaryProductTypeCode?: string | null
+  linkedProductName?: string | null
+  linkedIncidentCountry?: string | null
+  linkedIncidentRegistrationNumber?: string | null
+  linkedIncidentTypeCode?: string | null
+  linkedIncidentFormationDate?: string | null
 }): import('@/types/smaCard').SmaCreateContext | null {
   const kind = elig.kind === 'smar' ? 'smar' : elig.kind === 'smaq' ? 'smaq' : null
   if (!kind || elig.smdid == null || elig.draftStatusId == null) return null
@@ -105,5 +111,11 @@ export function eligibilityToCreateContext(elig: {
     draftStatusName: elig.draftStatusName ?? null,
     linkedAuthorityName: elig.linkedAuthorityName ?? null,
     linkedAuthorityBriefName: elig.linkedAuthorityBriefName ?? null,
+    linkedSanitaryProductTypeCode: elig.linkedSanitaryProductTypeCode ?? null,
+    linkedProductName: elig.linkedProductName ?? null,
+    linkedIncidentCountry: elig.linkedIncidentCountry ?? null,
+    linkedIncidentRegistrationNumber: elig.linkedIncidentRegistrationNumber ?? null,
+    linkedIncidentTypeCode: elig.linkedIncidentTypeCode ?? null,
+    linkedIncidentFormationDate: elig.linkedIncidentFormationDate ?? null,
   }
 }

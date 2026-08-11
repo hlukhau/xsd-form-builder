@@ -1,10 +1,11 @@
-import { useCallback, useEffect, useState, type CSSProperties } from 'react'
+import { useCallback, useEffect, useMemo, useState, type CSSProperties } from 'react'
 import { Typography, Tabs, Descriptions, Button, Space, message, Input, Select } from 'antd'
 import type { SmaCreateContext, SmaDocRow, SmarResponseKind } from '@/types/smaCard'
 import { fetchRightsByGuid, getSmrAuthorityFilterDepIdsFromRights, type RightsJson } from '@/utils/referenceDataApi'
 import { postSmaCreateSave } from '@/cards/sma/smaApi'
 import { useCountryOptions } from '@/hooks/shared/useCountryOptions'
 import { useSanitaryProdTypeOptions } from '@/hooks/shared/useSanitaryProdTypeOptions'
+import { useParentActivityPing } from '@/hooks/shared/useParentActivityPing'
 import { CardActions } from '@/cards/shared'
 import { SmaAuthorityEdit } from '@/cards/sma/SmaAuthorityEdit'
 import { SmaDocumentsEdit } from '@/cards/sma/SmaDocumentsEdit'
@@ -66,6 +67,7 @@ export interface SmaCreateCardProps {
 }
 
 export function SmaCreateCard({ context, guid }: SmaCreateCardProps) {
+  useParentActivityPing()
   const { countryOptions } = useCountryOptions()
   const { getSelectOptions: getSanitaryProdTypeSelectOptions, loading: loadingSanitaryProdTypes } =
     useSanitaryProdTypeOptions()
@@ -78,16 +80,35 @@ export function SmaCreateCard({ context, guid }: SmaCreateCardProps) {
   })
   const [authorityFilterDepIds, setAuthorityFilterDepIds] = useState<string[] | null>(null)
   const [descriptionText, setDescriptionText] = useState('')
-  const [sanitaryProductTypeCode, setSanitaryProductTypeCode] = useState('')
-  const [productName, setProductName] = useState('')
+  const [sanitaryProductTypeCode, setSanitaryProductTypeCode] = useState(
+    () => context.linkedSanitaryProductTypeCode?.trim() ?? ''
+  )
+  const [productName, setProductName] = useState(() => context.linkedProductName?.trim() ?? '')
   const [laboratoryTestMethodName, setLaboratoryTestMethodName] = useState('')
   const [documentsEdit, setDocumentsEdit] = useState<SmaDocRow[]>([])
   const [responseKind, setResponseKind] = useState<SmarResponseKind>('info')
   const [absentResponse, setAbsentResponse] = useState<SmarAbsentResponseValue>(defaultSmarAbsentResponseValue)
-  const [incidentAlert, setIncidentAlert] = useState(emptySmaIncidentAlert)
+  const [incidentAlert, setIncidentAlert] = useState(() => {
+    if (context.kind !== 'smar') return emptySmaIncidentAlert()
+    return {
+      country: context.linkedIncidentCountry?.trim() ?? '',
+      registrationNumber: context.linkedIncidentRegistrationNumber?.trim() ?? '',
+      typeCode: context.linkedIncidentTypeCode?.trim() ?? '',
+      formationDate: context.linkedIncidentFormationDate?.trim().slice(0, 10) ?? '',
+    }
+  })
 
   const isSmaq = context.kind === 'smaq'
   const isAbsent = !isSmaq && responseKind === 'absent'
+  const hasLinkedIncident = useMemo(() => {
+    if (isSmaq) return false
+    return Boolean(
+      incidentAlert.country?.trim() ||
+        incidentAlert.registrationNumber?.trim() ||
+        incidentAlert.typeCode?.trim() ||
+        incidentAlert.formationDate?.trim()
+    )
+  }, [isSmaq, incidentAlert])
 
   const rc = context.requestCountryCode ?? 'BY'
   const rn = context.requestCountryName ?? ''
@@ -167,7 +188,7 @@ export function SmaCreateCard({ context, guid }: SmaCreateCardProps) {
           responseKind: isSmaq ? undefined : responseKind,
           eventDateTime: isAbsent ? absentResponse.eventDateTime : undefined,
           processingResultV2Code: isAbsent ? absentResponse.processingResultV2Code : undefined,
-          incidentAlert: isSmaq ? incidentAlert : undefined,
+          incidentAlert: isAbsent ? undefined : incidentAlert,
         }
       )
       const xml = exportSmaParsedBundleToXml(bundle, { responseKind: isSmaq ? undefined : responseKind })
@@ -218,7 +239,7 @@ export function SmaCreateCard({ context, guid }: SmaCreateCardProps) {
     ? 'Создание карты запроса дополнительных сведений'
     : 'Создание карты ответа на запрос дополнительных сведений'
 
-  const descLabel = isSmaq ? 'Описание запроса' : isAbsent ? 'Описание результата обработки' : 'Описание ответа'
+  const descLabel = isSmaq ? 'Описание запроса' : isAbsent ? 'Описание' : 'Описание ответа'
 
   return (
     <div
@@ -342,6 +363,13 @@ export function SmaCreateCard({ context, guid }: SmaCreateCardProps) {
                             Уведомление о нежелательной ситуации
                           </Typography.Title>
                           <SmaIncidentAlertEdit value={incidentAlert} onChange={setIncidentAlert} />
+                        </>
+                      ) : hasLinkedIncident && !isAbsent ? (
+                        <>
+                          <Typography.Title level={5} style={{ marginTop: 24 }}>
+                            Уведомление о нежелательной ситуации
+                          </Typography.Title>
+                          <SmaIncidentAlertEdit value={incidentAlert} readOnly />
                         </>
                       ) : null}
 

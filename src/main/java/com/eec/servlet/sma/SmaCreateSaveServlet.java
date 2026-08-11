@@ -67,10 +67,15 @@ public class SmaCreateSaveServlet extends HttpServlet {
             + "INSERT INTO SMARSTATUSHIST (SMARID, SMARSTATUSID, SMARSTATUSDATETIME, USERID) "
             + "VALUES (?, ?, SYSDATE, ?)";
 
-    private static final String EDOC_VERSION = "1.0.0";
+    private static final String EDOC_VERSION_INFO = "1.0.0";
+    private static final String EDOC_VERSION_ABSENT = "1.0.7";
     private static final String EDOC_SMAQ = "R.SM.SS.09.002";
     private static final String EDOC_SMAR_INFO = "R.SM.SS.09.002";
     private static final String EDOC_SMAR_ABSENT = "R.006";
+
+    private static String edocVersionFor(String edocCode) {
+        return EDOC_SMAR_ABSENT.equals(edocCode) ? EDOC_VERSION_ABSENT : EDOC_VERSION_INFO;
+    }
 
     @Override
     protected void doPost(HttpServletRequest request, HttpServletResponse response)
@@ -333,7 +338,7 @@ public class SmaCreateSaveServlet extends HttpServlet {
             ps.setLong(1, id);
             ps.setString(2, xml);
             ps.setString(3, edocCode);
-            ps.setString(4, EDOC_VERSION);
+            ps.setString(4, edocVersionFor(edocCode));
             ps.executeUpdate();
         } catch (SQLException e) {
             String m = e.getMessage() != null ? e.getMessage() : "";

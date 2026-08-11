@@ -71,6 +71,21 @@ public final class SmaCreateSupport {
             "<(?:\\w+:)?AuthorityName[^>]*>([^<]*)</(?:\\w+:)?AuthorityName>");
     private static final Pattern AUTHORITY_BRIEF_IN_XML = Pattern.compile(
             "<(?:\\w+:)?AuthorityBriefName[^>]*>([^<]*)</(?:\\w+:)?AuthorityBriefName>");
+    private static final Pattern PRODUCT_TYPE_IN_XML = Pattern.compile(
+            "<(?:\\w+:)?SanitaryProductTypeCode[^>]*>([^<]*)</(?:\\w+:)?SanitaryProductTypeCode>");
+    private static final Pattern PRODUCT_NAME_IN_XML = Pattern.compile(
+            "<(?:\\w+:)?ProductName[^>]*>([^<]*)</(?:\\w+:)?ProductName>");
+    private static final Pattern INCIDENT_BLOCK_IN_XML = Pattern.compile(
+            "<(?:\\w+:)?IncidentAlertIdDetails[^>]*>([\\s\\S]*?)</(?:\\w+:)?IncidentAlertIdDetails>",
+            Pattern.CASE_INSENSITIVE);
+    private static final Pattern INCIDENT_COUNTRY_IN_XML = Pattern.compile(
+            "<(?:\\w+:)?UnifiedCountryCode[^>]*>([^<]*)</(?:\\w+:)?UnifiedCountryCode>");
+    private static final Pattern INCIDENT_ID_IN_XML = Pattern.compile(
+            "<(?:\\w+:)?IncidentId[^>]*>([^<]*)</(?:\\w+:)?IncidentId>");
+    private static final Pattern INCIDENT_KIND_IN_XML = Pattern.compile(
+            "<(?:\\w+:)?IncidentKindCode[^>]*>([^<]*)</(?:\\w+:)?IncidentKindCode>");
+    private static final Pattern INCIDENT_DATE_IN_XML = Pattern.compile(
+            "<(?:\\w+:)?DocCreationDate[^>]*>([^<]*)</(?:\\w+:)?DocCreationDate>");
 
     private static final String SQL_REQUEST_COUNTRY_BY = ""
             + "SELECT c.COUNTRYID, TRIM(c.COUNTRYCODE) AS COUNTRYCODE, TRIM(c.COUNTRYNAME) AS COUNTRYNAME "
@@ -102,11 +117,22 @@ public final class SmaCreateSupport {
         public final String linkedAuthorityName;
         /** Для SMAR: краткое наименование УО из связанного SMAQ (XML). */
         public final String linkedAuthorityBriefName;
+        /** Для SMAR: вид продукции из связанного SMAQ (XML). */
+        public final String linkedSanitaryProductTypeCode;
+        /** Для SMAR: наименование продукции из связанного SMAQ (XML). */
+        public final String linkedProductName;
+        public final String linkedIncidentCountry;
+        public final String linkedIncidentRegistrationNumber;
+        public final String linkedIncidentTypeCode;
+        public final String linkedIncidentFormationDate;
 
         private GateResult(boolean allowed, String reason, long smdid, long smaqid, String docId,
                            String docCountryCode, Date docCreationDate, long requestCountryId,
                            String requestCountryCode, String requestCountryName, int draftStatusId,
-                           String draftStatusName, String linkedAuthorityName, String linkedAuthorityBriefName) {
+                           String draftStatusName, String linkedAuthorityName, String linkedAuthorityBriefName,
+                           String linkedSanitaryProductTypeCode, String linkedProductName,
+                           String linkedIncidentCountry, String linkedIncidentRegistrationNumber,
+                           String linkedIncidentTypeCode, String linkedIncidentFormationDate) {
             this.allowed = allowed;
             this.reason = reason;
             this.smdid = smdid;
@@ -121,10 +147,17 @@ public final class SmaCreateSupport {
             this.draftStatusName = draftStatusName;
             this.linkedAuthorityName = linkedAuthorityName;
             this.linkedAuthorityBriefName = linkedAuthorityBriefName;
+            this.linkedSanitaryProductTypeCode = linkedSanitaryProductTypeCode;
+            this.linkedProductName = linkedProductName;
+            this.linkedIncidentCountry = linkedIncidentCountry;
+            this.linkedIncidentRegistrationNumber = linkedIncidentRegistrationNumber;
+            this.linkedIncidentTypeCode = linkedIncidentTypeCode;
+            this.linkedIncidentFormationDate = linkedIncidentFormationDate;
         }
 
         public static GateResult denied(String reason) {
-            return new GateResult(false, reason, 0L, 0L, null, null, null, 0L, null, null, 0, null, null, null);
+            return new GateResult(false, reason, 0L, 0L, null, null, null, 0L, null, null, 0, null,
+                    null, null, null, null, null, null, null, null);
         }
 
         public static GateResult ok(long smdid, long smaqid, String docId, String docCountryCode,
@@ -132,11 +165,12 @@ public final class SmaCreateSupport {
                                     String requestCountryName, int draftStatusId, String draftStatusName) {
             return new GateResult(true, null, smdid, smaqid, docId, docCountryCode, docCreationDate,
                     requestCountryId, requestCountryCode, requestCountryName, draftStatusId, draftStatusName,
-                    null, null);
+                    null, null, null, null, null, null, null, null);
         }
 
         public static GateResult okLinked(long smdid, long smaqid) {
-            return new GateResult(true, null, smdid, smaqid, null, null, null, 0L, null, null, 0, null, null, null);
+            return new GateResult(true, null, smdid, smaqid, null, null, null, 0L, null, null, 0, null,
+                    null, null, null, null, null, null, null, null);
         }
     }
 
@@ -320,10 +354,14 @@ public final class SmaCreateSupport {
 
         String linkedAuthorityName = loadSmaqAuthorityNameFromXml(conn, smaqid);
         String linkedAuthorityBriefName = loadSmaqAuthorityBriefNameFromXml(conn, smaqid);
+        LinkedSmaqPrefill prefill = loadSmaqPrefillFromXml(conn, smaqid);
 
         return new GateResult(true, null, smdid, smaqid, docId, docCountryCode, docCreationDate,
                 requestCountryId, requestCountryCode, requestCountryName, newStatusId, newStatusName,
-                linkedAuthorityName, linkedAuthorityBriefName);
+                linkedAuthorityName, linkedAuthorityBriefName,
+                prefill.sanitaryProductTypeCode, prefill.productName,
+                prefill.incidentCountry, prefill.incidentRegistrationNumber,
+                prefill.incidentTypeCode, prefill.incidentFormationDate);
     }
 
     public static GateResult evaluateSmaqEditGate(Connection conn, long smaqId, String guid) throws SQLException {
@@ -376,13 +414,13 @@ public final class SmaCreateSupport {
     }
 
     public static GateResult evaluateSmarSendGate(Connection conn, long smarId, String guid) throws SQLException {
-        RightsDepKeysResult rights = loadRightsDepKeys(guid, "sanitaryMeasureOut:edit",
-                AccessRightService::sanitaryMeasureOutEditDepKeys);
+        RightsDepKeysResult rights = loadRightsDepKeys(guid, "sanitaryMeasureOut:send",
+                AccessRightService::sanitaryMeasureOutSendDepKeys);
         if (!rights.allowed) {
             return GateResult.denied(rights.reason);
         }
         return evaluateOutgoingSendGate(conn, SmaCardKind.SMAR, smarId, guid, rights.depKeys,
-                "sanitaryMeasureOut:edit", SQL_SMAR_CORE);
+                "sanitaryMeasureOut:send", SQL_SMAR_CORE);
     }
 
     public static GateResult evaluateIncomingCompleteProcessingGate(Connection conn, SmaCardKind kind, long cardId,
@@ -598,7 +636,54 @@ public final class SmaCreateSupport {
         return firstXmlMatch(conn, smaqId, AUTHORITY_BRIEF_IN_XML);
     }
 
-    private static String firstXmlMatch(Connection conn, long smaqId, Pattern pattern) throws SQLException {
+    private static final class LinkedSmaqPrefill {
+        final String sanitaryProductTypeCode;
+        final String productName;
+        final String incidentCountry;
+        final String incidentRegistrationNumber;
+        final String incidentTypeCode;
+        final String incidentFormationDate;
+
+        LinkedSmaqPrefill(String sanitaryProductTypeCode, String productName,
+                          String incidentCountry, String incidentRegistrationNumber,
+                          String incidentTypeCode, String incidentFormationDate) {
+            this.sanitaryProductTypeCode = sanitaryProductTypeCode;
+            this.productName = productName;
+            this.incidentCountry = incidentCountry;
+            this.incidentRegistrationNumber = incidentRegistrationNumber;
+            this.incidentTypeCode = incidentTypeCode;
+            this.incidentFormationDate = incidentFormationDate;
+        }
+    }
+
+    private static LinkedSmaqPrefill loadSmaqPrefillFromXml(Connection conn, long smaqId) throws SQLException {
+        String xml = loadSmaqXmlBody(conn, smaqId);
+        if (xml == null || xml.isEmpty()) {
+            return new LinkedSmaqPrefill(null, null, null, null, null, null);
+        }
+        String productType = firstMatchInText(xml, PRODUCT_TYPE_IN_XML);
+        String productName = firstMatchInText(xml, PRODUCT_NAME_IN_XML);
+        String incidentCountry = null;
+        String incidentId = null;
+        String incidentKind = null;
+        String incidentDate = null;
+        Matcher blockM = INCIDENT_BLOCK_IN_XML.matcher(xml);
+        if (blockM.find()) {
+            String block = blockM.group(1);
+            if (block != null && !block.trim().isEmpty()) {
+                incidentCountry = firstMatchInText(block, INCIDENT_COUNTRY_IN_XML);
+                incidentId = firstMatchInText(block, INCIDENT_ID_IN_XML);
+                incidentKind = firstMatchInText(block, INCIDENT_KIND_IN_XML);
+                incidentDate = firstMatchInText(block, INCIDENT_DATE_IN_XML);
+                if (incidentDate != null && incidentDate.length() >= 10) {
+                    incidentDate = incidentDate.substring(0, 10);
+                }
+            }
+        }
+        return new LinkedSmaqPrefill(productType, productName, incidentCountry, incidentId, incidentKind, incidentDate);
+    }
+
+    private static String loadSmaqXmlBody(Connection conn, long smaqId) throws SQLException {
         try (PreparedStatement ps = conn.prepareStatement(SQL_SMAQ_XML_BODY)) {
             ps.setLong(1, smaqId);
             try (ResultSet rs = ps.executeQuery()) {
@@ -609,17 +694,25 @@ public final class SmaCreateSupport {
                 if (clob == null) {
                     return null;
                 }
-                String xml = clob.getSubString(1, (int) clob.length());
-                if (xml == null || xml.isEmpty()) {
-                    return null;
-                }
-                Matcher m = pattern.matcher(xml);
-                while (m.find()) {
-                    String val = m.group(1);
-                    if (val != null && !val.trim().isEmpty()) {
-                        return val.trim();
-                    }
-                }
+                return clob.getSubString(1, (int) clob.length());
+            }
+        }
+    }
+
+    private static String firstXmlMatch(Connection conn, long smaqId, Pattern pattern) throws SQLException {
+        String xml = loadSmaqXmlBody(conn, smaqId);
+        if (xml == null || xml.isEmpty()) {
+            return null;
+        }
+        return firstMatchInText(xml, pattern);
+    }
+
+    private static String firstMatchInText(String text, Pattern pattern) {
+        Matcher m = pattern.matcher(text);
+        while (m.find()) {
+            String val = m.group(1);
+            if (val != null && !val.trim().isEmpty()) {
+                return val.trim();
             }
         }
         return null;

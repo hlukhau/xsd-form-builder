@@ -12,7 +12,7 @@ const SMD_INCIDENT_KIND_CODES = new Set([
 
 export interface SmaIncidentAlertEditProps {
   value: SmaIncidentAlert
-  onChange: (next: SmaIncidentAlert) => void
+  onChange?: (next: SmaIncidentAlert) => void
   readOnly?: boolean
 }
 
@@ -23,7 +23,7 @@ export function SmaIncidentAlertEdit({ value, onChange, readOnly }: SmaIncidentA
   const kindOptions = getKindOptions().filter((o) => SMD_INCIDENT_KIND_CODES.has(String(o.value)))
 
   const patch = (field: keyof SmaIncidentAlert, fieldValue: string) => {
-    onChange({ ...value, [field]: fieldValue })
+    onChange?.({ ...value, [field]: fieldValue })
   }
 
   if (readOnly) {
