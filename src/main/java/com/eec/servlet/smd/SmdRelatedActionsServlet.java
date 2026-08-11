@@ -57,9 +57,11 @@ public class SmdRelatedActionsServlet extends HttpServlet {
             boolean hasInStatus = AccessRightService.hasSanitaryMeasureInStatus(rightsJson);
             boolean hasOutEdit = AccessRightService.hasSanitaryMeasureOutEdit(rightsJson);
             int smrCount = countSmr(conn, smdid);
+            boolean processingStatus = incoming && isIncomingProcessingStatus(conn, smdid);
 
-            boolean canAddInfoRequest = incoming && hasInStatus;
-            boolean canPrepareReviewResult = incoming && hasInStatus && smrCount == 0;
+            // Как при отсутствии sanitaryMeasureIn:status — только в статусе «В обработке»
+            boolean canAddInfoRequest = incoming && hasInStatus && processingStatus;
+            boolean canPrepareReviewResult = incoming && hasInStatus && processingStatus && smrCount == 0;
 
             boolean canDelete = false;
             String canDeleteReason = null;
@@ -184,6 +186,20 @@ public class SmdRelatedActionsServlet extends HttpServlet {
             }
         }
         return 0;
+    }
+
+    /** Входящая карта в статусе «В обработке» (SMDSTATUSCODE = PROCESSING). */
+    private static boolean isIncomingProcessingStatus(Connection conn, long smdid) throws SQLException {
+        try (PreparedStatement ps = conn.prepareStatement(SmdDbSupport.SQL_SMD_STATUS_ROW)) {
+            ps.setLong(1, smdid);
+            try (ResultSet rs = ps.executeQuery()) {
+                if (!rs.next()) {
+                    return false;
+                }
+                String statusCode = rs.getString("STATUSCODE");
+                return statusCode != null && "PROCESSING".equals(statusCode.trim());
+            }
+        }
     }
 
     private static String quote(String s) {
