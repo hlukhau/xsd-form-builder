@@ -431,8 +431,7 @@ export function SmaCard({ kind, cardId, guid, meta, parsed, onDataRefresh }: Sma
       if (action === 'send') {
         Modal.confirm({
           title: 'Подтверждение',
-          content:
-            'Направить сведения участникам органа по сотрудничеству в рамках решения Комиссии №58 (ОП 58)?',
+          content: 'Направить ответ на запрос адресату?',
           okText: 'Направить',
           cancelText: 'Отмена',
           onOk: async () => {
@@ -461,9 +460,17 @@ export function SmaCard({ kind, cardId, guid, meta, parsed, onDataRefresh }: Sma
       message.error('Нет данных для перехода к связанной карте SMD')
       return
     }
+    const smaqVersionLabel =
+      meta.linkedSmaqVersion != null && meta.linkedSmaqVersion > 0
+        ? String(meta.linkedSmaqVersion)
+        : '—'
+    const deleteContent =
+      kind === 'smar'
+        ? `Ответ на запрос дополнительных сведений ${smaqVersionLabel} для меры ${docRegDisplay} будет удален безвозвратно. Продолжить?`
+        : `Черновик карты ${docRegDisplay} будет удален безвозвратно. Продолжить?`
     Modal.confirm({
       title: 'Подтверждение',
-      content: `Черновик карты ${docRegDisplay} будет удален безвозвратно. Продолжить?`,
+      content: deleteContent,
       okText: 'Продолжить',
       cancelText: 'Отмена',
       okButtonProps: { danger: true },
@@ -478,7 +485,7 @@ export function SmaCard({ kind, cardId, guid, meta, parsed, onDataRefresh }: Sma
         }
       },
     })
-  }, [guid, smdHref, kind, cardId, docRegDisplay])
+  }, [guid, smdHref, kind, cardId, docRegDisplay, meta.linkedSmaqVersion])
 
   const openStatusHistory = useCallback(async () => {
     const g = guid?.trim()

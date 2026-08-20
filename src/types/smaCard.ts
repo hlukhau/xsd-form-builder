@@ -11,6 +11,8 @@ export interface SmaMetadataView {
   cardKind: SmaCardKind
   linkedSmdid: number
   linkedSmaqid?: number | null
+  /** SMAR: SMAQVERSION связанного запроса (SMAQ). */
+  linkedSmaqVersion?: number | null
   docId: string | null
   docCountryCode?: string | null
   docCreationDate?: string | null

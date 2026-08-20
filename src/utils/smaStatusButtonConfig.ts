@@ -12,10 +12,12 @@ const HINT_NO_SEND =
 const HINT_NO_COMPLETE =
   'Недостаточно прав: требуется sanitaryMeasureIn:status с пересечением подразделений с доступом к SMD (SMDDEPPERMIS).'
 
+const HINT_SEND = 'Направить ответ на запрос адресату'
+
 const sendButton: StatusButtonConfig = {
   label: 'Направление сведений',
   action: 'send',
-  hint: 'Направить сведения участникам органа по сотрудничеству в рамках решения Комиссии №58 (ОП 58).',
+  hint: HINT_SEND,
 }
 
 /** Кнопка направления для исходящей SMAQ/SMAR. */

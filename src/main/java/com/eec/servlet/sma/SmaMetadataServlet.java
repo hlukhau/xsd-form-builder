@@ -113,10 +113,19 @@ public class SmaMetadataServlet extends HttpServlet {
         }
 
         long linkedSmaqid = 0L;
+        Long linkedSmaqVersion = null;
         if (kind == SmaCardKind.SMAR) {
             linkedSmaqid = rs.getLong("SMAR_SMAQID");
             if (rs.wasNull()) {
                 linkedSmaqid = rs.getLong("SMAQID");
+            }
+            try {
+                long v = rs.getLong("LINKED_SMAQVERSION");
+                if (!rs.wasNull()) {
+                    linkedSmaqVersion = v;
+                }
+            } catch (SQLException ignored) {
+                linkedSmaqVersion = null;
             }
         } else {
             linkedSmaqid = rs.getLong("SMAQID");
@@ -180,6 +189,11 @@ public class SmaMetadataServlet extends HttpServlet {
         out.print(",\"linkedSmdid\":" + smdid);
         if (kind == SmaCardKind.SMAR) {
             out.print(",\"linkedSmaqid\":" + linkedSmaqid);
+            if (linkedSmaqVersion != null) {
+                out.print(",\"linkedSmaqVersion\":" + linkedSmaqVersion);
+            } else {
+                out.print(",\"linkedSmaqVersion\":null");
+            }
         }
         out.print(",\"docId\":" + SmaServletUtil.quote(docId));
         out.print(",\"docCountryCode\":" + SmaServletUtil.quote(docCountryCode));
