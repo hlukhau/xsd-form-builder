@@ -154,8 +154,6 @@ public class PpvSaveServlet extends HttpServlet {
             sendJsonError(response, HttpServletResponse.SC_BAD_REQUEST, "xmlBody должен содержать валидный XML (начинаться с <)");
             return;
         }
-        // PC_PPV: PPVMANUFBUSENTSEARCH.MANUFBUSENTNAME = name || ' ' || brief (max 300)
-        xmlBody = sanitizePpvXmlForManufSearchIndex(xmlBody);
 
         Integer userId = getUserIdFromRightsByGuid(guid != null ? guid.trim() : null);
 
@@ -173,9 +171,6 @@ public class PpvSaveServlet extends HttpServlet {
         Integer manufCountryId = extractJsonInt(metaBlock, "manufCountryId");
         String manufBusEntName = extractJsonString(metaBlock, "manufBusEntName");
         String manufBusEntBriefName = extractJsonString(metaBlock, "manufBusEntBriefName");
-        String[] clampedManuf = clampManufNameAndBriefForSearchIndex(manufBusEntName, manufBusEntBriefName);
-        manufBusEntName = clampedManuf[0];
-        manufBusEntBriefName = clampedManuf[1];
         String edocCode = extractJsonString(metaBlock, "edocCode");
         String edocVersion = extractJsonString(metaBlock, "edocVersion");
         if (edocCode == null || edocCode.isEmpty()) edocCode = EDOCCODE_DEFAULT;
@@ -769,112 +764,6 @@ public class PpvSaveServlet extends HttpServlet {
             }
         }
         return null;
-    }
-
-    /**
-     * PC_PPV заполняет PPVMANUFBUSENTSEARCH.MANUFBUSENTNAME как
-     * BusinessEntityName || ' ' || BusinessEntityBriefName (VARCHAR2(300)).
-     * Усекаем пару полей, чтобы не получить ORA-12899.
-     */
-    private static final int PPV_MANUF_SEARCH_NAME_MAX = 300;
-
-    private static String truncateDbVarchar(String s, int max) {
-        if (s == null) return null;
-        return s.length() <= max ? s : s.substring(0, max);
-    }
-
-    /** @return [name, brief] — оба могут быть null */
-    private static String[] clampManufNameAndBriefForSearchIndex(String name, String brief) {
-        String n = name == null ? "" : name;
-        String b = brief == null ? "" : brief;
-        n = truncateDbVarchar(n, PPV_MANUF_SEARCH_NAME_MAX);
-        b = truncateDbVarchar(b, 120);
-        if (n == null) n = "";
-        if (b == null) b = "";
-        if (!n.isEmpty() && !b.isEmpty() && n.length() + 1 + b.length() > PPV_MANUF_SEARCH_NAME_MAX) {
-            int maxBrief = Math.max(0, PPV_MANUF_SEARCH_NAME_MAX - n.length() - 1);
-            b = b.substring(0, Math.min(b.length(), maxBrief));
-            if (maxBrief == 0 && n.length() > PPV_MANUF_SEARCH_NAME_MAX) {
-                n = n.substring(0, PPV_MANUF_SEARCH_NAME_MAX);
-            }
-        } else if (n.isEmpty() && b.length() > PPV_MANUF_SEARCH_NAME_MAX) {
-            b = b.substring(0, PPV_MANUF_SEARCH_NAME_MAX);
-        } else if (b.isEmpty() && n.length() > PPV_MANUF_SEARCH_NAME_MAX) {
-            n = n.substring(0, PPV_MANUF_SEARCH_NAME_MAX);
-        }
-        return new String[]{
-                n.isEmpty() ? null : n,
-                b.isEmpty() ? null : b
-        };
-    }
-
-    private static String replaceXmlLocalText(String block, String localName, String newText) {
-        Pattern p = Pattern.compile(
-                "(?is)(<(?:[\\w.-]+:)?" + Pattern.quote(localName) + "\\b[^>]*>)(.*?)(</(?:[\\w.-]+:)?" + Pattern.quote(localName) + "\\s*>)");
-        Matcher m = p.matcher(block);
-        if (!m.find()) {
-            return block;
-        }
-        String escaped = newText == null ? "" : newText
-                .replace("&", "&amp;")
-                .replace("<", "&lt;")
-                .replace(">", "&gt;");
-        return m.replaceFirst(Matcher.quoteReplacement(m.group(1) + escaped + m.group(3)));
-    }
-
-    private static String textOfXmlLocal(String block, String localName) {
-        Pattern p = Pattern.compile(
-                "(?is)<(?:[\\w.-]+:)?" + Pattern.quote(localName) + "\\b[^>]*>(.*?)</(?:[\\w.-]+:)?" + Pattern.quote(localName) + "\\s*>");
-        Matcher m = p.matcher(block);
-        if (!m.find()) return "";
-        return m.group(1)
-                .replace("&lt;", "<")
-                .replace("&gt;", ">")
-                .replace("&amp;", "&")
-                .replace("&quot;", "\"")
-                .replace("&apos;", "'")
-                .trim();
-    }
-
-    /** Подгоняет BusinessEntityName/BriefName в каждом SupplyChainPartyDetails под лимит индекса поиска. */
-    private static String sanitizePpvXmlForManufSearchIndex(String xml) {
-        if (xml == null || xml.isEmpty()) return xml;
-        Pattern partyPat = Pattern.compile(
-                "(?is)(<(?:[\\w.-]+:)?SupplyChainPartyDetails\\b[^>]*>)(.*?)(</(?:[\\w.-]+:)?SupplyChainPartyDetails\\s*>)");
-        Matcher m = partyPat.matcher(xml);
-        StringBuffer sb = new StringBuffer();
-        boolean changed = false;
-        while (m.find()) {
-            String open = m.group(1);
-            String inner = m.group(2);
-            String close = m.group(3);
-            String name = textOfXmlLocal(inner, "BusinessEntityName");
-            String brief = textOfXmlLocal(inner, "BusinessEntityBriefName");
-            String[] clamped = clampManufNameAndBriefForSearchIndex(name, brief);
-            String newName = clamped[0] != null ? clamped[0] : "";
-            String newBrief = clamped[1] != null ? clamped[1] : "";
-            if (!name.equals(newName) || !brief.equals(newBrief)) {
-                changed = true;
-                if (!name.isEmpty() || !newName.isEmpty()) {
-                    inner = replaceXmlLocalText(inner, "BusinessEntityName", newName);
-                }
-                if (!brief.isEmpty()) {
-                    if (newBrief.isEmpty()) {
-                        inner = inner.replaceAll(
-                                "(?is)<(?:[\\w.-]+:)?BusinessEntityBriefName\\b[^>]*>.*?</(?:[\\w.-]+:)?BusinessEntityBriefName\\s*>",
-                                "");
-                    } else {
-                        inner = replaceXmlLocalText(inner, "BusinessEntityBriefName", newBrief);
-                    }
-                }
-            }
-            m.appendReplacement(sb, Matcher.quoteReplacement(open + inner + close));
-        }
-        m.appendTail(sb);
-        if (changed) {
-            System.out.println("[PpvSaveServlet] Clamped BusinessEntityName/BriefName in XML for PPVMANUFBUSENTSEARCH limit 300");
-        }
-        return sb.toString();
     }
 
     private static void sendJsonError(HttpServletResponse response, int status, String message) throws IOException {
