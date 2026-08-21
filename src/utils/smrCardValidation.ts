@@ -12,6 +12,7 @@ import type { ValidationResult } from '@/utils/cardValidation'
 import { pushMeasuresFormatErrors } from '@/utils/cardValidation'
 import { validateFieldValue } from '@/constants/xsdFieldConstraints'
 import { fetchSchemaValidationErrors } from '@/utils/schemaValidationApi'
+import { remarkContactsIncomplete } from '@/utils/contactValidation'
 
 function empty(s: string | null | undefined): boolean {
   return s == null || String(s).trim() === ''
@@ -27,6 +28,12 @@ function hasDocReferenceContent(doc: MeasureImplementationItem['documentDetails'
     empty(doc.docCreationDate) &&
     empty(doc.docStartDate)
   )
+}
+
+function getMeasureSubjectContacts(sd: SubjectDetails) {
+  const be = sd.businessEntity
+  if (be?.contacts && be.contacts.length > 0) return be.contacts
+  return sd.contacts ?? []
 }
 
 function pushFormatError(errors: string[], path: string, fieldKey: string, value: string | undefined): void {
@@ -90,6 +97,8 @@ export function validateSmrMeasuresFormatLogical(
 
   let anyMissingCore = false
   let anyMissingStartDate = false
+  let anyMissingCountry = false
+  let anyMissingDescription = false
   let anyMissingSubjectCountry = false
   let anyMissingSubjectName = false
 
@@ -106,6 +115,12 @@ export function validateSmrMeasuresFormatLogical(
     if (empty(impl.startDate)) {
       anyMissingStartDate = true
     }
+    if (empty(impl.country)) {
+      anyMissingCountry = true
+    }
+    if (empty(impl.description)) {
+      anyMissingDescription = true
+    }
 
     for (const authority of getMeasureImplementationAuthorities(impl)) {
       if (empty(authority.country)) {
@@ -119,6 +134,40 @@ export function validateSmrMeasuresFormatLogical(
     for (const subj of getMeasureImplementationSubjects(impl)) {
       if (empty(measureExecutorSubjectCountry(subj))) anyMissingSubjectCountry = true
       if (empty(measureExecutorSubjectName(subj))) anyMissingSubjectName = true
+
+      if (subj.identityDoc !== undefined) {
+        if (empty(subj.identityDoc.country)) {
+          add(
+            'В составе сведений об удостоверении личности субъекта, обеспечивающего соблюдение меры должна быть указана страна'
+          )
+        }
+        if (empty(subj.identityDoc.docId)) {
+          add(
+            'В составе сведений об удостоверении личности субъекта, обеспечивающего соблюдение меры должен быть указан номер документа'
+          )
+        }
+      }
+
+      const cr = remarkContactsIncomplete(getMeasureSubjectContacts(subj))
+      if (cr) add(cr)
+    }
+
+    if (impl.documentDetails !== undefined) {
+      if (empty(impl.documentDetails.docName)) {
+        add(
+          'В составе сведений о документе, устанавливающем мероприятие, обеспечивающее соблюдение меры должно быть указано его наименование'
+        )
+      }
+      if (empty(impl.documentDetails.docId)) {
+        add(
+          'В составе сведений о документе, устанавливающем мероприятие, обеспечивающее соблюдение меры должен быть указан его номер'
+        )
+      }
+      if (empty(impl.documentDetails.docCreationDate)) {
+        add(
+          'В составе сведений о документе, устанавливающем мероприятие, обеспечивающее соблюдение меры должна быть указана его дата'
+        )
+      }
     }
   }
 
@@ -127,9 +176,19 @@ export function validateSmrMeasuresFormatLogical(
       'В составе каждого набора сведений о мероприятии, обеспечивающем соблюдение меры должны быть указаны сведения об исполнителе, документ, устанавливающий мероприятие, вид объекта действия меры и регион'
     )
   }
+  if (anyMissingCountry) {
+    add(
+      'В составе каждого набора сведений о мероприятии, обеспечивающем соблюдение меры должна быть указана страна'
+    )
+  }
   if (anyMissingStartDate) {
     add(
       'В составе каждого набора сведений о мероприятии, обеспечивающем соблюдение меры должна быть указана дата начала мероприятия'
+    )
+  }
+  if (anyMissingDescription) {
+    add(
+      'В составе каждого набора сведений о мероприятии, обеспечивающем соблюдение меры должно быть указано описание'
     )
   }
   if (anyMissingSubjectCountry) {
