@@ -441,8 +441,7 @@ export function SmrCard({ smrId, guid, meta, parsed, onDataRefresh }: SmrCardPro
       if (action === 'send') {
         Modal.confirm({
           title: 'Подтверждение',
-          content:
-            'Направить сведения о результатах рассмотрения участникам органа по сотрудничеству в рамках решения Комиссии №57 (ОП 57)?',
+          content: 'Направить результаты рассмотрения адресатам?',
           okText: 'Направить',
           cancelText: 'Отмена',
           onOk: async () => {
@@ -457,8 +456,8 @@ export function SmrCard({ smrId, guid, meta, parsed, onDataRefresh }: SmrCardPro
                   content: (
                     <div>
                       <Typography.Paragraph style={{ marginBottom: 12 }}>
-                        Необходимо доработать карту исходящих сведений. Направление сведений участникам ОП 57
-                        не выполнено. Отчёт по проверкам:
+                        Необходимо доработать карту результатов рассмотрения. Направление результатов
+                        рассмотрения не выполнено. Отчёт по проверкам:
                       </Typography.Paragraph>
                       {smrValidationReportContent(vr)}
                     </div>

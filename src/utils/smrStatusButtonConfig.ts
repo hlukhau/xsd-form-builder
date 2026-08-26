@@ -83,16 +83,16 @@ function canShowOutgoingSmrMarkReady(
   return false
 }
 
-const hintSendOp57 =
-  'Направление сведений участникам ОП 58: после подтверждения выполняется валидация карты, затем статус «Ожидает отправки».'
+const hintSendResults = 'Направить результаты рассмотрения адресатам'
 
-const hintNewToPending =
-  'Новое → Ожидает отправки (направление в ОП 58 после валидации).'
+const hintSendOp57 = hintSendResults
+
+const hintNewToPending = hintSendResults
 
 const sendOp57Button: StatusButtonConfig = {
   label: 'Направление сведений',
   action: 'send',
-  hint: hintSendOp57,
+  hint: hintSendResults,
 }
 
 export function outgoingSmrStatusButton(
