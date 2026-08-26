@@ -12,33 +12,35 @@ const HINT_NO_SEND =
 const HINT_NO_COMPLETE =
   'Недостаточно прав: требуется sanitaryMeasureIn:status с пересечением подразделений с доступом к SMD (SMDDEPPERMIS).'
 
-const HINT_SEND = 'Направить ответ на запрос адресату'
-
-const sendButton: StatusButtonConfig = {
-  label: 'Направление сведений',
-  action: 'send',
-  hint: HINT_SEND,
-}
+const HINT_SEND_SMAQ = 'Направить запрос дополнительных сведений адресату'
+const HINT_SEND_SMAR = 'Направить ответ на запрос адресату'
 
 /** Кнопка направления для исходящей SMAQ/SMAR. */
 export function outgoingSmaStatusButton(
   statusCode: string | null | undefined,
   statusName: string,
-  canSend: boolean
+  canSend: boolean,
+  kind: 'smaq' | 'smar' = 'smaq'
 ): StatusButtonResult {
   if (!canSend) {
     return { config: null, comment: HINT_NO_SEND }
   }
+  const hint = kind === 'smar' ? HINT_SEND_SMAR : HINT_SEND_SMAQ
+  const sendButton: StatusButtonConfig = {
+    label: 'Направление сведений',
+    action: 'send',
+    hint,
+  }
   const code = norm(statusCode)
   if (code === 'new' || code === 'failed' || code === 'error') {
-    return { config: sendButton, comment: sendButton.hint ?? '' }
+    return { config: sendButton, comment: hint }
   }
   const s = norm(statusName)
   if (s.includes('новое') || s.includes('новая')) {
-    return { config: sendButton, comment: sendButton.hint ?? '' }
+    return { config: sendButton, comment: hint }
   }
   if (s.includes('не удалась') || s.includes('ошибка')) {
-    return { config: sendButton, comment: sendButton.hint ?? '' }
+    return { config: sendButton, comment: hint }
   }
   return { config: null, comment: '' }
 }

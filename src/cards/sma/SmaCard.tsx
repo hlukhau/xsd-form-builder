@@ -429,9 +429,13 @@ export function SmaCard({ kind, cardId, guid, meta, parsed, onDataRefresh }: Sma
         return
       }
       if (action === 'send') {
+        const sendContent =
+          kind === 'smar'
+            ? 'Направить ответ на запрос адресату?'
+            : 'Направить запрос дополнительных сведений адресату?'
         Modal.confirm({
           title: 'Подтверждение',
-          content: 'Направить ответ на запрос адресату?',
+          content: sendContent,
           okText: 'Направить',
           cancelText: 'Отмена',
           onOk: async () => {
@@ -461,13 +465,17 @@ export function SmaCard({ kind, cardId, guid, meta, parsed, onDataRefresh }: Sma
       return
     }
     const smaqVersionLabel =
-      meta.linkedSmaqVersion != null && meta.linkedSmaqVersion > 0
-        ? String(meta.linkedSmaqVersion)
-        : '—'
+      kind === 'smar'
+        ? meta.linkedSmaqVersion != null && meta.linkedSmaqVersion > 0
+          ? String(meta.linkedSmaqVersion)
+          : '—'
+        : meta.version != null && meta.version > 0
+          ? String(meta.version)
+          : '—'
     const deleteContent =
       kind === 'smar'
         ? `Ответ на запрос дополнительных сведений ${smaqVersionLabel} для меры ${docRegDisplay} будет удален безвозвратно. Продолжить?`
-        : `Черновик карты ${docRegDisplay} будет удален безвозвратно. Продолжить?`
+        : `Запрос дополнительных сведений ${smaqVersionLabel} для меры ${docRegDisplay} будет удален безвозвратно. Продолжить?`
     Modal.confirm({
       title: 'Подтверждение',
       content: deleteContent,
@@ -485,7 +493,7 @@ export function SmaCard({ kind, cardId, guid, meta, parsed, onDataRefresh }: Sma
         }
       },
     })
-  }, [guid, smdHref, kind, cardId, docRegDisplay, meta.linkedSmaqVersion])
+  }, [guid, smdHref, kind, cardId, docRegDisplay, meta.linkedSmaqVersion, meta.version])
 
   const openStatusHistory = useCallback(async () => {
     const g = guid?.trim()
@@ -627,7 +635,7 @@ export function SmaCard({ kind, cardId, guid, meta, parsed, onDataRefresh }: Sma
     incidentRow.formationDate?.trim()
 
   const statusBtn = outgoing
-    ? outgoingSmaStatusButton(meta.statusCode, meta.statusName ?? '', meta.canSend === true)
+    ? outgoingSmaStatusButton(meta.statusCode, meta.statusName ?? '', meta.canSend === true, kind)
     : { config: null, comment: '' }
 
   const incomingCompleteBtn = !outgoing
