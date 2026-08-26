@@ -374,7 +374,10 @@ export function SmaCreateCard({ context, guid }: SmaCreateCardProps) {
                         hideAuthoritySelect={!isSmaq}
                       />
 
-                      <Descriptions column={1} bordered size="small" style={{ marginTop: 24, marginBottom: 16 }}>
+                      <Typography.Title level={5} style={{ marginTop: 24 }}>
+                        Исходная карта сведений о временной санитарной мере
+                      </Typography.Title>
+                      <Descriptions column={1} bordered size="small" style={{ marginBottom: 16 }}>
                         <Descriptions.Item label="Страна">{docCountryDisplay}</Descriptions.Item>
                         <Descriptions.Item label="Номер документа">{dash(docId)}</Descriptions.Item>
                         <Descriptions.Item label="Дата документа">

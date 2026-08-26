@@ -845,7 +845,10 @@ export function SmaCard({ kind, cardId, guid, meta, parsed, onDataRefresh }: Sma
                         </Descriptions>
                       )}
 
-                      <Descriptions column={1} bordered size="small" style={{ marginTop: 24, marginBottom: 16 }}>
+                      <Typography.Title level={5} style={{ marginTop: 24 }}>
+                        Исходная карта сведений о временной санитарной мере
+                      </Typography.Title>
+                      <Descriptions column={1} bordered size="small" style={{ marginBottom: 16 }}>
                         <Descriptions.Item label="Страна">{measureDocCountryDisplay}</Descriptions.Item>
                         <Descriptions.Item label="Номер документа">
                           {dash(parsed.measureDocReference.docId ?? meta.docId)}

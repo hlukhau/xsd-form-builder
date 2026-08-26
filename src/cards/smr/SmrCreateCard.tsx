@@ -272,6 +272,9 @@ export function SmrCreateCard({ eligibility, smdid, guid }: SmrCreateCardProps) 
                       allowedAuthorityIds={authorityFilterDepIds}
                     />
                     <div style={{ marginTop: 24 }}>
+                      <Typography.Title level={5}>
+                        Исходная карта сведений о временной санитарной мере
+                      </Typography.Title>
                       <SmrSourceMeasureCardView
                         doc={measureDocView}
                         countryCodeFallback={docCc}

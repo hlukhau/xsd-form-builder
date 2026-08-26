@@ -259,7 +259,7 @@ export function DprCard({ dprid, guid, meta, parsed, onDataRefresh }: DprCardPro
 
   const authCountryDisplay =
     (parsed.notifyingAuthority.country ?? '').trim()
-      ? `${parsed.notifyingAuthority.country} — ${countryLabel(parsed.notifyingAuthority.country) || parsed.notifyingAuthority.country}`
+      ? countryLabel(parsed.notifyingAuthority.country) || parsed.notifyingAuthority.country
       : '—'
 
   const parsedForValidation: DprParsedBundle = useMemo(() => {
@@ -924,10 +924,13 @@ export function DprCard({ dprid, guid, meta, parsed, onDataRefresh }: DprCardPro
                         <Descriptions.Item label="Краткое наименование">{dash(parsed.notifyingAuthority.shortName)}</Descriptions.Item>
                       </Descriptions>
                     )}
-                    <Descriptions column={1} bordered size="small" style={{ marginTop: 24 }}>
+                    <Typography.Title level={5} style={{ marginTop: 24 }}>
+                      Исходная карта сведений о выявленных нарушениях
+                    </Typography.Title>
+                    <Descriptions column={1} bordered size="small">
                       <Descriptions.Item label="Страна">
                         {parsed.incidentAlert.country
-                          ? `${parsed.incidentAlert.country} — ${countryLabel(parsed.incidentAlert.country) || parsed.incidentAlert.country}`
+                          ? countryLabel(parsed.incidentAlert.country) || parsed.incidentAlert.country
                           : '—'}
                       </Descriptions.Item>
                       <Descriptions.Item label="Регистрационный номер">{dash(parsed.incidentAlert.registrationNumber)}</Descriptions.Item>

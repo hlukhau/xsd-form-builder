@@ -857,6 +857,9 @@ export function SmrCard({ smrId, guid, meta, parsed, onDataRefresh }: SmrCardPro
                       </Descriptions>
                     )}
                     <div style={{ marginTop: isEditMode ? 0 : 24 }}>
+                      <Typography.Title level={5}>
+                        Исходная карта сведений о временной санитарной мере
+                      </Typography.Title>
                       <SmrSourceMeasureCardView
                         doc={parsed.measureDoc}
                         countryCodeFallback={meta.docCountryCode}

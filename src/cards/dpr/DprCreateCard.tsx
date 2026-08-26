@@ -95,7 +95,7 @@ export function DprCreateCard({ eligibility, ppvid, guid }: DprCreateCardProps) 
   const responseCountryDisplay = rn ? `${rc} — ${rn}` : rc
 
   const ac = eligibility.alertCountryCode ?? ''
-  const alertCountryDisplay = ac ? `${ac} — ${countryLabel(ac) || ac}` : '—'
+  const alertCountryDisplay = ac ? countryLabel(ac) || ac : '—'
 
   useEffect(() => {
     setAuthEdit((prev) => ({ ...prev, country: rc || prev.country || 'BY' }))
@@ -334,7 +334,10 @@ export function DprCreateCard({ eligibility, ppvid, guid }: DprCreateCardProps) 
                       isDraft
                       allowedAuthorityIds={authorityFilterDepIds}
                     />
-                    <Descriptions column={1} bordered size="small" style={{ marginTop: 24 }}>
+                    <Typography.Title level={5} style={{ marginTop: 24 }}>
+                      Исходная карта сведений о выявленных нарушениях
+                    </Typography.Title>
+                    <Descriptions column={1} bordered size="small">
                       <Descriptions.Item label="Страна">{alertCountryDisplay}</Descriptions.Item>
                       <Descriptions.Item label="Регистрационный номер">{dash(eligibility.incidentId)}</Descriptions.Item>
                       <Descriptions.Item label="Вид уведомления">
