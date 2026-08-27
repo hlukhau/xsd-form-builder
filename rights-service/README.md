@@ -1,6 +1,8 @@
 # eec-rights-service
 
-Единая in-memory карта `GUID → JSON` (креды БД и права) для WAR `dpa_card` / `pha_card` / `ppv_card`.
+Единая in-memory карта `GUID → JSON` (креды БД и права) для всех WAR карт (`dpa_card`, `ppv_card`, `pha_card`, `dpr_card`, `smd_card`, `smr_card`, `sma_card`).
+
+**Порядок деплоя:** этот сервис **заливается и стартует первым**; карты — только после успешного `/card_rigths/health`. См. [docs/BUILD_AND_DEPLOY.md](../docs/BUILD_AND_DEPLOY.md).
 
 **Стек:** Java 8, **сервлеты 3.1**, WAR (тот же подход, что и карты) — **без Spring Boot**.
 

@@ -2130,93 +2130,135 @@ function parseRequirementDoc(docElement: Element): ViolatedRequirement | null {
  */
 function parseViolatedIndicators(violationElement: Element): ViolatedIndicator[] {
   const indicators: ViolatedIndicator[] = []
-  
-  // Пробуем найти через getElementsByTagName
-  try {
-    const indicatorElements = violationElement.getElementsByTagName('smcdo:DiscrepancyOfQualityIndexDetails')
-    console.log('Найдено нарушенных показателей:', indicatorElements.length)
-    
-    for (let i = 0; i < indicatorElements.length; i++) {
-      const el = indicatorElements[i]
-      const indicator = parseViolatedIndicator(el)
-      if (indicator) {
-        indicators.push(indicator)
-      }
-    }
-  } catch (e) {
-    console.log('Ошибка при поиске нарушенных показателей:', e)
+  const seen = new Set<Element>()
+
+  const pushFrom = (el: Element) => {
+    if (seen.has(el)) return
+    seen.add(el)
+    const indicator = parseViolatedIndicator(el)
+    if (indicator) indicators.push(indicator)
   }
-  
-  // Если не нашли, ищем по локальному имени
+
+  try {
+    const byPrefix = violationElement.getElementsByTagName('smcdo:DiscrepancyOfQualityIndexDetails')
+    for (let i = 0; i < byPrefix.length; i++) pushFrom(byPrefix[i])
+  } catch (_) {}
+
+  try {
+    const byNs = violationElement.getElementsByTagNameNS(NS_SMCDO, 'DiscrepancyOfQualityIndexDetails')
+    for (let i = 0; i < byNs.length; i++) pushFrom(byNs[i])
+  } catch (_) {}
+
   if (indicators.length === 0) {
     const allElements = violationElement.getElementsByTagName('*')
     for (let i = 0; i < allElements.length; i++) {
       const el = allElements[i]
-      const localName = el.localName || el.tagName.split(':').pop()?.toLowerCase()
-      
+      const localName = (el.localName || el.tagName.split(':').pop() || '').toLowerCase()
       if (localName === 'discrepancyofqualityindexdetails') {
-        const indicator = parseViolatedIndicator(el)
-        if (indicator) {
-          indicators.push(indicator)
-        }
+        pushFrom(el)
       }
     }
   }
-  
+
   return indicators
 }
 
+/** Прямой дочерний элемент по локальному имени (без префикса / без учёта регистра). */
+function getDirectChildElementByLocalName(parent: Element, localName: string): Element | null {
+  const want = localName.toLowerCase()
+  for (let i = 0; i < parent.children.length; i++) {
+    const n = parent.children[i]
+    if (n.nodeType !== Node.ELEMENT_NODE) continue
+    const el = n as Element
+    const ln = (el.localName || el.tagName.split(':').pop() || '').toLowerCase()
+    if (ln === want) return el
+  }
+  return null
+}
+
 /**
- * Парсит один нарушенный показатель
+ * Признак нормативного показателя (xs:boolean / IndicatorType): 1|true → true, 0|false → false.
+ * Если атрибут отсутствует — undefined.
+ */
+function parseNormativeDiscrepancyIndicator(attr: string | null): boolean | undefined {
+  if (attr == null) return undefined
+  const v = attr.trim().toLowerCase()
+  if (!v) return undefined
+  if (v === '1' || v === 'true') return true
+  if (v === '0' || v === 'false') return false
+  return undefined
+}
+
+/**
+ * Парсит один нарушенный показатель (smcdo:DiscrepancyOfQualityIndexDetails).
+ * NoteText / UnifiedMeasurementUnitCode / признак — только с прямых дочерних узлов
+ * (querySelector по локальному имени для namespaced XML ненадёжен).
  */
 function parseViolatedIndicator(indicatorElement: Element): ViolatedIndicator | null {
-  // normativeDiscrepancyOfQualityIndexIndicator (атрибут)
-  const normativeAttr = indicatorElement.getAttribute('normativeDiscrepancyOfQualityIndexIndicator')
-  const isNormative = normativeAttr === '1' || normativeAttr === 'true'
-  
-  const indicatorCode = getTextContent(indicatorElement, 'DiscrepancyOfQualityIndexCode') || undefined
-  const indicatorName = getTextContent(indicatorElement, 'DiscrepancyOfQualityIndexName') || undefined
-  const indicatorValue = getTextContent(indicatorElement, 'DiscrepancyOfQualityIndexValue') || undefined
-  const note = getTextContent(indicatorElement, 'NoteText') || undefined
-  
-  // Единица измерения: элемент csdo:UnifiedMeasurementUnitCode (codeListId="2064") или атрибуты у DiscrepancyOfQualityIndexValue (старый формат)
-  let unitCode: string | undefined = undefined
-  let unitCodeListId: string | undefined = undefined
-  const unitEl = indicatorElement.querySelector('UnifiedMeasurementUnitCode') ||
-    Array.from(indicatorElement.getElementsByTagName('*')).find(el => {
-      const localName = el.localName || el.tagName.split(':').pop()?.toLowerCase()
-      return localName === 'unifiedmeasurementunitcode'
-    })
+  const normativeAttr =
+    indicatorElement.getAttribute('normativeDiscrepancyOfQualityIndexIndicator') ??
+    indicatorElement.getAttributeNS(null, 'normativeDiscrepancyOfQualityIndexIndicator')
+  const isNormative = parseNormativeDiscrepancyIndicator(normativeAttr)
+
+  // Прямые потомки по XSD sequence; fallback getTextContent — для старых/нестандартных XML
+  const indicatorCode =
+    getDirectChildTextByLocalName(indicatorElement, 'DiscrepancyOfQualityIndexCode') ||
+    getTextContent(indicatorElement, 'DiscrepancyOfQualityIndexCode') ||
+    undefined
+  const indicatorName =
+    getDirectChildTextByLocalName(indicatorElement, 'DiscrepancyOfQualityIndexName') ||
+    getTextContent(indicatorElement, 'DiscrepancyOfQualityIndexName') ||
+    undefined
+  const indicatorValue =
+    getDirectChildTextByLocalName(indicatorElement, 'DiscrepancyOfQualityIndexValue') ||
+    getTextContent(indicatorElement, 'DiscrepancyOfQualityIndexValue') ||
+    undefined
+  const note =
+    getDirectChildTextByLocalName(indicatorElement, 'NoteText') ||
+    getTextContent(indicatorElement, 'NoteText') ||
+    undefined
+
+  // Единица: csdo:UnifiedMeasurementUnitCode (codeListId=2064) или атрибуты у Value (старый формат)
+  let unitCode: string | undefined
+  let unitCodeListId: string | undefined
+  const unitEl =
+    getDirectChildElementByLocalName(indicatorElement, 'UnifiedMeasurementUnitCode') ||
+    Array.from(indicatorElement.getElementsByTagName('*')).find((el) => {
+      const localName = (el.localName || el.tagName.split(':').pop() || '').toLowerCase()
+      return localName === 'unifiedmeasurementunitcode' && el.parentElement === indicatorElement
+    }) ||
+    null
   if (unitEl) {
     unitCode = (unitEl.textContent ?? '').trim() || undefined
     unitCodeListId = unitEl.getAttribute('codeListId') || undefined
   }
   if (!unitCode) {
-    const valueElement = indicatorElement.querySelector('DiscrepancyOfQualityIndexValue') ||
-      Array.from(indicatorElement.getElementsByTagName('*')).find(el => {
-        const localName = el.localName || el.tagName.split(':').pop()?.toLowerCase()
-        return localName === 'discrepancyofqualityindexvalue'
-      })
+    const valueElement =
+      getDirectChildElementByLocalName(indicatorElement, 'DiscrepancyOfQualityIndexValue') ||
+      Array.from(indicatorElement.getElementsByTagName('*')).find((el) => {
+        const localName = (el.localName || el.tagName.split(':').pop() || '').toLowerCase()
+        return localName === 'discrepancyofqualityindexvalue' && el.parentElement === indicatorElement
+      }) ||
+      null
     if (valueElement) {
       unitCode = valueElement.getAttribute('measurementUnitCode') || undefined
       unitCodeListId = valueElement.getAttribute('measurementUnitCodeListId') || undefined
     }
   }
-  
-  // В реальном приложении здесь обращение к справочнику единиц измерения
+
   const unitNameMap: Record<string, string> = {
     '130': 'л.',
     '796': 'шт.',
     '163': 'кг',
-    'C62': 'мг/кг',
-    'M1': '%',
+    C62: 'мг/кг',
+    M1: '%',
   }
   const unitName = unitCode ? (unitNameMap[unitCode] ?? undefined) : undefined
-  
-  if (!indicatorCode && !indicatorName && !indicatorValue) {
+
+  if (!indicatorCode && !indicatorName && !indicatorValue && !unitCode && !note && isNormative === undefined) {
     return null
   }
-  
+
   return {
     isNormative,
     indicatorCode,

@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { Form, Input, Button, Table, Descriptions, Select, Collapse } from 'antd'
+import { Form, Input, Button, Table, Descriptions, Select, Collapse, Checkbox } from 'antd'
 import { PlusOutlined, DeleteOutlined, CloseOutlined } from '@ant-design/icons'
 import { format } from 'date-fns'
 import { ru } from 'date-fns/locale'
@@ -486,7 +486,12 @@ const ViolationsTabEdit: React.FC<ViolationsTabEditProps> = ({ tsd, onTsdChange 
       { title: 'Действия', key: 'actions', width: 100, render: (_: any, record: ViolatedRequirement, index: number) => (<Button type="link" danger icon={<DeleteOutlined />} onClick={() => handleRemoveRequirement(index)}>Удалить</Button>) },
     ]
     const indicatorsColumns = [
-      { title: 'Нормативный показатель', key: 'isNormative', width: 150, render: (_: any, record: ViolatedIndicator, index: number) => (<Input type="checkbox" checked={record.isNormative} onChange={(e) => handleIndicatorChange(index, 'isNormative', e.target.checked)} />) },
+      { title: 'Нормативный показатель', key: 'isNormative', width: 150, render: (_: any, record: ViolatedIndicator, index: number) => (
+        <Checkbox
+          checked={record.isNormative === true}
+          onChange={(e) => handleIndicatorChange(index, 'isNormative', e.target.checked)}
+        />
+      ) },
       { title: labelWithHelp('Наименование показателя', FIELD_HELP.indicatorName), key: 'indicatorName', width: 200, render: (_: any, record: ViolatedIndicator, index: number) => (<Input value={record.indicatorName} onChange={(e) => handleIndicatorChange(index, 'indicatorName', e.target.value)} maxLength={getMaxLength('indicatorName')} showCount />) },
       {
         title: labelWithHelp('Значения показателя', FIELD_HELP.indicatorValue),
@@ -524,16 +529,22 @@ const ViolationsTabEdit: React.FC<ViolationsTabEditProps> = ({ tsd, onTsdChange 
         render: (_: any, record: ViolatedIndicator, index: number) => {
           const hasValue = (record.indicatorValue ?? '').trim() !== ''
           const missingUnit = hasValue && !(record.unitCode ?? '').trim()
+          const code = (record.unitCode ?? '').trim()
+          const baseOpts = getMeasurementUnitSelectOptions()
+          const unitOptions =
+            code && !baseOpts.some((o) => String(o.value) === code)
+              ? [{ value: code, label: record.unitName?.trim() ? `${code} - ${record.unitName}` : code }, ...baseOpts]
+              : baseOpts
           return (
             <div>
               <Select
                 showSearch
                 placeholder="Выберите единицу измерения"
                 loading={loadingMeasurementUnits}
-                value={record.unitCode || undefined}
-                onChange={(code) => handleMeasurementUnitSelect(index, code)}
+                value={code || undefined}
+                onChange={(next) => handleMeasurementUnitSelect(index, next)}
                 filterOption={(input, option) => (option?.label ?? '').toLowerCase().includes(input.toLowerCase())}
-                options={getMeasurementUnitSelectOptions()}
+                options={unitOptions}
                 allowClear
                 style={{ width: '100%' }}
                 status={missingUnit ? 'error' : undefined}
@@ -543,7 +554,7 @@ const ViolationsTabEdit: React.FC<ViolationsTabEditProps> = ({ tsd, onTsdChange 
           )
         },
       },
-      { title: labelWithHelp('Примечание', FIELD_HELP.indicatorNote), key: 'note', width: 300, render: (_: any, record: ViolatedIndicator, index: number) => (<Input.TextArea value={record.note} onChange={(e) => handleIndicatorChange(index, 'note', e.target.value)} rows={2} maxLength={getMaxLength('noteText')} showCount />) },
+      { title: labelWithHelp('Примечание', FIELD_HELP.indicatorNote), key: 'note', width: 300, render: (_: any, record: ViolatedIndicator, index: number) => (<Input.TextArea value={record.note ?? ''} onChange={(e) => handleIndicatorChange(index, 'note', e.target.value)} rows={2} maxLength={getMaxLength('noteText')} showCount />) },
       { title: 'Действия', key: 'actions', width: 100, render: (_: any, record: ViolatedIndicator, index: number) => (<Button type="link" danger icon={<DeleteOutlined />} onClick={() => handleRemoveIndicator(index)}>Удалить</Button>) },
     ]
 

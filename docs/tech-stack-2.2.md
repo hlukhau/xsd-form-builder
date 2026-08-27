@@ -18,9 +18,10 @@
 | `dpr_card` | Результаты рассмотрения выявленных нарушений (DPR) | SS.08 Dangerous Product Alert Response |
 | `smd_card` | Временная санитарная мера (SMD) | SS.09 Sanitary Measure Details |
 | `smr_card` | Результаты рассмотрения санитарной меры (SMR) | SS.09 Sanitary Measure Consideration |
-| `card_rigths` | Реестр GUID → JSON прав и параметров подключения к БД | — |
+| `sma_card` | Запрос / ответ дополнительных сведений (SMAQ / SMAR) | SS.09 Additional Info / Processing Result |
+| `card_rigths` | EEC-rights: реестр GUID → JSON прав и параметров БД (**деплоить и стартовать первым**) | — |
 
-Общий Java-код и `WEB-INF/web.xml`; различие карточек — base path при сборке frontend (`npm run build:dpa`, `build:pha`, …) и пакеты сервлетов (`com.eec.servlet.dpa.*`, `pha.*`, `ppv.*`, `dpr.*`, `smd.*`, `smr.*`).
+Общий Java-код и `WEB-INF/web.xml`; различие карточек — base path при сборке frontend (`npm run build:dpa`, `build:pha`, …) и пакеты сервлетов (`com.eec.servlet.dpa.*`, `pha.*`, `ppv.*`, `dpr.*`, `smd.*`, `smr.*`, `sma.*`). Деплой и порядок запуска (EEC-rights первым): [BUILD_AND_DEPLOY.md](./BUILD_AND_DEPLOY.md).
 
 ---
 

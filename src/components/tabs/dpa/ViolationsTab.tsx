@@ -89,9 +89,12 @@ const ViolationsTab: React.FC<ViolationsTabProps> = ({ tsd }) => {
       key: 'isNormative',
       width: 150,
       render: (_: any, record: ViolatedIndicator) => {
-        const text = record.isNormative === undefined 
-          ? '-' 
-          : (record.isNormative ? 'Да (нормативный)' : 'Нет (фактический)')
+        const text =
+          record.isNormative === undefined
+            ? '-'
+            : record.isNormative
+              ? 'Да (нормативный)'
+              : 'Нет (фактический)'
         return (
           <div style={{ wordWrap: 'break-word', whiteSpace: 'normal' }}>
             {text}
@@ -129,9 +132,10 @@ const ViolationsTab: React.FC<ViolationsTabProps> = ({ tsd }) => {
       key: 'unit',
       width: 150,
       render: (_: any, record: ViolatedIndicator) => {
-        const text = record.unitCode
-          ? (getMeasurementUnitDisplayLabel(record.unitCode) || record.unitName || record.unitCode)
-          : (record.unitName || record.unitCode || '-')
+        const code = (record.unitCode ?? '').trim()
+        const text = code
+          ? getMeasurementUnitDisplayLabel(code) || record.unitName || code
+          : record.unitName || '-'
         return (
           <div style={{ wordWrap: 'break-word', whiteSpace: 'normal' }}>
             {text || '-'}
@@ -146,7 +150,7 @@ const ViolationsTab: React.FC<ViolationsTabProps> = ({ tsd }) => {
       width: 300,
       render: (text: string) => (
         <div style={{ wordWrap: 'break-word', whiteSpace: 'normal' }}>
-          {text || '-'}
+          {text?.trim() ? text : '-'}
         </div>
       ),
     },

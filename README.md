@@ -2,6 +2,11 @@
 
 Фронтенд-приложение для визуализации карты сведений об обнаружении опасной продукции на основе XSD схем.
 
+**Вся документация в одном файле:** → **[DOCUMENTATION.md](./DOCUMENTATION.md)**  
+(сборка/деплой, EEC-rights первым, стек, API, диагностика, XSD).
+
+Актуально только про деплой: [docs/BUILD_AND_DEPLOY.md](./docs/BUILD_AND_DEPLOY.md).
+
 ## Технологический стек
 
 ### Frontend
@@ -48,36 +53,21 @@ npm run dev
 
 ### Развертывание на Apache Tomcat 8.5.23
 
-Приложение может быть развернуто на Apache Tomcat в виде WAR-файла.
+**EEC-rights (`card_rigths`) должен быть залит и стартовать первым** — без него карты не получают GUID/права/креды БД.
 
-**Требования:**
-- Java 8 (JDK 1.8)
-- Apache Maven 3.6+
-- Apache Tomcat 8.5.23
+Актуальная инструкция по сборке и деплою **всех форм** (DPA, PPV, PHA, DPR, SMD, SMR, SMA) и EEC-rights:
 
-**Сборка WAR-файла:**
+→ **[docs/BUILD_AND_DEPLOY.md](./docs/BUILD_AND_DEPLOY.md)**
+
+Кратко (локально):
 
 ```bash
-# Автоматическая сборка (Maven установит Node.js, соберет React и упакует в WAR)
-mvn clean package
-
-# Или используйте скрипты:
-# Linux/Mac:
-./build.sh
-
-# Windows:
-build.bat
+npm install
+./build-and-deploy-rights-service-local.sh   # первым
+./build-and-deploy-all-local.sh              # все карты
 ```
 
-Результат: `target/dpa_card.war`
-
-**Развертывание:**
-
-1. Скопируйте `target/dpa_card.war` в `$CATALINA_HOME/webapps/`
-2. Перезапустите Tomcat
-3. Приложение будет доступно по адресу: `http://localhost:8080/dpa_card/`
-
-**Подробные инструкции:** см. [DEPLOYMENT.md](./DEPLOYMENT.md)
+Историческая инструкция (в основном DPA): [DEPLOYMENT.md](./DEPLOYMENT.md). Сервис прав: [rights-service/README.md](./rights-service/README.md).
 
 ## Функциональность
 
@@ -114,4 +104,5 @@ XML файлы должны соответствовать схеме `EEC_R_SM_
 
 ## Развертывание
 
-Подробная инструкция по развертыванию на Apache Tomcat 8.5.23 см. в файле [DEPLOYMENT.md](./DEPLOYMENT.md).
+- **Все формы + EEC-rights (актуально):** [docs/BUILD_AND_DEPLOY.md](./docs/BUILD_AND_DEPLOY.md)
+- Историческая инструкция (DPA / Tomcat): [DEPLOYMENT.md](./DEPLOYMENT.md)

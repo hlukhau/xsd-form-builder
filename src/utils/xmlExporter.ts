@@ -968,7 +968,13 @@ function exportViolations(xmlParts: string[], violations: ViolationsData, indent
 
   // 2) DiscrepancyOfQualityIndexDetails. Признак нормативного показателя — true/false. Единица измерения — в csdo:UnifiedMeasurementUnitCode с codeListId=2064.
   indsWithContent.forEach(indicator => {
-    const normativeAttr = indicator.isNormative === true ? ' normativeDiscrepancyOfQualityIndexIndicator="true"' : (indicator.isNormative === false ? ' normativeDiscrepancyOfQualityIndexIndicator="false"' : '')
+    // IndicatorType (xs:boolean): в XML пишем 1/0 — как в документации XSD к атрибуту
+    const normativeAttr =
+      indicator.isNormative === true
+        ? ' normativeDiscrepancyOfQualityIndexIndicator="1"'
+        : indicator.isNormative === false
+          ? ' normativeDiscrepancyOfQualityIndexIndicator="0"'
+          : ''
     xmlParts.push(`${inner}<smcdo:DiscrepancyOfQualityIndexDetails${normativeAttr}>`)
     if (indicator.indicatorCode) xmlParts.push(`${inner}  <smsdo:DiscrepancyOfQualityIndexCode>${escapeXML(indicator.indicatorCode)}</smsdo:DiscrepancyOfQualityIndexCode>`)
     if (indicator.indicatorName) xmlParts.push(`${inner}  <smsdo:DiscrepancyOfQualityIndexName>${escapeXML(indicator.indicatorName)}</smsdo:DiscrepancyOfQualityIndexName>`)
@@ -976,10 +982,10 @@ function exportViolations(xmlParts: string[], violations: ViolationsData, indent
       xmlParts.push(`${inner}  <smsdo:DiscrepancyOfQualityIndexValue>${escapeXML(indicator.indicatorValue)}</smsdo:DiscrepancyOfQualityIndexValue>`)
     }
     if (indicator.unitCode?.trim()) {
-      xmlParts.push(`${inner}  <csdo:UnifiedMeasurementUnitCode codeListId="2064">${escapeXML(indicator.unitCode)}</csdo:UnifiedMeasurementUnitCode>`)
+      xmlParts.push(`${inner}  <csdo:UnifiedMeasurementUnitCode codeListId="2064">${escapeXML(indicator.unitCode.trim())}</csdo:UnifiedMeasurementUnitCode>`)
     }
-    if (indicator.note) {
-      xmlParts.push(`${inner}  <csdo:NoteText>${escapeXML(indicator.note)}</csdo:NoteText>`)
+    if (indicator.note?.trim()) {
+      xmlParts.push(`${inner}  <csdo:NoteText>${escapeXML(indicator.note.trim())}</csdo:NoteText>`)
     }
     xmlParts.push(`${inner}</smcdo:DiscrepancyOfQualityIndexDetails>`)
   })
