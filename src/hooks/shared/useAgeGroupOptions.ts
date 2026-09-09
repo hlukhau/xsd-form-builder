@@ -13,7 +13,12 @@ export function useAgeGroupOptions() {
         setLoading(true)
         setError(null)
         const data = await getAgeGroupOptions()
-        if (!cancelled) setOptions(data)
+        if (!cancelled) {
+          const sorted = [...data].sort((a, b) =>
+            String(a.code).localeCompare(String(b.code), undefined, { numeric: true, sensitivity: 'base' })
+          )
+          setOptions(sorted)
+        }
       } catch (err) {
         if (!cancelled) {
           setError(err instanceof Error ? err : new Error(String(err)))
@@ -33,8 +38,12 @@ export function useAgeGroupOptions() {
     return opt ? opt.name : null
   }
 
+  /** Для Select: «код - наименование», список уже отсортирован по коду. */
   const getSelectOptions = () =>
-    options.map(opt => ({ value: opt.code, label: opt.name || opt.code }))
+    options.map((opt) => ({
+      value: opt.code,
+      label: opt.name ? `${opt.code} - ${opt.name}` : opt.code,
+    }))
 
   return { options, loading, error, getNameByCode, getSelectOptions }
 }
