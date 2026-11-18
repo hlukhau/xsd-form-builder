@@ -68,7 +68,13 @@ import { format } from 'date-fns'
 /** Статусы исходящей DPA, при которых разрешено редактирование (DPASTATUSID). */
 const EDITABLE_OUTGOING_STATUS_IDS_DPA = [5, 6, 9, 10, 12] // DRAFT, NEW, FAILED, ERROR, EDITED
 /** Исходящая PPV: только Черновик и Новое (PPVSTATUSID / PPVSTATUSCODE DRAFT, NEW). */
-const EDITABLE_OUTGOING_STATUS_IDS_PPV = [5, 6]
+const EDITABLE_OUTGOING_STATUS_IDS_PPV = [5, 6, 9] // DRAFT, NEW, FAILED
+
+function ppvOutgoingStatusEditable(statusId: number | undefined, statusCode: string): boolean {
+  if (statusCode === 'DRAFT' || statusCode === 'NEW' || statusCode === 'FAILED') return true
+  if (statusCode) return false
+  return statusId !== undefined && EDITABLE_OUTGOING_STATUS_IDS_PPV.includes(statusId)
+}
 
 interface DangerousProductCardProps {
   data: CardData
@@ -176,11 +182,14 @@ const DangerousProductCard: React.FC<DangerousProductCardProps> = ({
   const effectiveHasSaveRight = rightsOverride ? overrideHasByMap(upOutBlock?.edit) : hasSaveRight
 
   const currentStatusId = editedData.statusId ?? data.statusId ?? undefined
+  const currentStatusCode = (editedData.statusCode ?? data.statusCode ?? '').trim().toUpperCase()
   const editableOutgoingStatusIds = isPpvApp() ? EDITABLE_OUTGOING_STATUS_IDS_PPV : EDITABLE_OUTGOING_STATUS_IDS_DPA
   const canEditByStatus =
     !isOutgoingSource ||
     effectiveDpaid === '-' ||
-    (currentStatusId !== undefined && editableOutgoingStatusIds.includes(currentStatusId))
+    (isPpvApp()
+      ? ppvOutgoingStatusEditable(currentStatusId, currentStatusCode)
+      : currentStatusId !== undefined && editableOutgoingStatusIds.includes(currentStatusId))
 
   const datasourceKindForEditPolicy =
     editedData.datasourceKindCode != null ? String(editedData.datasourceKindCode) : datasourceKindCode
@@ -702,8 +711,22 @@ const DangerousProductCard: React.FC<DangerousProductCardProps> = ({
       setPendingSavePayload(null)
       setSaveBlockingErrorsVisible(false)
       setSaveBlockingErrors([])
-      onUpdate({ ...editedData, ppvActorCountryCodes: [], ppvActorRemovalIds: [] })
-      setEditedData((prev) => ({ ...prev, ppvActorCountryCodes: [], ppvActorRemovalIds: [] }))
+      const statusPatch =
+        res.newStatusId != null
+          ? {
+              status: res.newStatus ?? 'Новое',
+              statusId: res.newStatusId,
+              ...(isPpvApp() ? { statusCode: 'NEW' } : {}),
+            }
+          : {}
+      const savedCard = {
+        ...editedData,
+        ...statusPatch,
+        ppvActorCountryCodes: [] as string[],
+        ppvActorRemovalIds: [] as number[],
+      }
+      onUpdate(savedCard)
+      setEditedData(savedCard)
       setIsEditMode(false)
       setOriginalXML(xmlJustSaved)
       if (isNewCard) {
@@ -714,10 +737,6 @@ const DangerousProductCard: React.FC<DangerousProductCardProps> = ({
           sessionStorage.setItem(saveHappenedKey, '1')
         } catch (_) {}
         onSaveNewCard?.(res.dpaid)
-      } else if (!isPpvApp() && res.newStatusId != null) {
-        const nextStatus = res.newStatus ?? 'Новое'
-        onUpdate({ ...editedData, status: nextStatus, statusId: res.newStatusId })
-        setEditedData((prev) => ({ ...prev, status: nextStatus, statusId: res.newStatusId }))
       }
     } catch (err) {
       const msg = err instanceof Error ? err.message : 'Ошибка сохранения в БД'
@@ -988,7 +1007,10 @@ const DangerousProductCard: React.FC<DangerousProductCardProps> = ({
                 {isOutgoingSource && (
                   <Button
                     onClick={async () => {
-                      const r = await validateOutgoingCardWithSchema(currentData)
+                      const r = await validateOutgoingCardWithSchema(currentData, {
+                        ppvid: effectiveDpaid,
+                        guid,
+                      })
                       setValidationResult(r)
                       setValidationModalVisible(true)
                     }}
@@ -1018,7 +1040,10 @@ const DangerousProductCard: React.FC<DangerousProductCardProps> = ({
                 {isOutgoingSource && (
                   <Button
                     onClick={async () => {
-                      const r = await validateOutgoingCardWithSchema(editedData)
+                      const r = await validateOutgoingCardWithSchema(editedData, {
+                        ppvid: effectiveDpaid,
+                        guid,
+                      })
                       setValidationResult(r)
                       setValidationModalVisible(true)
                     }}
@@ -1157,7 +1182,10 @@ const DangerousProductCard: React.FC<DangerousProductCardProps> = ({
             if (action === 'send') {
               const dataToValidate = isEditMode ? editedData : currentData
               void (async () => {
-                const validation = await validateOutgoingCardWithSchema(dataToValidate)
+                const validation = await validateOutgoingCardWithSchema(dataToValidate, {
+                  ppvid: effectiveDpaid,
+                  guid,
+                })
                 if (!validation.success) {
                   setValidationResult(validation)
                   setValidationModalVisible(true)

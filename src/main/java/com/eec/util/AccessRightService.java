@@ -363,6 +363,11 @@ public final class AccessRightService {
         return hasAccessRightInJson(rightsJson, "violationDetectedOut", "send");
     }
 
+    /** Ключи (DEPID) объекта up.violationDetectedOut.send. */
+    public static Set<String> violationDetectedOutSendDepKeys(String rightsJson) {
+        return depKeysFromUpRightBlock(rightsJson, "violationDetectedOut", "send");
+    }
+
     public static boolean hasViolationDetectedOutEdit(String rightsJson) {
         return hasAccessRightInJson(rightsJson, "violationDetectedOut", "edit");
     }

@@ -34,7 +34,8 @@ import java.util.regex.Pattern;
  * GET /api/ppv/status?preview=incoming_complete&dpaid=...&guid=... — { reviewOutcomeSent } для диалога подтверждения.
  * Исходящие: action mark_ready | send | close; mark_ready/close — violationDetectedOut:status и пересечение с PPVDEPPERMIS, send — violationDetectedOut:send.
  * mark_ready: Черновик→Новое+резолюция (dep0601|dep0602|dep0603); Новое+районная→Новое+областная (только dep0602 при наличии dep0601).
- * send: Новое+областная|республиканская→Ожидает отправки (PENDING). close: Новое+dep0602/dep0603 или PROCESSED|AWAITING|PARTIAL|FULFIELD→COMPLETED (DSC=2).
+ * send: Новое+областная|республиканская или FAILED → Ожидает отправки (PENDING); нужен хотя бы один активный адресат PPVACTOR.
+ * close: Новое+dep0602/dep0603, FAILED или PROCESSED|AWAITING|PARTIAL|FULFIELD→COMPLETED (DSC=2).
  * Переходы PENDING→AWAITING→PARTIAL/FULFIELD выполняются системой (интеграция), не этим сервлетом.
  * mark_ready: тело { "dpaid", "action": "mark_ready", "depKindCode": "dep0601"|"dep0602"|"dep0603" }.
  * Обновляется PPV.PPVSTATUSID, PPVSTATUSHIST (и при mark_ready — PPVRESOLUTION).
@@ -130,11 +131,15 @@ public class PpvStatusChangeServlet extends HttpServlet {
             + "AND r.DEPKINDID IN (SELECT dk.DEPKINDID FROM TB_DEPKIND dk "
             + "WHERE UPPER(TRIM(dk.DEPKINDCODE)) IN ('DEP0602','DEP0603')) AND ROWNUM = 1";
 
-    /** Исходящие: закрытие при кодах PROCESSED, AWAITING, PARTIAL, FULFIELD (и FULFILLED — опечатка в БД). */
+    /** Исходящие: закрытие при кодах PROCESSED, AWAITING, PARTIAL, FULFIELD, FAILED (и FULFILLED — опечатка в БД). */
     private static final String SQL_OUTGOING_STATUS_IN_CLOSE_CODES = ""
             + "SELECT 1 FROM PPVSTATUS WHERE PPVSTATUSID = ? "
             + "AND TRIM(TO_CHAR(DATASOURCEKINDCODE)) = '2' AND PPVSTATUSACTFL = 1 "
-            + "AND TRIM(UPPER(PPVSTATUSCODE)) IN ('PROCESSED','AWAITING','PARTIAL','FULFIELD','FULFILLED') AND ROWNUM = 1";
+            + "AND TRIM(UPPER(PPVSTATUSCODE)) IN ('PROCESSED','AWAITING','PARTIAL','FULFIELD','FULFILLED','FAILED') AND ROWNUM = 1";
+    private static final String SQL_STATUS_CODE_BY_ID = ""
+            + "SELECT TRIM(UPPER(NVL(PPVSTATUSCODE, ''))) FROM PPVSTATUS WHERE PPVSTATUSID = ?";
+    private static final String SQL_COUNT_ACTIVE_ACTORS = ""
+            + "SELECT COUNT(*) FROM PPVACTOR WHERE PPVID = ? AND PPVACTORACTFL = 1";
 
     @Override
     protected void doGet(HttpServletRequest request, HttpServletResponse response)
@@ -448,6 +453,35 @@ public class PpvStatusChangeServlet extends HttpServlet {
         }
     }
 
+    private static String ppvStatusCodeById(Connection conn, int statusId) throws SQLException {
+        try (PreparedStatement ps = conn.prepareStatement(SQL_STATUS_CODE_BY_ID)) {
+            ps.setInt(1, statusId);
+            try (ResultSet rs = ps.executeQuery()) {
+                if (!rs.next()) return "";
+                String code = rs.getString(1);
+                return code != null ? code.trim() : "";
+            }
+        }
+    }
+
+    /** «Отправка не удалась»: код FAILED. Запасной идентификатор 9 — только если код в справочнике пуст. */
+    private static boolean isOutgoingFailedStatus(Connection conn, int statusId) throws SQLException {
+        String code = ppvStatusCodeById(conn, statusId);
+        if ("FAILED".equals(code)) return true;
+        if (!code.isEmpty()) return false;
+        return statusId == OUTGOING_FAILED;
+    }
+
+    private static int countActivePpvActors(Connection conn, long ppvid) throws SQLException {
+        try (PreparedStatement ps = conn.prepareStatement(SQL_COUNT_ACTIVE_ACTORS)) {
+            ps.setLong(1, ppvid);
+            try (ResultSet rs = ps.executeQuery()) {
+                if (rs.next()) return rs.getInt(1);
+            }
+        }
+        return 0;
+    }
+
     private static boolean isOutgoingCloseAllowed(Connection conn, long ppvid, int currentStatusId) throws SQLException {
         Integer newId = findOutgoingPpvStatusIdByCode(conn, "NEW");
         if (newId != null && currentStatusId == newId) {
@@ -711,15 +745,33 @@ public class PpvStatusChangeServlet extends HttpServlet {
             return;
         }
         if ("send".equals(action)) {
+            if (!DATASOURCEKIND_OUTGOING.equals(datasourceKindCode != null ? datasourceKindCode.trim() : "")) {
+                sendJsonError(response, HttpServletResponse.SC_BAD_REQUEST,
+                        "Направление сведений доступно только для исходящей карты (DATASOURCEKINDCODE=2)");
+                return;
+            }
             if (!AccessRightService.hasViolationDetectedOutSend(rightsJson)) {
                 sendJsonError(response, HttpServletResponse.SC_FORBIDDEN, "Нет права на направление исходящих сведений (violationDetectedOut:send)");
                 return;
             }
-            if (currentStatusId != OUTGOING_NEW) {
-                sendJsonError(response, HttpServletResponse.SC_BAD_REQUEST, "Действие «Направление сведений» возможно только при статусе «Новое» (при наличии резолюции областного или республиканского ЦГЭ)");
+            boolean failedStatus = isOutgoingFailedStatus(conn, currentStatusId);
+            if (failedStatus) {
+                Set<String> sendDepKeys = AccessRightService.violationDetectedOutSendDepKeys(rightsJson);
+                if (sendDepKeys.isEmpty() || !PpvDepPermisUtil.hasOverlap(conn, dpaid, sendDepKeys)) {
+                    sendJsonError(response, HttpServletResponse.SC_FORBIDDEN,
+                            "Нет права на направление сведений: ни одно подразделение из violationDetectedOut:send "
+                                    + "не входит в доступ к карте (PPVDEPPERMIS)");
+                    return;
+                }
+            }
+            if (currentStatusId != OUTGOING_NEW && !failedStatus) {
+                sendJsonError(response, HttpServletResponse.SC_BAD_REQUEST,
+                        "Действие «Направление сведений» возможно при статусе «Новое» "
+                                + "(при наличии резолюции областного или республиканского ЦГЭ) "
+                                + "или «Отправка не удалась» (FAILED)");
                 return;
             }
-            {
+            if (!failedStatus) {
                 try (PreparedStatement ps = conn.prepareStatement(SQL_HAS_REGIONAL_OR_REPUBLICAN_RESOLUTION)) {
                     ps.setLong(1, dpaid);
                     try (ResultSet rs = ps.executeQuery()) {
@@ -730,6 +782,10 @@ public class PpvStatusChangeServlet extends HttpServlet {
                         }
                     }
                 }
+            }
+            if (countActivePpvActors(conn, dpaid) == 0) {
+                sendJsonError(response, HttpServletResponse.SC_BAD_REQUEST, "Необходимо указать хотя бы одного адресата");
+                return;
             }
             try (PreparedStatement ps = conn.prepareStatement(SQL_UPDATE)) {
                 ps.setInt(1, OUTGOING_PENDING);
@@ -770,6 +826,7 @@ public class PpvStatusChangeServlet extends HttpServlet {
             if (!isOutgoingCloseAllowed(conn, dpaid, currentStatusId)) {
                 sendJsonError(response, HttpServletResponse.SC_BAD_REQUEST,
                         "Действие «Закрытие карты» возможно при статусе «Новое» с резолюцией областного или республиканского ЦГЭ, "
+                                + "при статусе «Отправка не удалась» (FAILED), "
                                 + "либо при статусах с кодами PROCESSED, AWAITING, PARTIAL, FULFIELD или FULFILLED");
                 return;
             }

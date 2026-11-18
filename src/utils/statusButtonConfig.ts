@@ -189,6 +189,50 @@ const HINT_PPV_NEW_REGIONAL_AFTER_DISTRICT =
   'Новое + резолюция районного ЦГЭ → Новое + резолюция областного ЦГЭ.'
 const HINT_PPV_NEW_TO_PENDING =
   'Новое + резолюция областного или республиканского ЦГЭ → Ожидает отправки.'
+const HINT_PPV_FAILED_TO_PENDING = 'Отправка не удалась → Ожидает отправки.'
+
+/** «Направление сведений» и «Закрытие карты» из статуса «Отправка не удалась» (FAILED). */
+function outgoingPpvFailedStatusButtons(
+  hasStatusRight: boolean,
+  hasSendRight: boolean,
+  noSt: string,
+  noSn: string,
+  hintClose: string
+): StatusButtonResult {
+  const closeCfg = (enabled: boolean): StatusButtonConfig | null =>
+    enabled
+      ? { label: 'Закрытие карты', action: 'close', hint: hintClose }
+      : { label: 'Закрытие карты', action: 'close', disabled: true, hint: noSt }
+  if (hasSendRight) {
+    return {
+      config: { label: 'Направление сведений', action: 'send', hint: HINT_PPV_FAILED_TO_PENDING },
+      comment: HINT_PPV_FAILED_TO_PENDING,
+      closeConfig: closeCfg(hasStatusRight),
+    }
+  }
+  return {
+    config: {
+      label: 'Направление сведений',
+      action: 'send',
+      disabled: true,
+      hint: noSn,
+    },
+    comment: noSn,
+    closeConfig: closeCfg(hasStatusRight),
+  }
+}
+
+function outgoingPpvIsFailedStatus(
+  statusId: number | null | undefined,
+  status: string | undefined,
+  statusCode: string | null | undefined
+): boolean {
+  const code = normStatusCode(statusCode)
+  if (code === 'FAILED') return true
+  if (code) return false
+  if (statusId === OUTGOING_FAILED) return true
+  return norm(status).includes('отправка не удалась')
+}
 
 /** Кнопки для статуса «Новое» (исходящая PPV) — по переходам ТЗ. */
 function outgoingPpvNewStatusButtons(
@@ -996,6 +1040,9 @@ function outgoingStatusButtonPpv(
   }
 
   // По DPASTATUSID (исходящие 5–13; для PPV дополняется ppvStatusCode)
+  if (outgoingPpvIsFailedStatus(statusId, status, statusCode)) {
+    return outgoingPpvFailedStatusButtons(hasStatusRight, hasSendRight, noSt, noSn, hintClose)
+  }
   if (statusId === OUTGOING_DRAFT) {
     if (!hasStatusRight) {
       return {
@@ -1048,7 +1095,7 @@ function outgoingStatusButtonPpv(
       closeConfig: { label: 'Закрытие карты', action: 'close', disabled: true, hint: obsoleteHint },
     }
   }
-  if (statusId === OUTGOING_FAILED || statusId === OUTGOING_ERROR) {
+  if (statusId === OUTGOING_ERROR) {
     const toNewHint = 'Перевод карты в статус «Новое»; после этого станет доступно направление сведений при наличии резолюции областного или республиканского ЦГЭ.'
     if (hasStatusRight) {
       return {
@@ -1129,7 +1176,10 @@ function outgoingStatusButtonPpv(
       closeConfig: { label: 'Закрытие карты', action: 'close', disabled: true, hint: obsoleteHint },
     }
   }
-  if (s.includes('отправка не удалась') || s.includes('ошибка обработки')) {
+  if (s.includes('отправка не удалась')) {
+    return outgoingPpvFailedStatusButtons(hasStatusRight, hasSendRight, noSt, noSn, hintClose)
+  }
+  if (s.includes('ошибка обработки')) {
     const toNewHint = 'Перевод карты в статус «Новое»; после этого станет доступно направление сведений при наличии резолюции областного или республиканского ЦГЭ.'
     if (hasStatusRight) {
       return {

@@ -10,7 +10,7 @@ import java.util.Set;
 
 /**
  * Редактирование исходящей PPV: {@code violationDetectedOut:edit} ∩ {@code PPVDEPPERMIS},
- * {@code DATASOURCEKINDCODE=2}, статус {@code DRAFT} или {@code NEW}.
+ * {@code DATASOURCEKINDCODE=2}, статус {@code DRAFT}, {@code NEW} или {@code FAILED}.
  */
 public final class PpvOutgoingEditAccessHelper {
 
@@ -70,9 +70,10 @@ public final class PpvOutgoingEditAccessHelper {
         if (statusCode == null || statusCode.isEmpty()) {
             return GateResult.denied("Не определён код статуса карты в справочнике PPVSTATUS");
         }
-        if (!"DRAFT".equals(statusCode) && !"NEW".equals(statusCode)) {
+        if (!"DRAFT".equals(statusCode) && !"NEW".equals(statusCode) && !"FAILED".equals(statusCode)) {
             return GateResult.denied(
-                    "Редактирование доступно только в статусах «Черновик» (DRAFT) и «Новое» (NEW)");
+                    "Редактирование доступно только в статусах «Черновик» (DRAFT), «Новое» (NEW) "
+                            + "и «Отправка не удалась» (FAILED)");
         }
         String rightsJson = RightsRegistryProvider.get().getRightsJson(guid);
         if (rightsJson == null || rightsJson.isEmpty()) {

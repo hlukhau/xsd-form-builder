@@ -28,6 +28,7 @@ import { getFormatHint, validateFieldValue } from '@/constants/xsdFieldConstrain
 import { exportCardDataToXML, hasIdentityDocV3Content, hasMeasureImplementationEntryContent } from '@/utils/xmlExporter'
 import { fetchSchemaValidationErrors } from '@/utils/schemaValidationApi'
 import { isPpvApp } from '@/cards/config'
+import { fetchPpvActors } from '@/utils/referenceDataApi'
 import { remarkContactsIncomplete } from '@/utils/contactValidation'
 import {
   businessEntityIdMethodPairRemarks,
@@ -1388,15 +1389,43 @@ function pushPhaXsdFormatErrors(errors: string[], data: CardData): void {
   })
 }
 
+const PPV_ADDRESSEE_REQUIRED_REMARK = 'Необходимо указать хотя бы одного адресата'
+
+/**
+ * PPV: активные адресаты PPVACTOR (PPVACTORACTFL = 1). Пустой список — замечание раздела «Адресаты».
+ * Вызывается при валидации карты и перед направлением сведений.
+ */
+async function ppvAddresseeRemarks(ppvid?: string | null, guid?: string | null): Promise<string[]> {
+  if (!isPpvApp()) return []
+  const id = (ppvid ?? '').trim()
+  if (!/^\d+$/.test(id) || Number(id) <= 0) return []
+  try {
+    const actors = await fetchPpvActors(id, guid ?? undefined)
+    if (actors.length === 0) return [PPV_ADDRESSEE_REQUIRED_REMARK]
+    return []
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e)
+    return [`Не удалось проверить адресатов: ${msg}`]
+  }
+}
+
 /**
  * По очереди: логические контроли → при успехе ограничения полей (длина/шаблоны) → при успехе проверка XML по XSD на сервере.
  * Пока есть ошибки логики, блок ограничений полей не показывается (без дублирования с формулировками логики).
  * Кнопка «Валидация карты», направление сведений.
  */
-export async function validateOutgoingCardWithSchema(data: CardData): Promise<ValidationResult> {
+export async function validateOutgoingCardWithSchema(
+  data: CardData,
+  context?: { ppvid?: string | null; guid?: string | null }
+): Promise<ValidationResult> {
   const base = validateOutgoingCard(data)
-  if (!base.success) {
-    return { success: false, sections: base.sections }
+  const addresseeRemarks = await ppvAddresseeRemarks(context?.ppvid, context?.guid)
+  if (!base.success || addresseeRemarks.length > 0) {
+    const sections = [...base.sections]
+    if (addresseeRemarks.length > 0) {
+      sections.push({ sectionName: 'Адресаты', remarks: addresseeRemarks })
+    }
+    return { success: false, sections }
   }
 
   const formatResult = collectFormatValidationErrors(data)

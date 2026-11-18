@@ -81,8 +81,17 @@ public class PpvSaveServlet extends HttpServlet {
 
     /** Обновить MODIFICATIONDATETIME, ENDDATE, AUTHORITYID, страну/производителя, код ТН ВЭД и вид/наименование продукции в PPV при обновлении */
     private static final String SQL_UPDATE_DPA_MODIFIED = "UPDATE PPV SET MODIFICATIONDATETIME = SYSDATE, ENDDATE = ?, AUTHORITYID = ?, MANUFCOUNTRYID = ?, MANUFBUSENTNAME = ?, MANUFBUSENTBRIEFNAME = ?, COMMODITYCODE = ?, SANITARYPRODNAME = ?, SANITARYPRODTYPEID = ?, SANITARYPRODTYPENAME = ? WHERE PPVID = ?";
-    /** Текущий PPVSTATUSID карты (при сохранении: только Отредактировано (12) → переход в «Новое»; остальные статусы не меняются) */
-    private static final String SQL_SELECT_PPVSTATUSID = "SELECT PPVSTATUSID FROM PPV WHERE PPVID = ?";
+    /** Текущий статус карты. При сохранении «Отредактировано» и «Отправка не удалась» (FAILED) переводятся в «Новое». */
+    private static final String SQL_SELECT_PPVSTATUSID = ""
+            + "SELECT p.PPVSTATUSID, TRIM(UPPER(NVL(st.PPVSTATUSCODE, ''))) AS STCODE "
+            + "FROM PPV p "
+            + "LEFT JOIN PPVSTATUS st ON st.PPVSTATUSID = p.PPVSTATUSID "
+            + "WHERE p.PPVID = ?";
+    private static final String SQL_OUTGOING_STATUS_ID_BY_CODE = ""
+            + "SELECT PPVSTATUSID FROM PPVSTATUS "
+            + "WHERE TRIM(UPPER(PPVSTATUSCODE)) = ? "
+            + "AND TRIM(TO_CHAR(DATASOURCEKINDCODE)) = '2' "
+            + "AND PPVSTATUSACTFL = 1 AND ROWNUM = 1";
     private static final int OUTGOING_NEW = 6, OUTGOING_FAILED = 9, OUTGOING_ERROR = 10, OUTGOING_EDITED = 12;
     private static final int OUTGOING_DELIVERED = 11;
 
@@ -360,29 +369,41 @@ public class PpvSaveServlet extends HttpServlet {
                     ps.executeUpdate();
                 }
                 int currentStatusId = -1;
+                String currentStatusCode = "";
                 try (PreparedStatement ps = conn.prepareStatement(SQL_SELECT_PPVSTATUSID)) {
                     ps.setLong(1, dpaid);
                     try (ResultSet rs = ps.executeQuery()) {
-                        if (rs.next()) currentStatusId = rs.getInt(1);
+                        if (rs.next()) {
+                            currentStatusId = rs.getInt(1);
+                            String code = rs.getString("STCODE");
+                            currentStatusCode = code != null ? code.trim() : "";
+                        }
                     }
                 }
-                // Только устаревший статус «Отредактировано» (12) при сохранении переводим в «Новое» (6). Отправка не удалась / Ошибка обработки не меняются при сохранении — переход в «Новое» только по кнопке.
-                if (currentStatusId == OUTGOING_EDITED) {
-                    try (PreparedStatement ps = conn.prepareStatement("UPDATE PPV SET PPVSTATUSID = ? WHERE PPVID = ?")) {
-                        ps.setInt(1, OUTGOING_NEW);
-                        ps.setLong(2, dpaid);
-                        ps.executeUpdate();
-                    }
+                // «Отредактировано» и «Отправка не удалась» (FAILED) при сохранении → «Новое» + PPVSTATUSHIST.
+                // «Ошибка обработки» (ERROR) при сохранении не меняется.
+                boolean moveEditedToNew = "EDITED".equals(currentStatusCode) || currentStatusId == OUTGOING_EDITED;
+                boolean moveFailedToNew = "FAILED".equals(currentStatusCode)
+                        || (currentStatusCode.isEmpty() && currentStatusId == OUTGOING_FAILED);
+                String statusJson = "";
+                if (moveEditedToNew || moveFailedToNew) {
                     if (userId == null) {
                         sendJsonError(response, HttpServletResponse.SC_BAD_REQUEST, "Укажите guid в теле запроса (в карте прав должен быть атрибут userId)");
                         return;
                     }
+                    int newStatusId = resolveOutgoingNewStatusId(conn);
+                    try (PreparedStatement ps = conn.prepareStatement("UPDATE PPV SET PPVSTATUSID = ? WHERE PPVID = ?")) {
+                        ps.setInt(1, newStatusId);
+                        ps.setLong(2, dpaid);
+                        ps.executeUpdate();
+                    }
                     try (PreparedStatement ps = conn.prepareStatement(SQL_INSERT_PPVSTATUSHIST)) {
                         ps.setLong(1, dpaid);
-                        ps.setInt(2, OUTGOING_NEW);
+                        ps.setInt(2, newStatusId);
                         ps.setInt(3, userId);
                         ps.executeUpdate();
                     }
+                    statusJson = ",\"newStatusId\":" + newStatusId + ",\"newStatus\":\"Новое\"";
                 }
                 if (!syncPpvActors(conn, response, dpaid, metaBlock, docCreationDate)) {
                     DatabaseUtil.rollbackQuietly(conn);
@@ -392,7 +413,7 @@ public class PpvSaveServlet extends HttpServlet {
                 conn.commit();
                 transactionEnded = true;
                 response.setStatus(HttpServletResponse.SC_OK);
-                response.getWriter().print("{\"success\":true,\"dpaid\":" + dpaid + "}");
+                response.getWriter().print("{\"success\":true,\"dpaid\":" + dpaid + statusJson + "}");
                 System.out.println("[PpvSaveServlet] Updated PPV: PPVID=" + dpaid);
             }
         } catch (SQLException e) {
@@ -702,6 +723,20 @@ public class PpvSaveServlet extends HttpServlet {
             }
         }
         throw new SQLException("Не удалось получить следующий PPVID");
+    }
+
+    /** PPVSTATUSID «Новое» для исходящих. Если код NEW в справочнике не найден — запасной идентификатор 6. */
+    private static int resolveOutgoingNewStatusId(Connection conn) throws SQLException {
+        try (PreparedStatement ps = conn.prepareStatement(SQL_OUTGOING_STATUS_ID_BY_CODE)) {
+            ps.setString(1, "NEW");
+            try (ResultSet rs = ps.executeQuery()) {
+                if (rs.next()) {
+                    int id = rs.getInt(1);
+                    if (id > 0) return id;
+                }
+            }
+        }
+        return OUTGOING_NEW;
     }
 
     private Integer getDraftStatusId(Connection conn, String datasourceKindCode) throws SQLException {
